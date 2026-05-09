@@ -144,6 +144,7 @@ func TestConfiguredAfterClaudeRewrite(t *testing.T) {
 		"hasUsedRemoteControl": true,
 		"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
 		"remoteDialogSeen": true,
+		"theme": "auto",
 		"installMethod": "native",
 		"oauthAccount": {"emailAddress": "noah@housecat.com"}
 	}`

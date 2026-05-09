@@ -24,7 +24,8 @@ func TestMergeDefaults(t *testing.T) {
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
 				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
-				"remoteDialogSeen": true
+				"remoteDialogSeen": true,
+				"theme": "auto"
 			}`,
 		},
 		{
@@ -55,18 +56,20 @@ func TestMergeDefaults(t *testing.T) {
 					"/home/me": {"hasTrustDialogAccepted": true},
 					"/home/exedev": {"hasTrustDialogAccepted": true}
 				},
-				"remoteDialogSeen": true
+				"remoteDialogSeen": true,
+				"theme": "auto"
 			}`,
 		},
 		{
 			name:     "preserves existing top-level scalar",
-			existing: `{"hasUsedRemoteControl": false}`,
+			existing: `{"theme": "dark"}`,
 			defaults: claudeJSONDefaults,
 			want: `{
 				"hasCompletedOnboarding": true,
-				"hasUsedRemoteControl": false,
+				"hasUsedRemoteControl": true,
 				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
-				"remoteDialogSeen": true
+				"remoteDialogSeen": true,
+				"theme": "dark"
 			}`,
 		},
 		{
