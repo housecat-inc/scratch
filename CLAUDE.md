@@ -13,4 +13,6 @@
 
 ## Pull Requests
 
-PR must be formatted as release notes with max 80 char `title`, and list of customer-facing changes in `body`. Do not add `Generated with Claude Code` to the body.
+PR must be formatted as customer-facing release notes with max 80 char title, and list of high level changes in body.
+
+Do not document low level code changes, do not add Generated with Claude Code to the body.
