@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/cockroachdb/errors"
-	"github.com/nzoschke/medan/pkg/harness/claudecode/remote"
+	"github.com/housecat-inc/scratch/pkg/harness/claudecode/remote"
 	"github.com/spf13/cobra"
 )
 

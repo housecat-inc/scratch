@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/cockroachdb/errors"
-	"github.com/nzoschke/medan/pkg/harness/claudecode"
+	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
 )
 
 //go:embed templates/*.html

@@ -1,4 +1,4 @@
-module github.com/nzoschke/medan
+module github.com/housecat-inc/scratch
 
 go 1.26.3
 
