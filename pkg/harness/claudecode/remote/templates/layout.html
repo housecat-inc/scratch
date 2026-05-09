@@ -8,7 +8,7 @@
     body { font-family: -apple-system, system-ui, sans-serif; max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
     h1 { margin-bottom: 1.5rem; }
     .checklist { list-style: none; padding: 0; margin: 0; }
-    .step { display: flex; gap: 1rem; padding: 1rem 1.25rem; border-radius: 8px; margin: 0.5rem 0; transition: background 0.15s; }
+    .step { display: flex; gap: 1rem; align-items: flex-start; padding: 1rem 1.25rem; border-radius: 8px; margin: 0.5rem 0; transition: background 0.15s; }
     .step.done { background: #f0f9f1; }
     .step.active { background: #fffaf0; border: 1px solid #f0c98a; }
     .step.pending { opacity: 0.5; }
@@ -18,7 +18,7 @@
     .step.active .check { background: white; border: 2px solid #f0c98a; }
     .step.pending .check { background: white; border: 2px solid #ccc; }
     .body { flex: 1; min-width: 0; }
-    .title { font-weight: 600; font-size: 1.05rem; }
+    .title { font-weight: 600; font-size: 1.05rem; line-height: 28px; }
     .hint { color: #666; font-size: 0.9rem; margin: 0.4rem 0 0.75rem; }
     button { padding: 0.5rem 0.9rem; font-size: 1rem; cursor: pointer; }
     button[disabled] { opacity: 0.5; cursor: not-allowed; }
