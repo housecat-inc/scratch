@@ -21,12 +21,10 @@ func TestMergeDefaults(t *testing.T) {
 			name:     "creates claude.json with all defaults",
 			defaults: claudeJSONDefaults,
 			want: `{
-				"customApiKeyResponses": {"approved": [], "rejected": []},
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
 				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
-				"remoteDialogSeen": true,
-				"theme": "auto"
+				"remoteDialogSeen": true
 			}`,
 		},
 		{
@@ -51,28 +49,24 @@ func TestMergeDefaults(t *testing.T) {
 			existing: `{"projects": {"/home/me": {"hasTrustDialogAccepted": true}}}`,
 			defaults: claudeJSONDefaults,
 			want: `{
-				"customApiKeyResponses": {"approved": [], "rejected": []},
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
 				"projects": {
 					"/home/me": {"hasTrustDialogAccepted": true},
 					"/home/exedev": {"hasTrustDialogAccepted": true}
 				},
-				"remoteDialogSeen": true,
-				"theme": "auto"
+				"remoteDialogSeen": true
 			}`,
 		},
 		{
 			name:     "preserves existing top-level scalar",
-			existing: `{"theme": "dark"}`,
+			existing: `{"hasUsedRemoteControl": false}`,
 			defaults: claudeJSONDefaults,
 			want: `{
-				"customApiKeyResponses": {"approved": [], "rejected": []},
 				"hasCompletedOnboarding": true,
-				"hasUsedRemoteControl": true,
+				"hasUsedRemoteControl": false,
 				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
-				"remoteDialogSeen": true,
-				"theme": "dark"
+				"remoteDialogSeen": true
 			}`,
 		},
 		{
@@ -89,7 +83,6 @@ func TestMergeDefaults(t *testing.T) {
 			existing: `{"theme": "auto", "someFutureField": [1, 2, 3]}`,
 			defaults: claudeJSONDefaults,
 			want: `{
-				"customApiKeyResponses": {"approved": [], "rejected": []},
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
 				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},

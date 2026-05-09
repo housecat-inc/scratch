@@ -129,6 +129,31 @@ func TestConfiguredAt(t *testing.T) {
 	}
 }
 
+func TestConfiguredAfterClaudeRewrite(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	home := t.TempDir()
+	r.NoError(os.MkdirAll(filepath.Join(home, ".claude"), 0o755))
+
+	r.NoError(MergeDefaults(filepath.Join(home, ".claude.json"), claudeJSONDefaults))
+	r.NoError(MergeDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults))
+
+	rewritten := `{
+		"hasCompletedOnboarding": true,
+		"hasUsedRemoteControl": true,
+		"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
+		"remoteDialogSeen": true,
+		"installMethod": "native",
+		"oauthAccount": {"emailAddress": "noah@housecat.com"}
+	}`
+	r.NoError(os.WriteFile(filepath.Join(home, ".claude.json"), []byte(rewritten), 0o644))
+
+	ok, err := ConfiguredAt(home)
+	r.NoError(err)
+	a.True(ok, "Configured should stay true after claude rewrites .claude.json")
+}
+
 func TestHasDefaults(t *testing.T) {
 	tests := []struct {
 		defaults any

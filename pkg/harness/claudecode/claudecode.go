@@ -12,17 +12,10 @@ import (
 const installScriptURL = "https://claude.ai/install.sh"
 
 type ClaudeConfig struct {
-	CustomAPIKeyResponses  CustomAPIKeyResponses `json:"customApiKeyResponses"`
-	HasCompletedOnboarding bool                  `json:"hasCompletedOnboarding"`
-	HasUsedRemoteControl   bool                  `json:"hasUsedRemoteControl"`
-	Projects               map[string]Project    `json:"projects"`
-	RemoteDialogSeen       bool                  `json:"remoteDialogSeen"`
-	Theme                  string                `json:"theme"`
-}
-
-type CustomAPIKeyResponses struct {
-	Approved []string `json:"approved"`
-	Rejected []string `json:"rejected"`
+	HasCompletedOnboarding bool               `json:"hasCompletedOnboarding"`
+	HasUsedRemoteControl   bool               `json:"hasUsedRemoteControl"`
+	Projects               map[string]Project `json:"projects"`
+	RemoteDialogSeen       bool               `json:"remoteDialogSeen"`
 }
 
 type Permissions struct {
@@ -39,17 +32,12 @@ type Settings struct {
 }
 
 var claudeJSONDefaults = ClaudeConfig{
-	CustomAPIKeyResponses: CustomAPIKeyResponses{
-		Approved: []string{},
-		Rejected: []string{},
-	},
 	HasCompletedOnboarding: true,
 	HasUsedRemoteControl:   true,
 	Projects: map[string]Project{
 		"/home/exedev": {HasTrustDialogAccepted: true},
 	},
 	RemoteDialogSeen: true,
-	Theme:            "auto",
 }
 
 var settingsDefaults = Settings{
