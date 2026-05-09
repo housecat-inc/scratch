@@ -68,7 +68,7 @@ func (m *Manager) Start(name, dir string) (*Session, error) {
 
 	id := randomID()
 	tmuxName := "claude-" + id
-	args := []string{"new-session", "-d", "-s", tmuxName, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "remote-control", "--name", name}
+	args := []string{"new-session", "-d", "-s", tmuxName, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control"}
 	if out, err := exec.Command(m.TmuxBin, args...).CombinedOutput(); err != nil {
 		return nil, errors.Wrapf(err, "tmux new-session: %s", string(out))
 	}
