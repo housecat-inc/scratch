@@ -1,0 +1,170 @@
+package claudecode
+
+import (
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/cockroachdb/errors"
+)
+
+const installScriptURL = "https://claude.ai/install.sh"
+
+type ClaudeConfig struct {
+	CustomAPIKeyResponses  CustomAPIKeyResponses `json:"customApiKeyResponses"`
+	HasCompletedOnboarding bool                  `json:"hasCompletedOnboarding"`
+	HasUsedRemoteControl   bool                  `json:"hasUsedRemoteControl"`
+	Projects               map[string]Project    `json:"projects"`
+	RemoteDialogSeen       bool                  `json:"remoteDialogSeen"`
+	Theme                  string                `json:"theme"`
+}
+
+type CustomAPIKeyResponses struct {
+	Approved []string `json:"approved"`
+	Rejected []string `json:"rejected"`
+}
+
+type Permissions struct {
+	DefaultMode string `json:"defaultMode"`
+}
+
+type Project struct {
+	HasTrustDialogAccepted bool `json:"hasTrustDialogAccepted"`
+}
+
+type Settings struct {
+	Permissions                       Permissions `json:"permissions"`
+	SkipDangerousModePermissionPrompt bool        `json:"skipDangerousModePermissionPrompt"`
+}
+
+var claudeJSONDefaults = ClaudeConfig{
+	CustomAPIKeyResponses: CustomAPIKeyResponses{
+		Approved: []string{},
+		Rejected: []string{},
+	},
+	HasCompletedOnboarding: true,
+	HasUsedRemoteControl:   true,
+	Projects: map[string]Project{
+		"/home/exedev": {HasTrustDialogAccepted: true},
+	},
+	RemoteDialogSeen: true,
+	Theme:            "auto",
+}
+
+var settingsDefaults = Settings{
+	Permissions:                       Permissions{DefaultMode: "bypassPermissions"},
+	SkipDangerousModePermissionPrompt: true,
+}
+
+func EnsureInstalled() error {
+	if _, err := exec.LookPath("claude"); err == nil {
+		return run("claude", "update")
+	}
+	return run("sh", "-c", "curl -fsSL "+installScriptURL+" | bash")
+}
+
+func MergeDefaults(path string, defaults any) error {
+	defaultsMap, err := toMap(defaults)
+	if err != nil {
+		return errors.Wrap(err, "encode defaults")
+	}
+
+	current, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+
+	if !mergeMissing(current, defaultsMap) {
+		return nil
+	}
+
+	return writeJSONObject(path, current)
+}
+
+func Setup() error {
+	if err := EnsureInstalled(); err != nil {
+		return err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return errors.Wrap(err, "user home dir")
+	}
+	if err := MergeDefaults(filepath.Join(home, ".claude.json"), claudeJSONDefaults); err != nil {
+		return err
+	}
+	return MergeDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults)
+}
+
+func mergeMissing(dst, defaults map[string]any) bool {
+	changed := false
+	for k, dv := range defaults {
+		cv, ok := dst[k]
+		if !ok {
+			dst[k] = dv
+			changed = true
+			continue
+		}
+		dvMap, dvIsMap := dv.(map[string]any)
+		cvMap, cvIsMap := cv.(map[string]any)
+		if dvIsMap && cvIsMap && mergeMissing(cvMap, dvMap) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+func readJSONObject(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, errors.Wrapf(err, "read %s", path)
+	}
+	if len(data) == 0 {
+		return map[string]any{}, nil
+	}
+	out := map[string]any{}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, errors.Wrapf(err, "parse %s", path)
+	}
+	return out, nil
+}
+
+func run(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return errors.Wrapf(err, "run %s", name)
+	}
+	return nil
+}
+
+func toMap(v any) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func writeJSONObject(path string, v map[string]any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return errors.Wrapf(err, "mkdir %s", filepath.Dir(path))
+	}
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return errors.Wrap(err, "encode json")
+	}
+	out = append(out, '\n')
+	if err := os.WriteFile(path, out, 0o644); err != nil {
+		return errors.Wrapf(err, "write %s", path)
+	}
+	return nil
+}
