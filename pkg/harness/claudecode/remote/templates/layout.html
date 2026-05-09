@@ -27,7 +27,21 @@
     .url a, .copy { display: inline-block; padding: 0.5rem 0.75rem; background: #f4f4f4; border: 0; border-radius: 4px; text-decoration: none; color: #0066cc; font-size: 0.9rem; cursor: pointer; }
     .url a:hover, .copy:hover { background: #e8e8e8; }
     form { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .session-form { flex-wrap: wrap; }
+    .session-form input[type=text] { flex: 1; min-width: 8rem; }
     input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; }
+    .sessions { list-style: none; padding: 0; margin: 0.5rem 0; }
+    .sessions li { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.75rem; border: 1px solid #e2e2e2; border-radius: 6px; margin: 0.5rem 0; }
+    .sessions .qr { width: 96px; height: 96px; flex-shrink: 0; border: 1px solid #ddd; background: white; }
+    .sessions .meta { flex: 1; min-width: 0; }
+    .sessions .name { font-weight: 600; }
+    .sessions .dir { color: #666; font-size: 0.85rem; }
+    .sessions .session-url { display: block; word-break: break-all; font-size: 0.85rem; color: #0066cc; margin-top: 0.25rem; }
+    .sessions .actions { display: flex; flex-direction: column; gap: 0.35rem; flex-shrink: 0; }
+    .sessions .actions .copy, .sessions .actions .stop { font-size: 0.85rem; padding: 0.35rem 0.6rem; border-radius: 4px; cursor: pointer; }
+    .sessions .actions .copy { background: #f4f4f4; color: #0066cc; border: 1px solid #ddd; }
+    .sessions .actions .copy:hover { background: #e8e8e8; }
+    .sessions .stop { background: #fee; color: #b00020; border: 1px solid #fbb; }
   </style>
 </head>
 <body>
@@ -37,13 +51,14 @@
     {{template "configure-card" .}}
     {{template "login-card" .}}
   </ol>
+  {{template "sessions-card" .}}
 </body>
 </html>{{end}}
 
 {{define "install-card"}}<li class="step {{if .Installed}}done{{else}}active{{end}}" id="card-install"{{if .Oob}} hx-swap-oob="true"{{end}}>
   <span class="check"></span>
   <div class="body">
-    <div class="title">Install claude</div>
+    <div class="title">Install</div>
     {{if not .Installed}}
       <div class="hint">Run claude.ai/install.sh</div>
       <button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this">Install</button>
@@ -55,7 +70,7 @@
 {{define "configure-card"}}<li class="step {{if .Configured}}done{{else if .Installed}}active{{else}}pending{{end}}" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
   <span class="check"></span>
   <div class="body">
-    <div class="title">Unleash claude</div>
+    <div class="title">Unleash</div>
     {{if and (not .Configured) .Installed}}
       <div class="hint">Update settings to remove prompts</div>
       <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Unleash</button>
@@ -67,7 +82,7 @@
 {{define "login-card"}}<li class="step {{if .Authenticated}}done{{else if .Configured}}active{{else}}pending{{end}}" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
   <span class="check"></span>
   <div class="body">
-    <div class="title">Pay claude</div>
+    <div class="title">Pay</div>
     {{if not .Authenticated}}
       {{if .LoginURL}}
         <div class="hint">Open the authorize page and paste the code below</div>
@@ -87,3 +102,36 @@
     {{if .LoginError}}<div class="err">{{.LoginError}}</div>{{end}}
   </div>
 </li>{{end}}
+
+{{define "sessions-card"}}<section id="card-sessions"{{if .Oob}} hx-swap-oob="true"{{end}}>
+  {{if .Authenticated}}
+    <h2 style="margin-top:2rem;font-size:1.1rem;">Remote control sessions</h2>
+    <p class="hint" style="margin:0.25rem 0 0.75rem;">Spawn <code>claude remote-control</code> in a tmux session and open the URL on any device.</p>
+    {{if .Sessions}}
+      <ul class="sessions">
+        {{range .Sessions}}
+          <li id="session-{{.ID}}">
+            <img class="qr" src="/sessions/{{.ID}}/qr" alt="QR code for {{.Name}}">
+            <div class="meta">
+              <div class="name">{{.Name}}</div>
+              <div class="dir">{{.Dir}}</div>
+              <a class="session-url" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>
+            </div>
+            <div class="actions">
+              <button type="button" class="copy" data-url="{{.URL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy URL</button>
+              <button class="stop" hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
+            </div>
+          </li>
+        {{end}}
+      </ul>
+    {{else}}
+      <p class="hint">No sessions running.</p>
+    {{end}}
+    <form class="session-form" hx-post="/sessions" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <input type="text" name="dir" placeholder="working directory" value="{{.SessionDir}}" required>
+      <input type="text" name="name" placeholder="name (optional)" autocomplete="off">
+      <button type="submit">Start session</button>
+    </form>
+    {{if .SessionError}}<div class="err">{{.SessionError}}</div>{{end}}
+  {{end}}
+</section>{{end}}

@@ -16,13 +16,19 @@ import (
 //go:embed templates/*.html
 var templatesFS embed.FS
 
+const defaultSessionDir = "/home/exedev"
+
 type Deps struct {
 	Authenticated func() (bool, error)
 	Configure     func() error
 	Configured    func() (bool, error)
 	Install       func() error
 	Installed     func() bool
+	ListSessions  func() []*claudecode.Session
+	SessionQR     func(id string) ([]byte, error)
 	StartLogin    func() (Login, error)
+	StartSession  func(name, dir string) (*claudecode.Session, error)
+	StopSession   func(id string) error
 }
 
 type Login interface {
@@ -47,18 +53,32 @@ type viewModel struct {
 	LoginError     string
 	LoginURL       string
 	Oob            bool
+	SessionDir     string
+	SessionError   string
+	Sessions       []*claudecode.Session
 }
 
 func DefaultDeps() Deps {
+	mgr := claudecode.NewManager()
 	return Deps{
 		Authenticated: claudecode.Authenticated,
 		Configure:     claudecode.WriteDefaults,
 		Configured:    claudecode.Configured,
 		Install:       claudecode.EnsureInstalled,
 		Installed:     claudecode.Installed,
+		ListSessions:  mgr.List,
+		SessionQR: func(id string) ([]byte, error) {
+			s := mgr.Get(id)
+			if s == nil {
+				return nil, errors.New("session not found")
+			}
+			return s.QRPNG(256)
+		},
 		StartLogin: func() (Login, error) {
 			return claudecode.StartLogin()
 		},
+		StartSession: mgr.Start,
+		StopSession:  mgr.Stop,
 	}
 }
 
@@ -77,6 +97,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /install", s.handleInstall)
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("POST /login/code", s.handleLoginCode)
+	mux.HandleFunc("DELETE /sessions/{id}", s.handleSessionStop)
+	mux.HandleFunc("GET /sessions/{id}/qr", s.handleSessionQR)
+	mux.HandleFunc("POST /sessions", s.handleSessionStart)
 	return logging(mux)
 }
 
@@ -203,7 +226,72 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	slog.Info("login succeeded")
 	vm = s.viewModel()
 	vm.Authenticated = true
-	s.render(w, "login-card", vm)
+	s.renderCascade(w, "login-card", vm, "sessions-card")
+}
+
+func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
+	vm := s.viewModel()
+	if s.deps.StartSession == nil {
+		vm.SessionError = "sessions are not enabled"
+		s.render(w, "sessions-card", vm)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		vm.SessionError = err.Error()
+		s.render(w, "sessions-card", vm)
+		return
+	}
+	dir := strings.TrimSpace(r.FormValue("dir"))
+	name := strings.TrimSpace(r.FormValue("name"))
+	if dir == "" {
+		dir = defaultSessionDir
+	}
+	vm.SessionDir = dir
+
+	sess, err := s.deps.StartSession(name, dir)
+	if err != nil {
+		slog.Error("start session failed", "error", err.Error())
+		vm.SessionError = err.Error()
+		s.render(w, "sessions-card", vm)
+		return
+	}
+	slog.Info("session started", "id", sess.ID, "url", sess.URL)
+	vm = s.viewModel()
+	vm.SessionDir = dir
+	s.render(w, "sessions-card", vm)
+}
+
+func (s *Server) handleSessionStop(w http.ResponseWriter, r *http.Request) {
+	vm := s.viewModel()
+	if s.deps.StopSession == nil {
+		vm.SessionError = "sessions are not enabled"
+		s.render(w, "sessions-card", vm)
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.deps.StopSession(id); err != nil {
+		slog.Error("stop session failed", "id", id, "error", err.Error())
+		vm.SessionError = err.Error()
+		s.render(w, "sessions-card", vm)
+		return
+	}
+	slog.Info("session stopped", "id", id)
+	s.render(w, "sessions-card", s.viewModel())
+}
+
+func (s *Server) handleSessionQR(w http.ResponseWriter, r *http.Request) {
+	if s.deps.SessionQR == nil {
+		http.NotFound(w, r)
+		return
+	}
+	png, err := s.deps.SessionQR(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Content-Type", "image/png")
+	_, _ = w.Write(png)
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, vm viewModel) {
@@ -229,7 +317,7 @@ func (s *Server) renderCascade(w http.ResponseWriter, primary string, vm viewMod
 }
 
 func (s *Server) viewModel() viewModel {
-	vm := viewModel{Installed: s.deps.Installed()}
+	vm := viewModel{Installed: s.deps.Installed(), SessionDir: defaultSessionDir}
 	if ok, err := s.deps.Configured(); err == nil {
 		vm.Configured = ok
 	}
@@ -242,5 +330,9 @@ func (s *Server) viewModel() viewModel {
 		vm.LoginURL = s.login.URL()
 	}
 	s.mu.Unlock()
+
+	if s.deps.ListSessions != nil {
+		vm.Sessions = s.deps.ListSessions()
+	}
 	return vm
 }
