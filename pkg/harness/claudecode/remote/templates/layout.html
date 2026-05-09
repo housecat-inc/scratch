@@ -5,70 +5,80 @@
   <title>claude-control</title>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <style>
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { margin-bottom: 1rem; }
-    .card { border: 1px solid #ccc; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0; }
-    .card h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
-    .card .status { font-weight: 600; }
-    .card .ok { color: #0a7d2c; }
-    .card .pending { color: #b35900; }
-    .card .err { color: #b00020; margin-top: 0.5rem; white-space: pre-wrap; }
-    .card .hint { color: #666; font-size: 0.9rem; margin: 0.25rem 0 0.75rem; }
-    .card button { padding: 0.5rem 0.9rem; font-size: 1rem; cursor: pointer; }
-    .card button[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .card .url { word-break: break-all; background: #f4f4f4; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; }
-    .card form { margin-top: 0.75rem; display: flex; gap: 0.5rem; }
-    .card input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; }
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { margin-bottom: 1.5rem; }
+    .checklist { list-style: none; padding: 0; margin: 0; }
+    .step { display: flex; gap: 1rem; padding: 1rem 1.25rem; border-radius: 8px; margin: 0.5rem 0; transition: background 0.15s; }
+    .step.done { background: #f0f9f1; }
+    .step.active { background: #fffaf0; border: 1px solid #f0c98a; }
+    .step.pending { opacity: 0.5; }
+    .check { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; font-weight: 700; font-size: 0.95rem; line-height: 1; }
+    .step.done .check { background: #0a7d2c; color: white; }
+    .step.done .check::before { content: "✓"; }
+    .step.active .check { background: white; border: 2px solid #f0c98a; }
+    .step.pending .check { background: white; border: 2px solid #ccc; }
+    .body { flex: 1; min-width: 0; }
+    .title { font-weight: 600; font-size: 1.05rem; }
+    .hint { color: #666; font-size: 0.9rem; margin: 0.4rem 0 0.75rem; }
+    button { padding: 0.5rem 0.9rem; font-size: 1rem; cursor: pointer; }
+    button[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .err { color: #b00020; margin-top: 0.5rem; white-space: pre-wrap; font-size: 0.9rem; }
+    .url { word-break: break-all; background: #f4f4f4; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; margin: 0.5rem 0; }
+    form { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; }
   </style>
 </head>
 <body>
   <h1>claude-control</h1>
-  {{template "install-card" .}}
-  {{template "configure-card" .}}
-  {{template "login-card" .}}
+  <ol class="checklist">
+    {{template "install-card" .}}
+    {{template "configure-card" .}}
+    {{template "login-card" .}}
+  </ol>
 </body>
 </html>{{end}}
 
-{{define "install-card"}}<div class="card" id="card-install"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  <h2>1. Install claude</h2>
-  {{if .Installed}}
-    <div class="status ok">installed</div>
-  {{else}}
-    <div class="status pending">not installed</div>
-    <div class="hint">Downloads and runs the official installer from claude.ai/install.sh.</div>
-    <button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this">Install</button>
-  {{end}}
-  {{if .InstallError}}<div class="err">{{.InstallError}}</div>{{end}}
-</div>{{end}}
+{{define "install-card"}}<li class="step {{if .Installed}}done{{else}}active{{end}}" id="card-install"{{if .Oob}} hx-swap-oob="true"{{end}}>
+  <span class="check"></span>
+  <div class="body">
+    <div class="title">Install claude</div>
+    {{if not .Installed}}
+      <div class="hint">Downloads and runs the official installer from claude.ai/install.sh.</div>
+      <button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this">Install</button>
+    {{end}}
+    {{if .InstallError}}<div class="err">{{.InstallError}}</div>{{end}}
+  </div>
+</li>{{end}}
 
-{{define "configure-card"}}<div class="card" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  <h2>2. Unleash claude</h2>
-  {{if .Configured}}
-    <div class="status ok">unleashed</div>
-  {{else}}
-    <div class="status pending">not unleashed</div>
-    <div class="hint">Writes ~/.claude.json and ~/.claude/settings.json with bypassPermissions defaults.</div>
-    <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Installed}}disabled{{end}}>Unleash</button>
-  {{end}}
-  {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
-</div>{{end}}
+{{define "configure-card"}}<li class="step {{if .Configured}}done{{else if .Installed}}active{{else}}pending{{end}}" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
+  <span class="check"></span>
+  <div class="body">
+    <div class="title">Unleash claude</div>
+    {{if and (not .Configured) .Installed}}
+      <div class="hint">Writes ~/.claude.json and ~/.claude/settings.json with bypassPermissions defaults.</div>
+      <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Unleash</button>
+    {{end}}
+    {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
+  </div>
+</li>{{end}}
 
-{{define "login-card"}}<div class="card" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  <h2>3. Connect subscription</h2>
-  {{if .Authenticated}}
-    <div class="status ok">connected</div>
-  {{else if .LoginURL}}
-    <div class="status pending">awaiting code</div>
-    <div class="hint">Open this URL, authorize, then paste the code below.</div>
-    <div class="url"><a href="{{.LoginURL}}" target="_blank" rel="noopener">{{.LoginURL}}</a></div>
-    <form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML">
-      <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required>
-      <button type="submit">Submit</button>
-    </form>
-  {{else}}
-    <div class="status pending">not connected</div>
-    <div class="hint">Starts <code>claude auth login --claudeai</code> and shows the login URL.</div>
-    <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Configured}}disabled{{end}}>Connect</button>
-  {{end}}
-  {{if .LoginError}}<div class="err">{{.LoginError}}</div>{{end}}
-</div>{{end}}
+{{define "login-card"}}<li class="step {{if .Authenticated}}done{{else if .Configured}}active{{else}}pending{{end}}" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
+  <span class="check"></span>
+  <div class="body">
+    <div class="title">Connect subscription</div>
+    {{if not .Authenticated}}
+      {{if .LoginURL}}
+        <div class="hint">Open this URL, authorize, then paste the code below.</div>
+        <div class="url"><a href="{{.LoginURL}}" target="_blank" rel="noopener">{{.LoginURL}}</a></div>
+        <form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML">
+          <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required>
+          <button type="submit">Submit</button>
+        </form>
+      {{else if .Configured}}
+        <div class="hint">Starts <code>claude auth login --claudeai</code> and shows the login URL.</div>
+        <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this">Connect</button>
+      {{end}}
+    {{end}}
+    {{if .LoginError}}<div class="err">{{.LoginError}}</div>{{end}}
+  </div>
+</li>{{end}}
