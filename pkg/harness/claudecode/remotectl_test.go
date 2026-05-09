@@ -166,7 +166,7 @@ case "$SUB" in
       case "$1" in
         -d) shift;;
         -s) NAME=$2; shift 2;;
-        -c) shift 2;;
+        -c|-x|-y) shift 2;;
         *) break;;
       esac
     done
@@ -179,6 +179,7 @@ case "$SUB" in
     while [ $# -gt 0 ]; do
       case "$1" in
         -t) NAME=$2; shift 2;;
+        -p|-J) shift;;
         *) shift;;
       esac
     done

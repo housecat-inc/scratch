@@ -68,7 +68,7 @@ func (m *Manager) Start(name, dir string) (*Session, error) {
 
 	id := randomID()
 	tmuxName := "claude-" + id
-	args := []string{"new-session", "-d", "-s", tmuxName, "-c", dir, m.ClaudeBin, "remote-control", "--name", name}
+	args := []string{"new-session", "-d", "-s", tmuxName, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "remote-control", "--name", name}
 	if out, err := exec.Command(m.TmuxBin, args...).CombinedOutput(); err != nil {
 		return nil, errors.Wrapf(err, "tmux new-session: %s", string(out))
 	}
@@ -144,16 +144,25 @@ func (m *Manager) waitForURL(tmuxName string) (string, error) {
 		timeout = defaultStartTimeout
 	}
 	deadline := time.Now().Add(timeout)
+	var lastOut []byte
 	for time.Now().Before(deadline) {
-		out, err := exec.Command(m.TmuxBin, "capture-pane", "-t", tmuxName, "-p").Output()
+		out, err := exec.Command(m.TmuxBin, "capture-pane", "-t", tmuxName, "-p", "-J").Output()
 		if err == nil {
+			lastOut = out
 			if match := urlRegex.Find(out); match != nil {
 				return string(match), nil
 			}
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return "", errors.New("timed out waiting for remote-control URL")
+	return "", errors.Newf("timed out waiting for remote-control URL; pane: %s", tail(string(lastOut), 400))
+}
+
+func tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return "…" + s[len(s)-n:]
 }
 
 func (s *Session) QRPNG(size int) ([]byte, error) {
