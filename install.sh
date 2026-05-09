@@ -2,7 +2,7 @@
 set -eu
 
 REPO="housecat-inc/scratch"
-BIN="${BIN:-${1:-claude-remote}}"
+BIN="${BIN:-${1:-claude-control}}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')

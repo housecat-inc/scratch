@@ -82,27 +82,27 @@ func TestIndex(t *testing.T) {
 		{
 			name:     "fresh state shows install button",
 			fake:     fakeDeps{},
-			mustHave: []string{"not installed", `hx-post="/install"`, "1. Install claude"},
+			mustHave: []string{"not installed", `hx-post="/install"`, "1. Install claude", "2. Unleash claude", "3. Connect subscription", "claude-control"},
 		},
 		{
-			name:     "installed but not configured",
+			name:     "installed but not unleashed",
 			fake:     fakeDeps{installed: true},
-			mustHave: []string{"installed", `hx-post="/configure"`, "not configured"},
+			mustHave: []string{"installed", `hx-post="/configure"`, "not unleashed"},
 		},
 		{
-			name:     "installed and configured shows enabled login",
+			name:     "installed and unleashed shows enabled connect",
 			fake:     fakeDeps{installed: true, configured: true},
-			mustHave: []string{`hx-post="/login"`},
+			mustHave: []string{`hx-post="/login"`, "unleashed", "not connected"},
 			mustMiss: []string{`hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this" disabled`},
 		},
 		{
-			name:     "all done shows authenticated",
+			name:     "all done shows connected",
 			fake:     fakeDeps{installed: true, configured: true, authenticated: true},
-			mustHave: []string{"authenticated"},
+			mustHave: []string{"connected"},
 			mustMiss: []string{`hx-post="/login"`},
 		},
 		{
-			name:     "configure disabled when not installed",
+			name:     "unleash disabled when not installed",
 			fake:     fakeDeps{},
 			mustHave: []string{`hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this" disabled`},
 		},
@@ -136,16 +136,24 @@ func TestInstall(t *testing.T) {
 	tests := []struct {
 		err      error
 		mustHave []string
+		mustMiss []string
 		name     string
 	}{
 		{
-			name:     "success swaps to installed card",
-			mustHave: []string{`id="card-install"`, "installed"},
+			name: "success swaps install card and OOB-refreshes configure card",
+			mustHave: []string{
+				`id="card-install"`,
+				"installed",
+				`id="card-configure" hx-swap-oob="true"`,
+				`hx-post="/configure"`,
+			},
+			mustMiss: []string{`hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this" disabled`},
 		},
 		{
 			name:     "error renders error message",
 			err:      errors.New("boom"),
 			mustHave: []string{"boom"},
+			mustMiss: []string{`hx-swap-oob`},
 		},
 	}
 
@@ -163,8 +171,12 @@ func TestInstall(t *testing.T) {
 			s.Handler().ServeHTTP(rec, req)
 
 			a.Equal(http.StatusOK, rec.Code)
+			body := rec.Body.String()
 			for _, want := range tc.mustHave {
-				a.Contains(rec.Body.String(), want)
+				a.Contains(body, want)
+			}
+			for _, miss := range tc.mustMiss {
+				a.NotContains(body, miss)
 			}
 		})
 	}
@@ -183,7 +195,11 @@ func TestConfigure(t *testing.T) {
 	s.Handler().ServeHTTP(rec, req)
 
 	a.Equal(http.StatusOK, rec.Code)
-	a.Contains(rec.Body.String(), "configured")
+	body := rec.Body.String()
+	a.Contains(body, "unleashed")
+	a.Contains(body, `id="card-login" hx-swap-oob="true"`)
+	a.Contains(body, `hx-post="/login"`)
+	a.NotContains(body, `hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this" disabled`)
 	a.Equal(1, fd.configureCalls)
 	a.True(fd.configured)
 }
@@ -220,7 +236,7 @@ func TestLoginFlow(t *testing.T) {
 	a.Equal(http.StatusOK, rec.Code)
 	a.Equal("abc", fl.submitted)
 	a.True(fl.closed)
-	a.Contains(rec.Body.String(), "authenticated")
+	a.Contains(rec.Body.String(), "connected")
 }
 
 func TestLoginCodeInvalid(t *testing.T) {

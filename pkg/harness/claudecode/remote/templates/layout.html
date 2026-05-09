@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>claude-remote</title>
+  <title>claude-control</title>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
@@ -22,14 +22,14 @@
   </style>
 </head>
 <body>
-  <h1>claude-remote</h1>
+  <h1>claude-control</h1>
   {{template "install-card" .}}
   {{template "configure-card" .}}
   {{template "login-card" .}}
 </body>
 </html>{{end}}
 
-{{define "install-card"}}<div class="card" id="card-install">
+{{define "install-card"}}<div class="card" id="card-install"{{if .Oob}} hx-swap-oob="true"{{end}}>
   <h2>1. Install claude</h2>
   {{if .Installed}}
     <div class="status ok">installed</div>
@@ -41,22 +41,22 @@
   {{if .InstallError}}<div class="err">{{.InstallError}}</div>{{end}}
 </div>{{end}}
 
-{{define "configure-card"}}<div class="card" id="card-configure">
-  <h2>2. Configure non-interactive settings</h2>
+{{define "configure-card"}}<div class="card" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
+  <h2>2. Unleash claude</h2>
   {{if .Configured}}
-    <div class="status ok">configured</div>
+    <div class="status ok">unleashed</div>
   {{else}}
-    <div class="status pending">not configured</div>
-    <div class="hint">Writes ~/.claude.json and ~/.claude/settings.json defaults.</div>
-    <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Installed}}disabled{{end}}>Configure</button>
+    <div class="status pending">not unleashed</div>
+    <div class="hint">Writes ~/.claude.json and ~/.claude/settings.json with bypassPermissions defaults.</div>
+    <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Installed}}disabled{{end}}>Unleash</button>
   {{end}}
   {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
 </div>{{end}}
 
-{{define "login-card"}}<div class="card" id="card-login">
-  <h2>3. Log in</h2>
+{{define "login-card"}}<div class="card" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
+  <h2>3. Connect subscription</h2>
   {{if .Authenticated}}
-    <div class="status ok">authenticated</div>
+    <div class="status ok">connected</div>
   {{else if .LoginURL}}
     <div class="status pending">awaiting code</div>
     <div class="hint">Open this URL, authorize, then paste the code below.</div>
@@ -66,9 +66,9 @@
       <button type="submit">Submit</button>
     </form>
   {{else}}
-    <div class="status pending">not authenticated</div>
+    <div class="status pending">not connected</div>
     <div class="hint">Starts <code>claude auth login --claudeai</code> and shows the login URL.</div>
-    <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Configured}}disabled{{end}}>Log in</button>
+    <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Configured}}disabled{{end}}>Connect</button>
   {{end}}
   {{if .LoginError}}<div class="err">{{.LoginError}}</div>{{end}}
 </div>{{end}}

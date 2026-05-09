@@ -44,6 +44,7 @@ type viewModel struct {
 	Installed      bool
 	LoginError     string
 	LoginURL       string
+	Oob            bool
 }
 
 func DefaultDeps() Deps {
@@ -84,8 +85,8 @@ func (s *Server) handleConfigure(w http.ResponseWriter, r *http.Request) {
 		s.render(w, "configure-card", vm)
 		return
 	}
-	vm.Configured = true
-	s.render(w, "configure-card", vm)
+	vm = s.viewModel()
+	s.renderCascade(w, "configure-card", vm, "login-card")
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -99,8 +100,8 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 		s.render(w, "install-card", vm)
 		return
 	}
-	vm.Installed = true
-	s.render(w, "install-card", vm)
+	vm = s.viewModel()
+	s.renderCascade(w, "install-card", vm, "configure-card")
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -174,6 +175,21 @@ func (s *Server) render(w http.ResponseWriter, name string, vm viewModel) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, name, vm); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) renderCascade(w http.ResponseWriter, primary string, vm viewModel, oob ...string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.tmpl.ExecuteTemplate(w, primary, vm); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	vm.Oob = true
+	for _, name := range oob {
+		if err := s.tmpl.ExecuteTemplate(w, name, vm); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 }
 

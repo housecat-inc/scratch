@@ -26,8 +26,8 @@ func main() {
 func newRootCmd() *cobra.Command {
 	var port int
 	cmd := &cobra.Command{
-		Use:     "claude-remote",
-		Short:   "Web UI for installing, configuring, and logging into claude",
+		Use:     "claude-control",
+		Short:   "Web UI for installing, unleashing, and connecting claude",
 		Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := remote.NewServer(remote.DefaultDeps())

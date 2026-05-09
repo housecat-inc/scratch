@@ -11,15 +11,15 @@ curl -fsSL https://raw.githubusercontent.com/housecat-inc/scratch/main/install.s
 Override the binary or destination:
 
 ```sh
-INSTALL_DIR=/usr/local/bin BIN=claude-remote \
+INSTALL_DIR=/usr/local/bin BIN=claude-control \
   curl -fsSL https://raw.githubusercontent.com/housecat-inc/scratch/main/install.sh | sh
 ```
 
-## claude-remote
+## claude-control
 
-Web UI on `:8888` that walks through installing the claude CLI, writing
-non-interactive settings defaults, and completing OAuth login.
+Web UI on `:8888` that walks through installing claude, unleashing it
+(non-interactive settings defaults), and connecting a Claude subscription.
 
 ```sh
-claude-remote --port 8888
+claude-control --port 8888
 ```
