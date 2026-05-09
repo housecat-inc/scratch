@@ -1,0 +1,54 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go generate ./...
+      - run: go test ./...
+
+  lint-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+    steps:
+      - name: Validate PR title and body
+        run: |
+          ERR="PR must be formatted as release notes with max 80 char title, and list of customer-facing changes in body"
+
+          title_len=${#PR_TITLE}
+          if [ "$title_len" -ge 80 ]; then
+            echo "::error::$ERR"
+            echo "Title is $title_len chars (must be < 80): $PR_TITLE"
+            exit 1
+          fi
+
+          if [ -z "${PR_BODY// }" ]; then
+            echo "::error::$ERR"
+            echo "Body is empty"
+            exit 1
+          fi
+
+          while IFS= read -r line; do
+            [ -z "${line// }" ] && continue
+            if ! [[ "$line" =~ ^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]+ ]]; then
+              echo "::error::$ERR"
+              echo "Body must be a markdown list. Offending line: $line"
+              exit 1
+            fi
+          done <<< "$PR_BODY"
