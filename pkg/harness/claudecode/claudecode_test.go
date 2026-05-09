@@ -24,8 +24,7 @@ func TestMergeDefaults(t *testing.T) {
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
 				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
-				"remoteDialogSeen": true,
-				"theme": "auto"
+				"remoteDialogSeen": true
 			}`,
 		},
 		{
@@ -33,7 +32,8 @@ func TestMergeDefaults(t *testing.T) {
 			defaults: settingsDefaults,
 			want: `{
 				"permissions": {"defaultMode": "bypassPermissions"},
-				"skipDangerousModePermissionPrompt": true
+				"skipDangerousModePermissionPrompt": true,
+				"theme": "auto"
 			}`,
 		},
 		{
@@ -42,7 +42,8 @@ func TestMergeDefaults(t *testing.T) {
 			defaults: settingsDefaults,
 			want: `{
 				"permissions": {"defaultMode": "bypassPermissions"},
-				"skipDangerousModePermissionPrompt": true
+				"skipDangerousModePermissionPrompt": true,
+				"theme": "auto"
 			}`,
 		},
 		{
@@ -56,19 +57,16 @@ func TestMergeDefaults(t *testing.T) {
 					"/home/me": {"hasTrustDialogAccepted": true},
 					"/home/exedev": {"hasTrustDialogAccepted": true}
 				},
-				"remoteDialogSeen": true,
-				"theme": "auto"
+				"remoteDialogSeen": true
 			}`,
 		},
 		{
-			name:     "preserves existing top-level scalar",
+			name:     "preserves existing theme in settings",
 			existing: `{"theme": "dark"}`,
-			defaults: claudeJSONDefaults,
+			defaults: settingsDefaults,
 			want: `{
-				"hasCompletedOnboarding": true,
-				"hasUsedRemoteControl": true,
-				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
-				"remoteDialogSeen": true,
+				"permissions": {"defaultMode": "bypassPermissions"},
+				"skipDangerousModePermissionPrompt": true,
 				"theme": "dark"
 			}`,
 		},
@@ -78,19 +76,19 @@ func TestMergeDefaults(t *testing.T) {
 			defaults: settingsDefaults,
 			want: `{
 				"permissions": {"defaultMode": "ask"},
-				"skipDangerousModePermissionPrompt": true
+				"skipDangerousModePermissionPrompt": true,
+				"theme": "auto"
 			}`,
 		},
 		{
 			name:     "preserves unknown fields not declared in struct",
-			existing: `{"theme": "auto", "someFutureField": [1, 2, 3]}`,
+			existing: `{"someFutureField": [1, 2, 3]}`,
 			defaults: claudeJSONDefaults,
 			want: `{
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
 				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
 				"remoteDialogSeen": true,
-				"theme": "auto",
 				"someFutureField": [1, 2, 3]
 			}`,
 		},
@@ -141,6 +139,7 @@ func TestMergeDefaultsNoChangeNoRewrite(t *testing.T) {
 			existing: map[string]any{
 				"permissions":                       map[string]any{"defaultMode": "ask", "extra": true},
 				"skipDangerousModePermissionPrompt": false,
+				"theme":                             "dark",
 				"unrelated":                         "value",
 			},
 		},

@@ -16,7 +16,6 @@ type ClaudeConfig struct {
 	HasUsedRemoteControl   bool               `json:"hasUsedRemoteControl"`
 	Projects               map[string]Project `json:"projects"`
 	RemoteDialogSeen       bool               `json:"remoteDialogSeen"`
-	Theme                  string             `json:"theme"`
 }
 
 type Permissions struct {
@@ -30,6 +29,7 @@ type Project struct {
 type Settings struct {
 	Permissions                       Permissions `json:"permissions"`
 	SkipDangerousModePermissionPrompt bool        `json:"skipDangerousModePermissionPrompt"`
+	Theme                             string      `json:"theme"`
 }
 
 var claudeJSONDefaults = ClaudeConfig{
@@ -39,12 +39,12 @@ var claudeJSONDefaults = ClaudeConfig{
 		"/home/exedev": {HasTrustDialogAccepted: true},
 	},
 	RemoteDialogSeen: true,
-	Theme:            "auto",
 }
 
 var settingsDefaults = Settings{
 	Permissions:                       Permissions{DefaultMode: "bypassPermissions"},
 	SkipDangerousModePermissionPrompt: true,
+	Theme:                             "auto",
 }
 
 func EnsureInstalled() error {

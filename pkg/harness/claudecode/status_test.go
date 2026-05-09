@@ -144,7 +144,6 @@ func TestConfiguredAfterClaudeRewrite(t *testing.T) {
 		"hasUsedRemoteControl": true,
 		"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
 		"remoteDialogSeen": true,
-		"theme": "auto",
 		"installMethod": "native",
 		"oauthAccount": {"emailAddress": "noah@housecat.com"}
 	}`
@@ -166,7 +165,7 @@ func TestHasDefaults(t *testing.T) {
 		{
 			name:     "complete file has defaults",
 			defaults: settingsDefaults,
-			existing: `{"permissions": {"defaultMode": "bypassPermissions"}, "skipDangerousModePermissionPrompt": true}`,
+			existing: `{"permissions": {"defaultMode": "bypassPermissions"}, "skipDangerousModePermissionPrompt": true, "theme": "auto"}`,
 			want:     true,
 		},
 		{
@@ -177,7 +176,7 @@ func TestHasDefaults(t *testing.T) {
 		{
 			name:     "different scalar still satisfies presence",
 			defaults: settingsDefaults,
-			existing: `{"permissions": {"defaultMode": "ask"}, "skipDangerousModePermissionPrompt": false}`,
+			existing: `{"permissions": {"defaultMode": "ask"}, "skipDangerousModePermissionPrompt": false, "theme": "dark"}`,
 			want:     true,
 		},
 	}
