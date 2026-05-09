@@ -23,7 +23,9 @@
     button { padding: 0.5rem 0.9rem; font-size: 1rem; cursor: pointer; }
     button[disabled] { opacity: 0.5; cursor: not-allowed; }
     .err { color: #b00020; margin-top: 0.5rem; white-space: pre-wrap; font-size: 0.9rem; }
-    .url { word-break: break-all; background: #f4f4f4; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; margin: 0.5rem 0; }
+    .url { margin: 0.5rem 0; }
+    .url a { display: inline-block; padding: 0.5rem 0.75rem; background: #f4f4f4; border-radius: 4px; text-decoration: none; color: #0066cc; font-size: 0.9rem; }
+    .url a:hover { background: #e8e8e8; }
     form { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
     input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; }
   </style>
@@ -68,8 +70,8 @@
     <div class="title">Pay claude</div>
     {{if not .Authenticated}}
       {{if .LoginURL}}
-        <div class="hint">Open this URL and paste the code below</div>
-        <div class="url"><a href="{{.LoginURL}}" target="_blank" rel="noopener">{{.LoginURL}}</a></div>
+        <div class="hint">Open the authorize page and paste the code below</div>
+        <div class="url"><a href="{{.LoginURL}}" target="_blank" rel="noopener">Open claude.com &rarr;</a></div>
         <form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML">
           <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required>
           <button type="submit">Submit</button>
