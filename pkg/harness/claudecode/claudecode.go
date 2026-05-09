@@ -12,17 +12,10 @@ import (
 const installScriptURL = "https://claude.ai/install.sh"
 
 type ClaudeConfig struct {
-	CustomAPIKeyResponses  CustomAPIKeyResponses `json:"customApiKeyResponses"`
-	HasCompletedOnboarding bool                  `json:"hasCompletedOnboarding"`
-	HasUsedRemoteControl   bool                  `json:"hasUsedRemoteControl"`
-	Projects               map[string]Project    `json:"projects"`
-	RemoteDialogSeen       bool                  `json:"remoteDialogSeen"`
-	Theme                  string                `json:"theme"`
-}
-
-type CustomAPIKeyResponses struct {
-	Approved []string `json:"approved"`
-	Rejected []string `json:"rejected"`
+	HasCompletedOnboarding bool               `json:"hasCompletedOnboarding"`
+	HasUsedRemoteControl   bool               `json:"hasUsedRemoteControl"`
+	Projects               map[string]Project `json:"projects"`
+	RemoteDialogSeen       bool               `json:"remoteDialogSeen"`
 }
 
 type Permissions struct {
@@ -36,25 +29,22 @@ type Project struct {
 type Settings struct {
 	Permissions                       Permissions `json:"permissions"`
 	SkipDangerousModePermissionPrompt bool        `json:"skipDangerousModePermissionPrompt"`
+	Theme                             string      `json:"theme"`
 }
 
 var claudeJSONDefaults = ClaudeConfig{
-	CustomAPIKeyResponses: CustomAPIKeyResponses{
-		Approved: []string{},
-		Rejected: []string{},
-	},
 	HasCompletedOnboarding: true,
 	HasUsedRemoteControl:   true,
 	Projects: map[string]Project{
 		"/home/exedev": {HasTrustDialogAccepted: true},
 	},
 	RemoteDialogSeen: true,
-	Theme:            "auto",
 }
 
 var settingsDefaults = Settings{
 	Permissions:                       Permissions{DefaultMode: "bypassPermissions"},
 	SkipDangerousModePermissionPrompt: true,
+	Theme:                             "auto",
 }
 
 func EnsureInstalled() error {
@@ -62,6 +52,18 @@ func EnsureInstalled() error {
 		return run("claude", "update")
 	}
 	return run("sh", "-c", "curl -fsSL "+installScriptURL+" | bash")
+}
+
+func HasDefaults(path string, defaults any) (bool, error) {
+	defaultsMap, err := toMap(defaults)
+	if err != nil {
+		return false, errors.Wrap(err, "encode defaults")
+	}
+	current, err := readJSONObject(path)
+	if err != nil {
+		return false, err
+	}
+	return !mergeMissing(current, defaultsMap), nil
 }
 
 func MergeDefaults(path string, defaults any) error {
@@ -86,6 +88,10 @@ func Setup() error {
 	if err := EnsureInstalled(); err != nil {
 		return err
 	}
+	return WriteDefaults()
+}
+
+func WriteDefaults() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return errors.Wrap(err, "user home dir")
