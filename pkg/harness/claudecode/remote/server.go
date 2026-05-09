@@ -3,9 +3,11 @@ package remote
 import (
 	"embed"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
@@ -75,16 +77,43 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /install", s.handleInstall)
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("POST /login/code", s.handleLoginCode)
-	return mux
+	return logging(mux)
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func logging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		slog.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rec.status,
+			"duration_ms", time.Since(start).Milliseconds(),
+			"remote", r.RemoteAddr,
+		)
+	})
 }
 
 func (s *Server) handleConfigure(w http.ResponseWriter, r *http.Request) {
 	vm := s.viewModel()
 	if err := s.deps.Configure(); err != nil {
+		slog.Error("configure failed", "error", err.Error())
 		vm.ConfigureError = err.Error()
 		s.render(w, "configure-card", vm)
 		return
 	}
+	slog.Info("configured")
 	vm = s.viewModel()
 	s.renderCascade(w, "configure-card", vm, "login-card")
 }
@@ -96,10 +125,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 	vm := s.viewModel()
 	if err := s.deps.Install(); err != nil {
+		slog.Error("install failed", "error", err.Error())
 		vm.InstallError = err.Error()
 		s.render(w, "install-card", vm)
 		return
 	}
+	slog.Info("installed")
 	vm = s.viewModel()
 	s.renderCascade(w, "install-card", vm, "configure-card")
 }
@@ -118,6 +149,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	l, err := s.deps.StartLogin()
 	if err != nil {
+		slog.Error("start login failed", "error", err.Error())
 		vm.LoginError = err.Error()
 		s.render(w, "login-card", vm)
 		return
@@ -126,6 +158,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.login = l
 	s.mu.Unlock()
 
+	slog.Info("login started", "url", l.URL())
 	vm.LoginURL = l.URL()
 	s.render(w, "login-card", vm)
 }
@@ -155,6 +188,7 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := l.SubmitCode(code); err != nil {
+		slog.Error("submit code failed", "error", err.Error())
 		vm.LoginURL = l.URL()
 		vm.LoginError = err.Error()
 		s.render(w, "login-card", vm)
@@ -166,6 +200,7 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	s.login = nil
 	s.mu.Unlock()
 
+	slog.Info("login succeeded")
 	vm = s.viewModel()
 	vm.Authenticated = true
 	s.render(w, "login-card", vm)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -30,12 +31,13 @@ func newRootCmd() *cobra.Command {
 		Short:   "Web UI for installing, unleashing, and connecting claude",
 		Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 			s, err := remote.NewServer(remote.DefaultDeps())
 			if err != nil {
 				return errors.Wrap(err, "new server")
 			}
 			addr := fmt.Sprintf(":%d", port)
-			fmt.Printf("listening on http://localhost%s\n", addr)
+			slog.Info("listening", "addr", addr)
 			return http.ListenAndServe(addr, s.Handler())
 		},
 	}
