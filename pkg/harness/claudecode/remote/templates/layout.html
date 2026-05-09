@@ -1,0 +1,74 @@
+{{define "index"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>claude-remote</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { margin-bottom: 1rem; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0; }
+    .card h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+    .card .status { font-weight: 600; }
+    .card .ok { color: #0a7d2c; }
+    .card .pending { color: #b35900; }
+    .card .err { color: #b00020; margin-top: 0.5rem; white-space: pre-wrap; }
+    .card .hint { color: #666; font-size: 0.9rem; margin: 0.25rem 0 0.75rem; }
+    .card button { padding: 0.5rem 0.9rem; font-size: 1rem; cursor: pointer; }
+    .card button[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .card .url { word-break: break-all; background: #f4f4f4; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; }
+    .card form { margin-top: 0.75rem; display: flex; gap: 0.5rem; }
+    .card input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>claude-remote</h1>
+  {{template "install-card" .}}
+  {{template "configure-card" .}}
+  {{template "login-card" .}}
+</body>
+</html>{{end}}
+
+{{define "install-card"}}<div class="card" id="card-install">
+  <h2>1. Install claude</h2>
+  {{if .Installed}}
+    <div class="status ok">installed</div>
+  {{else}}
+    <div class="status pending">not installed</div>
+    <div class="hint">Downloads and runs the official installer from claude.ai/install.sh.</div>
+    <button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this">Install</button>
+  {{end}}
+  {{if .InstallError}}<div class="err">{{.InstallError}}</div>{{end}}
+</div>{{end}}
+
+{{define "configure-card"}}<div class="card" id="card-configure">
+  <h2>2. Configure non-interactive settings</h2>
+  {{if .Configured}}
+    <div class="status ok">configured</div>
+  {{else}}
+    <div class="status pending">not configured</div>
+    <div class="hint">Writes ~/.claude.json and ~/.claude/settings.json defaults.</div>
+    <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Installed}}disabled{{end}}>Configure</button>
+  {{end}}
+  {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
+</div>{{end}}
+
+{{define "login-card"}}<div class="card" id="card-login">
+  <h2>3. Log in</h2>
+  {{if .Authenticated}}
+    <div class="status ok">authenticated</div>
+  {{else if .LoginURL}}
+    <div class="status pending">awaiting code</div>
+    <div class="hint">Open this URL, authorize, then paste the code below.</div>
+    <div class="url"><a href="{{.LoginURL}}" target="_blank" rel="noopener">{{.LoginURL}}</a></div>
+    <form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML">
+      <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required>
+      <button type="submit">Submit</button>
+    </form>
+  {{else}}
+    <div class="status pending">not authenticated</div>
+    <div class="hint">Starts <code>claude auth login --claudeai</code> and shows the login URL.</div>
+    <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this" {{if not .Configured}}disabled{{end}}>Log in</button>
+  {{end}}
+  {{if .LoginError}}<div class="err">{{.LoginError}}</div>{{end}}
+</div>{{end}}

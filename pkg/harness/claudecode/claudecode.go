@@ -64,6 +64,18 @@ func EnsureInstalled() error {
 	return run("sh", "-c", "curl -fsSL "+installScriptURL+" | bash")
 }
 
+func HasDefaults(path string, defaults any) (bool, error) {
+	defaultsMap, err := toMap(defaults)
+	if err != nil {
+		return false, errors.Wrap(err, "encode defaults")
+	}
+	current, err := readJSONObject(path)
+	if err != nil {
+		return false, err
+	}
+	return !mergeMissing(current, defaultsMap), nil
+}
+
 func MergeDefaults(path string, defaults any) error {
 	defaultsMap, err := toMap(defaults)
 	if err != nil {
@@ -86,6 +98,10 @@ func Setup() error {
 	if err := EnsureInstalled(); err != nil {
 		return err
 	}
+	return WriteDefaults()
+}
+
+func WriteDefaults() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return errors.Wrap(err, "user home dir")
