@@ -43,7 +43,7 @@
   <div class="body">
     <div class="title">Install claude</div>
     {{if not .Installed}}
-      <div class="hint">Downloads and runs the official installer from claude.ai/install.sh.</div>
+      <div class="hint">Run claude.ai/install.sh</div>
       <button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this">Install</button>
     {{end}}
     {{if .InstallError}}<div class="err">{{.InstallError}}</div>{{end}}
@@ -55,7 +55,7 @@
   <div class="body">
     <div class="title">Unleash claude</div>
     {{if and (not .Configured) .Installed}}
-      <div class="hint">Writes ~/.claude.json and ~/.claude/settings.json with bypassPermissions defaults.</div>
+      <div class="hint">Update settings to remove prompts</div>
       <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Unleash</button>
     {{end}}
     {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
@@ -65,17 +65,17 @@
 {{define "login-card"}}<li class="step {{if .Authenticated}}done{{else if .Configured}}active{{else}}pending{{end}}" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
   <span class="check"></span>
   <div class="body">
-    <div class="title">Connect subscription</div>
+    <div class="title">Pay claude</div>
     {{if not .Authenticated}}
       {{if .LoginURL}}
-        <div class="hint">Open this URL, authorize, then paste the code below.</div>
+        <div class="hint">Open this URL and paste the code below</div>
         <div class="url"><a href="{{.LoginURL}}" target="_blank" rel="noopener">{{.LoginURL}}</a></div>
         <form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML">
           <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required>
           <button type="submit">Submit</button>
         </form>
       {{else if .Configured}}
-        <div class="hint">Starts <code>claude auth login --claudeai</code> and shows the login URL.</div>
+        <div class="hint">Connect Anthropic subscription</div>
         <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this">Connect</button>
       {{end}}
     {{end}}

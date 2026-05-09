@@ -84,7 +84,7 @@ func TestIndex(t *testing.T) {
 			fake: fakeDeps{},
 			mustHave: []string{
 				"claude-control",
-				"Install claude", "Unleash claude", "Connect subscription",
+				"Install claude", "Unleash claude", "Pay claude",
 				`class="step active" id="card-install"`,
 				`class="step pending" id="card-configure"`,
 				`class="step pending" id="card-login"`,
