@@ -91,7 +91,7 @@ func (f *fakeDeps) deps() Deps {
 			if f.startSessionFn != nil {
 				return f.startSessionFn(name, dir)
 			}
-			s := &claudecode.Session{ID: "id1", Name: name, Dir: dir, URL: "https://claude.ai/code/abc", StartedAt: time.Now()}
+			s := &claudecode.Session{ID: "id1", Name: name, Dir: dir, URL: "https://claude.ai/code/session_abc", StartedAt: time.Now()}
 			f.sessions = append(f.sessions, s)
 			return s, nil
 		},
@@ -399,7 +399,7 @@ func TestSessionStart(t *testing.T) {
 	a.Equal(http.StatusOK, rec.Code)
 	a.Equal(1, fd.startCalls)
 	body := rec.Body.String()
-	a.Contains(body, "https://claude.ai/code/abc")
+	a.Contains(body, "https://claude.ai/code/session_abc")
 	a.Contains(body, "alpha")
 	a.Contains(body, "/tmp/work")
 	a.Contains(body, `src="/sessions/id1/qr"`)

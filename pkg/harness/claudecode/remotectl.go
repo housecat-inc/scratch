@@ -17,7 +17,7 @@ import (
 var (
 	defaultStartTimeout = 20 * time.Second
 	nameRegex           = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
-	urlRegex            = regexp.MustCompile(`https://(?:claude\.ai|code\.claude\.com)/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+`)
+	urlRegex            = regexp.MustCompile(`https://(?:claude\.ai|code\.claude\.com)/code/session_[A-Za-z0-9]+`)
 )
 
 type Manager struct {

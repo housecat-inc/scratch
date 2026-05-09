@@ -37,7 +37,11 @@
     .sessions .name { font-weight: 600; }
     .sessions .dir { color: #666; font-size: 0.85rem; }
     .sessions .session-url { display: block; word-break: break-all; font-size: 0.85rem; color: #0066cc; margin-top: 0.25rem; }
-    .sessions .stop { background: #fee; color: #b00020; border: 1px solid #fbb; border-radius: 4px; padding: 0.35rem 0.6rem; font-size: 0.85rem; cursor: pointer; }
+    .sessions .actions { display: flex; flex-direction: column; gap: 0.35rem; flex-shrink: 0; }
+    .sessions .actions .copy, .sessions .actions .stop { font-size: 0.85rem; padding: 0.35rem 0.6rem; border-radius: 4px; cursor: pointer; }
+    .sessions .actions .copy { background: #f4f4f4; color: #0066cc; border: 1px solid #ddd; }
+    .sessions .actions .copy:hover { background: #e8e8e8; }
+    .sessions .stop { background: #fee; color: #b00020; border: 1px solid #fbb; }
   </style>
 </head>
 <body>
@@ -113,7 +117,10 @@
               <div class="dir">{{.Dir}}</div>
               <a class="session-url" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>
             </div>
-            <button class="stop" hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
+            <div class="actions">
+              <button type="button" class="copy" data-url="{{.URL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy URL</button>
+              <button class="stop" hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
+            </div>
           </li>
         {{end}}
       </ul>

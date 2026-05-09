@@ -16,10 +16,12 @@ func TestURLRegex(t *testing.T) {
 		name string
 		want string
 	}{
-		{name: "claude.ai session URL", in: "open https://claude.ai/code/abc123 to connect\n", want: "https://claude.ai/code/abc123"},
-		{name: "code.claude.com URL", in: "url: https://code.claude.com/s/xyz?token=q1\n", want: "https://code.claude.com/s/xyz?token=q1"},
+		{name: "claude.ai session URL", in: "open https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht to connect\n", want: "https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht"},
+		{name: "code.claude.com session URL", in: "url: https://code.claude.com/code/session_abc123\n", want: "https://code.claude.com/code/session_abc123"},
+		{name: "ignores environment redirect URL", in: "Connecting https://claude.ai/code?environment=env_01QB\nthen https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht\n", want: "https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht"},
 		{name: "no URL", in: "no link here\n", want: ""},
-		{name: "ignores other domains", in: "see https://example.com/foo\n", want: ""},
+		{name: "ignores other domains", in: "see https://example.com/code/session_x\n", want: ""},
+		{name: "ignores non-session paths", in: "see https://claude.ai/code?environment=env_01QB\n", want: ""},
 	}
 
 	for _, tc := range tests {
@@ -43,7 +45,7 @@ func TestManagerStart(t *testing.T) {
 
 	dir := t.TempDir()
 	tmuxBin := writeFakeTmux(t)
-	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/abc123")
+	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_abc123")
 
 	m := NewManager()
 	m.TmuxBin = tmuxBin
@@ -52,7 +54,7 @@ func TestManagerStart(t *testing.T) {
 
 	s, err := m.Start("my-session", dir)
 	r.NoError(err)
-	a.Equal("https://claude.ai/code/abc123", s.URL)
+	a.Equal("https://claude.ai/code/session_abc123", s.URL)
 	a.Equal("my-session", s.Name)
 	a.Equal(dir, s.Dir)
 	a.NotEmpty(s.ID)
@@ -69,7 +71,7 @@ func TestManagerStart(t *testing.T) {
 
 func TestManagerStartErrors(t *testing.T) {
 	tmuxBin := writeFakeTmux(t)
-	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/abc")
+	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_abc")
 	dir := t.TempDir()
 
 	tests := []struct {
@@ -117,7 +119,7 @@ func TestManagerStopAll(t *testing.T) {
 	dir := t.TempDir()
 	m := NewManager()
 	m.TmuxBin = writeFakeTmux(t)
-	m.ClaudeBin = writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/x")
+	m.ClaudeBin = writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
 	m.StartTimeout = 3 * time.Second
 
 	for _, name := range []string{"a", "b", "c"} {
@@ -133,7 +135,7 @@ func TestManagerStopAll(t *testing.T) {
 func TestSessionQRPNG(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
-	s := &Session{URL: "https://claude.ai/code/abc"}
+	s := &Session{URL: "https://claude.ai/code/session_abc"}
 	png, err := s.QRPNG(0)
 	r.NoError(err)
 	a.True(len(png) > 0)
