@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -16,8 +17,6 @@ import (
 
 //go:embed templates/*.html
 var templatesFS embed.FS
-
-const defaultSessionDir = "/home/exedev"
 
 type Deps struct {
 	AgentsStatus  func() (agents.State, error)
@@ -41,6 +40,7 @@ type Login interface {
 
 type Server struct {
 	deps  Deps
+	home  string
 	login Login
 	mu    sync.Mutex
 	tmpl  *template.Template
@@ -94,7 +94,11 @@ func NewServer(deps Deps) (*Server, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "parse templates")
 	}
-	return &Server{deps: deps, tmpl: tmpl}, nil
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "user home dir")
+	}
+	return &Server{deps: deps, home: home, tmpl: tmpl}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -252,7 +256,7 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	if dir == "" {
-		dir = defaultSessionDir
+		dir = s.home
 	}
 	vm.SessionDir = dir
 
@@ -325,7 +329,7 @@ func (s *Server) renderCascade(w http.ResponseWriter, primary string, vm viewMod
 }
 
 func (s *Server) viewModel() viewModel {
-	vm := viewModel{Installed: s.deps.Installed(), SessionDir: defaultSessionDir}
+	vm := viewModel{Installed: s.deps.Installed(), SessionDir: s.home}
 	if dir, err := agents.Dir(); err == nil {
 		vm.AgentsDir = dir
 	}

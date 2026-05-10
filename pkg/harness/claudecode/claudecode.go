@@ -86,7 +86,10 @@ func Configure() error {
 	if err := WriteDefaults(); err != nil {
 		return err
 	}
-	return agents.InstallOrUpdate()
+	if err := agents.InstallOrUpdate(); err != nil {
+		return err
+	}
+	return EnsureSymlinks()
 }
 
 func Setup() error {

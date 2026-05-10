@@ -66,7 +66,10 @@ func ConfiguredAt(home string) (bool, error) {
 	if ok, err := HasDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults); err != nil || !ok {
 		return ok, err
 	}
-	return agents.InstalledAt(filepath.Join(home, "scratch"))
+	if ok, err := agents.InstalledAt(filepath.Join(home, "scratch")); err != nil || !ok {
+		return ok, err
+	}
+	return HasSymlinksAt(home)
 }
 
 func Installed() bool {

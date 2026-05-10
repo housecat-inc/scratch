@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -412,7 +413,7 @@ func TestSessionsCardHiddenUntilConfigured(t *testing.T) {
 			mustHave: []string{
 				"Remote control sessions",
 				`hx-post="/sessions"`,
-				`value="/home/exedev"`,
+				`value="` + mustHome(t) + `"`,
 				"No sessions running.",
 			},
 		},
@@ -483,7 +484,14 @@ func TestSessionStartDefaultsDir(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)
 
-	a.Equal("/home/exedev", gotDir)
+	a.Equal(mustHome(t), gotDir)
+}
+
+func mustHome(t *testing.T) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	require.New(t).NoError(err)
+	return home
 }
 
 func TestSessionStartError(t *testing.T) {

@@ -96,7 +96,7 @@
   <div class="body">
     <div class="title">Configure</div>
     {{if and (not .Configured) .Authenticated}}
-      <div class="hint">Configure claude and CLAUDE.md</div>
+      <div class="hint">Write claude markdown and settings in $HOME</div>
       <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Configure</button>
     {{else if .Configured}}
       {{if .AgentsDirty}}
