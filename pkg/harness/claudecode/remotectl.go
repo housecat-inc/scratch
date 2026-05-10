@@ -52,7 +52,7 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) Start(name, dir string) (*Session, error) {
+func (m *Manager) Start(name, dir, prompt string) (*Session, error) {
 	if dir == "" {
 		return nil, errors.New("dir is required")
 	}
@@ -78,6 +78,9 @@ func (m *Manager) Start(name, dir string) (*Session, error) {
 	id := randomID()
 	tmuxName := "claude-" + id
 	args := []string{"new-session", "-d", "-s", tmuxName, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control", "--remote-control-session-name-prefix", prefix}
+	if prompt != "" {
+		args = append(args, prompt)
+	}
 	if out, err := exec.Command(m.TmuxBin, args...).CombinedOutput(); err != nil {
 		return nil, errors.Wrapf(err, "tmux new-session: %s", string(out))
 	}

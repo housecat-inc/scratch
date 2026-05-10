@@ -91,21 +91,21 @@
   </div>
 </li>{{end}}
 
-{{define "configure-card"}}<li class="step {{if .Configured}}done{{else if .Authenticated}}active{{else}}pending{{end}}" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
+{{define "configure-card"}}<li class="step {{if and .Configured (not .AgentsDirty) (not (gt .AgentsBehind 0))}}done{{else if .Authenticated}}active{{else}}pending{{end}}" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
   <span class="check"></span>
   <div class="body">
     <div class="title">Configure</div>
     {{if and (not .Configured) .Authenticated}}
-      <div class="hint">Write settings and clone agents to {{.AgentsDir}}</div>
+      <div class="hint">Configure claude and CLAUDE.md</div>
       <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Configure</button>
     {{else if .Configured}}
       {{if .AgentsDirty}}
-        <div class="hint">Local edits in {{.AgentsDir}} — commit or stash to update</div>
-      {{else if .AgentsDiverged}}
-        <div class="hint">Local commits ahead in {{.AgentsDir}} — push or rebase to update</div>
-      {{else if gt .AgentsBehind 0}}
-        <div class="hint">{{.AgentsBehind}} new agent change{{if ne .AgentsBehind 1}}s{{end}} available</div>
-        <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Update</button>
+        <div class="hint">Local changes in ./scratch</div>
+        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"commit then push local changes"}' hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Commit & Push</button>
+      {{end}}
+      {{if gt .AgentsBehind 0}}
+        <div class="hint">Upstream changes to ./scratch</div>
+        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"git pull remote changes"}' hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Pull</button>
       {{end}}
     {{end}}
     {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}

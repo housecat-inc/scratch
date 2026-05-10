@@ -72,7 +72,7 @@ func TestManagerStart(t *testing.T) {
 	m.TmuxBin = tmuxBin
 	m.TrustProject = func(d string) error { trustedDir = d; return nil }
 
-	s, err := m.Start("foobar", dir)
+	s, err := m.Start("foobar", dir, "")
 	r.NoError(err)
 	a.Equal("https://claude.ai/code/session_abc123", s.URL)
 	a.Equal("jukelab-foobar", s.Name)
@@ -128,7 +128,7 @@ func TestManagerStartErrors(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(m)
 			}
-			_, err := m.Start(tc.name, tc.dir)
+			_, err := m.Start(tc.name, tc.dir, "")
 			a.ErrorContains(err, tc.wantErr)
 		})
 	}
@@ -146,7 +146,7 @@ func TestManagerStopAll(t *testing.T) {
 	m.TrustProject = func(string) error { return nil }
 
 	for _, name := range []string{"a", "b", "c"} {
-		_, err := m.Start(name, dir)
+		_, err := m.Start(name, dir, "")
 		r.NoError(err)
 	}
 	a.Len(m.List(), 3)

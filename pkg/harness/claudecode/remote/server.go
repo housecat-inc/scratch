@@ -29,7 +29,7 @@ type Deps struct {
 	ListSessions  func() []*claudecode.Session
 	SessionQR     func(id string) ([]byte, error)
 	StartLogin    func() (Login, error)
-	StartSession  func(name, dir string) (*claudecode.Session, error)
+	StartSession  func(name, dir, prompt string) (*claudecode.Session, error)
 	StopSession   func(id string) error
 }
 
@@ -250,12 +250,13 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	}
 	dir := strings.TrimSpace(r.FormValue("dir"))
 	name := strings.TrimSpace(r.FormValue("name"))
+	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	if dir == "" {
 		dir = defaultSessionDir
 	}
 	vm.SessionDir = dir
 
-	sess, err := s.deps.StartSession(name, dir)
+	sess, err := s.deps.StartSession(name, dir, prompt)
 	if err != nil {
 		slog.Error("start session failed", "error", err.Error())
 		vm.SessionError = err.Error()

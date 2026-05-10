@@ -45,7 +45,7 @@ type fakeDeps struct {
 	loginCalls     int
 
 	sessions       []*claudecode.Session
-	startSessionFn func(name, dir string) (*claudecode.Session, error)
+	startSessionFn func(name, dir, prompt string) (*claudecode.Session, error)
 	stopSessionFn  func(id string) error
 	sessionQR      []byte
 	sessionQRErr   error
@@ -89,10 +89,10 @@ func (f *fakeDeps) deps() Deps {
 			}
 			return f.login, nil
 		},
-		StartSession: func(name, dir string) (*claudecode.Session, error) {
+		StartSession: func(name, dir, prompt string) (*claudecode.Session, error) {
 			f.startCalls++
 			if f.startSessionFn != nil {
-				return f.startSessionFn(name, dir)
+				return f.startSessionFn(name, dir, prompt)
 			}
 			s := &claudecode.Session{ID: "id1", Name: name, Dir: dir, URL: "https://claude.ai/code/session_abc", StartedAt: time.Now()}
 			f.sessions = append(f.sessions, s)
@@ -168,35 +168,58 @@ func TestIndex(t *testing.T) {
 			mustMiss: []string{`hx-post="/install"`, `hx-post="/login"`},
 		},
 		{
-			name: "agents behind shows update prompt",
+			name: "agents behind shows pull button",
 			fake: fakeDeps{
 				installed: true, configured: true, authenticated: true,
 				agents: agents.State{Installed: true, Behind: 3},
 			},
 			mustHave: []string{
-				`class="step done" id="card-configure"`,
-				"3 new agent changes available",
-				`hx-post="/configure"`,
-				">Update<",
+				`class="step active" id="card-configure"`,
+				"Upstream changes to ./scratch",
+				`hx-post="/sessions"`,
+				`git pull remote changes`,
+				">Pull<",
 			},
+			mustMiss: []string{">Commit "},
 		},
 		{
-			name: "agents dirty shows local edits hint",
+			name: "agents dirty shows commit and push button",
+			fake: fakeDeps{
+				installed: true, configured: true, authenticated: true,
+				agents: agents.State{Installed: true, Dirty: true},
+			},
+			mustHave: []string{
+				`class="step active" id="card-configure"`,
+				"Local changes in ./scratch",
+				`hx-post="/sessions"`,
+				`commit then push local changes`,
+				">Commit & Push<",
+			},
+			mustMiss: []string{">Pull<"},
+		},
+		{
+			name: "agents dirty and behind shows both buttons",
 			fake: fakeDeps{
 				installed: true, configured: true, authenticated: true,
 				agents: agents.State{Installed: true, Behind: 2, Dirty: true},
 			},
-			mustHave: []string{"Local edits"},
-			mustMiss: []string{`hx-post="/configure"`},
+			mustHave: []string{
+				`class="step active" id="card-configure"`,
+				"Local changes in ./scratch",
+				"Upstream changes to ./scratch",
+				`commit then push local changes`,
+				`git pull remote changes`,
+				">Commit & Push<",
+				">Pull<",
+			},
 		},
 		{
-			name: "agents diverged shows local commits hint",
+			name: "agents diverged hides hint when configured",
 			fake: fakeDeps{
 				installed: true, configured: true, authenticated: true,
-				agents: agents.State{Installed: true, Behind: 1, Diverged: true},
+				agents: agents.State{Installed: true, Diverged: true},
 			},
-			mustHave: []string{"Local commits ahead"},
-			mustMiss: []string{`hx-post="/configure"`},
+			mustMiss: []string{"Local commits ahead", `hx-post="/configure"`},
 		},
 	}
 
@@ -447,7 +470,7 @@ func TestSessionStartDefaultsDir(t *testing.T) {
 	var gotDir string
 	fd := fakeDeps{
 		installed: true, configured: true, authenticated: true,
-		startSessionFn: func(name, dir string) (*claudecode.Session, error) {
+		startSessionFn: func(name, dir, prompt string) (*claudecode.Session, error) {
 			gotDir = dir
 			return &claudecode.Session{ID: "id1", Name: name, Dir: dir, URL: "https://claude.ai/code/d"}, nil
 		},
@@ -469,7 +492,7 @@ func TestSessionStartError(t *testing.T) {
 
 	fd := fakeDeps{
 		installed: true, configured: true, authenticated: true,
-		startSessionFn: func(name, dir string) (*claudecode.Session, error) {
+		startSessionFn: func(name, dir, prompt string) (*claudecode.Session, error) {
 			return nil, errors.New("tmux missing")
 		},
 	}
