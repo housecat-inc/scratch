@@ -4,11 +4,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/agents"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +31,7 @@ func (f *fakeLogin) SubmitCode(code string) error {
 func (f *fakeLogin) URL() string { return f.url }
 
 type fakeDeps struct {
+	agents        agents.State
 	authenticated bool
 	configured    bool
 	installed     bool
@@ -43,7 +46,7 @@ type fakeDeps struct {
 	loginCalls     int
 
 	sessions       []*claudecode.Session
-	startSessionFn func(name, dir string) (*claudecode.Session, error)
+	startSessionFn func(name, dir, prompt string) (*claudecode.Session, error)
 	stopSessionFn  func(id string) error
 	sessionQR      []byte
 	sessionQRErr   error
@@ -53,6 +56,7 @@ type fakeDeps struct {
 
 func (f *fakeDeps) deps() Deps {
 	return Deps{
+		AgentsStatus:  func() (agents.State, error) { return f.agents, nil },
 		Authenticated: func() (bool, error) { return f.authenticated, nil },
 		Configure: func() error {
 			f.configureCalls++
@@ -86,10 +90,10 @@ func (f *fakeDeps) deps() Deps {
 			}
 			return f.login, nil
 		},
-		StartSession: func(name, dir string) (*claudecode.Session, error) {
+		StartSession: func(name, dir, prompt string) (*claudecode.Session, error) {
 			f.startCalls++
 			if f.startSessionFn != nil {
-				return f.startSessionFn(name, dir)
+				return f.startSessionFn(name, dir, prompt)
 			}
 			s := &claudecode.Session{ID: "id1", Name: name, Dir: dir, URL: "https://claude.ai/code/session_abc", StartedAt: time.Now()}
 			f.sessions = append(f.sessions, s)
@@ -124,10 +128,10 @@ func TestIndex(t *testing.T) {
 			fake: fakeDeps{},
 			mustHave: []string{
 				"claude-control",
-				">Install<", ">Unleash<", ">Pay<",
+				">Install<", ">Pay<", ">Configure<",
 				`class="step active" id="card-install"`,
-				`class="step pending" id="card-configure"`,
 				`class="step pending" id="card-login"`,
+				`class="step pending" id="card-configure"`,
 				`hx-post="/install"`,
 			},
 			mustMiss: []string{`hx-post="/configure"`, `hx-post="/login"`},
@@ -137,32 +141,86 @@ func TestIndex(t *testing.T) {
 			fake: fakeDeps{installed: true},
 			mustHave: []string{
 				`class="step done" id="card-install"`,
-				`class="step active" id="card-configure"`,
-				`class="step pending" id="card-login"`,
-				`hx-post="/configure"`,
-			},
-			mustMiss: []string{`hx-post="/install"`, `hx-post="/login"`},
-		},
-		{
-			name: "unleashed checks step 2, activates step 3",
-			fake: fakeDeps{installed: true, configured: true},
-			mustHave: []string{
-				`class="step done" id="card-install"`,
-				`class="step done" id="card-configure"`,
 				`class="step active" id="card-login"`,
+				`class="step pending" id="card-configure"`,
 				`hx-post="/login"`,
 			},
 			mustMiss: []string{`hx-post="/install"`, `hx-post="/configure"`},
+		},
+		{
+			name: "authenticated checks step 2, activates step 3",
+			fake: fakeDeps{installed: true, authenticated: true},
+			mustHave: []string{
+				`class="step done" id="card-install"`,
+				`class="step done" id="card-login"`,
+				`class="step active" id="card-configure"`,
+				`hx-post="/configure"`,
+			},
+			mustMiss: []string{`hx-post="/install"`, `hx-post="/login"`},
 		},
 		{
 			name: "all done shows every step checked, no buttons",
 			fake: fakeDeps{installed: true, configured: true, authenticated: true},
 			mustHave: []string{
 				`class="step done" id="card-install"`,
-				`class="step done" id="card-configure"`,
 				`class="step done" id="card-login"`,
+				`class="step done" id="card-configure"`,
 			},
-			mustMiss: []string{`hx-post="/install"`, `hx-post="/configure"`, `hx-post="/login"`},
+			mustMiss: []string{`hx-post="/install"`, `hx-post="/login"`},
+		},
+		{
+			name: "agents behind shows pull button",
+			fake: fakeDeps{
+				installed: true, configured: true, authenticated: true,
+				agents: agents.State{Installed: true, Behind: 3},
+			},
+			mustHave: []string{
+				`class="step active" id="card-configure"`,
+				"Upstream changes to ./scratch",
+				`hx-post="/sessions"`,
+				`git pull remote changes`,
+				">Pull<",
+			},
+			mustMiss: []string{">Commit "},
+		},
+		{
+			name: "agents dirty shows commit and push button",
+			fake: fakeDeps{
+				installed: true, configured: true, authenticated: true,
+				agents: agents.State{Installed: true, Dirty: true},
+			},
+			mustHave: []string{
+				`class="step active" id="card-configure"`,
+				"Local changes in ./scratch",
+				`hx-post="/sessions"`,
+				`commit then push local changes`,
+				">Commit & Push<",
+			},
+			mustMiss: []string{">Pull<"},
+		},
+		{
+			name: "agents dirty and behind shows both buttons",
+			fake: fakeDeps{
+				installed: true, configured: true, authenticated: true,
+				agents: agents.State{Installed: true, Behind: 2, Dirty: true},
+			},
+			mustHave: []string{
+				`class="step active" id="card-configure"`,
+				"Local changes in ./scratch",
+				"Upstream changes to ./scratch",
+				`commit then push local changes`,
+				`git pull remote changes`,
+				">Commit & Push<",
+				">Pull<",
+			},
+		},
+		{
+			name: "agents diverged hides hint when configured",
+			fake: fakeDeps{
+				installed: true, configured: true, authenticated: true,
+				agents: agents.State{Installed: true, Diverged: true},
+			},
+			mustMiss: []string{"Local commits ahead", `hx-post="/configure"`},
 		},
 	}
 
@@ -198,11 +256,11 @@ func TestInstall(t *testing.T) {
 		name     string
 	}{
 		{
-			name: "success checks install step and OOB-activates configure step",
+			name: "success checks install step and OOB-activates login step",
 			mustHave: []string{
 				`class="step done" id="card-install"`,
-				`class="step active" id="card-configure" hx-swap-oob="true"`,
-				`hx-post="/configure"`,
+				`class="step active" id="card-login" hx-swap-oob="true"`,
+				`hx-post="/login"`,
 			},
 			mustMiss: []string{`hx-post="/install"`},
 		},
@@ -243,7 +301,7 @@ func TestConfigure(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	fd := fakeDeps{installed: true}
+	fd := fakeDeps{installed: true, authenticated: true}
 	s, err := NewServer(fd.deps())
 	r.NoError(err)
 
@@ -254,8 +312,8 @@ func TestConfigure(t *testing.T) {
 	a.Equal(http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	a.Contains(body, `class="step done" id="card-configure"`)
-	a.Contains(body, `class="step active" id="card-login" hx-swap-oob="true"`)
-	a.Contains(body, `hx-post="/login"`)
+	a.Contains(body, `id="card-sessions" hx-swap-oob="true"`)
+	a.Contains(body, "Remote control sessions")
 	a.Equal(1, fd.configureCalls)
 	a.True(fd.configured)
 }
@@ -265,7 +323,7 @@ func TestLoginFlow(t *testing.T) {
 	r := require.New(t)
 
 	fl := &fakeLogin{url: "https://claude.com/auth?code=xyz"}
-	fd := fakeDeps{installed: true, configured: true, login: fl}
+	fd := fakeDeps{installed: true, login: fl}
 	s, err := NewServer(fd.deps())
 	r.NoError(err)
 
@@ -293,6 +351,7 @@ func TestLoginFlow(t *testing.T) {
 	a.Equal("abc", fl.submitted)
 	a.True(fl.closed)
 	a.Contains(rec.Body.String(), `class="step done" id="card-login"`)
+	a.Contains(rec.Body.String(), `class="step active" id="card-configure" hx-swap-oob="true"`)
 }
 
 func TestLoginCodeInvalid(t *testing.T) {
@@ -300,7 +359,7 @@ func TestLoginCodeInvalid(t *testing.T) {
 	r := require.New(t)
 
 	fl := &fakeLogin{url: "https://claude.com/auth", submitErr: errors.New("invalid code")}
-	fd := fakeDeps{installed: true, configured: true, login: fl}
+	fd := fakeDeps{installed: true, login: fl}
 	s, err := NewServer(fd.deps())
 	r.NoError(err)
 
@@ -324,7 +383,7 @@ func TestLoginCodeMissing(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	fd := fakeDeps{installed: true, configured: true}
+	fd := fakeDeps{installed: true}
 	s, err := NewServer(fd.deps())
 	r.NoError(err)
 
@@ -336,25 +395,25 @@ func TestLoginCodeMissing(t *testing.T) {
 	a.Contains(rec.Body.String(), "no login in progress")
 }
 
-func TestSessionsCardHiddenUntilAuthenticated(t *testing.T) {
+func TestSessionsCardHiddenUntilConfigured(t *testing.T) {
 	tests := []struct {
-		fake        fakeDeps
-		mustHave    []string
-		mustMiss    []string
-		name        string
+		fake     fakeDeps
+		mustHave []string
+		mustMiss []string
+		name     string
 	}{
 		{
-			name:     "unauthenticated hides session form",
-			fake:     fakeDeps{installed: true, configured: true},
+			name:     "unconfigured hides session form",
+			fake:     fakeDeps{installed: true, authenticated: true},
 			mustMiss: []string{`hx-post="/sessions"`, "Remote control sessions"},
 		},
 		{
-			name: "authenticated shows session form with default dir",
+			name: "configured shows session form with default dir",
 			fake: fakeDeps{installed: true, configured: true, authenticated: true},
 			mustHave: []string{
 				"Remote control sessions",
 				`hx-post="/sessions"`,
-				`value="/home/exedev"`,
+				`value="` + mustHome(t) + `"`,
 				"No sessions running.",
 			},
 		},
@@ -412,7 +471,7 @@ func TestSessionStartDefaultsDir(t *testing.T) {
 	var gotDir string
 	fd := fakeDeps{
 		installed: true, configured: true, authenticated: true,
-		startSessionFn: func(name, dir string) (*claudecode.Session, error) {
+		startSessionFn: func(name, dir, prompt string) (*claudecode.Session, error) {
 			gotDir = dir
 			return &claudecode.Session{ID: "id1", Name: name, Dir: dir, URL: "https://claude.ai/code/d"}, nil
 		},
@@ -425,7 +484,14 @@ func TestSessionStartDefaultsDir(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)
 
-	a.Equal("/home/exedev", gotDir)
+	a.Equal(mustHome(t), gotDir)
+}
+
+func mustHome(t *testing.T) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	require.New(t).NoError(err)
+	return home
 }
 
 func TestSessionStartError(t *testing.T) {
@@ -434,7 +500,7 @@ func TestSessionStartError(t *testing.T) {
 
 	fd := fakeDeps{
 		installed: true, configured: true, authenticated: true,
-		startSessionFn: func(name, dir string) (*claudecode.Session, error) {
+		startSessionFn: func(name, dir, prompt string) (*claudecode.Session, error) {
 			return nil, errors.New("tmux missing")
 		},
 	}
@@ -502,12 +568,12 @@ func TestSessionQRMissing(t *testing.T) {
 	a.Equal(http.StatusNotFound, rec.Code)
 }
 
-func TestLoginCascadesSessionsCard(t *testing.T) {
+func TestLoginCascadesConfigureCard(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
 	fl := &fakeLogin{url: "https://claude.com/auth"}
-	fd := fakeDeps{installed: true, configured: true, login: fl}
+	fd := fakeDeps{installed: true, login: fl}
 	srv, err := NewServer(fd.deps())
 	r.NoError(err)
 
@@ -521,7 +587,7 @@ func TestLoginCascadesSessionsCard(t *testing.T) {
 	srv.Handler().ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	a.Contains(body, `id="card-sessions"`)
+	a.Contains(body, `id="card-configure"`)
 	a.Contains(body, `hx-swap-oob="true"`)
-	a.Contains(body, "Remote control sessions")
+	a.Contains(body, `hx-post="/configure"`)
 }

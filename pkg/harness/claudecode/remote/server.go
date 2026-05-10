@@ -5,20 +5,21 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/agents"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
 )
 
 //go:embed templates/*.html
 var templatesFS embed.FS
 
-const defaultSessionDir = "/home/exedev"
-
 type Deps struct {
+	AgentsStatus  func() (agents.State, error)
 	Authenticated func() (bool, error)
 	Configure     func() error
 	Configured    func() (bool, error)
@@ -27,7 +28,7 @@ type Deps struct {
 	ListSessions  func() []*claudecode.Session
 	SessionQR     func(id string) ([]byte, error)
 	StartLogin    func() (Login, error)
-	StartSession  func(name, dir string) (*claudecode.Session, error)
+	StartSession  func(name, dir, prompt string) (*claudecode.Session, error)
 	StopSession   func(id string) error
 }
 
@@ -39,12 +40,17 @@ type Login interface {
 
 type Server struct {
 	deps  Deps
+	home  string
 	login Login
 	mu    sync.Mutex
 	tmpl  *template.Template
 }
 
 type viewModel struct {
+	AgentsBehind   int
+	AgentsDir      string
+	AgentsDiverged bool
+	AgentsDirty    bool
 	Authenticated  bool
 	ConfigureError string
 	Configured     bool
@@ -61,8 +67,9 @@ type viewModel struct {
 func DefaultDeps() Deps {
 	mgr := claudecode.NewManager()
 	return Deps{
+		AgentsStatus:  agents.Status,
 		Authenticated: claudecode.Authenticated,
-		Configure:     claudecode.WriteDefaults,
+		Configure:     claudecode.Configure,
 		Configured:    claudecode.Configured,
 		Install:       claudecode.EnsureInstalled,
 		Installed:     claudecode.Installed,
@@ -87,7 +94,11 @@ func NewServer(deps Deps) (*Server, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "parse templates")
 	}
-	return &Server{deps: deps, tmpl: tmpl}, nil
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "user home dir")
+	}
+	return &Server{deps: deps, home: home, tmpl: tmpl}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -138,7 +149,7 @@ func (s *Server) handleConfigure(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("configured")
 	vm = s.viewModel()
-	s.renderCascade(w, "configure-card", vm, "login-card")
+	s.renderCascade(w, "configure-card", vm, "sessions-card")
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +166,7 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("installed")
 	vm = s.viewModel()
-	s.renderCascade(w, "install-card", vm, "configure-card")
+	s.renderCascade(w, "install-card", vm, "login-card")
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +237,7 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	slog.Info("login succeeded")
 	vm = s.viewModel()
 	vm.Authenticated = true
-	s.renderCascade(w, "login-card", vm, "sessions-card")
+	s.renderCascade(w, "login-card", vm, "configure-card")
 }
 
 func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
@@ -243,12 +254,13 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	}
 	dir := strings.TrimSpace(r.FormValue("dir"))
 	name := strings.TrimSpace(r.FormValue("name"))
+	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	if dir == "" {
-		dir = defaultSessionDir
+		dir = s.home
 	}
 	vm.SessionDir = dir
 
-	sess, err := s.deps.StartSession(name, dir)
+	sess, err := s.deps.StartSession(name, dir, prompt)
 	if err != nil {
 		slog.Error("start session failed", "error", err.Error())
 		vm.SessionError = err.Error()
@@ -317,12 +329,22 @@ func (s *Server) renderCascade(w http.ResponseWriter, primary string, vm viewMod
 }
 
 func (s *Server) viewModel() viewModel {
-	vm := viewModel{Installed: s.deps.Installed(), SessionDir: defaultSessionDir}
+	vm := viewModel{Installed: s.deps.Installed(), SessionDir: s.home}
+	if dir, err := agents.Dir(); err == nil {
+		vm.AgentsDir = dir
+	}
 	if ok, err := s.deps.Configured(); err == nil {
 		vm.Configured = ok
 	}
 	if ok, err := s.deps.Authenticated(); err == nil {
 		vm.Authenticated = ok
+	}
+	if vm.Configured && s.deps.AgentsStatus != nil {
+		if state, err := s.deps.AgentsStatus(); err == nil {
+			vm.AgentsBehind = state.Behind
+			vm.AgentsDirty = state.Dirty
+			vm.AgentsDiverged = state.Diverged
+		}
 	}
 
 	s.mu.Lock()

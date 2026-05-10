@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/agents"
 )
 
 const installScriptURL = "https://claude.ai/install.sh"
@@ -14,7 +15,7 @@ const installScriptURL = "https://claude.ai/install.sh"
 type ClaudeConfig struct {
 	HasCompletedOnboarding bool               `json:"hasCompletedOnboarding"`
 	HasUsedRemoteControl   bool               `json:"hasUsedRemoteControl"`
-	Projects               map[string]Project `json:"projects"`
+	Projects               map[string]Project `json:"projects,omitempty"`
 	RemoteDialogSeen       bool               `json:"remoteDialogSeen"`
 }
 
@@ -35,10 +36,7 @@ type Settings struct {
 var claudeJSONDefaults = ClaudeConfig{
 	HasCompletedOnboarding: true,
 	HasUsedRemoteControl:   true,
-	Projects: map[string]Project{
-		"/home/exedev": {HasTrustDialogAccepted: true},
-	},
-	RemoteDialogSeen: true,
+	RemoteDialogSeen:       true,
 }
 
 var settingsDefaults = Settings{
@@ -84,11 +82,21 @@ func MergeDefaults(path string, defaults any) error {
 	return writeJSONObject(path, current)
 }
 
+func Configure() error {
+	if err := WriteDefaults(); err != nil {
+		return err
+	}
+	if err := agents.InstallOrUpdate(); err != nil {
+		return err
+	}
+	return EnsureSymlinks()
+}
+
 func Setup() error {
 	if err := EnsureInstalled(); err != nil {
 		return err
 	}
-	return WriteDefaults()
+	return Configure()
 }
 
 func WriteDefaults() error {
@@ -100,6 +108,22 @@ func WriteDefaults() error {
 		return err
 	}
 	return MergeDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults)
+}
+
+func TrustProject(dir string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return errors.Wrap(err, "user home dir")
+	}
+	return TrustProjectAt(filepath.Join(home, ".claude.json"), dir)
+}
+
+func TrustProjectAt(path, dir string) error {
+	return MergeDefaults(path, map[string]any{
+		"projects": map[string]any{
+			dir: map[string]any{"hasTrustDialogAccepted": true},
+		},
+	})
 }
 
 func mergeMissing(dst, defaults map[string]any) bool {

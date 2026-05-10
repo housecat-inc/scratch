@@ -68,12 +68,14 @@ func ptr(s string) *string { return &s }
 
 func TestConfiguredAt(t *testing.T) {
 	tests := []struct {
-		name        string
-		claudeJSON  any
-		settings    any
-		writeClaude bool
-		writeSet    bool
-		want        bool
+		name          string
+		claudeJSON    any
+		settings      any
+		writeAgents   bool
+		writeClaude   bool
+		writeSet      bool
+		writeSymlinks bool
+		want          bool
 	}{
 		{name: "neither file present"},
 		{
@@ -87,19 +89,38 @@ func TestConfiguredAt(t *testing.T) {
 			writeSet: true,
 		},
 		{
-			name:        "both complete",
+			name:        "settings complete but agents missing",
 			claudeJSON:  claudeJSONDefaults,
 			settings:    settingsDefaults,
 			writeClaude: true,
 			writeSet:    true,
-			want:        true,
 		},
 		{
-			name:        "claude.json missing key",
-			claudeJSON:  map[string]any{"theme": "auto"},
+			name:        "agents installed but symlinks missing",
+			claudeJSON:  claudeJSONDefaults,
 			settings:    settingsDefaults,
+			writeAgents: true,
 			writeClaude: true,
 			writeSet:    true,
+		},
+		{
+			name:          "all four complete",
+			claudeJSON:    claudeJSONDefaults,
+			settings:      settingsDefaults,
+			writeAgents:   true,
+			writeClaude:   true,
+			writeSet:      true,
+			writeSymlinks: true,
+			want:          true,
+		},
+		{
+			name:          "claude.json missing key",
+			claudeJSON:    map[string]any{"theme": "auto"},
+			settings:      settingsDefaults,
+			writeAgents:   true,
+			writeClaude:   true,
+			writeSet:      true,
+			writeSymlinks: true,
 		},
 	}
 
@@ -121,6 +142,12 @@ func TestConfiguredAt(t *testing.T) {
 				r.NoError(err)
 				r.NoError(os.WriteFile(filepath.Join(home, ".claude", "settings.json"), data, 0o644))
 			}
+			if tc.writeAgents {
+				r.NoError(os.MkdirAll(filepath.Join(home, "scratch", ".git"), 0o755))
+			}
+			if tc.writeSymlinks {
+				r.NoError(EnsureSymlinksAt(home))
+			}
 
 			ok, err := ConfiguredAt(home)
 			r.NoError(err)
@@ -138,11 +165,13 @@ func TestConfiguredAfterClaudeRewrite(t *testing.T) {
 
 	r.NoError(MergeDefaults(filepath.Join(home, ".claude.json"), claudeJSONDefaults))
 	r.NoError(MergeDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults))
+	r.NoError(os.MkdirAll(filepath.Join(home, "scratch", ".git"), 0o755))
+	r.NoError(EnsureSymlinksAt(home))
 
 	rewritten := `{
 		"hasCompletedOnboarding": true,
 		"hasUsedRemoteControl": true,
-		"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
+		"projects": {"/tmp/work": {"hasTrustDialogAccepted": true}},
 		"remoteDialogSeen": true,
 		"installMethod": "native",
 		"oauthAccount": {"emailAddress": "noah@housecat.com"}

@@ -33,10 +33,27 @@ func TestURLRegex(t *testing.T) {
 	}
 }
 
-func TestDefaultName(t *testing.T) {
-	a := assert.New(t)
-	a.Contains(defaultName("/home/exedev"), "exedev")
-	a.Contains(defaultName("/tmp/work/"), "session")
+func TestSessionPrefix(t *testing.T) {
+	tests := []struct {
+		dir  string
+		host string
+		name string
+		test string
+		want string
+	}{
+		{test: "host plus user name", host: "jukelab", name: "foobar", dir: "/tmp/x", want: "jukelab-foobar"},
+		{test: "host plus dir basename when no name", host: "jukelab", dir: "/home/exedev", want: "jukelab-exedev"},
+		{test: "trailing slash uses parent basename", host: "h", dir: "/tmp/work/", want: "h-work"},
+		{test: "root dir falls back to session", host: "h", dir: "/", want: "h-session"},
+		{test: "no host returns base only", name: "n", dir: "/tmp/x", want: "n"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.test, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tc.want, sessionPrefix(tc.host, tc.name, tc.dir))
+		})
+	}
 }
 
 func TestManagerStart(t *testing.T) {
@@ -47,16 +64,20 @@ func TestManagerStart(t *testing.T) {
 	tmuxBin := writeFakeTmux(t)
 	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_abc123")
 
+	var trustedDir string
 	m := NewManager()
-	m.TmuxBin = tmuxBin
 	m.ClaudeBin = claudeBin
+	m.Hostname = "jukelab"
 	m.StartTimeout = 3 * time.Second
+	m.TmuxBin = tmuxBin
+	m.TrustProject = func(d string) error { trustedDir = d; return nil }
 
-	s, err := m.Start("my-session", dir)
+	s, err := m.Start("foobar", dir, "")
 	r.NoError(err)
 	a.Equal("https://claude.ai/code/session_abc123", s.URL)
-	a.Equal("my-session", s.Name)
+	a.Equal("jukelab-foobar", s.Name)
 	a.Equal(dir, s.Dir)
+	a.Equal(dir, trustedDir)
 	a.NotEmpty(s.ID)
 
 	a.Len(m.List(), 1)
@@ -103,10 +124,11 @@ func TestManagerStartErrors(t *testing.T) {
 			m.TmuxBin = tmuxBin
 			m.ClaudeBin = claudeBin
 			m.StartTimeout = 2 * time.Second
+			m.TrustProject = func(string) error { return nil }
 			if tc.setup != nil {
 				tc.setup(m)
 			}
-			_, err := m.Start(tc.name, tc.dir)
+			_, err := m.Start(tc.name, tc.dir, "")
 			a.ErrorContains(err, tc.wantErr)
 		})
 	}
@@ -121,9 +143,10 @@ func TestManagerStopAll(t *testing.T) {
 	m.TmuxBin = writeFakeTmux(t)
 	m.ClaudeBin = writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
 	m.StartTimeout = 3 * time.Second
+	m.TrustProject = func(string) error { return nil }
 
 	for _, name := range []string{"a", "b", "c"} {
-		_, err := m.Start(name, dir)
+		_, err := m.Start(name, dir, "")
 		r.NoError(err)
 	}
 	a.Len(m.List(), 3)

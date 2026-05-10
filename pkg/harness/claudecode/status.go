@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/agents"
 )
 
 type Credentials struct {
@@ -62,7 +63,13 @@ func ConfiguredAt(home string) (bool, error) {
 	if err != nil || !ok {
 		return ok, err
 	}
-	return HasDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults)
+	if ok, err := HasDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults); err != nil || !ok {
+		return ok, err
+	}
+	if ok, err := agents.InstalledAt(filepath.Join(home, "scratch")); err != nil || !ok {
+		return ok, err
+	}
+	return HasSymlinksAt(home)
 }
 
 func Installed() bool {

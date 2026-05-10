@@ -23,7 +23,6 @@ func TestMergeDefaults(t *testing.T) {
 			want: `{
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
-				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
 				"remoteDialogSeen": true
 			}`,
 		},
@@ -47,16 +46,13 @@ func TestMergeDefaults(t *testing.T) {
 			}`,
 		},
 		{
-			name:     "merges projects map without dropping existing entries",
+			name:     "preserves existing projects map",
 			existing: `{"projects": {"/home/me": {"hasTrustDialogAccepted": true}}}`,
 			defaults: claudeJSONDefaults,
 			want: `{
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
-				"projects": {
-					"/home/me": {"hasTrustDialogAccepted": true},
-					"/home/exedev": {"hasTrustDialogAccepted": true}
-				},
+				"projects": {"/home/me": {"hasTrustDialogAccepted": true}},
 				"remoteDialogSeen": true
 			}`,
 		},
@@ -87,7 +83,6 @@ func TestMergeDefaults(t *testing.T) {
 			want: `{
 				"hasCompletedOnboarding": true,
 				"hasUsedRemoteControl": true,
-				"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
 				"remoteDialogSeen": true,
 				"someFutureField": [1, 2, 3]
 			}`,
@@ -106,6 +101,58 @@ func TestMergeDefaults(t *testing.T) {
 
 			r.NoError(MergeDefaults(path, tc.defaults))
 
+			a.Equal(parseJSON(t, tc.want), readJSON(t, path))
+		})
+	}
+}
+
+func TestTrustProjectAt(t *testing.T) {
+	tests := []struct {
+		dir      string
+		existing string
+		test     string
+		want     string
+	}{
+		{
+			test: "creates entry on empty file",
+			dir:  "/tmp/work",
+			want: `{
+				"projects": {"/tmp/work": {"hasTrustDialogAccepted": true}}
+			}`,
+		},
+		{
+			test:     "preserves existing trusted project",
+			existing: `{"projects": {"/other": {"hasTrustDialogAccepted": true}}}`,
+			dir:      "/tmp/work",
+			want: `{
+				"projects": {
+					"/other": {"hasTrustDialogAccepted": true},
+					"/tmp/work": {"hasTrustDialogAccepted": true}
+				}
+			}`,
+		},
+		{
+			test:     "leaves other top-level fields alone",
+			existing: `{"hasCompletedOnboarding": true, "oauthAccount": {"emailAddress": "x@y"}}`,
+			dir:      "/tmp/work",
+			want: `{
+				"hasCompletedOnboarding": true,
+				"oauthAccount": {"emailAddress": "x@y"},
+				"projects": {"/tmp/work": {"hasTrustDialogAccepted": true}}
+			}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.test, func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+
+			path := filepath.Join(t.TempDir(), ".claude.json")
+			if tc.existing != "" {
+				r.NoError(os.WriteFile(path, []byte(tc.existing), 0o644))
+			}
+			r.NoError(TrustProjectAt(path, tc.dir))
 			a.Equal(parseJSON(t, tc.want), readJSON(t, path))
 		})
 	}
