@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/agents"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
 )
 
@@ -19,6 +20,7 @@ var templatesFS embed.FS
 const defaultSessionDir = "/home/exedev"
 
 type Deps struct {
+	AgentsStatus  func() (agents.State, error)
 	Authenticated func() (bool, error)
 	Configure     func() error
 	Configured    func() (bool, error)
@@ -45,6 +47,10 @@ type Server struct {
 }
 
 type viewModel struct {
+	AgentsBehind   int
+	AgentsDir      string
+	AgentsDiverged bool
+	AgentsDirty    bool
 	Authenticated  bool
 	ConfigureError string
 	Configured     bool
@@ -61,8 +67,9 @@ type viewModel struct {
 func DefaultDeps() Deps {
 	mgr := claudecode.NewManager()
 	return Deps{
+		AgentsStatus:  agents.Status,
 		Authenticated: claudecode.Authenticated,
-		Configure:     claudecode.WriteDefaults,
+		Configure:     claudecode.Configure,
 		Configured:    claudecode.Configured,
 		Install:       claudecode.EnsureInstalled,
 		Installed:     claudecode.Installed,
@@ -138,7 +145,7 @@ func (s *Server) handleConfigure(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("configured")
 	vm = s.viewModel()
-	s.renderCascade(w, "configure-card", vm, "login-card")
+	s.renderCascade(w, "configure-card", vm, "sessions-card")
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +162,7 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("installed")
 	vm = s.viewModel()
-	s.renderCascade(w, "install-card", vm, "configure-card")
+	s.renderCascade(w, "install-card", vm, "login-card")
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +233,7 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	slog.Info("login succeeded")
 	vm = s.viewModel()
 	vm.Authenticated = true
-	s.renderCascade(w, "login-card", vm, "sessions-card")
+	s.renderCascade(w, "login-card", vm, "configure-card")
 }
 
 func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
@@ -318,11 +325,21 @@ func (s *Server) renderCascade(w http.ResponseWriter, primary string, vm viewMod
 
 func (s *Server) viewModel() viewModel {
 	vm := viewModel{Installed: s.deps.Installed(), SessionDir: defaultSessionDir}
+	if dir, err := agents.Dir(); err == nil {
+		vm.AgentsDir = dir
+	}
 	if ok, err := s.deps.Configured(); err == nil {
 		vm.Configured = ok
 	}
 	if ok, err := s.deps.Authenticated(); err == nil {
 		vm.Authenticated = ok
+	}
+	if vm.Configured && s.deps.AgentsStatus != nil {
+		if state, err := s.deps.AgentsStatus(); err == nil {
+			vm.AgentsBehind = state.Behind
+			vm.AgentsDirty = state.Dirty
+			vm.AgentsDiverged = state.Diverged
+		}
 	}
 
 	s.mu.Lock()

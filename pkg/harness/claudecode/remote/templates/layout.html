@@ -48,8 +48,8 @@
   <h1>claude-control</h1>
   <ol class="checklist">
     {{template "install-card" .}}
-    {{template "configure-card" .}}
     {{template "login-card" .}}
+    {{template "configure-card" .}}
   </ol>
   {{template "sessions-card" .}}
 </body>
@@ -67,19 +67,7 @@
   </div>
 </li>{{end}}
 
-{{define "configure-card"}}<li class="step {{if .Configured}}done{{else if .Installed}}active{{else}}pending{{end}}" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  <span class="check"></span>
-  <div class="body">
-    <div class="title">Unleash</div>
-    {{if and (not .Configured) .Installed}}
-      <div class="hint">Update settings to remove prompts</div>
-      <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Unleash</button>
-    {{end}}
-    {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
-  </div>
-</li>{{end}}
-
-{{define "login-card"}}<li class="step {{if .Authenticated}}done{{else if .Configured}}active{{else}}pending{{end}}" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
+{{define "login-card"}}<li class="step {{if .Authenticated}}done{{else if .Installed}}active{{else}}pending{{end}}" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
   <span class="check"></span>
   <div class="body">
     <div class="title">Pay</div>
@@ -94,7 +82,7 @@
           <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required>
           <button type="submit">Submit</button>
         </form>
-      {{else if .Configured}}
+      {{else if .Installed}}
         <div class="hint">Connect Anthropic subscription</div>
         <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this">Connect</button>
       {{end}}
@@ -103,8 +91,29 @@
   </div>
 </li>{{end}}
 
+{{define "configure-card"}}<li class="step {{if .Configured}}done{{else if .Authenticated}}active{{else}}pending{{end}}" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
+  <span class="check"></span>
+  <div class="body">
+    <div class="title">Configure</div>
+    {{if and (not .Configured) .Authenticated}}
+      <div class="hint">Write settings and clone agents to {{.AgentsDir}}</div>
+      <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Configure</button>
+    {{else if .Configured}}
+      {{if .AgentsDirty}}
+        <div class="hint">Local edits in {{.AgentsDir}} — commit or stash to update</div>
+      {{else if .AgentsDiverged}}
+        <div class="hint">Local commits ahead in {{.AgentsDir}} — push or rebase to update</div>
+      {{else if gt .AgentsBehind 0}}
+        <div class="hint">{{.AgentsBehind}} new agent change{{if ne .AgentsBehind 1}}s{{end}} available</div>
+        <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Update</button>
+      {{end}}
+    {{end}}
+    {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
+  </div>
+</li>{{end}}
+
 {{define "sessions-card"}}<section id="card-sessions"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  {{if .Authenticated}}
+  {{if .Configured}}
     <h2 style="margin-top:2rem;font-size:1.1rem;">Remote control sessions</h2>
     <p class="hint" style="margin:0.25rem 0 0.75rem;">Spawn <code>claude remote-control</code> in a tmux session and open the URL on any device.</p>
     {{if .Sessions}}

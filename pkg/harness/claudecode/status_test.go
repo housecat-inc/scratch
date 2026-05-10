@@ -71,6 +71,7 @@ func TestConfiguredAt(t *testing.T) {
 		name        string
 		claudeJSON  any
 		settings    any
+		writeAgents bool
 		writeClaude bool
 		writeSet    bool
 		want        bool
@@ -87,9 +88,17 @@ func TestConfiguredAt(t *testing.T) {
 			writeSet: true,
 		},
 		{
-			name:        "both complete",
+			name:        "settings complete but agents missing",
 			claudeJSON:  claudeJSONDefaults,
 			settings:    settingsDefaults,
+			writeClaude: true,
+			writeSet:    true,
+		},
+		{
+			name:        "all three complete",
+			claudeJSON:  claudeJSONDefaults,
+			settings:    settingsDefaults,
+			writeAgents: true,
 			writeClaude: true,
 			writeSet:    true,
 			want:        true,
@@ -98,6 +107,7 @@ func TestConfiguredAt(t *testing.T) {
 			name:        "claude.json missing key",
 			claudeJSON:  map[string]any{"theme": "auto"},
 			settings:    settingsDefaults,
+			writeAgents: true,
 			writeClaude: true,
 			writeSet:    true,
 		},
@@ -121,6 +131,9 @@ func TestConfiguredAt(t *testing.T) {
 				r.NoError(err)
 				r.NoError(os.WriteFile(filepath.Join(home, ".claude", "settings.json"), data, 0o644))
 			}
+			if tc.writeAgents {
+				r.NoError(os.MkdirAll(filepath.Join(home, "scratch", ".git"), 0o755))
+			}
 
 			ok, err := ConfiguredAt(home)
 			r.NoError(err)
@@ -138,11 +151,12 @@ func TestConfiguredAfterClaudeRewrite(t *testing.T) {
 
 	r.NoError(MergeDefaults(filepath.Join(home, ".claude.json"), claudeJSONDefaults))
 	r.NoError(MergeDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults))
+	r.NoError(os.MkdirAll(filepath.Join(home, "scratch", ".git"), 0o755))
 
 	rewritten := `{
 		"hasCompletedOnboarding": true,
 		"hasUsedRemoteControl": true,
-		"projects": {"/home/exedev": {"hasTrustDialogAccepted": true}},
+		"projects": {"/tmp/work": {"hasTrustDialogAccepted": true}},
 		"remoteDialogSeen": true,
 		"installMethod": "native",
 		"oauthAccount": {"emailAddress": "noah@housecat.com"}

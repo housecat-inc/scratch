@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"sync"
@@ -22,8 +23,10 @@ var (
 
 type Manager struct {
 	ClaudeBin    string
+	Hostname     string
 	StartTimeout time.Duration
 	TmuxBin      string
+	TrustProject func(dir string) error
 
 	mu       sync.Mutex
 	sessions map[string]*Session
@@ -44,6 +47,7 @@ func NewManager() *Manager {
 		ClaudeBin:    "claude",
 		StartTimeout: defaultStartTimeout,
 		TmuxBin:      "tmux",
+		TrustProject: TrustProject,
 		sessions:     make(map[string]*Session),
 	}
 }
@@ -59,16 +63,21 @@ func (m *Manager) Start(name, dir string) (*Session, error) {
 	if !info.IsDir() {
 		return nil, errors.Newf("%s is not a directory", dir)
 	}
-	if name == "" {
-		name = defaultName(dir)
-	}
-	if !nameRegex.MatchString(name) {
+	if name != "" && !nameRegex.MatchString(name) {
 		return nil, errors.Newf("name %q must match %s", name, nameRegex)
+	}
+
+	prefix := sessionPrefix(m.hostname(), name, dir)
+
+	if m.TrustProject != nil {
+		if err := m.TrustProject(dir); err != nil {
+			return nil, errors.Wrap(err, "trust project")
+		}
 	}
 
 	id := randomID()
 	tmuxName := "claude-" + id
-	args := []string{"new-session", "-d", "-s", tmuxName, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control"}
+	args := []string{"new-session", "-d", "-s", tmuxName, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control", "--remote-control-session-name-prefix", prefix}
 	if out, err := exec.Command(m.TmuxBin, args...).CombinedOutput(); err != nil {
 		return nil, errors.Wrapf(err, "tmux new-session: %s", string(out))
 	}
@@ -82,7 +91,7 @@ func (m *Manager) Start(name, dir string) (*Session, error) {
 	s := &Session{
 		Dir:       dir,
 		ID:        id,
-		Name:      name,
+		Name:      prefix,
 		StartedAt: time.Now(),
 		URL:       url,
 		tmuxName:  tmuxName,
@@ -91,6 +100,14 @@ func (m *Manager) Start(name, dir string) (*Session, error) {
 	m.sessions[id] = s
 	m.mu.Unlock()
 	return s, nil
+}
+
+func (m *Manager) hostname() string {
+	if m.Hostname != "" {
+		return m.Hostname
+	}
+	host, _ := os.Hostname()
+	return host
 }
 
 func (m *Manager) List() []*Session {
@@ -172,17 +189,13 @@ func (s *Session) QRPNG(size int) ([]byte, error) {
 	return qrcode.Encode(s.URL, qrcode.Medium, size)
 }
 
-func defaultName(dir string) string {
-	host, _ := os.Hostname()
-	base := dir
-	for i := len(dir) - 1; i >= 0; i-- {
-		if dir[i] == '/' {
-			base = dir[i+1:]
-			break
-		}
-	}
+func sessionPrefix(host, name, dir string) string {
+	base := name
 	if base == "" {
-		base = "session"
+		base = filepath.Base(dir)
+		if base == "" || base == "." || base == "/" {
+			base = "session"
+		}
 	}
 	if host == "" {
 		return base
