@@ -1,0 +1,106 @@
+{{define "overview"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>diffs · claude-control</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-2xl mx-auto px-4 py-3">
+      <h1 class="text-lg font-semibold">Diffs</h1>
+      <p class="text-xs text-slate-500 truncate">{{.Home}}</p>
+    </div>
+  </header>
+  <main class="max-w-2xl mx-auto px-4 py-4">
+    {{if .Error}}<div class="text-red-700 text-sm mb-4 break-all">{{.Error}}</div>{{end}}
+    {{if not .Repos}}
+      <p class="text-slate-500 text-sm">No repos with origin found.</p>
+    {{end}}
+    <ul class="space-y-2">
+      {{range .Repos}}
+        <li>
+          <a href="/diff/{{.Slug}}" class="block bg-white rounded-lg border border-slate-200 px-4 py-3 active:bg-slate-100">
+            <div class="flex items-baseline justify-between gap-2">
+              <div class="font-medium truncate">{{.Slug}}</div>
+              <div class="flex gap-1 flex-shrink-0">
+                {{if .State.Dirty}}<span class="text-amber-800 bg-amber-100 text-xs px-1.5 py-0.5 rounded">dirty</span>{{end}}
+                {{if .State.Diverged}}<span class="text-blue-800 bg-blue-100 text-xs px-1.5 py-0.5 rounded">ahead</span>{{end}}
+                {{if gt .State.Behind 0}}<span class="text-slate-700 bg-slate-200 text-xs px-1.5 py-0.5 rounded">{{.State.Behind}}↓</span>{{end}}
+              </div>
+            </div>
+            <div class="text-slate-500 text-sm mt-0.5 truncate">on {{.Branch}}</div>
+            {{if .LastCommit.SHA}}
+              <div class="text-slate-400 text-xs mt-1 truncate">{{.LastCommit.Subject}}</div>
+            {{end}}
+          </a>
+        </li>
+      {{end}}
+    </ul>
+  </main>
+</body>
+</html>{{end}}
+
+{{define "diff"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Repo.Slug}} · diff</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+      <a href="/diff/" class="text-slate-500 active:text-slate-900 text-xl leading-none px-1">←</a>
+      <div class="min-w-0">
+        <div class="text-xs text-slate-500 truncate">{{.Repo.Slug}}</div>
+        <div class="font-semibold truncate text-sm">{{.Repo.Branch}} <span class="text-slate-400">→</span> {{.Repo.Base}}</div>
+      </div>
+    </div>
+  </header>
+  <main class="max-w-2xl mx-auto px-4 py-4">
+    {{if .Error}}<div class="text-red-700 text-sm mb-4 break-all">{{.Error}}</div>{{end}}
+    {{if not .Files}}<p class="text-slate-500 text-sm">No changes.</p>{{end}}
+    {{range .Files}}
+      <section class="mb-5">
+        <h2 class="text-xs font-mono text-slate-600 mb-1.5 px-1 truncate">
+          {{.Path}}
+          {{if eq (printf "%s" .Status) "added"}}<span class="text-green-700 ml-1">new</span>{{end}}
+          {{if eq (printf "%s" .Status) "deleted"}}<span class="text-red-700 ml-1">deleted</span>{{end}}
+          {{if eq (printf "%s" .Status) "renamed"}}<span class="text-blue-700 ml-1">renamed</span>{{end}}
+        </h2>
+        {{if .Binary}}<p class="text-slate-500 text-xs px-1">Binary file</p>{{end}}
+        <ul class="space-y-2">
+          {{range .Hunks}}{{template "hunk" .}}{{end}}
+        </ul>
+      </section>
+    {{end}}
+  </main>
+</body>
+</html>{{end}}
+
+{{define "hunk"}}<li>
+  <details class="bg-white rounded-lg border border-slate-200 group overflow-hidden">
+    <summary class="px-4 py-3 cursor-pointer flex items-center justify-between gap-3 list-none">
+      <div class="min-w-0 flex-1">
+        <div class="text-xs text-slate-500">Lines {{.OldStart}}{{if gt .OldCount 1}}–{{addInt .OldStart .OldCount}}{{end}} <span class="text-slate-300">→</span> {{.NewStart}}{{if gt .NewCount 1}}–{{addInt .NewStart .NewCount}}{{end}}</div>
+        <div class="font-mono text-xs text-slate-700 truncate mt-0.5">{{.Header}}</div>
+      </div>
+      <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+    </summary>
+    <div class="border-t border-slate-100 font-mono text-xs overflow-x-auto">
+      {{range .Lines}}
+        <div class="flex gap-2 px-2 py-0.5 {{lineClass .Kind}}">
+          <span class="text-slate-400 select-none w-7 text-right flex-shrink-0">{{if .OldLine}}{{.OldLine}}{{end}}</span>
+          <span class="text-slate-400 select-none w-7 text-right flex-shrink-0">{{if .NewLine}}{{.NewLine}}{{end}}</span>
+          <span class="text-slate-400 select-none w-3 flex-shrink-0">{{lineMarker .Kind}}</span>
+          <pre class="whitespace-pre-wrap break-all flex-1 m-0">{{.Content}}</pre>
+        </div>
+      {{end}}
+    </div>
+  </details>
+</li>{{end}}

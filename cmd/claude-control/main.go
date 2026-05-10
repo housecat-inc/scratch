@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/diffview"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode/remote"
 	"github.com/spf13/cobra"
 )
@@ -36,9 +37,22 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "new server")
 			}
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return errors.Wrap(err, "user home dir")
+			}
+			dv, err := diffview.NewServer(diffview.DefaultDeps(home))
+			if err != nil {
+				return errors.Wrap(err, "new diffview server")
+			}
+
+			mux := http.NewServeMux()
+			mux.Handle("/diff/", http.StripPrefix("/diff", dv.Handler()))
+			mux.Handle("/", s.Handler())
+
 			addr := fmt.Sprintf(":%d", port)
 			slog.Info("listening", "addr", addr)
-			return http.ListenAndServe(addr, s.Handler())
+			return http.ListenAndServe(addr, mux)
 		},
 	}
 	cmd.Flags().IntVarP(&port, "port", "p", 8888, "HTTP listen port")
