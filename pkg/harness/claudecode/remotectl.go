@@ -146,7 +146,7 @@ func (m *Manager) waitForURL(tmuxName string) (string, error) {
 	deadline := time.Now().Add(timeout)
 	var lastOut []byte
 	for time.Now().Before(deadline) {
-		out, err := exec.Command(m.TmuxBin, "capture-pane", "-t", tmuxName, "-p", "-J").Output()
+		out, err := exec.Command(m.TmuxBin, "capture-pane", "-t", tmuxName, "-p", "-J", "-S", "-").Output()
 		if err == nil {
 			lastOut = out
 			if match := urlRegex.Find(out); match != nil {
