@@ -50,10 +50,10 @@ templ InstallCard(v SessionsProps) {
 }
 
 templ stepCard(num string, done bool, title, hint string) {
-	@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 py-4"}) {
-		@card.Header(card.HeaderProps{Class: "px-4 pb-0 flex flex-row items-center gap-3 space-y-0"}) {
+	@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3"}) {
+		@card.Header(card.HeaderProps{Class: "pb-0 flex flex-row items-start gap-4 space-y-0"}) {
 			@stepBadge(num, done)
-			<div class="flex-1 min-w-0">
+			<div class="flex-1 min-w-0 space-y-1.5">
 				@card.Title(card.TitleProps{Class: "text-base"}) {
 					{ title }
 				}
@@ -65,7 +65,7 @@ templ stepCard(num string, done bool, title, hint string) {
 			</div>
 		}
 		if !done {
-			@card.Content(card.ContentProps{Class: "px-4 pt-0 pl-13 flex flex-wrap items-center gap-2"}) {
+			@card.Content(card.ContentProps{Class: "flex flex-wrap items-center gap-2"}) {
 				{ children... }
 			}
 		}
@@ -74,9 +74,9 @@ templ stepCard(num string, done bool, title, hint string) {
 
 templ stepBadge(num string, done bool) {
 	if done {
-		<span class="inline-flex w-8 h-8 rounded-full bg-emerald-600 text-white items-center justify-center text-sm font-bold shrink-0" aria-hidden="true">✓</span>
+		<span class="inline-flex w-10 h-10 rounded-full bg-emerald-600 text-white items-center justify-center text-base font-bold shrink-0" aria-hidden="true">✓</span>
 	} else {
-		<span class="inline-flex w-8 h-8 rounded-full bg-secondary text-secondary-foreground items-center justify-center text-sm font-semibold shrink-0 ring-1 ring-border" aria-hidden="true">{ num }</span>
+		<span class="inline-flex w-10 h-10 rounded-full bg-secondary text-secondary-foreground items-center justify-center text-base font-semibold shrink-0 ring-1 ring-border" aria-hidden="true">{ num }</span>
 	}
 }
 
