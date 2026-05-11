@@ -22,6 +22,8 @@
   <style>
     html, body { height: 100%; }
     .CodeMirror { height: 100%; font-size: 14px; }
+    .CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    .CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }
     @media (max-width: 767px) {
       .CodeMirror { font-size: 16px; }
       #files-wrap:not(.show-editor) .editor-pane { display: none; }
@@ -59,10 +61,11 @@
     const wrap = document.getElementById('files-wrap');
     const editor = CodeMirror(document.getElementById('editor-area'), {
       lineNumbers: true,
+      fixedGutter: false,
+      lineWrapping: true,
       theme: 'neat',
       keyMap: 'sublime',
       mode: 'text/plain',
-      lineWrapping: false,
     });
     let currentPath = null;
     let savedValue = '';
