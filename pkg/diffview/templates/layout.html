@@ -7,14 +7,7 @@
 </nav>{{end}}
 
 {{define "code-subnav"}}<div class="bg-white border-b border-slate-200">
-  <div class="max-w-2xl mx-auto px-4 py-2 flex items-center gap-3">
-    <a href="/code/" class="text-slate-500 active:text-slate-900 text-xl leading-none px-1" aria-label="Back to repos">←</a>
-    <div class="min-w-0 flex-1">
-      <div class="text-xs text-slate-500 truncate">{{.Repo.Slug}}</div>
-      <div class="font-semibold truncate text-sm">{{.Repo.Branch}} <span class="text-slate-400">→</span> {{.Repo.Base}}</div>
-    </div>
-  </div>
-  <div class="max-w-2xl mx-auto flex border-t border-slate-100">
+  <div class="max-w-2xl mx-auto flex">
     <a href="/code/{{.Repo.Slug}}/commits" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "commits"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Commits</a>
     <a href="/code/{{.Repo.Slug}}" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "diffs"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Diffs</a>
     <a href="/code/{{.Repo.Slug}}/comments" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "comments"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Comments</a>
