@@ -95,7 +95,7 @@ func FilesHead() templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\"><title>Files · claude-control</title><link rel=\"manifest\" href=\"/manifest.webmanifest\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-status-bar-style\" content=\"default\"><meta name=\"apple-mobile-web-app-title\" content=\"claude-control\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"application-name\" content=\"claude-control\"><meta name=\"theme-color\" content=\"#0f172a\"><link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\"><script src=\"https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\"></script><link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css\"><link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css\"><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js\"></script><style>\n\t\t\thtml, body { height: 100%; }\n\t\t\t.CodeMirror { height: 100%; font-size: 14px; }\n\t\t\t.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }\n\t\t\t.CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }\n\t\t\t@media (max-width: 767px) {\n\t\t\t\t.CodeMirror { font-size: 16px; }\n\t\t\t\t#files-wrap:not(.show-editor) .editor-pane { display: none; }\n\t\t\t\t#files-wrap.show-editor .tree-pane { display: none; }\n\t\t\t}\n\t\t</style></head>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\"><meta name=\"color-scheme\" content=\"light\"><title>Files · claude-control</title><link rel=\"manifest\" href=\"/manifest.webmanifest\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-status-bar-style\" content=\"default\"><meta name=\"apple-mobile-web-app-title\" content=\"claude-control\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"application-name\" content=\"claude-control\"><meta name=\"theme-color\" content=\"#0f172a\"><link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\"><script src=\"https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\"></script><link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css\"><link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css\"><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js\"></script><style>\n\t\t\thtml, body { height: 100%; }\n\t\t\t.CodeMirror { height: 100%; font-size: 14px; }\n\t\t\t.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }\n\t\t\t.CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }\n\t\t\t@media (max-width: 767px) {\n\t\t\t\t.CodeMirror { font-size: 16px; }\n\t\t\t\t#files-wrap:not(.show-editor) .editor-pane { display: none; }\n\t\t\t\t#files-wrap.show-editor .tree-pane { display: none; }\n\t\t\t}\n\t\t</style></head>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -137,7 +137,7 @@ func FileTreeList(t FileTreeProps) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.Path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 86, Col: 23}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 87, Col: 23}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -150,7 +150,7 @@ func FileTreeList(t FileTreeProps) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue("/files/tree?path=" + e.Path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 87, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 88, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func FileTreeList(t FileTreeProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(e.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 93, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 94, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -181,7 +181,7 @@ func FileTreeList(t FileTreeProps) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.Path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 102, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 103, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
@@ -194,7 +194,7 @@ func FileTreeList(t FileTreeProps) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(e.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 103, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/files.templ`, Line: 104, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {

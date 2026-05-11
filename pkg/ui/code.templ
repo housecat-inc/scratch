@@ -58,10 +58,10 @@ templ OverviewPage(p OverviewProps) {
 
 templ overviewItem(r repo.Repo) {
 	<li>
-		@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 transition hover:shadow-md"}) {
-			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block px-4 -my-1 active:bg-accent rounded-lg">
-				@card.Header(card.HeaderProps{Class: "p-0 flex flex-row items-start justify-between gap-2 space-y-0"}) {
-					<div class="flex-1 min-w-0">
+		@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 transition hover:shadow-md overflow-hidden"}) {
+			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block active:bg-accent">
+				@card.Header(card.HeaderProps{Class: "flex flex-row items-start justify-between gap-2 space-y-0"}) {
+					<div class="flex-1 min-w-0 space-y-1.5">
 						@card.Title(card.TitleProps{Class: "text-base font-mono"}) {
 							{ r.Slug() }
 						}
@@ -88,13 +88,13 @@ templ overviewItem(r repo.Repo) {
 					</div>
 				}
 				if r.LastCommit.SHA != "" {
-					@card.Content(card.ContentProps{Class: "px-0 pt-2 text-xs text-muted-foreground truncate"}) {
+					@card.Content(card.ContentProps{Class: "text-xs text-muted-foreground truncate"}) {
 						{ r.LastCommit.Subject }
 					}
 				}
 			</a>
 			if r.State.Dirty || r.State.Behind > 0 {
-				@card.Footer(card.FooterProps{Class: "border-t border-border pt-3 gap-2 flex-wrap"}) {
+				@card.Footer(card.FooterProps{Class: "border-t border-border pt-6 gap-2 flex-wrap"}) {
 					if r.State.Dirty {
 						@button.Button(button.Props{
 							Size: button.SizeSm,
@@ -179,6 +179,7 @@ templ diffHead(slug string) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+		<meta name="color-scheme" content="light"/>
 		<title>{ slug } · diff</title>
 		<link rel="manifest" href="/manifest.webmanifest"/>
 		<meta name="apple-mobile-web-app-capable" content="yes"/>

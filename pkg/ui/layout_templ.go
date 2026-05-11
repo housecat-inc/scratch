@@ -29,20 +29,20 @@ func Head(title string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\"><title>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\"><meta name=\"color-scheme\" content=\"light\"><title>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 7, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 8, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · claude-control</title><link rel=\"manifest\" href=\"/manifest.webmanifest\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-status-bar-style\" content=\"default\"><meta name=\"apple-mobile-web-app-title\" content=\"claude-control\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"application-name\" content=\"claude-control\"><meta name=\"theme-color\" content=\"#0f172a\"><link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\"><script src=\"https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\"></script><style type=\"text/tailwindcss\">\n\t\t@theme inline {\n\t\t\t--color-background: #f8fafc;\n\t\t\t--color-foreground: #0f172a;\n\t\t\t--color-card: #ffffff;\n\t\t\t--color-card-foreground: #0f172a;\n\t\t\t--color-popover: #ffffff;\n\t\t\t--color-popover-foreground: #0f172a;\n\t\t\t--color-primary: #0f172a;\n\t\t\t--color-primary-foreground: #ffffff;\n\t\t\t--color-secondary: #f1f5f9;\n\t\t\t--color-secondary-foreground: #0f172a;\n\t\t\t--color-muted: #f1f5f9;\n\t\t\t--color-muted-foreground: #64748b;\n\t\t\t--color-accent: #f1f5f9;\n\t\t\t--color-accent-foreground: #0f172a;\n\t\t\t--color-destructive: #b91c1c;\n\t\t\t--color-border: #e2e8f0;\n\t\t\t--color-input: #e2e8f0;\n\t\t\t--color-ring: #94a3b8;\n\t\t}\n\t\t</style></head>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · claude-control</title><link rel=\"manifest\" href=\"/manifest.webmanifest\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-status-bar-style\" content=\"default\"><meta name=\"apple-mobile-web-app-title\" content=\"claude-control\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"application-name\" content=\"claude-control\"><meta name=\"theme-color\" content=\"#0f172a\"><link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\"><script src=\"https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\"></script><style>\n\t\t:root { color-scheme: light; }\n\t\t</style><style type=\"text/tailwindcss\">\n\t\t@theme inline {\n\t\t\t--color-background: #f8fafc;\n\t\t\t--color-foreground: #0f172a;\n\t\t\t--color-card: #ffffff;\n\t\t\t--color-card-foreground: #0f172a;\n\t\t\t--color-popover: #ffffff;\n\t\t\t--color-popover-foreground: #0f172a;\n\t\t\t--color-primary: #0f172a;\n\t\t\t--color-primary-foreground: #ffffff;\n\t\t\t--color-secondary: #f1f5f9;\n\t\t\t--color-secondary-foreground: #0f172a;\n\t\t\t--color-muted: #f1f5f9;\n\t\t\t--color-muted-foreground: #64748b;\n\t\t\t--color-accent: #f1f5f9;\n\t\t\t--color-accent-foreground: #0f172a;\n\t\t\t--color-destructive: #b91c1c;\n\t\t\t--color-border: #e2e8f0;\n\t\t\t--color-input: #e2e8f0;\n\t\t\t--color-ring: #94a3b8;\n\t\t}\n\t\t</style></head>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -128,7 +128,7 @@ func navLink(href, name, active, label string) templ.Component {
 			var templ_7745c5c3_Var5 templ.SafeURL
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 56, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 60, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -141,7 +141,7 @@ func navLink(href, name, active, label string) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 56, Col: 136}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 60, Col: 136}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -159,7 +159,7 @@ func navLink(href, name, active, label string) templ.Component {
 			var templ_7745c5c3_Var7 templ.SafeURL
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 58, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 62, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -172,7 +172,7 @@ func navLink(href, name, active, label string) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 58, Col: 129}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/layout.templ`, Line: 62, Col: 129}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
