@@ -12,7 +12,7 @@
 ## Features
 
 - Claude Code Remote Control setup
-- Remote session management
+- Agent skills management
 - Code review and comments
 - Claude Desktop and Mobile integration
 
