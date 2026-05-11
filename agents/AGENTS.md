@@ -40,7 +40,7 @@ Write code that is easy to read, build, test, and deploy.
 Pull requests are validated by the `lint-pr` CI job. Format them as customer-facing release notes:
 
 - Title under 80 characters
-- Body is a markdown list of high-level changes (every non-empty line starts with `-`, `*`, `+`, or `N.`)
+- Body is a short markdown list — three to five bullets that summarize the user-facing capability, not the implementation (every non-empty line starts with `-`, `*`, `+`, or `N.`)
 - No low-level code details, no "Generated with Claude Code" footer
 
 ### exe.dev integrations
