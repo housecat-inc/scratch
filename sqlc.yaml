@@ -1,0 +1,24 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "pkg/db/schema"
+    queries: "pkg/db/queries"
+    gen:
+      go:
+        package: "sqlite"
+        out: "pkg/db/internal/sqlite"
+        sql_package: "database/sql"
+        emit_empty_slices: true
+        emit_exact_table_names: false
+        emit_interface: false
+        emit_json_tags: false
+        emit_prepared_queries: false
+        overrides:
+          - column: "comments.created_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "comments.updated_at"
+            go_type:
+              import: "time"
+              type: "Time"

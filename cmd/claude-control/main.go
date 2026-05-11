@@ -5,8 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/diffview"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode/remote"
 	"github.com/spf13/cobra"
@@ -41,7 +43,14 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "user home dir")
 			}
-			dv, err := diffview.NewServer(diffview.DefaultDeps(home))
+			store, err := db.New(filepath.Join(home, ".config", "scratch", "scratch.db"))
+			if err != nil {
+				return errors.Wrap(err, "open db")
+			}
+			defer store.Close()
+			deps := diffview.DefaultDeps(home)
+			deps.Comments = store
+			dv, err := diffview.NewServer(deps)
 			if err != nil {
 				return errors.Wrap(err, "new diffview server")
 			}
