@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -21,6 +22,7 @@ const contextLimit = 10
 type Deps struct {
 	Diff       func(r repo.Repo) ([]git.File, error)
 	Home       string
+	HunkCommit func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error)
 	ListRepos  func() ([]repo.Repo, error)
 	LookupRepo func(slug string) (repo.Repo, bool)
 	ShowFile   func(r repo.Repo, path string) ([]string, error)
@@ -35,7 +37,14 @@ func DefaultDeps(home string) Deps {
 			}
 			return git.Diff(r.Path, base, "HEAD")
 		},
-		Home:       home,
+		Home: home,
+		HunkCommit: func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error) {
+			base := r.Base
+			if base == "" {
+				base = "main"
+			}
+			return git.HunkCommit(r.Path, base, "HEAD", path, newStart, newCount)
+		},
 		ListRepos:  func() ([]repo.Repo, error) { return repo.Scan(home) },
 		LookupRepo: func(slug string) (repo.Repo, bool) { return repo.Find(home, slug) },
 		ShowFile: func(r repo.Repo, path string) ([]string, error) {
@@ -88,7 +97,9 @@ type fileVM struct {
 }
 
 type hunkBlock struct {
+	Commit   git.Commit
 	Hunk     *git.Hunk
+	Lang     string
 	PrevSpot *expandSpot
 	Virtual  bool
 }
@@ -111,6 +122,7 @@ type contextVM struct {
 	Direction    string
 	From         int
 	HunkKey      string
+	Lang         string
 	Lines        []string
 	Offset       int
 }
@@ -157,9 +169,19 @@ func (s *Server) buildFileVM(rp repo.Repo, f git.File, slug string) fileVM {
 	}
 
 	hunks := append([]git.Hunk(nil), f.Hunks...)
+	lang := langFor(f.Path())
+	makeBlock := func(h *git.Hunk) *hunkBlock {
+		hb := &hunkBlock{Hunk: h, Lang: lang}
+		if s.deps.HunkCommit != nil && f.NewPath != "" {
+			if c, err := s.deps.HunkCommit(rp, f.NewPath, h.NewStart, h.NewCount); err == nil {
+				hb.Commit = c
+			}
+		}
+		return hb
+	}
 	if f.Binary || f.Status == git.StatusAdded || f.Status == git.StatusDeleted || len(hunks) == 0 {
 		for i := range hunks {
-			vm.Hunks = append(vm.Hunks, &hunkBlock{Hunk: &hunks[i]})
+			vm.Hunks = append(vm.Hunks, makeBlock(&hunks[i]))
 		}
 		return vm
 	}
@@ -168,7 +190,7 @@ func (s *Server) buildFileVM(rp repo.Repo, f git.File, slug string) fileVM {
 	if err != nil {
 		slog.Warn("show file failed", "path", f.NewPath, "error", err.Error())
 		for i := range hunks {
-			vm.Hunks = append(vm.Hunks, &hunkBlock{Hunk: &hunks[i]})
+			vm.Hunks = append(vm.Hunks, makeBlock(&hunks[i]))
 		}
 		return vm
 	}
@@ -177,7 +199,7 @@ func (s *Server) buildFileVM(rp repo.Repo, f git.File, slug string) fileVM {
 	delta := 0
 	for i := range hunks {
 		h := &hunks[i]
-		hb := &hunkBlock{Hunk: h}
+		hb := makeBlock(h)
 
 		var prevBound int
 		if i == 0 {
@@ -212,6 +234,7 @@ func (s *Server) buildFileVM(rp repo.Repo, f git.File, slug string) fileVM {
 		virtual := &git.Hunk{Header: "end:" + f.NewPath}
 		vm.Hunks = append(vm.Hunks, &hunkBlock{
 			Hunk:    virtual,
+			Lang:    lang,
 			Virtual: true,
 			PrevSpot: &expandSpot{
 				Bound:     lastEnd + 1,
@@ -263,6 +286,7 @@ func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
 		Direction: direction,
 		From:      from,
 		HunkKey:   hunkKey,
+		Lang:      langFor(path),
 		Offset:    offset,
 	}
 	if from <= to {
@@ -325,6 +349,32 @@ func atoi(s string) int {
 	return n
 }
 
+func langFor(path string) string {
+	switch filepath.Ext(path) {
+	case ".bash", ".sh":
+		return "language-bash"
+	case ".css":
+		return "language-css"
+	case ".go":
+		return "language-go"
+	case ".html":
+		return "language-html"
+	case ".js":
+		return "language-javascript"
+	case ".json":
+		return "language-json"
+	case ".md":
+		return "language-markdown"
+	case ".py":
+		return "language-python"
+	case ".ts", ".tsx":
+		return "language-typescript"
+	case ".yaml", ".yml":
+		return "language-yaml"
+	}
+	return ""
+}
+
 func maxInt(a, b int) int {
 	if a > b {
 		return a
@@ -341,6 +391,20 @@ func minInt(a, b int) int {
 
 var funcs = template.FuncMap{
 	"addInt": func(a, b int) int { return a + b },
+	"dict": func(values ...any) (map[string]any, error) {
+		if len(values)%2 != 0 {
+			return nil, errors.New("dict requires even number of args")
+		}
+		m := make(map[string]any, len(values)/2)
+		for i := 0; i < len(values); i += 2 {
+			key, ok := values[i].(string)
+			if !ok {
+				return nil, errors.Errorf("dict key %d is not a string", i)
+			}
+			m[key] = values[i+1]
+		}
+		return m, nil
+	},
 	"lineClass": func(k git.LineKind) string {
 		switch k {
 		case git.LineAdd:

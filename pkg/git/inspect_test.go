@@ -88,6 +88,25 @@ func TestLastCommit(t *testing.T) {
 	a.False(c.Date.IsZero())
 }
 
+func TestHunkCommit(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	a := assert.New(t)
+	r := require.New(t)
+
+	clone, _ := setupRepo(t)
+	runGit(t, clone, "checkout", "-b", "feature")
+	r.NoError(writeFile(clone+"/README", "v1\nadded\n"))
+	runGit(t, clone, "add", ".")
+	runGit(t, clone, "commit", "-m", "introduce added line")
+
+	c, err := HunkCommit(clone, "main", "HEAD", "README", 2, 1)
+	r.NoError(err)
+	a.Equal("introduce added line", c.Subject)
+	a.NotEmpty(c.SHA)
+}
+
 func TestShowFile(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

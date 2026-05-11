@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -48,6 +49,34 @@ func LastCommit(dir string) (Commit, error) {
 	if err != nil {
 		return Commit{}, errors.Wrapf(err, "parse date %q", parts[2])
 	}
+	return Commit{Author: parts[1], Date: date, SHA: parts[0], Subject: parts[3]}, nil
+}
+
+func HunkCommit(dir, base, head, path string, newStart, newCount int) (Commit, error) {
+	if path == "" || newCount <= 0 {
+		return Commit{}, nil
+	}
+	end := newStart + newCount - 1
+	if end < newStart {
+		end = newStart
+	}
+	rangeArg := fmt.Sprintf("-L%d,%d:%s", newStart, end, path)
+	out, err := outputIn(dir, "git", "log", rangeArg, "--format=%H%x00%an%x00%aI%x00%s", "-n", "1", "-s", base+".."+head)
+	if err != nil {
+		return Commit{}, err
+	}
+	first := strings.TrimSpace(out)
+	if i := strings.Index(first, "\n"); i >= 0 {
+		first = first[:i]
+	}
+	if first == "" {
+		return Commit{}, nil
+	}
+	parts := strings.SplitN(first, "\x00", 4)
+	if len(parts) != 4 {
+		return Commit{}, errors.Errorf("bad log output: %q", first)
+	}
+	date, _ := time.Parse(time.RFC3339, parts[2])
 	return Commit{Author: parts[1], Date: date, SHA: parts[0], Subject: parts[3]}, nil
 }
 

@@ -51,6 +51,11 @@
   <title>{{.Repo.Slug}} · diff</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    pre code.hljs { background: transparent !important; padding: 0 !important; display: inline !important; }
+  </style>
   <script>
     function expandAllBlocks(btn, evt) {
       evt.preventDefault(); evt.stopPropagation();
@@ -113,6 +118,15 @@
       const firstHunk = file.querySelector('details');
       if (firstHunk) firstHunk.open = true;
     }, true);
+    function highlightNew(root) {
+      if (!window.hljs) return;
+      (root || document).querySelectorAll('pre code:not([data-highlighted])').forEach(el => {
+        try { hljs.highlightElement(el); } catch (_) {}
+      });
+    }
+    window.addEventListener('load', () => highlightNew());
+    document.body.addEventListener('htmx:afterSwap', evt => highlightNew(evt.detail.target));
+    document.body.addEventListener('htmx:oobAfterSwap', evt => highlightNew(evt.detail.target));
     function handlePrevClick(btn, event) {
       const span = btn.closest('[id^="prev-buttons-"]');
       if (!span) return;
@@ -185,7 +199,7 @@
 </div>{{else}}<details class="group/hunk" id="hunk-{{.Hunk.Key}}">
   <summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none border-b border-slate-100 hover:bg-slate-50">
     <svg class="w-3 h-3 text-slate-400 transition-transform group-open/hunk:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
-    <span class="font-mono text-xs text-slate-600 truncate flex-1 min-w-0">{{.Hunk.Section}}</span>
+    <span class="text-xs text-slate-700 truncate flex-1 min-w-0">{{if .Commit.Subject}}{{.Commit.Subject}}{{else if .Hunk.Section}}<span class="font-mono">{{.Hunk.Section}}</span>{{end}}</span>
     <span class="text-xs text-green-700 flex-shrink-0 tabular-nums">+{{.Hunk.Adds}}</span>
     <span class="text-xs text-red-700 flex-shrink-0 tabular-nums">−{{.Hunk.Dels}}</span>
     <div class="flex items-center flex-shrink-0">
@@ -196,7 +210,7 @@
     </div>
   </summary>
   <div class="bg-slate-50 font-mono text-xs overflow-x-auto border-b border-slate-100">
-    {{range .Hunk.Lines}}{{template "diff-line" .}}{{end}}
+    {{range .Hunk.Lines}}{{template "diff-line" (dict "Line" . "Lang" $.Lang)}}{{end}}
   </div>
 </details>{{end}}{{end}}
 
@@ -225,13 +239,13 @@
   <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{oldLineNum $.From $.Offset $i}}</span>
   <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{addInt $.From $i}}</span>
   <span class="text-slate-400 select-none w-3 flex-shrink-0"> </span>
-  <pre class="whitespace-pre-wrap break-all flex-1 m-0">{{$l}}</pre>
+  <pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class="{{$.Lang}}">{{$l}}</code></pre>
 </div>{{end}}</div>{{end}}
 
-{{define "diff-line"}}<div class="flex gap-2 px-2 py-0.5 {{lineClass .Kind}}">
-  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .OldLine}}{{.OldLine}}{{end}}</span>
-  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .NewLine}}{{.NewLine}}{{end}}</span>
-  <span class="text-slate-400 select-none w-3 flex-shrink-0">{{lineMarker .Kind}}</span>
-  <pre class="whitespace-pre-wrap break-all flex-1 m-0">{{.Content}}</pre>
+{{define "diff-line"}}<div class="flex gap-2 px-2 py-0.5 {{lineClass .Line.Kind}}">
+  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .Line.OldLine}}{{.Line.OldLine}}{{end}}</span>
+  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .Line.NewLine}}{{.Line.NewLine}}{{end}}</span>
+  <span class="text-slate-400 select-none w-3 flex-shrink-0">{{lineMarker .Line.Kind}}</span>
+  <pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class="{{.Lang}}">{{.Line.Content}}</code></pre>
 </div>{{end}}
 
