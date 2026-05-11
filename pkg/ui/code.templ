@@ -1,0 +1,559 @@
+package ui
+
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+
+	"github.com/housecat-inc/scratch/pkg/git"
+	"github.com/housecat-inc/scratch/pkg/repo"
+)
+
+templ CodeSubnav(p CodeSubnavProps) {
+	<div class="bg-white border-b border-slate-200">
+		<div class="max-w-2xl mx-auto flex">
+			@subnavLink(fmt.Sprintf("/code/%s/commits", p.Repo.Slug()), "commits", p.Active, "Commits", 0)
+			@subnavLink(fmt.Sprintf("/code/%s", p.Repo.Slug()), "diffs", p.Active, "Diffs", 0)
+			@subnavLink(fmt.Sprintf("/code/%s/comments", p.Repo.Slug()), "comments", p.Active, "Comments", p.Comments)
+		</div>
+	</div>
+}
+
+templ subnavLink(href, name, active, label string, badge int) {
+	if name == active {
+		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-2 text-xs font-medium text-slate-900 border-b-2 border-slate-900">
+			{ label }
+			if badge > 0 {
+				<span class="text-slate-400 tabular-nums">{ strconv.Itoa(badge) }</span>
+			}
+		</a>
+	} else {
+		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-2 text-xs font-medium text-slate-500 hover:text-slate-900">
+			{ label }
+			if badge > 0 {
+				<span class="text-slate-400 tabular-nums">{ strconv.Itoa(badge) }</span>
+			}
+		</a>
+	}
+}
+
+templ OverviewPage(p OverviewProps) {
+	@Layout("Code", "code") {
+		if p.Error != "" {
+			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
+		}
+		if len(p.Repos) == 0 {
+			<p class="text-slate-500 text-sm">No repos with origin found in { p.Home }.</p>
+		}
+		<ul class="space-y-2">
+			for _, r := range p.Repos {
+				@overviewItem(r)
+			}
+		</ul>
+	}
+}
+
+templ overviewItem(r repo.Repo) {
+	<li class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+		<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block px-4 py-3 active:bg-slate-100">
+			<div class="flex items-baseline justify-between gap-2">
+				<div class="font-medium truncate">{ r.Slug() }</div>
+				<div class="flex gap-1 flex-shrink-0">
+					if r.State.Dirty {
+						<span class="text-amber-800 bg-amber-100 text-xs px-1.5 py-0.5 rounded">dirty</span>
+					}
+					if r.State.Diverged {
+						<span class="text-blue-800 bg-blue-100 text-xs px-1.5 py-0.5 rounded">ahead</span>
+					}
+					if r.State.Behind > 0 {
+						<span class="text-slate-700 bg-slate-200 text-xs px-1.5 py-0.5 rounded">{ strconv.Itoa(r.State.Behind) }↓</span>
+					}
+				</div>
+			</div>
+			<div class="text-slate-500 text-sm mt-0.5 truncate">on { r.Branch }</div>
+			if r.LastCommit.SHA != "" {
+				<div class="text-slate-400 text-xs mt-1 truncate">{ r.LastCommit.Subject }</div>
+			}
+		</a>
+		if r.State.Dirty || r.State.Behind > 0 {
+			<div class="border-t border-slate-100 px-4 py-2 flex flex-wrap gap-2">
+				if r.State.Dirty {
+					<button type="button" class="text-xs px-2 py-1 bg-slate-900 text-white rounded"
+						hx-post="/sessions"
+						hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"commit then push local changes","redirect":"1"}`, r.Path) }
+						hx-disabled-elt="this">Commit &amp; Push</button>
+				}
+				if r.State.Behind > 0 {
+					<button type="button" class="text-xs px-2 py-1 bg-slate-900 text-white rounded"
+						hx-post="/sessions"
+						hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"git pull remote changes","redirect":"1"}`, r.Path) }
+						hx-disabled-elt="this">Pull</button>
+				}
+			</div>
+		}
+	</li>
+}
+
+templ CommitsPage(p CommitsProps) {
+	@Layout(fmt.Sprintf("%s · commits", p.Repo.Slug()), "code") {
+		@CodeSubnav(CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo})
+		if p.Error != "" {
+			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
+		}
+		if len(p.Commits) == 0 {
+			<p class="text-slate-500 text-sm">No commits ahead of { p.Repo.Base }.</p>
+		}
+		<ul class="space-y-2">
+			for _, c := range p.Commits {
+				<li class="block bg-white rounded-lg border border-slate-200 px-4 py-3">
+					<div class="flex items-baseline justify-between gap-2">
+						<div class="font-medium truncate">{ c.Subject }</div>
+						<code class="text-xs text-slate-400 tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
+					</div>
+					<div class="text-slate-500 text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ DiffPage(p DiffProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@diffHead(p.Repo.Slug())
+		<body class="bg-slate-50 text-slate-900 min-h-screen">
+			@TopNav("code")
+			@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
+			<main class="max-w-2xl mx-auto px-3 py-3">
+				if p.Error != "" {
+					<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
+				}
+				if len(p.Files) == 0 {
+					<p class="text-slate-500 text-sm">No changes.</p>
+				}
+				for _, f := range p.Files {
+					@FileBlock(f)
+				}
+			</main>
+		</body>
+	</html>
+}
+
+templ diffHead(slug string) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+		<title>{ slug } · diff</title>
+		<link rel="manifest" href="/manifest.webmanifest"/>
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+		<meta name="apple-mobile-web-app-title" content="claude-control"/>
+		<meta name="mobile-web-app-capable" content="yes"/>
+		<meta name="application-name" content="claude-control"/>
+		<meta name="theme-color" content="#0f172a"/>
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"/>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+		<style>
+			pre code.hljs { background: transparent !important; padding: 0 !important; display: inline !important; }
+		</style>
+		<script src="/static/code.js"></script>
+	</head>
+}
+
+templ CommentListPage(p CommentListProps) {
+	@Layout(fmt.Sprintf("%s · comments", p.Repo.Slug()), "code") {
+		@CodeSubnav(CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo})
+		if p.Error != "" {
+			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
+		}
+		if len(p.Files) == 0 {
+			<p class="text-slate-500 text-sm">No comments yet.</p>
+		}
+		for _, f := range p.Files {
+			@CommentListFile(f)
+		}
+	}
+}
+
+templ CommentListFile(p CommentListFileProps) {
+	<details class="group bg-white rounded-lg border border-slate-200 mb-2 overflow-hidden" open>
+		<summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100">
+			<svg class="w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+			<span class="font-mono text-xs truncate flex-1 min-w-0 text-slate-700">{ p.Path }</span>
+			<span class="text-xs text-slate-500 flex-shrink-0 tabular-nums">{ strconv.Itoa(len(p.Comments)) }</span>
+		</summary>
+		<div>
+			for _, c := range p.Comments {
+				@CommentCardItem(CommentItemProps{Anchor: c.Anchor(), Comment: c, Slug: p.Slug, View: "list"})
+			}
+		</div>
+	</details>
+}
+
+templ FileBlock(f FileProps) {
+	<details class="group bg-white rounded-lg border border-slate-200 mb-2">
+		<summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100 group-open:sticky group-open:top-11 group-open:z-10 group-open:bg-white group-open:rounded-t-lg">
+			<svg class="w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+			<span class="font-mono text-xs truncate flex-1 min-w-0 text-slate-700">{ f.Path }</span>
+			if f.Comments > 0 {
+				<span class="text-xs text-slate-500 flex-shrink-0 inline-flex items-center gap-0.5" title={ fmt.Sprintf("%d comments", f.Comments) }>
+					<svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h12v8H6l-3 3v-3H2V3z"></path></svg>
+					<span class="tabular-nums">{ strconv.Itoa(f.Comments) }</span>
+				</span>
+			}
+			if string(f.Status) != "modified" && f.Status != "" {
+				<span class={ "text-xs flex-shrink-0", statusColor(f.Status) }>{ statusLabel(f.Status) }</span>
+			}
+			if !f.Binary {
+				<span class="text-xs text-green-700 flex-shrink-0 tabular-nums">+{ strconv.Itoa(f.Adds) }</span>
+				<span class="text-xs text-red-700 flex-shrink-0 tabular-nums">−{ strconv.Itoa(f.Dels) }</span>
+			}
+			<div class="flex items-center flex-shrink-0">
+				<button type="button" title="Expand entire file" onclick="expandWholeFile(this, event)" class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100">
+					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3"></path></svg>
+				</button>
+				<button type="button" title="Expand all blocks" onclick="expandAllBlocks(this, event)" class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100">
+					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v8M4 8h8"></path></svg>
+				</button>
+				<button type="button" title="Mark as done" onclick="markFileDone(this, event)" class="p-1.5 text-slate-400 rounded hover:bg-slate-100">
+					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"></path></svg>
+				</button>
+			</div>
+		</summary>
+		<div>
+			if f.Binary {
+				<div class="h-10 flex items-center px-3 text-slate-500 text-xs">Binary file</div>
+			}
+			if !f.Binary && len(f.Hunks) == 0 {
+				<div class="h-10 flex items-center px-3 text-slate-500 text-xs">No content changes</div>
+			}
+			for _, h := range f.Hunks {
+				@HunkBlock(*h)
+			}
+		</div>
+	</details>
+}
+
+templ HunkBlock(h HunkProps) {
+	if h.PrevSpot != nil {
+		<template id={ "initial-prev-" + h.Hunk.Key() }>
+			@PrevButtonsInner(*h.PrevSpot)
+		</template>
+		<div id={ "prev-lines-" + h.Hunk.Key() }></div>
+	}
+	if h.Virtual {
+		<div class="h-10 flex items-center gap-2 px-2 list-none border-b border-slate-100 bg-slate-50">
+			<span class="w-3 ml-1 flex-shrink-0"></span>
+			<span class="font-mono text-xs text-slate-400 truncate flex-1 min-w-0">…</span>
+			<div class="flex items-center flex-shrink-0">
+				<span id={ "prev-buttons-" + h.Hunk.Key() } class="flex items-center">
+					if h.PrevSpot != nil {
+						@PrevButtonsInner(*h.PrevSpot)
+					} else {
+						@PrevButtonsEmpty()
+					}
+				</span>
+				@ControlPlaceholder()
+			</div>
+		</div>
+	} else {
+		<details class="group/hunk" id={ "hunk-" + h.Hunk.Key() }>
+			<summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none border-b border-slate-100 hover:bg-slate-50">
+				<svg class="w-3 h-3 text-slate-400 transition-transform group-open/hunk:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+				<span class="text-xs text-slate-700 truncate flex-1 min-w-0">
+					if h.Commit.Subject != "" {
+						{ h.Commit.Subject }
+					} else if h.Hunk.Section != "" {
+						<span class="font-mono">{ h.Hunk.Section }</span>
+					}
+				</span>
+				<span class="text-xs text-green-700 flex-shrink-0 tabular-nums">+{ strconv.Itoa(h.Hunk.Adds()) }</span>
+				<span class="text-xs text-red-700 flex-shrink-0 tabular-nums">−{ strconv.Itoa(h.Hunk.Dels()) }</span>
+				<div class="flex items-center flex-shrink-0">
+					<span id={ "prev-buttons-" + h.Hunk.Key() } class="flex items-center">
+						if h.PrevSpot != nil {
+							@PrevButtonsInner(*h.PrevSpot)
+						} else {
+							@PrevButtonsEmpty()
+						}
+					</span>
+					<button type="button" title="Mark hunk as done" onclick="markHunkDone(this, event)" class="p-1.5 text-slate-400 rounded hover:bg-slate-100">
+						<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"></path></svg>
+					</button>
+				</div>
+			</summary>
+			<div class="bg-slate-50 font-mono text-xs overflow-x-auto border-b border-slate-100">
+				for _, l := range h.Lines {
+					@DiffLine(l)
+				}
+			</div>
+		</details>
+	}
+}
+
+templ PrevButtonsInner(s ExpandSpot) {
+	<button type="button" title="Expand all context"
+		data-expand-all="true"
+		class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+		hx-get={ fmt.Sprintf("/code/%s/file/lines?path=%s&from=%d&to=%d&direction=all&offset=%d&hunk=%s",
+			s.Slug, url.QueryEscape(s.Path), s.FullFrom, s.FullTo, s.Offset, url.QueryEscape(s.HunkKey)) }
+		hx-target={ "#prev-buttons-" + s.HunkKey }
+		hx-swap="outerHTML"
+		hx-on::before-request="handlePrevClick(this, event)">
+		<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3"></path></svg>
+	</button>
+	<button type="button" title="Expand context"
+		class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+		hx-get={ fmt.Sprintf("/code/%s/file/lines?path=%s&from=%d&to=%d&direction=%s&bound=%d&offset=%d&hunk=%s",
+			s.Slug, url.QueryEscape(s.Path), s.From, s.To, s.Direction, s.Bound, s.Offset, url.QueryEscape(s.HunkKey)) }
+		hx-target={ "#prev-buttons-" + s.HunkKey }
+		hx-swap="outerHTML"
+		hx-on::before-request="handlePrevClick(this, event)">
+		<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v8M4 8h8"></path></svg>
+	</button>
+}
+
+templ PrevButtonsEmpty() {
+	@ControlPlaceholder()
+	@ControlPlaceholder()
+}
+
+templ ControlPlaceholder() {
+	<span class="p-1.5 invisible inline-flex"><svg class="w-3.5 h-3.5" viewBox="0 0 16 16"></svg></span>
+}
+
+templ ContextAttached(p ContextProps) {
+	<span id={ "prev-buttons-" + p.HunkKey } class="flex items-center">
+		if p.Continuation != nil {
+			@PrevButtonsInner(*p.Continuation)
+		} else {
+			@PrevButtonsEmpty()
+		}
+	</span>
+	<div id={ "prev-lines-" + p.HunkKey } hx-swap-oob="afterbegin">
+		for i, l := range p.Lines {
+			<div class="flex gap-2 px-2 py-0.5 font-mono text-xs bg-white border-b border-slate-100">
+				<span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{ strconv.Itoa(p.From + i + p.Offset) }</span>
+				<span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{ strconv.Itoa(p.From + i) }</span>
+				<span class="text-slate-400 select-none w-3 flex-shrink-0"> </span>
+				<pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class={ p.Lang }>{ l }</code></pre>
+			</div>
+		}
+	</div>
+}
+
+templ DiffLine(l DiffLineProps) {
+	<div class="border-b border-slate-100 last:border-b-0">
+		<div class={ "group/line flex gap-2 px-2 py-0.5", lineClass(l.Line.Kind) }>
+			<span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">
+				if l.Line.OldLine > 0 {
+					{ strconv.Itoa(l.Line.OldLine) }
+				}
+			</span>
+			<span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">
+				if l.Line.NewLine > 0 {
+					{ strconv.Itoa(l.Line.NewLine) }
+				}
+			</span>
+			<span class="text-slate-400 select-none w-3 flex-shrink-0">{ lineMarker(l.Line.Kind) }</span>
+			<pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class={ l.Lang }>{ l.Line.Content }</code></pre>
+			if l.Anchor != "" {
+				<button type="button" title="Add comment"
+					class="text-slate-300 hover:text-slate-900 px-1 -my-0.5 flex-shrink-0"
+					hx-get={ fmt.Sprintf("/code/%s/comments/form?path=%s&side=%s&line=%d", l.Slug, url.QueryEscape(l.Path), l.Side, l.AnchorLine) }
+					hx-target={ "#comment-form-" + l.Anchor }
+					hx-swap="innerHTML">
+					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h12v8H8l-3 3v-3H2V3z"></path></svg>
+				</button>
+			}
+		</div>
+		if l.Anchor != "" {
+			@CommentThread(CommentThreadProps{Anchor: l.Anchor, Comments: l.Comments, Slug: l.Slug})
+			<div id={ "comment-form-" + l.Anchor }></div>
+		}
+	</div>
+}
+
+templ CommentThread(p CommentThreadProps) {
+	<div id={ "comment-thread-" + p.Anchor }>
+		for _, c := range p.Comments {
+			@CommentItem(CommentItemProps{Anchor: p.Anchor, Comment: c, Slug: p.Slug, View: "thread"})
+		}
+	</div>
+}
+
+templ CommentItem(p CommentItemProps) {
+	<details id={ "comment-" + p.Comment.ID } class={ "group/comment bg-amber-50 text-xs", templ.KV("opacity-60", p.Comment.Resolved) }>
+		<summary class="cursor-pointer list-none flex items-center gap-2 px-2 group-open/comment:items-start group-open/comment:py-1">
+			<svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90 group-open/comment:mt-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+			<div class="flex-1 min-w-0 font-sans">
+				<div class="truncate group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">{ p.Comment.Body }</div>
+				if p.Comment.Resolved && p.Comment.ResolvedBody != "" {
+					<div class="truncate text-slate-500 italic group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">↩ { p.Comment.ResolvedBody }</div>
+				}
+			</div>
+			@CommentIcons(p)
+		</summary>
+	</details>
+}
+
+templ CommentCardItem(p CommentItemProps) {
+	<details id={ "comment-" + p.Comment.ID } class={ "group/comment border-b border-slate-100 last:border-b-0 text-xs", templ.KV("opacity-60", p.Comment.Resolved) }>
+		<summary class="cursor-pointer list-none flex items-center gap-2 px-3 py-1 group-open/comment:items-start group-open/comment:py-2">
+			<svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90 group-open/comment:mt-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s#comment-thread-%s", p.Slug, p.Anchor)) } onclick="event.stopPropagation()"
+				class="text-slate-400 hover:text-slate-700 tabular-nums flex-shrink-0 font-mono"
+				title="View in diff">
+				L{ strconv.Itoa(p.Comment.Line) }
+				if p.Comment.Side == "old" {
+					<span class="text-red-600">−</span>
+				} else {
+					<span class="text-green-600">+</span>
+				}
+			</a>
+			<div class="flex-1 min-w-0 font-sans">
+				<div class="truncate group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">{ p.Comment.Body }</div>
+				if p.Comment.Resolved && p.Comment.ResolvedBody != "" {
+					<div class="truncate text-slate-500 italic group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">↩ { p.Comment.ResolvedBody }</div>
+				}
+			</div>
+			@CommentIcons(p)
+		</summary>
+	</details>
+}
+
+templ CommentIcons(p CommentItemProps) {
+	<div class="flex items-center flex-shrink-0" onclick="event.stopPropagation()">
+		<button type="button" title="Edit"
+			class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+			hx-get={ fmt.Sprintf("/code/%s/comments/%s/edit?view=%s", p.Slug, p.Comment.ID, p.View) }
+			hx-target={ "#comment-" + p.Comment.ID }
+			hx-swap="outerHTML">
+			<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3l9-9z"></path></svg>
+		</button>
+		<button type="button"
+			if p.Comment.Resolved {
+				title="Reopen"
+			} else {
+				title="Resolve"
+			}
+			class={ "p-1.5 rounded hover:bg-slate-100", resolveBtnColor(p.Comment.Resolved) }
+			hx-post={ fmt.Sprintf("/code/%s/comments/%s/resolve", p.Slug, p.Comment.ID) }
+			hx-vals={ fmt.Sprintf(`{"view":"%s"}`, p.View) }
+			hx-target={ "#comment-" + p.Comment.ID }
+			hx-swap="outerHTML">
+			if p.Comment.Resolved {
+				<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 119 3M3 5v3h3"></path></svg>
+			} else {
+				<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"></path></svg>
+			}
+		</button>
+		<button type="button" title="Delete"
+			class="p-1.5 text-slate-400 hover:text-red-700 rounded hover:bg-slate-100"
+			hx-delete={ fmt.Sprintf("/code/%s/comments/%s", p.Slug, p.Comment.ID) }
+			hx-target={ "#comment-" + p.Comment.ID }
+			hx-swap="delete"
+			hx-confirm="Delete this comment?">
+			<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4M7 4V2h2v2"></path></svg>
+		</button>
+	</div>
+}
+
+templ EditCommentForm(p EditCommentFormProps) {
+	<form id={ "comment-" + p.Comment.ID } class="flex flex-col gap-1 bg-white border border-slate-200 rounded px-2 py-2 m-1"
+		hx-put={ fmt.Sprintf("/code/%s/comments/%s", p.Slug, p.Comment.ID) }
+		hx-target="this"
+		hx-swap="outerHTML">
+		<input type="hidden" name="view" value={ p.View }/>
+		<textarea name="body" rows="3" required autofocus
+			class="w-full border border-slate-200 rounded px-2 py-1 text-xs font-sans resize-y">{ p.Comment.Body }</textarea>
+		<div class="flex gap-1 justify-end">
+			<button type="button" class="text-xs text-slate-500 px-2 py-1"
+				hx-get={ fmt.Sprintf("/code/%s/comments/%s?view=%s", p.Slug, p.Comment.ID, p.View) }
+				hx-target={ "#comment-" + p.Comment.ID }
+				hx-swap="outerHTML">Cancel</button>
+			<button type="submit" class="text-xs bg-slate-900 text-white rounded px-2 py-1">Save</button>
+		</div>
+	</form>
+}
+
+templ CommentForm(p CommentFormProps) {
+	<form class="flex flex-col gap-1 bg-white border border-slate-200 rounded px-2 py-2 m-1"
+		hx-post={ fmt.Sprintf("/code/%s/comments", p.Slug) }
+		hx-target={ "#comment-thread-" + p.Anchor }
+		hx-swap="outerHTML"
+		hx-on::after-request="if(event.detail.successful)this.closest('[id^=comment-form-]').innerHTML=''">
+		<input type="hidden" name="path" value={ p.Path }/>
+		<input type="hidden" name="side" value={ p.Side }/>
+		<input type="hidden" name="line" value={ strconv.Itoa(p.Line) }/>
+		<textarea name="body" rows="2" required autofocus
+			class="w-full border border-slate-200 rounded px-2 py-1 text-xs font-sans resize-y"
+			placeholder="Add a comment"></textarea>
+		<div class="flex gap-1 justify-end">
+			<button type="button" class="text-xs text-slate-500 px-2 py-1"
+				onclick="this.closest('[id^=comment-form-]').innerHTML=''">Cancel</button>
+			<button type="submit" class="text-xs bg-slate-900 text-white rounded px-2 py-1">Save</button>
+		</div>
+	</form>
+}
+
+func shortSHA(s string) string {
+	if len(s) > 7 {
+		return s[:7]
+	}
+	return s
+}
+
+func lineClass(k git.LineKind) string {
+	switch k {
+	case git.LineAdd:
+		return "bg-green-50 text-green-900"
+	case git.LineDelete:
+		return "bg-red-50 text-red-900"
+	}
+	return ""
+}
+
+func lineMarker(k git.LineKind) string {
+	switch k {
+	case git.LineAdd:
+		return "+"
+	case git.LineDelete:
+		return "-"
+	}
+	return " "
+}
+
+func statusLabel(s git.FileStatus) string {
+	switch s {
+	case git.StatusAdded:
+		return "new"
+	case git.StatusDeleted:
+		return "deleted"
+	case git.StatusRenamed:
+		return "renamed"
+	}
+	return "modified"
+}
+
+func statusColor(s git.FileStatus) string {
+	switch s {
+	case git.StatusAdded:
+		return "text-green-700"
+	case git.StatusDeleted:
+		return "text-red-700"
+	case git.StatusRenamed:
+		return "text-blue-700"
+	}
+	return "text-slate-500"
+}
+
+func resolveBtnColor(resolved bool) string {
+	if resolved {
+		return "text-emerald-600 hover:text-emerald-800"
+	}
+	return "text-slate-400 hover:text-emerald-700"
+}
