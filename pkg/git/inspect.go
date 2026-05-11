@@ -23,6 +23,33 @@ func Branch(dir string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+func CommitLog(dir, base, head string) ([]Commit, error) {
+	if head == "" {
+		head = "HEAD"
+	}
+	out, err := outputIn(dir, "git", "log", base+".."+head, "--format=%H%x00%an%x00%aI%x00%s")
+	if err != nil {
+		return nil, err
+	}
+	out = strings.TrimRight(out, "\n")
+	if out == "" {
+		return nil, nil
+	}
+	var commits []Commit
+	for _, line := range strings.Split(out, "\n") {
+		parts := strings.SplitN(line, "\x00", 4)
+		if len(parts) != 4 {
+			return nil, errors.Errorf("bad git log output: %q", line)
+		}
+		date, err := time.Parse(time.RFC3339, parts[2])
+		if err != nil {
+			return nil, errors.Wrapf(err, "parse date %q", parts[2])
+		}
+		commits = append(commits, Commit{Author: parts[1], Date: date, SHA: parts[0], Subject: parts[3]})
+	}
+	return commits, nil
+}
+
 func DefaultBranch(dir string) (string, error) {
 	out, err := outputIn(dir, "git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
 	if err == nil {

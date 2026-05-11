@@ -1,7 +1,6 @@
-package diffview
+package code
 
 import (
-	"embed"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -15,10 +14,8 @@ import (
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
+	"github.com/housecat-inc/scratch/pkg/ui"
 )
-
-//go:embed templates/*.html
-var templatesFS embed.FS
 
 const (
 	contextLimit = 10
@@ -28,6 +25,7 @@ const (
 
 type Deps struct {
 	Comments   db.CommentStore
+	CommitLog  func(r repo.Repo) ([]git.Commit, error)
 	Diff       func(r repo.Repo) ([]git.File, error)
 	Home       string
 	HunkCommit func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error)
@@ -38,20 +36,15 @@ type Deps struct {
 
 func DefaultDeps(home string) Deps {
 	return Deps{
+		CommitLog: func(r repo.Repo) ([]git.Commit, error) {
+			return git.CommitLog(r.Path, baseRef(r), "HEAD")
+		},
 		Diff: func(r repo.Repo) ([]git.File, error) {
-			base := r.Base
-			if base == "" {
-				base = "main"
-			}
-			return git.Diff(r.Path, base, "HEAD")
+			return git.Diff(r.Path, baseRef(r), "HEAD")
 		},
 		Home: home,
 		HunkCommit: func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error) {
-			base := r.Base
-			if base == "" {
-				base = "main"
-			}
-			return git.HunkCommit(r.Path, base, "HEAD", path, newStart, newCount)
+			return git.HunkCommit(r.Path, baseRef(r), "HEAD", path, newStart, newCount)
 		},
 		ListRepos:  func() ([]repo.Repo, error) { return repo.Scan(home) },
 		LookupRepo: func(slug string) (repo.Repo, bool) { return repo.Find(home, slug) },
@@ -59,6 +52,13 @@ func DefaultDeps(home string) Deps {
 			return git.ShowFile(r.Path, "HEAD", path)
 		},
 	}
+}
+
+func baseRef(r repo.Repo) string {
+	if r.Base == "" {
+		return "main"
+	}
+	return r.Base
 }
 
 type Server struct {
@@ -70,7 +70,7 @@ func NewServer(deps Deps) (*Server, error) {
 	if deps.Comments == nil {
 		deps.Comments = db.NopCommentStore{}
 	}
-	tmpl, err := template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html")
+	tmpl, err := ui.ParseCode(funcs)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse templates")
 	}
@@ -81,6 +81,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleOverview)
 	mux.HandleFunc("GET /{org}/{name}", s.handleDiff)
+	mux.HandleFunc("GET /{org}/{name}/commits", s.handleCommits)
 	mux.HandleFunc("GET /{org}/{name}/file/lines", s.handleContext)
 	mux.HandleFunc("GET /{org}/{name}/comments", s.handleCommentList)
 	mux.HandleFunc("GET /{org}/{name}/comments/form", s.handleCommentForm)
@@ -100,19 +101,28 @@ type overviewPage struct {
 }
 
 type diffPage struct {
-	Error string
-	Files []fileRow
-	Repo  repo.Repo
+	Comments int
+	Error    string
+	Files    []fileRow
+	Repo     repo.Repo
+}
+
+type commitsPage struct {
+	Comments int
+	Commits  []git.Commit
+	Error    string
+	Repo     repo.Repo
 }
 
 type fileRow struct {
-	Adds   int
-	Binary bool
-	Dels   int
-	Hunks  []*hunkBlock
-	Path   string
-	Slug   string
-	Status git.FileStatus
+	Adds     int
+	Binary   bool
+	Comments int
+	Dels     int
+	Hunks    []*hunkBlock
+	Path     string
+	Slug     string
+	Status   git.FileStatus
 }
 
 type hunkBlock struct {
@@ -164,9 +174,10 @@ type editCommentForm struct {
 }
 
 type commentListPage struct {
-	Error string
-	Files []commentListFile
-	Repo  repo.Repo
+	Comments int
+	Error    string
+	Files    []commentListFile
+	Repo     repo.Repo
 }
 
 type commentListFile struct {
@@ -208,6 +219,40 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "overview", vm)
 }
 
+func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	rp, ok := s.deps.LookupRepo(slug)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	vm := commitsPage{Comments: s.countComments(slug, rp.Branch), Repo: rp}
+	if s.deps.CommitLog == nil {
+		vm.Error = "commits not available"
+		s.render(w, "commits", vm)
+		return
+	}
+	commits, err := s.deps.CommitLog(rp)
+	if err != nil {
+		vm.Error = err.Error()
+		s.render(w, "commits", vm)
+		return
+	}
+	vm.Commits = commits
+	s.render(w, "commits", vm)
+}
+
+func (s *Server) countComments(slug, branch string) int {
+	if s.deps.Comments == nil {
+		return 0
+	}
+	cs, err := s.deps.Comments.ListComments(slug, branch)
+	if err != nil {
+		return 0
+	}
+	return len(cs)
+}
+
 func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("org") + "/" + r.PathValue("name")
 	rp, ok := s.deps.LookupRepo(slug)
@@ -226,11 +271,23 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("list comments failed", "slug", slug, "branch", rp.Branch, "error", err.Error())
 	}
+	vm.Comments = len(comments)
 	byAnchor := groupCommentsByAnchor(comments)
+	byPath := groupCommentsByPath(comments)
 	for _, f := range files {
-		vm.Files = append(vm.Files, s.buildFileRow(rp, f, slug, byAnchor))
+		row := s.buildFileRow(rp, f, slug, byAnchor)
+		row.Comments = byPath[row.Path]
+		vm.Files = append(vm.Files, row)
 	}
 	s.render(w, "diff", vm)
+}
+
+func groupCommentsByPath(cs []db.Comment) map[string]int {
+	out := make(map[string]int, len(cs))
+	for _, c := range cs {
+		out[c.Path]++
+	}
+	return out
 }
 
 func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor map[string][]db.Comment) fileRow {
@@ -438,6 +495,7 @@ func (s *Server) handleCommentList(w http.ResponseWriter, r *http.Request) {
 		s.render(w, "comment-list-page", vm)
 		return
 	}
+	vm.Comments = len(comments)
 	vm.Files = groupCommentsByFile(comments)
 	s.render(w, "comment-list-page", vm)
 }
@@ -825,7 +883,7 @@ func logging(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		slog.Info("diffview request",
+		slog.Info("code request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rec.status,

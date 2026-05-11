@@ -33,6 +33,51 @@ func TestURLRegex(t *testing.T) {
 	}
 }
 
+func TestExtractLastAssistantMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		pane string
+		want string
+	}{
+		{
+			name: "plain assistant message",
+			pane: "● Hello world\n",
+			want: "Hello world",
+		},
+		{
+			name: "skips tool call before assistant",
+			pane: "● Bash(go test ./...)\n  ⎿  ok pkg/foo\n● All tests pass on main.\n",
+			want: "All tests pass on main.",
+		},
+		{
+			name: "skips trailing tool call to find prior assistant",
+			pane: "● Earlier reply from claude.\n● Read(/etc/hosts)\n  ⎿  127.0.0.1 localhost\n",
+			want: "Earlier reply from claude.",
+		},
+		{
+			name: "ignores TUI chrome",
+			pane: "──────────\n❯ user typing\n  ⏵⏵ bypass permissions on (shift+tab to cycle)                Remote Control active\n",
+			want: "",
+		},
+		{
+			name: "treats nested-parens tool call as tool call",
+			pane: "● Edit(pkg/server/code/code.go)\n  ⎿  Modified 1 line\n",
+			want: "",
+		},
+		{
+			name: "lowercase word + parens is prose, not tool call",
+			pane: "● go test (1 failure)\n",
+			want: "go test (1 failure)",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tc.want, extractLastAssistantMessage(tc.pane))
+		})
+	}
+}
+
 func TestSessionPrefix(t *testing.T) {
 	tests := []struct {
 		dir  string
@@ -134,6 +179,83 @@ func TestManagerStartErrors(t *testing.T) {
 	}
 }
 
+func TestManagerRecover(t *testing.T) {
+	r := require.New(t)
+	a := assert.New(t)
+
+	dir := t.TempDir()
+	tmuxBin := writeFakeTmux(t)
+	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_recovered")
+
+	first := NewManager()
+	first.ClaudeBin = claudeBin
+	first.Hostname = "jukelab"
+	first.StartTimeout = 3 * time.Second
+	first.TmuxBin = tmuxBin
+	first.TrustProject = func(string) error { return nil }
+
+	s, err := first.Start("foobar", dir, "")
+	r.NoError(err)
+
+	fresh := NewManager()
+	fresh.TmuxBin = tmuxBin
+	r.NoError(fresh.Recover())
+	a.Len(fresh.List(), 1)
+
+	recovered := fresh.Get(s.ID)
+	r.NotNil(recovered, "session id survives across managers via tmux scan")
+	a.Equal(s.URL, recovered.URL)
+	a.Equal(s.Dir, recovered.Dir)
+	a.Equal(s.Name, recovered.Name, "prefix recovered from tmux env")
+}
+
+func TestManagerRecoverIsIdempotent(t *testing.T) {
+	r := require.New(t)
+	a := assert.New(t)
+
+	dir := t.TempDir()
+	tmuxBin := writeFakeTmux(t)
+	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
+
+	m := NewManager()
+	m.ClaudeBin = claudeBin
+	m.Hostname = "h"
+	m.StartTimeout = 3 * time.Second
+	m.TmuxBin = tmuxBin
+	m.TrustProject = func(string) error { return nil }
+
+	_, err := m.Start("alpha", dir, "")
+	r.NoError(err)
+
+	r.NoError(m.Recover())
+	r.NoError(m.Recover())
+	a.Len(m.List(), 1, "running Recover twice does not duplicate sessions")
+}
+
+func TestManagerRecoverIgnoresUnreadySessions(t *testing.T) {
+	r := require.New(t)
+	a := assert.New(t)
+
+	dir := t.TempDir()
+	tmuxBin := writeFakeTmux(t)
+	claudeBin := writeFakeClaudeRemoteCtl(t, "")
+
+	starter := NewManager()
+	starter.ClaudeBin = claudeBin
+	starter.Hostname = "h"
+	starter.StartTimeout = 300 * time.Millisecond
+	starter.TmuxBin = tmuxBin
+	starter.TrustProject = func(string) error { return nil }
+
+	_, err := starter.Start("nourl", dir, "")
+	a.Error(err, "session start fails because no URL emitted")
+
+	fresh := NewManager()
+	fresh.TmuxBin = tmuxBin
+	r.NoError(fresh.Recover())
+	a.Empty(fresh.List(), "session without URL is skipped on recover")
+}
+
 func TestManagerStopAll(t *testing.T) {
 	r := require.New(t)
 	a := assert.New(t)
@@ -185,17 +307,51 @@ shift
 case "$SUB" in
   new-session)
     NAME=
+    DIR=
+    ENV_PAIRS=
     while [ $# -gt 0 ]; do
       case "$1" in
         -d) shift;;
         -s) NAME=$2; shift 2;;
-        -c|-x|-y) shift 2;;
+        -c) DIR=$2; shift 2;;
+        -e) ENV_PAIRS="$ENV_PAIRS$2|"; shift 2;;
+        -x|-y) shift 2;;
         *) break;;
       esac
     done
     : > "$TMUX_PANES/$NAME"
+    echo "$DIR" > "$TMUX_PANES/$NAME.dir"
+    date +%s > "$TMUX_PANES/$NAME.created"
+    : > "$TMUX_PANES/$NAME.env"
+    IFS='|'
+    for pair in $ENV_PAIRS; do
+      echo "$pair" >> "$TMUX_PANES/$NAME.env"
+    done
+    unset IFS
     ("$@" > "$TMUX_PANES/$NAME" 2>&1) &
     echo $! > "$TMUX_PANES/$NAME.pid"
+    ;;
+  list-sessions)
+    for f in "$TMUX_PANES"/*.dir; do
+      [ -e "$f" ] || continue
+      NAME=$(basename "$f" .dir)
+      DIR=$(cat "$f")
+      CREATED=$(cat "$TMUX_PANES/$NAME.created" 2>/dev/null)
+      printf '%s\t%s\t%s\n' "$NAME" "$DIR" "$CREATED"
+    done
+    ;;
+  show-environment)
+    NAME=
+    KEY=
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -t) NAME=$2; shift 2;;
+        *) KEY=$1; shift;;
+      esac
+    done
+    if [ -f "$TMUX_PANES/$NAME.env" ]; then
+      grep "^$KEY=" "$TMUX_PANES/$NAME.env"
+    fi
     ;;
   capture-pane)
     NAME=
@@ -220,7 +376,7 @@ case "$SUB" in
       kill $(cat "$TMUX_PANES/$NAME.pid") 2>/dev/null || true
       rm -f "$TMUX_PANES/$NAME.pid"
     fi
-    rm -f "$TMUX_PANES/$NAME"
+    rm -f "$TMUX_PANES/$NAME" "$TMUX_PANES/$NAME.dir" "$TMUX_PANES/$NAME.created" "$TMUX_PANES/$NAME.env"
     ;;
 esac
 `), 0o755))

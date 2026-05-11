@@ -1,4 +1,4 @@
-package diffview
+package code
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db"
@@ -20,7 +21,7 @@ func makeDeps() Deps {
 	repos := []repo.Repo{
 		{Branch: "feature", Name: "alpha", Org: "acme", Path: "/tmp/alpha",
 			LastCommit: git.Commit{SHA: "abc", Subject: "first commit"},
-			State:      git.State{Diverged: true, Behind: 2}},
+			State:      git.State{Dirty: true, Diverged: true, Behind: 2}},
 	}
 	files := []git.File{{
 		NewPath: "foo.txt", OldPath: "foo.txt", Status: git.StatusModified,
@@ -39,7 +40,12 @@ func makeDeps() Deps {
 		}},
 	}}
 	contents := []string{"line1", "line2", "ctx", "new", "ctx2", "ctx3", "line7", "line8"}
+	commits := []git.Commit{
+		{Author: "alice", Date: time.Date(2025, 1, 2, 15, 4, 0, 0, time.UTC), SHA: "abcdef1234567", Subject: "refactor parser"},
+		{Author: "bob", Date: time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC), SHA: "1234567abcdef", Subject: "first commit"},
+	}
 	return Deps{
+		CommitLog: func(r repo.Repo) ([]git.Commit, error) { return commits, nil },
 		Diff:      func(r repo.Repo) ([]git.File, error) { return files, nil },
 		Home:      "/tmp/home",
 		ListRepos: func() ([]repo.Repo, error) { return repos, nil },
@@ -68,9 +74,57 @@ func TestOverview(t *testing.T) {
 
 	a.Equal(http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	for _, want := range []string{"acme/alpha", "on feature", "first commit", "2↓"} {
+	for _, want := range []string{
+		"acme/alpha", "on feature", "first commit", "2↓",
+		`href="/code/acme/alpha"`,
+		">Commit & Push<",
+		">Pull<",
+		`hx-post="/sessions"`,
+		`"dir":"/tmp/alpha"`,
+		`"redirect":"1"`,
+	} {
 		a.Contains(body, want)
 	}
+}
+
+func TestOverviewCleanRepoHasNoActionButtons(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	deps := makeDeps()
+	deps.ListRepos = func() ([]repo.Repo, error) {
+		return []repo.Repo{
+			{Branch: "feature", Name: "alpha", Org: "acme", Path: "/tmp/alpha",
+				LastCommit: git.Commit{SHA: "abc", Subject: "first commit"}},
+		}, nil
+	}
+	s, err := NewServer(deps)
+	r.NoError(err)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	body := rec.Body.String()
+	a.NotContains(body, ">Commit & Push<")
+	a.NotContains(body, ">Pull<")
+}
+
+func TestCommitsPage(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	s, err := NewServer(makeDeps())
+	r.NoError(err)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/acme/alpha/commits", nil))
+
+	r.Equal(http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	a.Contains(body, "refactor parser")
+	a.Contains(body, "first commit")
+	a.Contains(body, "abcdef1")
+	a.Contains(body, `href="/code/acme/alpha"`)
+	a.Contains(body, `href="/code/acme/alpha/commits"`)
+	a.Contains(body, `href="/code/acme/alpha/comments"`)
 }
 
 func TestDiffPage(t *testing.T) {
