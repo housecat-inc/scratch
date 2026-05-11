@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -16,13 +17,15 @@ import (
 )
 
 type Comment struct {
-	Body    string
-	Created time.Time
-	ID      string
-	Line    int
-	Path    string
-	Side    string
-	Slug    string
+	Body     string
+	Created  time.Time
+	ID       string
+	Line     int
+	Path     string
+	Resolved bool
+	Side     string
+	Slug     string
+	Updated  time.Time
 }
 
 func (c Comment) Anchor() string { return commentAnchor(c.Path, c.Side, c.Line) }
@@ -30,7 +33,10 @@ func (c Comment) Anchor() string { return commentAnchor(c.Path, c.Side, c.Line) 
 type CommentStore interface {
 	Add(slug, path, side string, line int, body string) (Comment, error)
 	Delete(slug, id string) error
+	Get(slug, id string) (Comment, error)
 	List(slug string) ([]Comment, error)
+	SetResolved(slug, id string, resolved bool) (Comment, error)
+	Update(slug, id, body string) (Comment, error)
 }
 
 type SQLiteCommentStore struct {
@@ -53,22 +59,30 @@ func OpenSQLiteCommentStore(path string) (*SQLiteCommentStore, error) {
 		db.Close()
 		return nil, errors.Wrap(err, "migrate")
 	}
+	for _, stmt := range commentMigrations {
+		if _, err := db.Exec(stmt); err != nil && !isDuplicateColumn(err) {
+			db.Close()
+			return nil, errors.Wrapf(err, "migrate: %s", stmt)
+		}
+	}
 	return &SQLiteCommentStore{db: db}, nil
 }
 
 func (s *SQLiteCommentStore) Add(slug, path, side string, line int, body string) (Comment, error) {
+	now := time.Now().UTC()
 	c := Comment{
 		Body:    body,
-		Created: time.Now().UTC(),
+		Created: now,
 		ID:      newCommentID(),
 		Line:    line,
 		Path:    path,
 		Side:    side,
 		Slug:    slug,
+		Updated: now,
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO comments (body, created, id, line, path, side, slug) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		c.Body, c.Created.UnixNano(), c.ID, c.Line, c.Path, c.Side, c.Slug,
+		`INSERT INTO comments (body, created, id, line, path, resolved, side, slug, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.Body, c.Created.UnixNano(), c.ID, c.Line, c.Path, 0, c.Side, c.Slug, c.Updated.UnixNano(),
 	)
 	if err != nil {
 		return Comment{}, errors.Wrap(err, "insert comment")
@@ -93,9 +107,21 @@ func (s *SQLiteCommentStore) Delete(slug, id string) error {
 	return nil
 }
 
+func (s *SQLiteCommentStore) Get(slug, id string) (Comment, error) {
+	row := s.db.QueryRow(
+		`SELECT body, created, id, line, path, resolved, side, slug, updated FROM comments WHERE id = ? AND slug = ?`,
+		id, slug,
+	)
+	c, err := scanComment(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Comment{}, errCommentNotFound
+	}
+	return c, err
+}
+
 func (s *SQLiteCommentStore) List(slug string) ([]Comment, error) {
 	rows, err := s.db.Query(
-		`SELECT body, created, id, line, path, side, slug FROM comments WHERE slug = ? ORDER BY created ASC`,
+		`SELECT body, created, id, line, path, resolved, side, slug, updated FROM comments WHERE slug = ? ORDER BY created ASC`,
 		slug,
 	)
 	if err != nil {
@@ -104,18 +130,58 @@ func (s *SQLiteCommentStore) List(slug string) ([]Comment, error) {
 	defer rows.Close()
 	var out []Comment
 	for rows.Next() {
-		var c Comment
-		var createdNanos int64
-		if err := rows.Scan(&c.Body, &createdNanos, &c.ID, &c.Line, &c.Path, &c.Side, &c.Slug); err != nil {
-			return nil, errors.Wrap(err, "scan comment")
+		c, err := scanComment(rows.Scan)
+		if err != nil {
+			return nil, err
 		}
-		c.Created = time.Unix(0, createdNanos).UTC()
 		out = append(out, c)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, errors.Wrap(err, "iterate comments")
 	}
 	return out, nil
+}
+
+func (s *SQLiteCommentStore) SetResolved(slug, id string, resolved bool) (Comment, error) {
+	flag := 0
+	if resolved {
+		flag = 1
+	}
+	now := time.Now().UTC().UnixNano()
+	res, err := s.db.Exec(
+		`UPDATE comments SET resolved = ?, updated = ? WHERE id = ? AND slug = ?`,
+		flag, now, id, slug,
+	)
+	if err != nil {
+		return Comment{}, errors.Wrap(err, "update resolved")
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return Comment{}, errors.Wrap(err, "rows affected")
+	}
+	if n == 0 {
+		return Comment{}, errCommentNotFound
+	}
+	return s.Get(slug, id)
+}
+
+func (s *SQLiteCommentStore) Update(slug, id, body string) (Comment, error) {
+	now := time.Now().UTC().UnixNano()
+	res, err := s.db.Exec(
+		`UPDATE comments SET body = ?, updated = ? WHERE id = ? AND slug = ?`,
+		body, now, id, slug,
+	)
+	if err != nil {
+		return Comment{}, errors.Wrap(err, "update body")
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return Comment{}, errors.Wrap(err, "rows affected")
+	}
+	if n == 0 {
+		return Comment{}, errCommentNotFound
+	}
+	return s.Get(slug, id)
 }
 
 var errCommentNotFound = errors.New("comment not found")
@@ -127,8 +193,15 @@ type nopCommentStore struct{}
 func (nopCommentStore) Add(string, string, string, int, string) (Comment, error) {
 	return Comment{}, errors.New("comments disabled")
 }
-func (nopCommentStore) Delete(string, string) error  { return errCommentNotFound }
-func (nopCommentStore) List(string) ([]Comment, error) { return nil, nil }
+func (nopCommentStore) Delete(string, string) error             { return errCommentNotFound }
+func (nopCommentStore) Get(string, string) (Comment, error)     { return Comment{}, errCommentNotFound }
+func (nopCommentStore) List(string) ([]Comment, error)          { return nil, nil }
+func (nopCommentStore) SetResolved(string, string, bool) (Comment, error) {
+	return Comment{}, errCommentNotFound
+}
+func (nopCommentStore) Update(string, string, string) (Comment, error) {
+	return Comment{}, errCommentNotFound
+}
 
 func commentAnchor(path, side string, line int) string {
 	sum := sha1.Sum([]byte(path + "|" + side + "|" + strconv.Itoa(line)))
@@ -146,6 +219,14 @@ func commentDSN(path string) string {
 	return "file:" + path + "?" + v.Encode()
 }
 
+func isDuplicateColumn(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate column")
+}
+
 func newCommentID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -154,15 +235,38 @@ func newCommentID() string {
 	return hex.EncodeToString(b[:])
 }
 
+func scanComment(scan func(dest ...any) error) (Comment, error) {
+	var c Comment
+	var createdNanos, updatedNanos int64
+	var resolved int
+	if err := scan(&c.Body, &createdNanos, &c.ID, &c.Line, &c.Path, &resolved, &c.Side, &c.Slug, &updatedNanos); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Comment{}, err
+		}
+		return Comment{}, errors.Wrap(err, "scan comment")
+	}
+	c.Created = time.Unix(0, createdNanos).UTC()
+	c.Resolved = resolved != 0
+	c.Updated = time.Unix(0, updatedNanos).UTC()
+	return c, nil
+}
+
 const commentSchema = `
 CREATE TABLE IF NOT EXISTS comments (
-  body    TEXT    NOT NULL,
-  created INTEGER NOT NULL,
-  id      TEXT    PRIMARY KEY,
-  line    INTEGER NOT NULL,
-  path    TEXT    NOT NULL,
-  side    TEXT    NOT NULL,
-  slug    TEXT    NOT NULL
+  body     TEXT    NOT NULL,
+  created  INTEGER NOT NULL,
+  id       TEXT    PRIMARY KEY,
+  line     INTEGER NOT NULL,
+  path     TEXT    NOT NULL,
+  resolved INTEGER NOT NULL DEFAULT 0,
+  side     TEXT    NOT NULL,
+  slug     TEXT    NOT NULL,
+  updated  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_comments_slug ON comments(slug);
 `
+
+var commentMigrations = []string{
+	`ALTER TABLE comments ADD COLUMN resolved INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE comments ADD COLUMN updated INTEGER NOT NULL DEFAULT 0`,
+}

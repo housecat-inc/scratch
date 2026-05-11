@@ -1,8 +1,10 @@
 package diffview
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,6 +76,70 @@ func TestSQLiteCommentStoreDeleteMissing(t *testing.T) {
 			a.True(IsCommentNotFound(err), "expected not-found, got %v", err)
 		})
 	}
+}
+
+func TestSQLiteCommentStoreUpdateAndResolve(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store := newTestStore(t)
+	c, err := store.Add("acme/alpha", "foo.txt", "new", 4, "first draft")
+	r.NoError(err)
+	a.False(c.Resolved)
+
+	updated, err := store.Update("acme/alpha", c.ID, "edited body")
+	r.NoError(err)
+	a.Equal("edited body", updated.Body)
+	a.True(updated.Updated.After(c.Created.Add(-time.Second)))
+
+	resolved, err := store.SetResolved("acme/alpha", c.ID, true)
+	r.NoError(err)
+	a.True(resolved.Resolved)
+	a.Equal("edited body", resolved.Body)
+
+	again, err := store.SetResolved("acme/alpha", c.ID, false)
+	r.NoError(err)
+	a.False(again.Resolved)
+}
+
+func TestSQLiteCommentStoreGetMissing(t *testing.T) {
+	a := assert.New(t)
+
+	store := newTestStore(t)
+	_, err := store.Get("acme/alpha", "nope")
+	a.True(IsCommentNotFound(err))
+}
+
+func TestSQLiteCommentStoreMigratesOldSchema(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	path := filepath.Join(t.TempDir(), "comments.db")
+	old, err := sql.Open("sqlite", commentDSN(path))
+	r.NoError(err)
+	_, err = old.Exec(`CREATE TABLE comments (
+        body TEXT NOT NULL,
+        created INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        line INTEGER NOT NULL,
+        path TEXT NOT NULL,
+        side TEXT NOT NULL,
+        slug TEXT NOT NULL
+    )`)
+	r.NoError(err)
+	_, err = old.Exec(`INSERT INTO comments (body, created, id, line, path, side, slug) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"legacy", time.Now().UnixNano(), "legacy-id", 1, "foo.txt", "new", "acme/alpha")
+	r.NoError(err)
+	r.NoError(old.Close())
+
+	store, err := OpenSQLiteCommentStore(path)
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+
+	got, err := store.Get("acme/alpha", "legacy-id")
+	r.NoError(err)
+	a.Equal("legacy", got.Body)
+	a.False(got.Resolved)
 }
 
 func TestCommentAnchorStable(t *testing.T) {

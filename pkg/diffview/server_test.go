@@ -263,6 +263,138 @@ func TestCommentRoutesValidation(t *testing.T) {
 	}
 }
 
+func TestCommentEditFlow(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+
+	deps := makeDeps()
+	deps.Comments = store
+	s, err := NewServer(deps)
+	r.NoError(err)
+
+	c, err := store.Add("acme/alpha", "foo.txt", "new", 4, "first")
+	r.NoError(err)
+
+	editRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(editRec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments/"+c.ID+"/edit?view=list", nil))
+	r.Equal(http.StatusOK, editRec.Code)
+	a.Contains(editRec.Body.String(), `name="body"`)
+	a.Contains(editRec.Body.String(), `value="list"`)
+	a.Contains(editRec.Body.String(), "first")
+
+	form := url.Values{"body": {"second"}, "view": {"list"}}
+	putReq := httptest.NewRequest(http.MethodPut, "/acme/alpha/comments/"+c.ID, strings.NewReader(form.Encode()))
+	putReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	putRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(putRec, putReq)
+	r.Equal(http.StatusOK, putRec.Code, putRec.Body.String())
+	a.Contains(putRec.Body.String(), "second")
+	a.NotContains(putRec.Body.String(), `name="body"`)
+
+	got, err := store.Get("acme/alpha", c.ID)
+	r.NoError(err)
+	a.Equal("second", got.Body)
+
+	showRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(showRec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments/"+c.ID, nil))
+	r.Equal(http.StatusOK, showRec.Code)
+	a.Contains(showRec.Body.String(), "second")
+}
+
+func TestCommentResolveToggle(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+
+	deps := makeDeps()
+	deps.Comments = store
+	s, err := NewServer(deps)
+	r.NoError(err)
+
+	c, err := store.Add("acme/alpha", "foo.txt", "new", 4, "ping")
+	r.NoError(err)
+
+	post := func() {
+		req := httptest.NewRequest(http.MethodPost, "/acme/alpha/comments/"+c.ID+"/resolve", strings.NewReader("view=thread"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+	}
+
+	post()
+	got, err := store.Get("acme/alpha", c.ID)
+	r.NoError(err)
+	a.True(got.Resolved)
+
+	post()
+	got, err = store.Get("acme/alpha", c.ID)
+	r.NoError(err)
+	a.False(got.Resolved)
+}
+
+func TestCommentListPage(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+
+	deps := makeDeps()
+	deps.Comments = store
+	s, err := NewServer(deps)
+	r.NoError(err)
+
+	_, err = store.Add("acme/alpha", "bar.txt", "new", 2, "bar comment")
+	r.NoError(err)
+	_, err = store.Add("acme/alpha", "foo.txt", "new", 9, "foo comment")
+	r.NoError(err)
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments", nil))
+	r.Equal(http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	a.Contains(body, "bar comment")
+	a.Contains(body, "foo comment")
+	a.Contains(body, "bar.txt")
+	a.Contains(body, "foo.txt")
+	a.Less(strings.Index(body, "bar.txt"), strings.Index(body, "foo.txt"), "files sorted lexicographically")
+}
+
+func TestCommentDeleteReturnsOK(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+
+	deps := makeDeps()
+	deps.Comments = store
+	s, err := NewServer(deps)
+	r.NoError(err)
+
+	c, err := store.Add("acme/alpha", "foo.txt", "new", 4, "x")
+	r.NoError(err)
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/acme/alpha/comments/"+c.ID, nil))
+	a.Equal(http.StatusOK, rec.Code)
+	a.Empty(rec.Body.String())
+
+	list, err := store.List("acme/alpha")
+	r.NoError(err)
+	a.Empty(list)
+}
+
 func TestHandlerSurfacesErrors(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)

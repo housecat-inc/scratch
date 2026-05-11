@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,11 @@ import (
 //go:embed templates/*.html
 var templatesFS embed.FS
 
-const contextLimit = 10
+const (
+	contextLimit = 10
+	viewList     = "list"
+	viewThread   = "thread"
+)
 
 type Deps struct {
 	Comments   CommentStore
@@ -76,8 +81,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleOverview)
 	mux.HandleFunc("GET /{org}/{name}", s.handleDiff)
 	mux.HandleFunc("GET /{org}/{name}/file/lines", s.handleContext)
+	mux.HandleFunc("GET /{org}/{name}/comments", s.handleCommentList)
 	mux.HandleFunc("GET /{org}/{name}/comments/form", s.handleCommentForm)
+	mux.HandleFunc("GET /{org}/{name}/comments/{id}", s.handleCommentShow)
+	mux.HandleFunc("GET /{org}/{name}/comments/{id}/edit", s.handleCommentEdit)
 	mux.HandleFunc("POST /{org}/{name}/comments", s.handleCommentCreate)
+	mux.HandleFunc("POST /{org}/{name}/comments/{id}/resolve", s.handleCommentResolve)
+	mux.HandleFunc("PUT /{org}/{name}/comments/{id}", s.handleCommentUpdate)
 	mux.HandleFunc("DELETE /{org}/{name}/comments/{id}", s.handleCommentDelete)
 	return logging(mux)
 }
@@ -136,6 +146,31 @@ type formVM struct {
 	Path   string
 	Side   string
 	Slug   string
+}
+
+type commentItemVM struct {
+	Anchor  string
+	Comment Comment
+	Slug    string
+	View    string
+}
+
+type commentEditVM struct {
+	Anchor  string
+	Comment Comment
+	Slug    string
+	View    string
+}
+
+type commentListVM struct {
+	Error string
+	Files []commentListFileVM
+	Repo  repo.Repo
+}
+
+type commentListFileVM struct {
+	Comments []Comment
+	Path     string
 }
 
 type expandSpot struct {
@@ -361,15 +396,130 @@ func (s *Server) handleCommentDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	q := r.URL.Query()
-	path := q.Get("path")
-	side := q.Get("side")
-	line := atoi(q.Get("line"))
-	if path == "" || !validSide(side) || line < 1 {
-		w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleCommentEdit(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	if _, ok := s.deps.LookupRepo(slug); !ok {
+		http.NotFound(w, r)
 		return
 	}
-	s.renderThread(w, slug, path, side, line)
+	c, err := s.deps.Comments.Get(slug, r.PathValue("id"))
+	if err != nil {
+		if IsCommentNotFound(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.render(w, "comment-edit-form", commentEditVM{
+		Anchor:  c.Anchor(),
+		Comment: c,
+		Slug:    slug,
+		View:    viewParam(r.URL.Query().Get("view")),
+	})
+}
+
+func (s *Server) handleCommentList(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	rp, ok := s.deps.LookupRepo(slug)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	vm := commentListVM{Repo: rp}
+	comments, err := s.deps.Comments.List(slug)
+	if err != nil {
+		vm.Error = err.Error()
+		s.render(w, "comment-list-page", vm)
+		return
+	}
+	vm.Files = groupCommentsByFile(comments)
+	s.render(w, "comment-list-page", vm)
+}
+
+func (s *Server) handleCommentResolve(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	if _, ok := s.deps.LookupRepo(slug); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	id := r.PathValue("id")
+	current, err := s.deps.Comments.Get(slug, id)
+	if err != nil {
+		if IsCommentNotFound(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	updated, err := s.deps.Comments.SetResolved(slug, id, !current.Resolved)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.renderCommentItem(w, updated, slug, viewParam(r.FormValue("view")))
+}
+
+func (s *Server) handleCommentShow(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	if _, ok := s.deps.LookupRepo(slug); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	c, err := s.deps.Comments.Get(slug, r.PathValue("id"))
+	if err != nil {
+		if IsCommentNotFound(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.renderCommentItem(w, c, slug, viewParam(r.URL.Query().Get("view")))
+}
+
+func (s *Server) handleCommentUpdate(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	if _, ok := s.deps.LookupRepo(slug); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	body := strings.TrimSpace(r.FormValue("body"))
+	if body == "" {
+		http.Error(w, "empty body", http.StatusBadRequest)
+		return
+	}
+	updated, err := s.deps.Comments.Update(slug, r.PathValue("id"), body)
+	if err != nil {
+		if IsCommentNotFound(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.renderCommentItem(w, updated, slug, viewParam(r.FormValue("view")))
+}
+
+func (s *Server) renderCommentItem(w http.ResponseWriter, c Comment, slug, view string) {
+	vm := commentItemVM{Anchor: c.Anchor(), Comment: c, Slug: slug, View: view}
+	if view == viewList {
+		s.render(w, "comment-card-item", vm)
+		return
+	}
+	s.render(w, "comment-item", vm)
 }
 
 func (s *Server) renderThread(w http.ResponseWriter, slug, path, side string, line int) {
@@ -507,6 +657,33 @@ func groupCommentsByAnchor(cs []Comment) map[string][]Comment {
 	return out
 }
 
+func groupCommentsByFile(cs []Comment) []commentListFileVM {
+	byPath := make(map[string][]Comment)
+	for _, c := range cs {
+		byPath[c.Path] = append(byPath[c.Path], c)
+	}
+	paths := make([]string, 0, len(byPath))
+	for p := range byPath {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	out := make([]commentListFileVM, 0, len(paths))
+	for _, p := range paths {
+		items := byPath[p]
+		sort.SliceStable(items, func(i, j int) bool {
+			if items[i].Line != items[j].Line {
+				return items[i].Line < items[j].Line
+			}
+			if items[i].Side != items[j].Side {
+				return items[i].Side < items[j].Side
+			}
+			return items[i].Created.Before(items[j].Created)
+		})
+		out = append(out, commentListFileVM{Comments: items, Path: p})
+	}
+	return out
+}
+
 func lineAnchorParts(l git.Line) (side string, line int) {
 	switch l.Kind {
 	case git.LineDelete:
@@ -517,6 +694,13 @@ func lineAnchorParts(l git.Line) (side string, line int) {
 }
 
 func validSide(s string) bool { return s == "new" || s == "old" }
+
+func viewParam(s string) string {
+	if s == viewList {
+		return viewList
+	}
+	return viewThread
+}
 
 func langFor(path string) string {
 	switch filepath.Ext(path) {
