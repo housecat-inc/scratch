@@ -357,6 +357,11 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("session started", "id", sess.ID, "name", sess.Name, "url", sess.URL)
+	if r.FormValue("redirect") != "" {
+		w.Header().Set("HX-Redirect", "/")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	vm = s.viewModel()
 	vm.Nav = "sessions"
 	vm.SessionDir = dir

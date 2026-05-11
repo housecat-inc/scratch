@@ -21,7 +21,7 @@ func makeDeps() Deps {
 	repos := []repo.Repo{
 		{Branch: "feature", Name: "alpha", Org: "acme", Path: "/tmp/alpha",
 			LastCommit: git.Commit{SHA: "abc", Subject: "first commit"},
-			State:      git.State{Diverged: true, Behind: 2}},
+			State:      git.State{Dirty: true, Diverged: true, Behind: 2}},
 	}
 	files := []git.File{{
 		NewPath: "foo.txt", OldPath: "foo.txt", Status: git.StatusModified,
@@ -74,9 +74,38 @@ func TestOverview(t *testing.T) {
 
 	a.Equal(http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	for _, want := range []string{"acme/alpha", "on feature", "first commit", "2↓", `href="/code/acme/alpha"`} {
+	for _, want := range []string{
+		"acme/alpha", "on feature", "first commit", "2↓",
+		`href="/code/acme/alpha"`,
+		">Commit & Push<",
+		">Pull<",
+		`hx-post="/sessions"`,
+		`"dir":"/tmp/alpha"`,
+		`"redirect":"1"`,
+	} {
 		a.Contains(body, want)
 	}
+}
+
+func TestOverviewCleanRepoHasNoActionButtons(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	deps := makeDeps()
+	deps.ListRepos = func() ([]repo.Repo, error) {
+		return []repo.Repo{
+			{Branch: "feature", Name: "alpha", Org: "acme", Path: "/tmp/alpha",
+				LastCommit: git.Commit{SHA: "abc", Subject: "first commit"}},
+		}, nil
+	}
+	s, err := NewServer(deps)
+	r.NoError(err)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	body := rec.Body.String()
+	a.NotContains(body, ">Commit & Push<")
+	a.NotContains(body, ">Pull<")
 }
 
 func TestCommitsPage(t *testing.T) {

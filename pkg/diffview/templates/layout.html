@@ -1,4 +1,4 @@
-{{define "top-nav"}}<nav class="bg-white border-b border-slate-200 sticky top-0 z-20">
+{{define "top-nav"}}<nav class="bg-white sticky top-0 z-20">
   <div class="max-w-2xl mx-auto flex">
     <a href="/" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "sessions"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Sessions</a>
     <a href="/code/" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "code"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Code</a>
@@ -10,7 +10,7 @@
   <div class="max-w-2xl mx-auto flex">
     <a href="/code/{{.Repo.Slug}}/commits" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "commits"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Commits</a>
     <a href="/code/{{.Repo.Slug}}" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "diffs"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Diffs</a>
-    <a href="/code/{{.Repo.Slug}}/comments" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "comments"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Comments</a>
+    <a href="/code/{{.Repo.Slug}}/comments" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "comments"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Comments{{if gt .Comments 0}} <span class="text-slate-400 tabular-nums">{{.Comments}}</span>{{end}}</a>
   </div>
 </div>{{end}}
 
@@ -32,8 +32,8 @@
     {{end}}
     <ul class="space-y-2">
       {{range .Repos}}
-        <li>
-          <a href="/code/{{.Slug}}" class="block bg-white rounded-lg border border-slate-200 px-4 py-3 active:bg-slate-100">
+        <li class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <a href="/code/{{.Slug}}" class="block px-4 py-3 active:bg-slate-100">
             <div class="flex items-baseline justify-between gap-2">
               <div class="font-medium truncate">{{.Slug}}</div>
               <div class="flex gap-1 flex-shrink-0">
@@ -47,6 +47,22 @@
               <div class="text-slate-400 text-xs mt-1 truncate">{{.LastCommit.Subject}}</div>
             {{end}}
           </a>
+          {{if or .State.Dirty (gt .State.Behind 0)}}
+            <div class="border-t border-slate-100 px-4 py-2 flex flex-wrap gap-2">
+              {{if .State.Dirty}}
+                <button type="button" class="text-xs px-2 py-1 bg-slate-900 text-white rounded"
+                        hx-post="/sessions"
+                        hx-vals='{"dir":"{{.Path}}","prompt":"commit then push local changes","redirect":"1"}'
+                        hx-disabled-elt="this">Commit & Push</button>
+              {{end}}
+              {{if gt .State.Behind 0}}
+                <button type="button" class="text-xs px-2 py-1 bg-slate-900 text-white rounded"
+                        hx-post="/sessions"
+                        hx-vals='{"dir":"{{.Path}}","prompt":"git pull remote changes","redirect":"1"}'
+                        hx-disabled-elt="this">Pull</button>
+              {{end}}
+            </div>
+          {{end}}
         </li>
       {{end}}
     </ul>
@@ -65,7 +81,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   {{template "top-nav" "code"}}
-  {{template "code-subnav" (dict "Active" "commits" "Repo" .Repo)}}
+  {{template "code-subnav" (dict "Active" "commits" "Comments" .Comments "Repo" .Repo)}}
   <main class="max-w-2xl mx-auto px-4 py-4">
     {{if .Error}}<div class="text-red-700 text-sm mb-4 break-all">{{.Error}}</div>{{end}}
     {{if not .Commits}}<p class="text-slate-500 text-sm">No commits ahead of {{.Repo.Base}}.</p>{{end}}
@@ -186,7 +202,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   {{template "top-nav" "code"}}
-  {{template "code-subnav" (dict "Active" "diffs" "Repo" .Repo)}}
+  {{template "code-subnav" (dict "Active" "diffs" "Comments" .Comments "Repo" .Repo)}}
   <main class="max-w-2xl mx-auto px-3 py-3">
     {{if .Error}}<div class="text-red-700 text-sm mb-4 break-all">{{.Error}}</div>{{end}}
     {{if not .Files}}<p class="text-slate-500 text-sm">No changes.</p>{{end}}
@@ -206,7 +222,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   {{template "top-nav" "code"}}
-  {{template "code-subnav" (dict "Active" "comments" "Repo" .Repo)}}
+  {{template "code-subnav" (dict "Active" "comments" "Comments" .Comments "Repo" .Repo)}}
   <main class="max-w-2xl mx-auto px-3 py-3">
     {{if .Error}}<div class="text-red-700 text-sm mb-4 break-all">{{.Error}}</div>{{end}}
     {{if not .Files}}<p class="text-slate-500 text-sm">No comments yet.</p>{{end}}
@@ -230,6 +246,10 @@
   <summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100 group-open:sticky group-open:top-14 group-open:z-10 group-open:bg-white group-open:rounded-t-lg">
     <svg class="w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
     <span class="font-mono text-xs truncate flex-1 min-w-0 text-slate-700">{{.Path}}</span>
+    {{if gt .Comments 0}}<span class="text-xs text-slate-500 flex-shrink-0 inline-flex items-center gap-0.5" title="{{.Comments}} comment{{if ne .Comments 1}}s{{end}}">
+      <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h12v8H6l-3 3v-3H2V3z"/></svg>
+      <span class="tabular-nums">{{.Comments}}</span>
+    </span>{{end}}
     {{if ne (printf "%s" .Status) "modified"}}<span class="text-xs {{statusColor .Status}} flex-shrink-0">{{statusLabel .Status}}</span>{{end}}
     {{if not .Binary}}
       <span class="text-xs text-green-700 flex-shrink-0 tabular-nums">+{{.Adds}}</span>
@@ -327,8 +347,8 @@
 {{define "comment-thread"}}<div id="comment-thread-{{.Anchor}}">{{range .Comments}}{{template "comment-item" (dict "Anchor" $.Anchor "Comment" . "Slug" $.Slug "View" "thread")}}{{end}}</div>{{end}}
 
 {{define "comment-item"}}<details id="comment-{{.Comment.ID}}" class="group/comment bg-amber-50 text-xs {{if .Comment.Resolved}}opacity-60{{end}}">
-  <summary class="cursor-pointer list-none flex items-start gap-2 px-2 py-0.5">
-    <svg class="w-3 h-3 mt-0.5 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+  <summary class="cursor-pointer list-none flex items-center gap-2 px-2 group-open/comment:items-start group-open/comment:py-1">
+    <svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90 group-open/comment:mt-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
     <div class="flex-1 min-w-0 font-sans">
       <div class="truncate group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">{{.Comment.Body}}</div>
       {{if and .Comment.Resolved .Comment.ResolvedBody}}<div class="truncate text-slate-500 italic group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">↩ {{.Comment.ResolvedBody}}</div>{{end}}
@@ -338,8 +358,8 @@
 </details>{{end}}
 
 {{define "comment-card-item"}}<details id="comment-{{.Comment.ID}}" class="group/comment border-b border-slate-100 last:border-b-0 text-xs {{if .Comment.Resolved}}opacity-60{{end}}">
-  <summary class="cursor-pointer list-none flex items-start gap-2 px-3 py-2">
-    <svg class="w-3 h-3 mt-0.5 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+  <summary class="cursor-pointer list-none flex items-center gap-2 px-3 py-1 group-open/comment:items-start group-open/comment:py-2">
+    <svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90 group-open/comment:mt-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
     <a href="/code/{{.Slug}}#comment-thread-{{.Anchor}}" onclick="event.stopPropagation()"
        class="text-slate-400 hover:text-slate-700 tabular-nums flex-shrink-0 font-mono"
        title="View in diff">L{{.Comment.Line}}{{if eq .Comment.Side "old"}}<span class="text-red-600">−</span>{{else}}<span class="text-green-600">+</span>{{end}}</a>

@@ -104,25 +104,28 @@ type overviewPage struct {
 }
 
 type diffPage struct {
-	Error string
-	Files []fileRow
-	Repo  repo.Repo
+	Comments int
+	Error    string
+	Files    []fileRow
+	Repo     repo.Repo
 }
 
 type commitsPage struct {
-	Commits []git.Commit
-	Error   string
-	Repo    repo.Repo
+	Comments int
+	Commits  []git.Commit
+	Error    string
+	Repo     repo.Repo
 }
 
 type fileRow struct {
-	Adds   int
-	Binary bool
-	Dels   int
-	Hunks  []*hunkBlock
-	Path   string
-	Slug   string
-	Status git.FileStatus
+	Adds     int
+	Binary   bool
+	Comments int
+	Dels     int
+	Hunks    []*hunkBlock
+	Path     string
+	Slug     string
+	Status   git.FileStatus
 }
 
 type hunkBlock struct {
@@ -174,9 +177,10 @@ type editCommentForm struct {
 }
 
 type commentListPage struct {
-	Error string
-	Files []commentListFile
-	Repo  repo.Repo
+	Comments int
+	Error    string
+	Files    []commentListFile
+	Repo     repo.Repo
 }
 
 type commentListFile struct {
@@ -225,7 +229,7 @@ func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := commitsPage{Repo: rp}
+	vm := commitsPage{Comments: s.countComments(slug, rp.Branch), Repo: rp}
 	if s.deps.CommitLog == nil {
 		vm.Error = "commits not available"
 		s.render(w, "commits", vm)
@@ -239,6 +243,17 @@ func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request) {
 	}
 	vm.Commits = commits
 	s.render(w, "commits", vm)
+}
+
+func (s *Server) countComments(slug, branch string) int {
+	if s.deps.Comments == nil {
+		return 0
+	}
+	cs, err := s.deps.Comments.ListComments(slug, branch)
+	if err != nil {
+		return 0
+	}
+	return len(cs)
 }
 
 func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
@@ -259,11 +274,23 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("list comments failed", "slug", slug, "branch", rp.Branch, "error", err.Error())
 	}
+	vm.Comments = len(comments)
 	byAnchor := groupCommentsByAnchor(comments)
+	byPath := groupCommentsByPath(comments)
 	for _, f := range files {
-		vm.Files = append(vm.Files, s.buildFileRow(rp, f, slug, byAnchor))
+		row := s.buildFileRow(rp, f, slug, byAnchor)
+		row.Comments = byPath[row.Path]
+		vm.Files = append(vm.Files, row)
 	}
 	s.render(w, "diff", vm)
+}
+
+func groupCommentsByPath(cs []db.Comment) map[string]int {
+	out := make(map[string]int, len(cs))
+	for _, c := range cs {
+		out[c.Path]++
+	}
+	return out
 }
 
 func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor map[string][]db.Comment) fileRow {
@@ -471,6 +498,7 @@ func (s *Server) handleCommentList(w http.ResponseWriter, r *http.Request) {
 		s.render(w, "comment-list-page", vm)
 		return
 	}
+	vm.Comments = len(comments)
 	vm.Files = groupCommentsByFile(comments)
 	s.render(w, "comment-list-page", vm)
 }

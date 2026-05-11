@@ -136,22 +136,6 @@
     {{else}}
       <p class="text-sm text-slate-500 mb-3">No sessions running.</p>
     {{end}}
-    {{if .AgentsDirty}}
-      <div class="bg-amber-50 border border-amber-200 rounded p-2 mb-2 text-xs flex items-center justify-between gap-2">
-        <span class="text-slate-700">Local changes in ./scratch</span>
-        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"commit then push local changes"}'
-                hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this"
-                class="px-2 py-1 text-xs bg-slate-900 text-white rounded">Commit & Push</button>
-      </div>
-    {{end}}
-    {{if gt .AgentsBehind 0}}
-      <div class="bg-amber-50 border border-amber-200 rounded p-2 mb-2 text-xs flex items-center justify-between gap-2">
-        <span class="text-slate-700">Upstream changes to ./scratch</span>
-        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"git pull remote changes"}'
-                hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this"
-                class="px-2 py-1 text-xs bg-slate-900 text-white rounded">Pull</button>
-      </div>
-    {{end}}
     <form id="session-form" class="bg-white border border-slate-200 rounded-lg p-3 space-y-2"
           hx-post="/sessions" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
       <div>

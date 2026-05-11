@@ -233,78 +233,44 @@ func TestTopNav(t *testing.T) {
 	}
 }
 
-func TestAgentsHintsOnSessionsPage(t *testing.T) {
-	tests := []struct {
-		name     string
-		fake     fakeDeps
-		mustHave []string
-		mustMiss []string
-	}{
-		{
-			name: "agents behind shows pull button",
-			fake: fakeDeps{
-				installed: true, configured: true, authenticated: true,
-				agents: agents.State{Installed: true, Behind: 3},
-			},
-			mustHave: []string{
-				"Upstream changes to ./scratch",
-				`hx-post="/sessions"`,
-				`git pull remote changes`,
-				">Pull<",
-			},
-			mustMiss: []string{">Commit "},
-		},
-		{
-			name: "agents dirty shows commit and push button",
-			fake: fakeDeps{
-				installed: true, configured: true, authenticated: true,
-				agents: agents.State{Installed: true, Dirty: true},
-			},
-			mustHave: []string{
-				"Local changes in ./scratch",
-				`hx-post="/sessions"`,
-				`commit then push local changes`,
-				">Commit & Push<",
-			},
-			mustMiss: []string{">Pull<"},
-		},
-		{
-			name: "agents dirty and behind shows both buttons",
-			fake: fakeDeps{
-				installed: true, configured: true, authenticated: true,
-				agents: agents.State{Installed: true, Behind: 2, Dirty: true},
-			},
-			mustHave: []string{
-				"Local changes in ./scratch",
-				"Upstream changes to ./scratch",
-				`commit then push local changes`,
-				`git pull remote changes`,
-				">Commit & Push<",
-				">Pull<",
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
+func TestSessionsPageOmitsAgentsHints(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
 
-			s, err := NewServer(tc.fake.deps())
-			r.NoError(err)
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
-
-			a.Equal(http.StatusOK, rec.Code)
-			body := rec.Body.String()
-			for _, want := range tc.mustHave {
-				a.Contains(body, want)
-			}
-			for _, miss := range tc.mustMiss {
-				a.NotContains(body, miss)
-			}
-		})
+	fd := fakeDeps{
+		installed: true, configured: true, authenticated: true,
+		agents: agents.State{Installed: true, Behind: 2, Dirty: true},
 	}
+	s, err := NewServer(fd.deps())
+	r.NoError(err)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	for _, miss := range []string{"Local changes in ./scratch", "Upstream changes to ./scratch", ">Commit & Push<", ">Pull<"} {
+		a.NotContains(body, miss)
+	}
+}
+
+func TestSessionStartRedirectsWhenRequested(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	fd := fakeDeps{installed: true, configured: true, authenticated: true}
+	srv, err := NewServer(fd.deps())
+	r.NoError(err)
+
+	form := url.Values{"dir": {"/tmp"}, "prompt": {"do a thing"}, "redirect": {"1"}}
+	req := httptest.NewRequest(http.MethodPost, "/sessions", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	a.Equal("/", rec.Header().Get("HX-Redirect"))
+	a.Empty(rec.Body.String(), "no body when redirecting")
 }
 
 func TestInstall(t *testing.T) {
