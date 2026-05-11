@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/cockroachdb/errors"
@@ -108,32 +107,26 @@ func TestContextEndpoint(t *testing.T) {
 		name      string
 		query     string
 		wantLines []string
-		wantSpot  bool
-		wantNot   []string
 	}{
 		{
-			name:      "up with continuation",
+			name:      "up to boundary",
 			query:     "path=foo.txt&from=1&to=2&direction=up&bound=1&offset=0",
 			wantLines: []string{"line1", "line2"},
-			wantSpot:  false,
 		},
 		{
-			name:      "down with continuation",
+			name:      "down with more available",
 			query:     "path=foo.txt&from=7&to=7&direction=down&bound=8&offset=-1",
 			wantLines: []string{"line7"},
-			wantSpot:  true,
 		},
 		{
-			name:      "down terminal",
+			name:      "down to end",
 			query:     "path=foo.txt&from=7&to=8&direction=down&bound=8&offset=-1",
 			wantLines: []string{"line7", "line8"},
-			wantSpot:  false,
 		},
 		{
 			name:      "expand all",
 			query:     "path=foo.txt&from=1&to=2&direction=all&offset=0",
 			wantLines: []string{"line1", "line2"},
-			wantSpot:  false,
 		},
 	}
 	for _, tc := range tests {
@@ -152,8 +145,7 @@ func TestContextEndpoint(t *testing.T) {
 			for _, want := range tc.wantLines {
 				a.Contains(body, want)
 			}
-			hasSpot := strings.Contains(body, `data-expand-all="true"`)
-			a.Equal(tc.wantSpot, hasSpot, "spot presence")
+			a.Contains(body, `data-expand-all="true"`, "buttons always rendered")
 		})
 	}
 }

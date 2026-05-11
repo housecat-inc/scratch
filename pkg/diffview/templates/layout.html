@@ -73,6 +73,14 @@
       const allOpen = hunks.every(d => d.open);
       if (allOpen) {
         hunks.forEach(d => d.open = false);
+        file.querySelectorAll('[id^="prev-lines-"]').forEach(c => { c.innerHTML = ''; });
+        file.querySelectorAll('[id^="prev-buttons-"]').forEach(span => {
+          const tmpl = document.getElementById('initial-prev-' + span.id.substring('prev-buttons-'.length));
+          if (tmpl) {
+            span.innerHTML = tmpl.innerHTML;
+            if (window.htmx) htmx.process(span);
+          }
+        });
       } else {
         file.open = true;
         hunks.forEach(d => d.open = true);
@@ -96,6 +104,20 @@
       btn.classList.toggle('text-green-600', done);
       btn.classList.toggle('text-slate-400', !done);
       hunk.open = !done;
+    }
+    function handlePrevClick(btn, event) {
+      const span = btn.closest('[id^="prev-buttons-"]');
+      if (!span) return;
+      const key = span.id.substring('prev-buttons-'.length);
+      const lines = document.getElementById('prev-lines-' + key);
+      if (!lines || lines.children.length === 0) return;
+      event.preventDefault();
+      lines.innerHTML = '';
+      const tmpl = document.getElementById('initial-prev-' + key);
+      if (tmpl) {
+        span.innerHTML = tmpl.innerHTML;
+        if (window.htmx) htmx.process(span);
+      }
     }
   </script>
 </head>
@@ -145,7 +167,7 @@
   </div>
 </details>{{end}}
 
-{{define "hunk"}}{{if .PrevSpot}}<div id="prev-lines-{{.Hunk.Key}}"></div>{{end}}{{if .Virtual}}<div class="h-10 flex items-center gap-2 px-2 list-none border-b border-slate-100 bg-slate-50">
+{{define "hunk"}}{{if .PrevSpot}}<template id="initial-prev-{{.Hunk.Key}}">{{template "prev-buttons-inner" .PrevSpot}}</template><div id="prev-lines-{{.Hunk.Key}}"></div>{{end}}{{if .Virtual}}<div class="h-10 flex items-center gap-2 px-2 list-none border-b border-slate-100 bg-slate-50">
   <span class="w-3 ml-1 flex-shrink-0"></span>
   <span class="font-mono text-xs text-slate-400 truncate flex-1 min-w-0">…</span>
   <div class="flex items-center flex-shrink-0">
@@ -175,13 +197,15 @@
         class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
         hx-get="/diff/{{.Slug}}/file/lines?path={{.Path | urlquery}}&from={{.FullFrom}}&to={{.FullTo}}&direction=all&offset={{.Offset}}&hunk={{.HunkKey | urlquery}}"
         hx-target="#prev-buttons-{{.HunkKey}}"
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        hx-on::before-request="handlePrevClick(this, event)">
   <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3"/></svg>
 </button><button type="button" title="Expand context"
         class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
         hx-get="/diff/{{.Slug}}/file/lines?path={{.Path | urlquery}}&from={{.From}}&to={{.To}}&direction={{.Direction}}&bound={{.Bound}}&offset={{.Offset}}&hunk={{.HunkKey | urlquery}}"
         hx-target="#prev-buttons-{{.HunkKey}}"
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        hx-on::before-request="handlePrevClick(this, event)">
   <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v8M4 8h8"/></svg>
 </button>{{end}}
 

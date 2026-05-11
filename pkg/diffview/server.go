@@ -269,42 +269,46 @@ func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
 		vm.Lines = lines[from-1 : to]
 	}
 
+	cont := &expandSpot{
+		Bound:     bound,
+		Direction: direction,
+		HunkKey:   hunkKey,
+		Offset:    offset,
+		Path:      path,
+		Slug:      slug,
+	}
 	switch direction {
 	case "up":
 		if from > bound {
-			newTo := from - 1
-			newFrom := maxInt(bound, from-contextLimit)
-			vm.Continuation = &expandSpot{
-				Bound:     bound,
-				Direction: "up",
-				From:      newFrom,
-				FullFrom:  bound,
-				FullTo:    newTo,
-				HunkKey:   hunkKey,
-				Offset:    offset,
-				Path:      path,
-				Slug:      slug,
-				To:        newTo,
-			}
+			cont.From = maxInt(bound, from-contextLimit)
+			cont.To = from - 1
+			cont.FullFrom = bound
+			cont.FullTo = from - 1
+		} else {
+			cont.From = bound
+			cont.To = bound
+			cont.FullFrom = bound
+			cont.FullTo = bound
 		}
 	case "down":
 		if to < bound {
-			newFrom := to + 1
-			newTo := minInt(bound, to+contextLimit)
-			vm.Continuation = &expandSpot{
-				Bound:     bound,
-				Direction: "down",
-				From:      newFrom,
-				FullFrom:  newFrom,
-				FullTo:    bound,
-				HunkKey:   hunkKey,
-				Offset:    offset,
-				Path:      path,
-				Slug:      slug,
-				To:        newTo,
-			}
+			cont.From = to + 1
+			cont.To = minInt(bound, to+contextLimit)
+			cont.FullFrom = to + 1
+			cont.FullTo = bound
+		} else {
+			cont.From = bound
+			cont.To = bound
+			cont.FullFrom = bound
+			cont.FullTo = bound
 		}
+	default:
+		cont.From = from
+		cont.To = to
+		cont.FullFrom = from
+		cont.FullTo = to
 	}
+	vm.Continuation = cont
 
 	s.render(w, "context-fragment-attached", vm)
 }
