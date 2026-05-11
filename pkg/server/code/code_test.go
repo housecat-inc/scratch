@@ -77,11 +77,11 @@ func TestOverview(t *testing.T) {
 	for _, want := range []string{
 		"acme/alpha", "on feature", "first commit", "2↓",
 		`href="/code/acme/alpha"`,
-		">Commit & Push<",
+		">Commit &amp; Push<",
 		">Pull<",
 		`hx-post="/sessions"`,
-		`"dir":"/tmp/alpha"`,
-		`"redirect":"1"`,
+		`&#34;dir&#34;:&#34;/tmp/alpha&#34;`,
+		`&#34;redirect&#34;:&#34;1&#34;`,
 	} {
 		a.Contains(body, want)
 	}

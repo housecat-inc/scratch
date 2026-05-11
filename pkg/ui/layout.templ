@@ -1,0 +1,73 @@
+package ui
+
+import (
+	"strings"
+
+	"github.com/templui/templui/components/card"
+)
+
+templ AppCard(extra ...string) {
+	@card.Card(card.Props{Class: strings.TrimSpace("rounded-xl shadow-sm gap-3 " + strings.Join(extra, " "))}) {
+		{ children... }
+	}
+}
+
+templ AppTitle(extra ...string) {
+	@card.Title(card.TitleProps{Class: strings.TrimSpace("text-base " + strings.Join(extra, " "))}) {
+		{ children... }
+	}
+}
+
+templ Head(title string) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+		<meta name="color-scheme" content="light"/>
+		<title>{ title } · claude-control</title>
+		<link rel="manifest" href="/manifest.webmanifest"/>
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+		<meta name="apple-mobile-web-app-title" content="claude-control"/>
+		<meta name="mobile-web-app-capable" content="yes"/>
+		<meta name="application-name" content="claude-control"/>
+		<meta name="theme-color" content="#0f172a"/>
+		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
+		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
+		@TempluiCSS()
+		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+		<script src="/static/register-sw.js" defer></script>
+	</head>
+}
+
+templ TopNav(active string) {
+	<nav class="bg-white sticky top-0 z-20" style="padding-top:env(safe-area-inset-top)">
+		<div class="max-w-2xl mx-auto flex">
+			@navLink("/", "sessions", active, "Sessions")
+			@navLink("/code/", "code", active, "Code")
+			@navLink("/files/", "files", active, "Files")
+			@navLink("/setup", "setup", active, "Setup")
+		</div>
+	</nav>
+}
+
+templ navLink(href, name, active, label string) {
+	if name == active {
+		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-3 text-sm font-medium text-slate-900 border-b-2 border-slate-900">{ label }</a>
+	} else {
+		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-3 text-sm font-medium text-slate-500 hover:text-slate-900">{ label }</a>
+	}
+}
+
+templ Layout(title, nav string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@Head(title)
+		<body class="bg-background text-foreground min-h-screen">
+			@TopNav(nav)
+			<main class="max-w-2xl mx-auto px-4 py-4">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}

@@ -1,7 +1,6 @@
 package code
 
 import (
-	"html/template"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -10,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cockroachdb/errors"
+	"github.com/a-h/templ"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
@@ -63,18 +62,13 @@ func baseRef(r repo.Repo) string {
 
 type Server struct {
 	deps Deps
-	tmpl *template.Template
 }
 
 func NewServer(deps Deps) (*Server, error) {
 	if deps.Comments == nil {
 		deps.Comments = db.NopCommentStore{}
 	}
-	tmpl, err := ui.ParseCode(funcs)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse templates")
-	}
-	return &Server{deps: deps, tmpl: tmpl}, nil
+	return &Server{deps: deps}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -94,129 +88,16 @@ func (s *Server) Handler() http.Handler {
 	return logging(mux)
 }
 
-type overviewPage struct {
-	Error string
-	Home  string
-	Repos []repo.Repo
-}
-
-type diffPage struct {
-	Comments int
-	Error    string
-	Files    []fileRow
-	Repo     repo.Repo
-}
-
-type commitsPage struct {
-	Comments int
-	Commits  []git.Commit
-	Error    string
-	Repo     repo.Repo
-}
-
-type fileRow struct {
-	Adds     int
-	Binary   bool
-	Comments int
-	Dels     int
-	Hunks    []*hunkBlock
-	Path     string
-	Slug     string
-	Status   git.FileStatus
-}
-
-type hunkBlock struct {
-	Commit   git.Commit
-	Hunk     *git.Hunk
-	Lang     string
-	Lines    []lineRow
-	PrevSpot *expandSpot
-	Virtual  bool
-}
-
-type lineRow struct {
-	Anchor     string
-	AnchorLine int
-	Comments   []db.Comment
-	Lang       string
-	Line       git.Line
-	Path       string
-	Side       string
-	Slug       string
-}
-
-type commentThread struct {
-	Anchor   string
-	Comments []db.Comment
-	Slug     string
-}
-
-type newCommentForm struct {
-	Anchor string
-	Line   int
-	Path   string
-	Side   string
-	Slug   string
-}
-
-type commentItem struct {
-	Anchor  string
-	Comment db.Comment
-	Slug    string
-	View    string
-}
-
-type editCommentForm struct {
-	Anchor  string
-	Comment db.Comment
-	Slug    string
-	View    string
-}
-
-type commentListPage struct {
-	Comments int
-	Error    string
-	Files    []commentListFile
-	Repo     repo.Repo
-}
-
-type commentListFile struct {
-	Comments []db.Comment
-	Path     string
-}
-
-type expandSpot struct {
-	Bound     int
-	Direction string
-	From      int
-	FullFrom  int
-	FullTo    int
-	HunkKey   string
-	Offset    int
-	Path      string
-	Slug      string
-	To        int
-}
-
-type contextResponse struct {
-	Continuation *expandSpot
-	Direction    string
-	From         int
-	HunkKey      string
-	Lang         string
-	Lines        []string
-	Offset       int
-}
 
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
-	vm := overviewPage{Home: s.deps.Home}
+	vm := ui.OverviewProps{Home: s.deps.Home}
 	repos, err := s.deps.ListRepos()
 	if err != nil {
 		vm.Error = err.Error()
 	} else {
 		vm.Repos = repos
 	}
-	s.render(w, "overview", vm)
+	s.render(w, r, ui.OverviewPage(vm))
 }
 
 func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request) {
@@ -226,20 +107,20 @@ func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := commitsPage{Comments: s.countComments(slug, rp.Branch), Repo: rp}
+	vm := ui.CommitsProps{Comments: s.countComments(slug, rp.Branch), Repo: rp}
 	if s.deps.CommitLog == nil {
 		vm.Error = "commits not available"
-		s.render(w, "commits", vm)
+		s.render(w, r, ui.CommitsPage(vm))
 		return
 	}
 	commits, err := s.deps.CommitLog(rp)
 	if err != nil {
 		vm.Error = err.Error()
-		s.render(w, "commits", vm)
+		s.render(w, r, ui.CommitsPage(vm))
 		return
 	}
 	vm.Commits = commits
-	s.render(w, "commits", vm)
+	s.render(w, r, ui.CommitsPage(vm))
 }
 
 func (s *Server) countComments(slug, branch string) int {
@@ -260,11 +141,11 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := diffPage{Repo: rp}
+	vm := ui.DiffProps{Repo: rp}
 	files, err := s.deps.Diff(rp)
 	if err != nil {
 		vm.Error = err.Error()
-		s.render(w, "diff", vm)
+		s.render(w, r, ui.DiffPage(vm))
 		return
 	}
 	comments, err := s.deps.Comments.ListComments(slug, rp.Branch)
@@ -279,7 +160,7 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		row.Comments = byPath[row.Path]
 		vm.Files = append(vm.Files, row)
 	}
-	s.render(w, "diff", vm)
+	s.render(w, r, ui.DiffPage(vm))
 }
 
 func groupCommentsByPath(cs []db.Comment) map[string]int {
@@ -290,8 +171,8 @@ func groupCommentsByPath(cs []db.Comment) map[string]int {
 	return out
 }
 
-func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor map[string][]db.Comment) fileRow {
-	vm := fileRow{
+func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor map[string][]db.Comment) ui.FileProps {
+	vm := ui.FileProps{
 		Adds:   f.Adds(),
 		Binary: f.Binary,
 		Dels:   f.Dels(),
@@ -302,8 +183,8 @@ func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor ma
 
 	hunks := append([]git.Hunk(nil), f.Hunks...)
 	lang := langFor(f.Path())
-	makeBlock := func(h *git.Hunk) *hunkBlock {
-		hb := &hunkBlock{Hunk: h, Lang: lang}
+	makeBlock := func(h *git.Hunk) *ui.HunkProps {
+		hb := &ui.HunkProps{Hunk: h, Lang: lang}
 		hb.Lines = buildLineRows(slug, f.Path(), lang, h.Lines, byAnchor)
 		if s.deps.HunkCommit != nil && f.NewPath != "" {
 			if c, err := s.deps.HunkCommit(rp, f.NewPath, h.NewStart, h.NewCount); err == nil {
@@ -343,7 +224,7 @@ func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor ma
 		}
 		prevEnd := h.NewStart - 1
 		if prevEnd >= prevBound {
-			hb.PrevSpot = &expandSpot{
+			hb.PrevSpot = &ui.ExpandSpot{
 				Bound:     prevBound,
 				Direction: "up",
 				From:      maxInt(prevBound, prevEnd-contextLimit+1),
@@ -365,11 +246,11 @@ func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor ma
 	lastEnd := last.NewStart + last.NewCount - 1
 	if lastEnd < fileEnd {
 		virtual := &git.Hunk{Header: "end:" + f.NewPath}
-		vm.Hunks = append(vm.Hunks, &hunkBlock{
+		vm.Hunks = append(vm.Hunks, &ui.HunkProps{
 			Hunk:    virtual,
 			Lang:    lang,
 			Virtual: true,
-			PrevSpot: &expandSpot{
+			PrevSpot: &ui.ExpandSpot{
 				Bound:     lastEnd + 1,
 				Direction: "up",
 				From:      maxInt(lastEnd+1, fileEnd-contextLimit+1),
@@ -401,13 +282,13 @@ func (s *Server) handleCommentForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid anchor", http.StatusBadRequest)
 		return
 	}
-	s.render(w, "comment-form", newCommentForm{
+	s.render(w, r, ui.CommentForm(ui.CommentFormProps{
 		Anchor: db.CommentAnchor(path, side, line),
 		Line:   line,
 		Path:   path,
 		Side:   side,
 		Slug:   slug,
-	})
+	}))
 }
 
 func (s *Server) handleCommentCreate(w http.ResponseWriter, r *http.Request) {
@@ -437,7 +318,7 @@ func (s *Server) handleCommentCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.renderThread(w, slug, rp.Branch, path, side, line)
+	s.renderThread(w, r, slug, rp.Branch, path, side, line)
 }
 
 func (s *Server) handleCommentDelete(w http.ResponseWriter, r *http.Request) {
@@ -473,12 +354,12 @@ func (s *Server) handleCommentEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.render(w, "comment-edit-form", editCommentForm{
+	s.render(w, r, ui.EditCommentForm(ui.EditCommentFormProps{
 		Anchor:  c.Anchor(),
 		Comment: c,
 		Slug:    slug,
 		View:    viewParam(r.URL.Query().Get("view")),
-	})
+	}))
 }
 
 func (s *Server) handleCommentList(w http.ResponseWriter, r *http.Request) {
@@ -488,16 +369,16 @@ func (s *Server) handleCommentList(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := commentListPage{Repo: rp}
+	vm := ui.CommentListProps{Repo: rp}
 	comments, err := s.deps.Comments.ListComments(slug, rp.Branch)
 	if err != nil {
 		vm.Error = err.Error()
-		s.render(w, "comment-list-page", vm)
+		s.render(w, r, ui.CommentListPage(vm))
 		return
 	}
 	vm.Comments = len(comments)
-	vm.Files = groupCommentsByFile(comments)
-	s.render(w, "comment-list-page", vm)
+	vm.Files = groupCommentsByFile(comments, slug)
+	s.render(w, r, ui.CommentListPage(vm))
 }
 
 func (s *Server) handleCommentResolve(w http.ResponseWriter, r *http.Request) {
@@ -529,7 +410,7 @@ func (s *Server) handleCommentResolve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.renderCommentItem(w, updated, slug, viewParam(r.FormValue("view")))
+	s.renderCommentItem(w, r, updated, slug, viewParam(r.FormValue("view")))
 }
 
 func (s *Server) handleCommentShow(w http.ResponseWriter, r *http.Request) {
@@ -547,7 +428,7 @@ func (s *Server) handleCommentShow(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.renderCommentItem(w, c, slug, viewParam(r.URL.Query().Get("view")))
+	s.renderCommentItem(w, r, c, slug, viewParam(r.URL.Query().Get("view")))
 }
 
 func (s *Server) handleCommentUpdate(w http.ResponseWriter, r *http.Request) {
@@ -574,19 +455,19 @@ func (s *Server) handleCommentUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.renderCommentItem(w, updated, slug, viewParam(r.FormValue("view")))
+	s.renderCommentItem(w, r, updated, slug, viewParam(r.FormValue("view")))
 }
 
-func (s *Server) renderCommentItem(w http.ResponseWriter, c db.Comment, slug, view string) {
-	vm := commentItem{Anchor: c.Anchor(), Comment: c, Slug: slug, View: view}
+func (s *Server) renderCommentItem(w http.ResponseWriter, r *http.Request, c db.Comment, slug, view string) {
+	vm := ui.CommentItemProps{Anchor: c.Anchor(), Comment: c, Slug: slug, View: view}
 	if view == viewList {
-		s.render(w, "comment-card-item", vm)
+		s.render(w, r, ui.CommentCardItem(vm))
 		return
 	}
-	s.render(w, "comment-item", vm)
+	s.render(w, r, ui.CommentItem(vm))
 }
 
-func (s *Server) renderThread(w http.ResponseWriter, slug, branch, path, side string, line int) {
+func (s *Server) renderThread(w http.ResponseWriter, r *http.Request, slug, branch, path, side string, line int) {
 	all, err := s.deps.Comments.ListComments(slug, branch)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -599,7 +480,7 @@ func (s *Server) renderThread(w http.ResponseWriter, slug, branch, path, side st
 			matches = append(matches, c)
 		}
 	}
-	s.render(w, "comment-thread", commentThread{Anchor: anchor, Comments: matches, Slug: slug})
+	s.render(w, r, ui.CommentThread(ui.CommentThreadProps{Anchor: anchor, Comments: matches, Slug: slug}))
 }
 
 func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
@@ -630,7 +511,7 @@ func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
 		to = len(lines)
 	}
 
-	vm := contextResponse{
+	vm := ui.ContextProps{
 		Direction: direction,
 		From:      from,
 		HunkKey:   hunkKey,
@@ -641,7 +522,7 @@ func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
 		vm.Lines = lines[from-1 : to]
 	}
 
-	cont := &expandSpot{
+	cont := &ui.ExpandSpot{
 		Bound:     bound,
 		Direction: direction,
 		HunkKey:   hunkKey,
@@ -682,12 +563,12 @@ func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
 	}
 	vm.Continuation = cont
 
-	s.render(w, "context-fragment-attached", vm)
+	s.render(w, r, ui.ContextAttached(vm))
 }
 
-func (s *Server) render(w http.ResponseWriter, name string, vm any) {
+func (s *Server) render(w http.ResponseWriter, r *http.Request, c templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, name, vm); err != nil {
+	if err := c.Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -697,11 +578,11 @@ func atoi(s string) int {
 	return n
 }
 
-func buildLineRows(slug, path, lang string, lines []git.Line, byAnchor map[string][]db.Comment) []lineRow {
-	out := make([]lineRow, 0, len(lines))
+func buildLineRows(slug, path, lang string, lines []git.Line, byAnchor map[string][]db.Comment) []ui.DiffLineProps {
+	out := make([]ui.DiffLineProps, 0, len(lines))
 	for _, l := range lines {
 		side, line := lineAnchorParts(l)
-		vm := lineRow{Lang: lang, Line: l, Path: path, Side: side, Slug: slug}
+		vm := ui.DiffLineProps{Lang: lang, Line: l, Path: path, Side: side, Slug: slug}
 		if line > 0 {
 			vm.Anchor = db.CommentAnchor(path, side, line)
 			vm.AnchorLine = line
@@ -721,7 +602,7 @@ func groupCommentsByAnchor(cs []db.Comment) map[string][]db.Comment {
 	return out
 }
 
-func groupCommentsByFile(cs []db.Comment) []commentListFile {
+func groupCommentsByFile(cs []db.Comment, slug string) []ui.CommentListFileProps {
 	byPath := make(map[string][]db.Comment)
 	for _, c := range cs {
 		byPath[c.Path] = append(byPath[c.Path], c)
@@ -731,7 +612,7 @@ func groupCommentsByFile(cs []db.Comment) []commentListFile {
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
-	out := make([]commentListFile, 0, len(paths))
+	out := make([]ui.CommentListFileProps, 0, len(paths))
 	for _, p := range paths {
 		items := byPath[p]
 		sort.SliceStable(items, func(i, j int) bool {
@@ -743,7 +624,7 @@ func groupCommentsByFile(cs []db.Comment) []commentListFile {
 			}
 			return items[i].CreatedAt.Before(items[j].CreatedAt)
 		})
-		out = append(out, commentListFile{Comments: items, Path: p})
+		out = append(out, ui.CommentListFileProps{Comments: items, Path: p, Slug: slug})
 	}
 	return out
 }
@@ -804,68 +685,6 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
-}
-
-var funcs = template.FuncMap{
-	"addInt": func(a, b int) int { return a + b },
-	"dict": func(values ...any) (map[string]any, error) {
-		if len(values)%2 != 0 {
-			return nil, errors.New("dict requires even number of args")
-		}
-		m := make(map[string]any, len(values)/2)
-		for i := 0; i < len(values); i += 2 {
-			key, ok := values[i].(string)
-			if !ok {
-				return nil, errors.Errorf("dict key %d is not a string", i)
-			}
-			m[key] = values[i+1]
-		}
-		return m, nil
-	},
-	"lineClass": func(k git.LineKind) string {
-		switch k {
-		case git.LineAdd:
-			return "bg-green-50 text-green-900"
-		case git.LineDelete:
-			return "bg-red-50 text-red-900"
-		}
-		return ""
-	},
-	"lineCount": func(from, to int) int { return to - from + 1 },
-	"lineMarker": func(k git.LineKind) string {
-		switch k {
-		case git.LineAdd:
-			return "+"
-		case git.LineDelete:
-			return "-"
-		}
-		return " "
-	},
-	"oldLineNum": func(from, offset, i int) int { return from + i + offset },
-	"statusLabel": func(s git.FileStatus) string {
-		switch s {
-		case git.StatusAdded:
-			return "new"
-		case git.StatusDeleted:
-			return "deleted"
-		case git.StatusRenamed:
-			return "renamed"
-		default:
-			return "modified"
-		}
-	},
-	"statusColor": func(s git.FileStatus) string {
-		switch s {
-		case git.StatusAdded:
-			return "text-green-700"
-		case git.StatusDeleted:
-			return "text-red-700"
-		case git.StatusRenamed:
-			return "text-blue-700"
-		default:
-			return "text-slate-500"
-		}
-	},
 }
 
 type statusRecorder struct {

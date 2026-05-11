@@ -1,0 +1,116 @@
+package ui
+
+templ FilesPage(v FilesProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@FilesHead()
+		<body class="bg-background text-foreground h-screen flex flex-col overflow-hidden">
+			@TopNav("files")
+			<div id="files-wrap" class="flex flex-1 min-h-0">
+				<aside class="tree-pane w-full md:w-72 md:flex-shrink-0 bg-white md:border-r border-slate-200 flex flex-col">
+					<div class="px-3 py-3 md:py-2 border-b border-slate-200 text-sm md:text-xs font-medium text-slate-700 truncate flex-shrink-0">
+						{ v.Root }
+					</div>
+					<div class="flex-1 min-h-0 overflow-auto py-1" id="file-tree">
+						@FileTreeList(FileTreeProps{Entries: v.Entries})
+					</div>
+				</aside>
+				<main class="editor-pane flex-1 flex flex-col min-w-0 w-full">
+					<div class="px-2 py-1.5 bg-white border-b border-slate-200 text-xs flex items-center gap-2 flex-shrink-0">
+						<button id="back-btn" type="button"
+							class="md:hidden px-2 py-1 -ml-1 rounded text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1"
+							aria-label="Back to files">
+							<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"></path></svg>
+							<span>Files</span>
+						</button>
+						<span id="editor-path" class="font-mono text-slate-500 flex-1 truncate">Select a file</span>
+						<span id="editor-status" class="text-slate-400 hidden sm:inline"></span>
+						<button id="editor-save" type="button" disabled class="px-2 py-1 bg-slate-900 text-white rounded disabled:opacity-40">Save</button>
+					</div>
+					<div id="editor-area" class="flex-1 min-h-0 bg-white"></div>
+				</main>
+			</div>
+			<script src="/static/files.js"></script>
+		</body>
+	</html>
+}
+
+templ FilesHead() {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+		<meta name="color-scheme" content="light"/>
+		<title>Files · claude-control</title>
+		<link rel="manifest" href="/manifest.webmanifest"/>
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+		<meta name="apple-mobile-web-app-title" content="claude-control"/>
+		<meta name="mobile-web-app-capable" content="yes"/>
+		<meta name="application-name" content="claude-control"/>
+		<meta name="theme-color" content="#0f172a"/>
+		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
+		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
+		@TempluiCSS()
+		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+		<script src="/static/register-sw.js" defer></script>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css"/>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js"></script>
+		<style>
+			html, body { height: 100%; }
+			.CodeMirror { height: 100%; font-size: 14px; }
+			.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+			.CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }
+			@media (max-width: 767px) {
+				.CodeMirror { font-size: 16px; }
+				#files-wrap:not(.show-editor) .editor-pane { display: none; }
+				#files-wrap.show-editor .tree-pane { display: none; }
+			}
+		</style>
+	</head>
+}
+
+templ FileTreeList(t FileTreeProps) {
+	<ul>
+		for _, e := range t.Entries {
+			if e.Dir {
+				<li>
+					<details class="group/dir"
+						data-dir={ e.Path }
+						hx-get={ "/files/tree?path=" + e.Path }
+						hx-trigger="toggle once"
+						hx-target="find .tree-children"
+						hx-swap="innerHTML">
+						<summary class="px-2 py-2 md:py-0.5 cursor-pointer list-none flex items-center gap-2 md:gap-1 hover:bg-slate-50 active:bg-slate-100 text-slate-700">
+							<svg class="w-4 h-4 md:w-3 md:h-3 text-slate-400 transition-transform group-open/dir:rotate-90 flex-shrink-0" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+							<span class="font-mono text-base md:text-xs truncate">{ e.Name }/</span>
+						</summary>
+						<div class="pl-4 md:pl-3 tree-children">
+							<div class="px-2 py-2 md:py-0.5 text-sm md:text-xs text-slate-400 italic">loading…</div>
+						</div>
+					</details>
+				</li>
+			} else {
+				<li>
+					<a href="#" data-file={ e.Path } class="flex items-center gap-2 md:gap-1 px-2 py-2 md:py-0.5 pl-8 md:pl-5 hover:bg-slate-50 active:bg-slate-100 text-slate-600">
+						<span class="font-mono text-base md:text-xs truncate">{ e.Name }</span>
+					</a>
+				</li>
+			}
+		}
+		if len(t.Entries) == 0 {
+			<li class="px-2 py-2 md:py-0.5 text-sm md:text-xs text-slate-400 italic">empty</li>
+		}
+	</ul>
+}
