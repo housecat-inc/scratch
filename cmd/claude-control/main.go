@@ -10,6 +10,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/server/code"
+	"github.com/housecat-inc/scratch/pkg/server/files"
 	"github.com/housecat-inc/scratch/pkg/server/sessions"
 	"github.com/spf13/cobra"
 )
@@ -54,9 +55,14 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "new code server")
 			}
+			filesSrv, err := files.NewServer(files.DefaultDeps(home))
+			if err != nil {
+				return errors.Wrap(err, "new files server")
+			}
 
 			mux := http.NewServeMux()
 			mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
+			mux.Handle("/files/", http.StripPrefix("/files", filesSrv.Handler()))
 			mux.Handle("/", sessionsSrv.Handler())
 
 			addr := fmt.Sprintf(":%d", port)
