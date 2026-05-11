@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,6 +157,94 @@ func TestTrustProjectAt(t *testing.T) {
 			a.Equal(parseJSON(t, tc.want), readJSON(t, path))
 		})
 	}
+}
+
+func TestEnsureTmuxInstalledAlreadyOnPath(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	dir := t.TempDir()
+	stub := filepath.Join(dir, "tmux")
+	r.NoError(os.WriteFile(stub, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", dir)
+
+	a.NoError(EnsureTmuxInstalled())
+}
+
+func TestTmuxInstallCommandLinux(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("linux-only")
+	}
+
+	tests := []struct {
+		bins []string
+		name string
+		want []string
+	}{
+		{
+			name: "apk",
+			bins: []string{"apk"},
+			want: []string{"apk", "add", "tmux"},
+		},
+		{
+			name: "apt-get",
+			bins: []string{"apt-get"},
+			want: []string{"apt-get", "install", "-y", "tmux"},
+		},
+		{
+			name: "dnf",
+			bins: []string{"dnf"},
+			want: []string{"dnf", "install", "-y", "tmux"},
+		},
+		{
+			name: "pacman",
+			bins: []string{"pacman"},
+			want: []string{"pacman", "-S", "--noconfirm", "tmux"},
+		},
+		{
+			name: "prefers apk over yum when both present",
+			bins: []string{"apk", "yum"},
+			want: []string{"apk", "add", "tmux"},
+		},
+		{
+			name: "yum",
+			bins: []string{"yum"},
+			want: []string{"yum", "install", "-y", "tmux"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+
+			dir := t.TempDir()
+			for _, bin := range tc.bins {
+				r.NoError(os.WriteFile(filepath.Join(dir, bin), []byte("#!/bin/sh\nexit 0\n"), 0o755))
+			}
+			t.Setenv("PATH", dir)
+
+			got, err := tmuxInstallCommand()
+			r.NoError(err)
+			want := tc.want
+			if os.Geteuid() != 0 {
+				want = append([]string{"sudo", "-n"}, want...)
+			}
+			a.Equal(want, got)
+		})
+	}
+}
+
+func TestTmuxInstallCommandLinuxNoManager(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("linux-only")
+	}
+	a := assert.New(t)
+
+	t.Setenv("PATH", t.TempDir())
+
+	_, err := tmuxInstallCommand()
+	a.Error(err)
 }
 
 func TestMergeDefaultsCreatesParentDir(t *testing.T) {

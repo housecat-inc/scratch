@@ -73,6 +73,10 @@ func ConfiguredAt(home string) (bool, error) {
 }
 
 func Installed() bool {
-	_, err := exec.LookPath("claude")
-	return err == nil
+	for _, bin := range []string{"claude", "tmux"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			return false
+		}
+	}
+	return true
 }

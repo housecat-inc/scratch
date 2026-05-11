@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/agents"
@@ -46,10 +47,53 @@ var settingsDefaults = Settings{
 }
 
 func EnsureInstalled() error {
+	if err := EnsureTmuxInstalled(); err != nil {
+		return err
+	}
 	if _, err := exec.LookPath("claude"); err == nil {
 		return run("claude", "update")
 	}
 	return run("sh", "-c", "curl -fsSL "+installScriptURL+" | bash")
+}
+
+func EnsureTmuxInstalled() error {
+	if _, err := exec.LookPath("tmux"); err == nil {
+		return nil
+	}
+	args, err := tmuxInstallCommand()
+	if err != nil {
+		return err
+	}
+	return run(args[0], args[1:]...)
+}
+
+func tmuxInstallCommand() ([]string, error) {
+	switch runtime.GOOS {
+	case "darwin":
+		if _, err := exec.LookPath("brew"); err != nil {
+			return nil, errors.New("install tmux: brew not found")
+		}
+		return []string{"brew", "install", "tmux"}, nil
+	case "linux":
+		managers := [][]string{
+			{"apk", "add", "tmux"},
+			{"apt-get", "install", "-y", "tmux"},
+			{"dnf", "install", "-y", "tmux"},
+			{"pacman", "-S", "--noconfirm", "tmux"},
+			{"yum", "install", "-y", "tmux"},
+		}
+		for _, args := range managers {
+			if _, err := exec.LookPath(args[0]); err != nil {
+				continue
+			}
+			if os.Geteuid() != 0 {
+				args = append([]string{"sudo", "-n"}, args...)
+			}
+			return args, nil
+		}
+		return nil, errors.New("install tmux: no supported package manager found")
+	}
+	return nil, errors.Newf("install tmux: unsupported OS %s", runtime.GOOS)
 }
 
 func HasDefaults(path string, defaults any) (bool, error) {
