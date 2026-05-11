@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/templui/templui/components/badge"
 	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
 )
@@ -51,8 +52,7 @@ templ InstallCard(v SessionsProps) {
 
 templ stepCard(num string, done bool, title, hint string) {
 	@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3"}) {
-		@card.Header(card.HeaderProps{Class: "pb-0 flex flex-row items-start gap-4 space-y-0"}) {
-			@stepBadge(num, done)
+		@card.Header(card.HeaderProps{Class: "flex flex-row items-start justify-between gap-2 space-y-0"}) {
 			<div class="flex-1 min-w-0 space-y-1.5">
 				@card.Title(card.TitleProps{Class: "text-base"}) {
 					{ title }
@@ -63,9 +63,10 @@ templ stepCard(num string, done bool, title, hint string) {
 					}
 				}
 			</div>
+			@stepBadge(num, done)
 		}
 		if !done {
-			@card.Content(card.ContentProps{Class: "pl-20 flex flex-wrap items-center gap-2"}) {
+			@card.Content(card.ContentProps{Class: "flex flex-wrap items-center gap-2"}) {
 				{ children... }
 			}
 		}
@@ -74,9 +75,13 @@ templ stepCard(num string, done bool, title, hint string) {
 
 templ stepBadge(num string, done bool) {
 	if done {
-		<span class="inline-flex w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 items-center justify-center text-base font-semibold shrink-0" aria-hidden="true">✓</span>
+		@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "bg-emerald-100 text-emerald-900"}) {
+			done
+		}
 	} else {
-		<span class="inline-flex w-10 h-10 rounded-full bg-secondary text-secondary-foreground ring-1 ring-border items-center justify-center text-base font-semibold shrink-0" aria-hidden="true">{ num }</span>
+		@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+			step { num }
+		}
 	}
 }
 

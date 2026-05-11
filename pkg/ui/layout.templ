@@ -14,33 +14,9 @@ templ Head(title string) {
 		<meta name="application-name" content="claude-control"/>
 		<meta name="theme-color" content="#0f172a"/>
 		<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
-		<style>
-		:root { color-scheme: light; }
-		</style>
-		<style type="text/tailwindcss">
-		@theme inline {
-			--color-background: #f8fafc;
-			--color-foreground: #0f172a;
-			--color-card: #ffffff;
-			--color-card-foreground: #0f172a;
-			--color-popover: #ffffff;
-			--color-popover-foreground: #0f172a;
-			--color-primary: #0f172a;
-			--color-primary-foreground: #ffffff;
-			--color-secondary: #f1f5f9;
-			--color-secondary-foreground: #0f172a;
-			--color-muted: #f1f5f9;
-			--color-muted-foreground: #64748b;
-			--color-accent: #f1f5f9;
-			--color-accent-foreground: #0f172a;
-			--color-destructive: #b91c1c;
-			--color-border: #e2e8f0;
-			--color-input: #e2e8f0;
-			--color-ring: #94a3b8;
-		}
-		</style>
 	</head>
 }
 
@@ -67,7 +43,7 @@ templ Layout(title, nav string) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@Head(title)
-		<body class="bg-slate-50 text-slate-900 min-h-screen">
+		<body class="bg-background text-foreground min-h-screen">
 			@TopNav(nav)
 			<main class="max-w-2xl mx-auto px-4 py-4">
 				{ children... }

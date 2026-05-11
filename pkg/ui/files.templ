@@ -4,7 +4,7 @@ templ FilesPage(v FilesProps) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@FilesHead()
-		<body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden">
+		<body class="bg-background text-foreground h-screen flex flex-col overflow-hidden">
 			@TopNav("files")
 			<div id="files-wrap" class="flex flex-1 min-h-0">
 				<aside class="tree-pane w-full md:w-72 md:flex-shrink-0 bg-white md:border-r border-slate-200 flex flex-col">
@@ -49,6 +49,7 @@ templ FilesHead() {
 		<meta name="application-name" content="claude-control"/>
 		<meta name="theme-color" content="#0f172a"/>
 		<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>

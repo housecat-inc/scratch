@@ -157,7 +157,7 @@ templ DiffPage(p DiffProps) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@diffHead(p.Repo.Slug())
-		<body class="bg-slate-50 text-slate-900 min-h-screen">
+		<body class="bg-background text-foreground min-h-screen">
 			@TopNav("code")
 			@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
 			<main class="max-w-2xl mx-auto px-3 py-3">
@@ -189,6 +189,7 @@ templ diffHead(slug string) {
 		<meta name="application-name" content="claude-control"/>
 		<meta name="theme-color" content="#0f172a"/>
 		<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"/>
