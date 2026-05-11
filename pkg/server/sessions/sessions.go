@@ -133,7 +133,9 @@ const webManifestJSON = `{
   "background_color": "#f8fafc",
   "theme_color": "#0f172a",
   "icons": [
-    {"src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180", "purpose": "any maskable"}
+    {"src": "/static/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any"},
+    {"src": "/static/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable"},
+    {"src": "/static/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable"}
   ]
 }`
 
