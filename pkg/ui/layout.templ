@@ -1,5 +1,23 @@
 package ui
 
+import (
+	"strings"
+
+	"github.com/templui/templui/components/card"
+)
+
+templ AppCard(extra ...string) {
+	@card.Card(card.Props{Class: strings.TrimSpace("rounded-xl shadow-sm gap-3 " + strings.Join(extra, " "))}) {
+		{ children... }
+	}
+}
+
+templ AppTitle(extra ...string) {
+	@card.Title(card.TitleProps{Class: strings.TrimSpace("text-base " + strings.Join(extra, " "))}) {
+		{ children... }
+	}
+}
+
 templ Head(title string) {
 	<head>
 		<meta charset="utf-8"/>

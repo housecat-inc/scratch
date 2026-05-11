@@ -58,11 +58,11 @@ templ OverviewPage(p OverviewProps) {
 
 templ overviewItem(r repo.Repo) {
 	<li>
-		@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 transition hover:shadow-md overflow-hidden"}) {
+		@AppCard("transition hover:shadow-md overflow-hidden") {
 			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block active:bg-accent">
 				@card.Header(card.HeaderProps{Class: "flex flex-row items-start justify-between gap-2 space-y-0"}) {
 					<div class="flex-1 min-w-0 space-y-1.5">
-						@card.Title(card.TitleProps{Class: "text-base font-mono"}) {
+						@AppTitle("font-mono") {
 							{ r.Slug() }
 						}
 						@card.Description() {
@@ -140,12 +140,14 @@ templ CommitsPage(p CommitsProps) {
 		<ul class="space-y-2">
 			for _, c := range p.Commits {
 				<li>
-					@card.Card(card.Props{Class: "px-4 py-3"}) {
-						<div class="flex items-baseline justify-between gap-2">
-							<div class="font-medium truncate">{ c.Subject }</div>
-							<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
-						</div>
-						<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
+					@AppCard() {
+						@card.Content() {
+							<div class="flex items-baseline justify-between gap-2">
+								<div class="font-medium truncate">{ c.Subject }</div>
+								<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
+							</div>
+							<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
+						}
 					}
 				</li>
 			}
