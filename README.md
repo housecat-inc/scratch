@@ -16,8 +16,10 @@ Web UI on `:8888` that walks through installing `claude`, removing interactive d
 claude-control --port 8888
 ```
 
-| Sessions | Setup | Code | Files |
-| --- | --- | --- | --- |
-| ![Sessions](docs/screenshots/sessions.png) | ![Setup](docs/screenshots/setup.png) | ![Code](docs/screenshots/code.png) | ![Files](docs/screenshots/files.png) |
-| **Commits** | **Diffs** | **Comments** | |
-| ![Commits](docs/screenshots/commits.png) | ![Diffs](docs/screenshots/diff.png) | ![Comments](docs/screenshots/comments.png) | |
+Drive the whole thing from your phone over [Claude Code on iOS](docs/screenshots/claude-code-mobile.jpeg).
+
+| Setup | Sessions | Diffs |
+| --- | --- | --- |
+| ![Setup](docs/screenshots/setup.png) | ![Sessions](docs/screenshots/sessions.png) | ![Diffs](docs/screenshots/diff.png) |
+| **Comments** | **Files** | **Claude Code** |
+| ![Comments](docs/screenshots/comments.png) | ![Files](docs/screenshots/files.png) | ![Claude Code mobile](docs/screenshots/claude-code-mobile.jpeg) |
