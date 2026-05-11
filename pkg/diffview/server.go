@@ -28,6 +28,7 @@ const (
 
 type Deps struct {
 	Comments   db.CommentStore
+	CommitLog  func(r repo.Repo) ([]git.Commit, error)
 	Diff       func(r repo.Repo) ([]git.File, error)
 	Home       string
 	HunkCommit func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error)
@@ -38,20 +39,15 @@ type Deps struct {
 
 func DefaultDeps(home string) Deps {
 	return Deps{
+		CommitLog: func(r repo.Repo) ([]git.Commit, error) {
+			return git.CommitLog(r.Path, baseRef(r), "HEAD")
+		},
 		Diff: func(r repo.Repo) ([]git.File, error) {
-			base := r.Base
-			if base == "" {
-				base = "main"
-			}
-			return git.Diff(r.Path, base, "HEAD")
+			return git.Diff(r.Path, baseRef(r), "HEAD")
 		},
 		Home: home,
 		HunkCommit: func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error) {
-			base := r.Base
-			if base == "" {
-				base = "main"
-			}
-			return git.HunkCommit(r.Path, base, "HEAD", path, newStart, newCount)
+			return git.HunkCommit(r.Path, baseRef(r), "HEAD", path, newStart, newCount)
 		},
 		ListRepos:  func() ([]repo.Repo, error) { return repo.Scan(home) },
 		LookupRepo: func(slug string) (repo.Repo, bool) { return repo.Find(home, slug) },
@@ -59,6 +55,13 @@ func DefaultDeps(home string) Deps {
 			return git.ShowFile(r.Path, "HEAD", path)
 		},
 	}
+}
+
+func baseRef(r repo.Repo) string {
+	if r.Base == "" {
+		return "main"
+	}
+	return r.Base
 }
 
 type Server struct {
@@ -81,6 +84,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleOverview)
 	mux.HandleFunc("GET /{org}/{name}", s.handleDiff)
+	mux.HandleFunc("GET /{org}/{name}/commits", s.handleCommits)
 	mux.HandleFunc("GET /{org}/{name}/file/lines", s.handleContext)
 	mux.HandleFunc("GET /{org}/{name}/comments", s.handleCommentList)
 	mux.HandleFunc("GET /{org}/{name}/comments/form", s.handleCommentForm)
@@ -103,6 +107,12 @@ type diffPage struct {
 	Error string
 	Files []fileRow
 	Repo  repo.Repo
+}
+
+type commitsPage struct {
+	Commits []git.Commit
+	Error   string
+	Repo    repo.Repo
 }
 
 type fileRow struct {
@@ -206,6 +216,29 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		vm.Repos = repos
 	}
 	s.render(w, "overview", vm)
+}
+
+func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	rp, ok := s.deps.LookupRepo(slug)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	vm := commitsPage{Repo: rp}
+	if s.deps.CommitLog == nil {
+		vm.Error = "commits not available"
+		s.render(w, "commits", vm)
+		return
+	}
+	commits, err := s.deps.CommitLog(rp)
+	if err != nil {
+		vm.Error = err.Error()
+		s.render(w, "commits", vm)
+		return
+	}
+	vm.Commits = commits
+	s.render(w, "commits", vm)
 }
 
 func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {

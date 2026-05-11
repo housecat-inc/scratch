@@ -56,7 +56,7 @@ func newRootCmd() *cobra.Command {
 			}
 
 			mux := http.NewServeMux()
-			mux.Handle("/diff/", http.StripPrefix("/diff", dv.Handler()))
+			mux.Handle("/code/", http.StripPrefix("/code", dv.Handler()))
 			mux.Handle("/", s.Handler())
 
 			addr := fmt.Sprintf(":%d", port)

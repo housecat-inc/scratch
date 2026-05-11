@@ -1,146 +1,205 @@
-{{define "index"}}<!doctype html>
-<html lang="en">
-<head>
+{{define "top-nav"}}<nav class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-2xl mx-auto flex">
+    <a href="/" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "sessions"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Sessions</a>
+    <a href="/code/" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "code"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Code</a>
+    <a href="/setup" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "setup"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Setup</a>
+  </div>
+</nav>{{end}}
+
+{{define "page-head"}}<head>
   <meta charset="utf-8">
-  <title>claude-control</title>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <style>
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { margin-bottom: 1.5rem; }
-    .checklist { list-style: none; padding: 0; margin: 0; }
-    .step { display: flex; gap: 1rem; align-items: flex-start; padding: 1rem 1.25rem; border-radius: 8px; margin: 0.5rem 0; transition: background 0.15s; }
-    .step.done { background: #f0f9f1; }
-    .step.active { background: #fffaf0; border: 1px solid #f0c98a; }
-    .step.pending { opacity: 0.5; }
-    .check { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; font-weight: 700; font-size: 0.95rem; line-height: 1; }
-    .step.done .check { background: #0a7d2c; color: white; }
-    .step.done .check::before { content: "✓"; }
-    .step.active .check { background: white; border: 2px solid #f0c98a; }
-    .step.pending .check { background: white; border: 2px solid #ccc; }
-    .body { flex: 1; min-width: 0; }
-    .title { font-weight: 600; font-size: 1.05rem; line-height: 28px; }
-    .hint { color: #666; font-size: 0.9rem; margin: 0.4rem 0 0.75rem; }
-    button { padding: 0.5rem 0.9rem; font-size: 1rem; cursor: pointer; }
-    button[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .err { color: #b00020; margin-top: 0.5rem; white-space: pre-wrap; font-size: 0.9rem; }
-    .url { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
-    .url a, .copy { display: inline-block; padding: 0.5rem 0.75rem; background: #f4f4f4; border: 0; border-radius: 4px; text-decoration: none; color: #0066cc; font-size: 0.9rem; cursor: pointer; }
-    .url a:hover, .copy:hover { background: #e8e8e8; }
-    form { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-    .session-form { flex-wrap: wrap; }
-    .session-form input[type=text] { flex: 1; min-width: 8rem; }
-    input[type=text] { flex: 1; padding: 0.5rem; font-size: 1rem; }
-    .sessions { list-style: none; padding: 0; margin: 0.5rem 0; }
-    .sessions li { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.75rem; border: 1px solid #e2e2e2; border-radius: 6px; margin: 0.5rem 0; }
-    .sessions .qr { width: 96px; height: 96px; flex-shrink: 0; border: 1px solid #ddd; background: white; }
-    .sessions .meta { flex: 1; min-width: 0; }
-    .sessions .name { font-weight: 600; }
-    .sessions .dir { color: #666; font-size: 0.85rem; }
-    .sessions .session-url { display: block; word-break: break-all; font-size: 0.85rem; color: #0066cc; margin-top: 0.25rem; }
-    .sessions .actions { display: flex; flex-direction: column; gap: 0.35rem; flex-shrink: 0; }
-    .sessions .actions .copy, .sessions .actions .stop { font-size: 0.85rem; padding: 0.35rem 0.6rem; border-radius: 4px; cursor: pointer; }
-    .sessions .actions .copy { background: #f4f4f4; color: #0066cc; border: 1px solid #ddd; }
-    .sessions .actions .copy:hover { background: #e8e8e8; }
-    .sessions .stop { background: #fee; color: #b00020; border: 1px solid #fbb; }
-  </style>
-</head>
-<body>
-  <h1>claude-control</h1>
-  <ol class="checklist">
-    {{template "install-card" .}}
-    {{template "login-card" .}}
-    {{template "configure-card" .}}
-  </ol>
-  {{template "sessions-card" .}}
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.}} · claude-control</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+</head>{{end}}
+
+{{define "setup-page"}}<!doctype html>
+<html lang="en">
+{{template "page-head" "Setup"}}
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  {{template "top-nav" "setup"}}
+  <main class="max-w-2xl mx-auto px-4 py-4">
+    <ol class="space-y-2">
+      {{template "install-card" .}}
+      {{template "login-card" .}}
+      {{template "configure-card" .}}
+    </ol>
+  </main>
 </body>
 </html>{{end}}
 
-{{define "install-card"}}<li class="step {{if .Installed}}done{{else}}active{{end}}" id="card-install"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  <span class="check"></span>
-  <div class="body">
-    <div class="title">Install</div>
+{{define "sessions-page"}}<!doctype html>
+<html lang="en">
+{{template "page-head" "Sessions"}}
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  {{template "top-nav" "sessions"}}
+  <main class="max-w-2xl mx-auto px-4 py-4">
+    {{template "sessions-card" .}}
+  </main>
+</body>
+</html>{{end}}
+
+{{define "step-class"}}{{if .Done}}bg-emerald-50 border border-emerald-200{{else if .Active}}bg-amber-50 border border-amber-200{{else}}bg-white border border-slate-200 opacity-60{{end}}{{end}}
+
+{{define "install-card"}}<li id="card-install"{{if .Oob}} hx-swap-oob="true"{{end}}
+    class="rounded-lg px-4 py-3 flex items-start gap-3 {{if .Installed}}bg-emerald-50 border border-emerald-200{{else}}bg-amber-50 border border-amber-200{{end}}">
+  <span class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold {{if .Installed}}bg-emerald-600 text-white{{else}}bg-white border-2 border-amber-300 text-amber-700{{end}}">{{if .Installed}}✓{{else}}1{{end}}</span>
+  <div class="flex-1 min-w-0">
+    <div class="font-semibold">Install</div>
     {{if not .Installed}}
-      <div class="hint">Run claude.ai/install.sh</div>
-      <button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this">Install</button>
+      <p class="text-xs text-slate-600 mt-0.5">Run claude.ai/install.sh</p>
+      <button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this"
+              class="mt-2 px-3 py-1.5 text-sm bg-slate-900 text-white rounded disabled:opacity-50">Install</button>
     {{end}}
-    {{if .InstallError}}<div class="err">{{.InstallError}}</div>{{end}}
+    {{if .InstallError}}<div class="text-red-700 text-xs mt-2 break-all">{{.InstallError}}</div>{{end}}
   </div>
 </li>{{end}}
 
-{{define "login-card"}}<li class="step {{if .Authenticated}}done{{else if .Installed}}active{{else}}pending{{end}}" id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  <span class="check"></span>
-  <div class="body">
-    <div class="title">Pay</div>
+{{define "login-card"}}<li id="card-login"{{if .Oob}} hx-swap-oob="true"{{end}}
+    class="rounded-lg px-4 py-3 flex items-start gap-3 {{if .Authenticated}}bg-emerald-50 border border-emerald-200{{else if .Installed}}bg-amber-50 border border-amber-200{{else}}bg-white border border-slate-200 opacity-60{{end}}">
+  <span class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold {{if .Authenticated}}bg-emerald-600 text-white{{else if .Installed}}bg-white border-2 border-amber-300 text-amber-700{{else}}bg-white border-2 border-slate-300 text-slate-500{{end}}">{{if .Authenticated}}✓{{else}}2{{end}}</span>
+  <div class="flex-1 min-w-0">
+    <div class="font-semibold">Pay</div>
     {{if not .Authenticated}}
       {{if .LoginURL}}
-        <div class="hint">Open the authorize page and paste the code below</div>
-        <div class="url">
-          <a href="{{.LoginURL}}" target="_blank" rel="noopener">Open claude.com &rarr;</a>
-          <button type="button" class="copy" data-url="{{.LoginURL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy URL</button>
+        <p class="text-xs text-slate-600 mt-0.5">Open the authorize page and paste the code below</p>
+        <div class="flex gap-2 mt-2 flex-wrap">
+          <a href="{{.LoginURL}}" target="_blank" rel="noopener" class="px-3 py-1.5 text-sm bg-slate-100 rounded text-blue-700 hover:bg-slate-200">Open claude.com →</a>
+          <button type="button" class="px-3 py-1.5 text-sm bg-slate-100 rounded text-slate-700 hover:bg-slate-200"
+                  data-url="{{.LoginURL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy URL</button>
         </div>
-        <form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML">
-          <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required>
-          <button type="submit">Submit</button>
+        <form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML" class="flex gap-2 mt-2">
+          <input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required
+                 class="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded">
+          <button type="submit" class="px-3 py-1.5 text-sm bg-slate-900 text-white rounded">Submit</button>
         </form>
       {{else if .Installed}}
-        <div class="hint">Connect Anthropic subscription</div>
-        <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this">Connect</button>
+        <p class="text-xs text-slate-600 mt-0.5">Connect Anthropic subscription</p>
+        <button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this"
+                class="mt-2 px-3 py-1.5 text-sm bg-slate-900 text-white rounded disabled:opacity-50">Connect</button>
       {{end}}
     {{end}}
-    {{if .LoginError}}<div class="err">{{.LoginError}}</div>{{end}}
+    {{if .LoginError}}<div class="text-red-700 text-xs mt-2 break-all">{{.LoginError}}</div>{{end}}
   </div>
 </li>{{end}}
 
-{{define "configure-card"}}<li class="step {{if and .Configured (not .AgentsDirty) (not (gt .AgentsBehind 0))}}done{{else if .Authenticated}}active{{else}}pending{{end}}" id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  <span class="check"></span>
-  <div class="body">
-    <div class="title">Configure</div>
+{{define "configure-card"}}<li id="card-configure"{{if .Oob}} hx-swap-oob="true"{{end}}
+    class="rounded-lg px-4 py-3 flex items-start gap-3 {{if and .Configured (not .AgentsDirty) (not (gt .AgentsBehind 0))}}bg-emerald-50 border border-emerald-200{{else if .Authenticated}}bg-amber-50 border border-amber-200{{else}}bg-white border border-slate-200 opacity-60{{end}}">
+  <span class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold {{if and .Configured (not .AgentsDirty) (not (gt .AgentsBehind 0))}}bg-emerald-600 text-white{{else if .Authenticated}}bg-white border-2 border-amber-300 text-amber-700{{else}}bg-white border-2 border-slate-300 text-slate-500{{end}}">{{if and .Configured (not .AgentsDirty) (not (gt .AgentsBehind 0))}}✓{{else}}3{{end}}</span>
+  <div class="flex-1 min-w-0">
+    <div class="font-semibold">Configure</div>
     {{if and (not .Configured) .Authenticated}}
-      <div class="hint">Write claude markdown and settings in $HOME</div>
-      <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this">Configure</button>
+      <p class="text-xs text-slate-600 mt-0.5">Write claude markdown and settings in $HOME</p>
+      <button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this"
+              class="mt-2 px-3 py-1.5 text-sm bg-slate-900 text-white rounded disabled:opacity-50">Configure</button>
     {{else if .Configured}}
       {{if .AgentsDirty}}
-        <div class="hint">Local changes in ./scratch</div>
-        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"commit then push local changes"}' hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Commit & Push</button>
+        <p class="text-xs text-slate-600 mt-0.5">Local changes in ./scratch</p>
+        <a href="/" class="inline-block mt-2 px-3 py-1.5 text-sm bg-slate-900 text-white rounded">Commit & Push from Sessions →</a>
       {{end}}
       {{if gt .AgentsBehind 0}}
-        <div class="hint">Upstream changes to ./scratch</div>
-        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"git pull remote changes"}' hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Pull</button>
+        <p class="text-xs text-slate-600 mt-0.5">Upstream changes to ./scratch</p>
+        <a href="/" class="inline-block mt-2 px-3 py-1.5 text-sm bg-slate-900 text-white rounded">Pull from Sessions →</a>
       {{end}}
     {{end}}
-    {{if .ConfigureError}}<div class="err">{{.ConfigureError}}</div>{{end}}
+    {{if .ConfigureError}}<div class="text-red-700 text-xs mt-2 break-all">{{.ConfigureError}}</div>{{end}}
   </div>
 </li>{{end}}
 
 {{define "sessions-card"}}<section id="card-sessions"{{if .Oob}} hx-swap-oob="true"{{end}}>
-  {{if .Configured}}
-    <h2 style="margin-top:2rem;font-size:1.1rem;">Remote control sessions</h2>
-    <p class="hint" style="margin:0.25rem 0 0.75rem;">Spawn <code>claude remote-control</code> in a tmux session and open the URL on any device.</p>
+  {{if not .Configured}}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+      <p class="text-sm text-slate-700">Finish <a href="/setup" class="text-blue-700 underline">Setup</a> to start sessions.</p>
+    </div>
+  {{else}}
+    <p class="text-xs text-slate-500 mb-2">Spawn <code class="bg-slate-100 px-1 rounded">claude remote-control</code> in a tmux session and open the URL on any device.</p>
     {{if .Sessions}}
-      <ul class="sessions">
+      <ul class="space-y-2 mb-3">
         {{range .Sessions}}
-          <li id="session-{{.ID}}">
-            <img class="qr" src="/sessions/{{.ID}}/qr" alt="QR code for {{.Name}}">
-            <div class="meta">
-              <div class="name">{{.Name}}</div>
-              <div class="dir">{{.Dir}}</div>
-              <a class="session-url" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>
+          <li id="session-{{.ID}}" class="bg-white border border-slate-200 rounded-lg p-3 flex gap-3 items-start">
+            <img class="w-24 h-24 flex-shrink-0 border border-slate-200 rounded" src="/sessions/{{.ID}}/qr" alt="QR code for {{.Name}}">
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold truncate">{{.Name}}</div>
+              <div class="text-xs text-slate-500 truncate">{{.Dir}}</div>
+              <a class="text-xs text-blue-700 break-all hover:underline" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>
             </div>
-            <div class="actions">
-              <button type="button" class="copy" data-url="{{.URL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy URL</button>
-              <button class="stop" hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
+            <div class="flex flex-col gap-1 flex-shrink-0">
+              <button type="button" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-blue-700"
+                      data-url="{{.URL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy</button>
+              <button class="text-xs px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded"
+                      hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
             </div>
           </li>
         {{end}}
       </ul>
     {{else}}
-      <p class="hint">No sessions running.</p>
+      <p class="text-sm text-slate-500 mb-3">No sessions running.</p>
     {{end}}
-    <form class="session-form" hx-post="/sessions" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="find button">
-      <input type="text" name="dir" placeholder="working directory" value="{{.SessionDir}}" required>
-      <input type="text" name="name" placeholder="name (optional)" autocomplete="off">
-      <button type="submit">Start session</button>
+    {{if .AgentsDirty}}
+      <div class="bg-amber-50 border border-amber-200 rounded p-2 mb-2 text-xs flex items-center justify-between gap-2">
+        <span class="text-slate-700">Local changes in ./scratch</span>
+        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"commit then push local changes"}'
+                hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this"
+                class="px-2 py-1 text-xs bg-slate-900 text-white rounded">Commit & Push</button>
+      </div>
+    {{end}}
+    {{if gt .AgentsBehind 0}}
+      <div class="bg-amber-50 border border-amber-200 rounded p-2 mb-2 text-xs flex items-center justify-between gap-2">
+        <span class="text-slate-700">Upstream changes to ./scratch</span>
+        <button hx-post="/sessions" hx-vals='{"dir":"{{.AgentsDir}}","prompt":"git pull remote changes"}'
+                hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this"
+                class="px-2 py-1 text-xs bg-slate-900 text-white rounded">Pull</button>
+      </div>
+    {{end}}
+    <form id="session-form" class="bg-white border border-slate-200 rounded-lg p-3 space-y-2"
+          hx-post="/sessions" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Working directory</label>
+        <div class="flex items-center gap-2">
+          <span id="dir-text" class="flex-1 font-mono text-xs text-slate-700 truncate bg-slate-50 px-2 py-1.5 border border-slate-200 rounded">{{.SessionDir}}</span>
+          <button type="button" class="text-xs px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200"
+                  hx-get="/sessions/picker?dir={{.SessionDir}}" hx-target="#dir-picker" hx-swap="innerHTML">Browse</button>
+        </div>
+        <input type="hidden" name="dir" id="session-dir" value="{{.SessionDir}}" required>
+        <div id="dir-picker"></div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Prompt <span class="text-slate-400 font-normal">(optional)</span></label>
+        <textarea name="prompt" rows="3" placeholder="What should this session do?"
+                  class="w-full px-2 py-1.5 text-sm border border-slate-300 rounded resize-y"></textarea>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit" class="px-3 py-1.5 text-sm bg-slate-900 text-white rounded">Start session</button>
+      </div>
     </form>
-    {{if .SessionError}}<div class="err">{{.SessionError}}</div>{{end}}
+    {{if .SessionError}}<div class="text-red-700 text-xs mt-2 break-all">{{.SessionError}}</div>{{end}}
   {{end}}
 </section>{{end}}
+
+{{define "session-dir-picker"}}<div class="bg-white border border-slate-200 rounded-lg mt-2 p-2">
+  <div class="flex items-center gap-2 mb-2">
+    {{if .HasUp}}
+      <button type="button" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded"
+              hx-get="/sessions/picker?dir={{.Parent}}" hx-target="#dir-picker" hx-swap="innerHTML">↑ Up</button>
+    {{end}}
+    <span class="font-mono text-xs text-slate-700 truncate flex-1">{{.Dir}}</span>
+    <button type="button" class="text-xs px-2 py-1 text-slate-500 hover:text-slate-900"
+            onclick="document.getElementById('dir-picker').innerHTML=''">Close</button>
+  </div>
+  {{if .Error}}<div class="text-red-700 text-xs mb-1">{{.Error}}</div>{{end}}
+  {{if .Entries}}
+    <ul class="space-y-0.5 max-h-64 overflow-y-auto">
+      {{range .Entries}}
+        <li>
+          <button type="button" class="w-full text-left px-2 py-1 text-xs font-mono text-slate-700 hover:bg-slate-100 rounded"
+                  hx-get="/sessions/picker?dir={{$.Dir}}/{{.}}" hx-target="#dir-picker" hx-swap="innerHTML">{{.}}/</button>
+        </li>
+      {{end}}
+    </ul>
+  {{else if not .Error}}
+    <p class="text-xs text-slate-400 px-2 py-1">No subdirectories.</p>
+  {{end}}
+</div>
+<span id="dir-text" hx-swap-oob="true" class="flex-1 font-mono text-xs text-slate-700 truncate bg-slate-50 px-2 py-1.5 border border-slate-200 rounded">{{.Dir}}</span>
+<input type="hidden" id="session-dir" name="dir" form="session-form" value="{{.Dir}}" hx-swap-oob="true" required>{{end}}

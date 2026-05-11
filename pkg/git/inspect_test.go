@@ -88,6 +88,33 @@ func TestLastCommit(t *testing.T) {
 	a.False(c.Date.IsZero())
 }
 
+func TestCommitLog(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	a := assert.New(t)
+	r := require.New(t)
+
+	clone, _ := setupRepo(t)
+	runGit(t, clone, "checkout", "-b", "feature")
+	r.NoError(writeFile(clone+"/a.txt", "a\n"))
+	runGit(t, clone, "add", ".")
+	runGit(t, clone, "commit", "-m", "add a")
+	r.NoError(writeFile(clone+"/b.txt", "b\n"))
+	runGit(t, clone, "add", ".")
+	runGit(t, clone, "commit", "-m", "add b")
+
+	cs, err := CommitLog(clone, "main", "HEAD")
+	r.NoError(err)
+	r.Len(cs, 2)
+	a.Equal("add b", cs[0].Subject)
+	a.Equal("add a", cs[1].Subject)
+
+	none, err := CommitLog(clone, "HEAD", "HEAD")
+	r.NoError(err)
+	a.Empty(none)
+}
+
 func TestHunkCommit(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
