@@ -141,14 +141,16 @@ templ CommitsPage(p CommitsProps) {
 		<ul class="space-y-2">
 			for _, c := range p.Commits {
 				<li>
-					@AppCard() {
-						@card.Content() {
-							<div class="flex items-baseline justify-between gap-2">
-								<div class="font-medium truncate">{ c.Subject }</div>
-								<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
-							</div>
-							<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
-						}
+					@AppCard("transition hover:shadow-md overflow-hidden") {
+						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits/%s", p.Repo.Slug(), c.SHA)) } class="block active:bg-accent">
+							@card.Content() {
+								<div class="flex items-baseline justify-between gap-2">
+									<div class="font-medium truncate">{ c.Subject }</div>
+									<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
+								</div>
+								<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
+							}
+						</a>
 					}
 				</li>
 			}
@@ -178,6 +180,15 @@ templ DiffPage(p DiffProps) {
 			@TopNav("code")
 			@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
 			<main class="max-w-2xl mx-auto px-3 py-3">
+				if p.Commit.SHA != "" {
+					<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits", p.Repo.Slug())) } class="block bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 active:bg-accent">
+						<div class="flex items-baseline justify-between gap-2">
+							<div class="font-medium truncate text-sm">{ p.Commit.Subject }</div>
+							<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(p.Commit.SHA) }</code>
+						</div>
+						<div class="text-muted-foreground text-xs mt-1 truncate">{ p.Commit.Author } · { p.Commit.Date.Format("2006-01-02 15:04") }</div>
+					</a>
+				}
 				if p.Error != "" {
 					<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 				}

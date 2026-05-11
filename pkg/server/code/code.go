@@ -27,11 +27,13 @@ type Deps struct {
 	Comments   db.CommentStore
 	CommitLog  func(r repo.Repo) ([]git.Commit, error)
 	Diff       func(r repo.Repo) ([]git.File, error)
+	DiffCommit func(r repo.Repo, sha string) ([]git.File, error)
 	Home       string
 	HunkCommit func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error)
 	ListRepos  func() ([]repo.Repo, error)
 	LookupRepo func(slug string) (repo.Repo, bool)
 	ShowBlob   func(r repo.Repo, path string) ([]byte, error)
+	ShowCommit func(r repo.Repo, sha string) (git.Commit, error)
 	ShowFile   func(r repo.Repo, path string) ([]string, error)
 }
 
@@ -43,6 +45,9 @@ func DefaultDeps(home string) Deps {
 		Diff: func(r repo.Repo) ([]git.File, error) {
 			return git.Diff(r.Path, baseRef(r), "HEAD")
 		},
+		DiffCommit: func(r repo.Repo, sha string) ([]git.File, error) {
+			return git.DiffCommit(r.Path, sha)
+		},
 		Home: home,
 		HunkCommit: func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error) {
 			return git.HunkCommit(r.Path, baseRef(r), "HEAD", path, newStart, newCount)
@@ -51,6 +56,9 @@ func DefaultDeps(home string) Deps {
 		LookupRepo: func(slug string) (repo.Repo, bool) { return repo.Find(home, slug) },
 		ShowBlob: func(r repo.Repo, path string) ([]byte, error) {
 			return git.ShowBlob(r.Path, "HEAD", path)
+		},
+		ShowCommit: func(r repo.Repo, sha string) (git.Commit, error) {
+			return git.ShowCommit(r.Path, sha)
 		},
 		ShowFile: func(r repo.Repo, path string) ([]string, error) {
 			return git.ShowFile(r.Path, "HEAD", path)
@@ -81,6 +89,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleOverview)
 	mux.HandleFunc("GET /{org}/{name}", s.handleDiff)
 	mux.HandleFunc("GET /{org}/{name}/commits", s.handleCommits)
+	mux.HandleFunc("GET /{org}/{name}/commits/{sha}", s.handleDiffCommit)
 	mux.HandleFunc("GET /{org}/{name}/file/blob", s.handleBlob)
 	mux.HandleFunc("GET /{org}/{name}/file/lines", s.handleContext)
 	mux.HandleFunc("GET /{org}/{name}/comments", s.handleCommentList)
@@ -167,6 +176,62 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		vm.Files = append(vm.Files, row)
 	}
 	s.render(w, r, ui.DiffPage(vm))
+}
+
+func (s *Server) handleDiffCommit(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	sha := r.PathValue("sha")
+	rp, ok := s.deps.LookupRepo(slug)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if !isHexSHA(sha) {
+		http.Error(w, "invalid sha", http.StatusBadRequest)
+		return
+	}
+	vm := ui.DiffProps{Repo: rp}
+	commit, err := s.deps.ShowCommit(rp, sha)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	vm.Commit = commit
+	files, err := s.deps.DiffCommit(rp, sha)
+	if err != nil {
+		vm.Error = err.Error()
+		s.render(w, r, ui.DiffPage(vm))
+		return
+	}
+	comments, err := s.deps.Comments.ListComments(slug, rp.Branch)
+	if err != nil {
+		slog.Warn("list comments failed", "slug", slug, "branch", rp.Branch, "error", err.Error())
+	}
+	vm.Comments = len(comments)
+	byAnchor := groupCommentsByAnchor(comments)
+	byPath := groupCommentsByPath(comments)
+	for _, f := range files {
+		row := s.buildFileRow(rp, f, slug, byAnchor)
+		row.Comments = byPath[row.Path]
+		vm.Files = append(vm.Files, row)
+	}
+	s.render(w, r, ui.DiffPage(vm))
+}
+
+func isHexSHA(s string) bool {
+	if len(s) < 4 || len(s) > 64 {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+		case c >= 'A' && c <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func groupCommentsByPath(cs []db.Comment) map[string]int {

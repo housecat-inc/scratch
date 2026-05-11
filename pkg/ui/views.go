@@ -77,6 +77,7 @@ type DiffLineProps struct {
 }
 
 type DiffProps struct {
+	Commit   git.Commit
 	Comments int
 	Error    string
 	Files    []FileProps

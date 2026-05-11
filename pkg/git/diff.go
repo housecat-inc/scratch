@@ -118,6 +118,14 @@ func Diff(dir, base, head string) ([]File, error) {
 	return ParseDiff(out)
 }
 
+func DiffCommit(dir, sha string) ([]File, error) {
+	out, err := outputIn(dir, "git", "diff", "--no-color", sha+"^!")
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiff(out)
+}
+
 func ParseDiff(raw string) ([]File, error) {
 	var files []File
 	var f *File
