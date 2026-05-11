@@ -263,13 +263,13 @@ case "$SUB" in
   new-session)
     NAME=
     DIR=
-    ENV=
+    ENV_PAIRS=
     while [ $# -gt 0 ]; do
       case "$1" in
         -d) shift;;
         -s) NAME=$2; shift 2;;
         -c) DIR=$2; shift 2;;
-        -e) ENV=$2; shift 2;;
+        -e) ENV_PAIRS="$ENV_PAIRS$2|"; shift 2;;
         -x|-y) shift 2;;
         *) break;;
       esac
@@ -277,7 +277,12 @@ case "$SUB" in
     : > "$TMUX_PANES/$NAME"
     echo "$DIR" > "$TMUX_PANES/$NAME.dir"
     date +%s > "$TMUX_PANES/$NAME.created"
-    echo "$ENV" > "$TMUX_PANES/$NAME.env"
+    : > "$TMUX_PANES/$NAME.env"
+    IFS='|'
+    for pair in $ENV_PAIRS; do
+      echo "$pair" >> "$TMUX_PANES/$NAME.env"
+    done
+    unset IFS
     ("$@" > "$TMUX_PANES/$NAME" 2>&1) &
     echo $! > "$TMUX_PANES/$NAME.pid"
     ;;

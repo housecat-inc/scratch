@@ -1,11 +1,3 @@
-{{define "top-nav"}}<nav class="bg-white sticky top-0 z-20">
-  <div class="max-w-2xl mx-auto flex">
-    <a href="/" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "sessions"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Sessions</a>
-    <a href="/code/" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "code"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Code</a>
-    <a href="/setup" class="flex-1 text-center py-3 text-sm font-medium {{if eq . "setup"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Setup</a>
-  </div>
-</nav>{{end}}
-
 {{define "code-subnav"}}<div class="bg-white border-b border-slate-200">
   <div class="max-w-2xl mx-auto flex">
     <a href="/code/{{.Repo.Slug}}/commits" class="flex-1 text-center py-2 text-xs font-medium {{if eq .Active "commits"}}text-slate-900 border-b-2 border-slate-900{{else}}text-slate-500 hover:text-slate-900{{end}}">Commits</a>
@@ -16,13 +8,7 @@
 
 {{define "overview"}}<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Code · claude-control</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
-</head>
+{{template "page-head" "Code"}}
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   {{template "top-nav" "code"}}
   <main class="max-w-2xl mx-auto px-4 py-4">
@@ -72,13 +58,7 @@
 
 {{define "commits"}}<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{.Repo.Slug}} · commits</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
-</head>
+{{template "page-head" (printf "%s · commits" .Repo.Slug)}}
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   {{template "top-nav" "code"}}
   {{template "code-subnav" (dict "Active" "commits" "Comments" .Comments "Repo" .Repo)}}
@@ -213,13 +193,7 @@
 
 {{define "comment-list-page"}}<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{.Repo.Slug}} · comments</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
-</head>
+{{template "page-head" (printf "%s · comments" .Repo.Slug)}}
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   {{template "top-nav" "code"}}
   {{template "code-subnav" (dict "Active" "comments" "Comments" .Comments "Repo" .Repo)}}
@@ -431,4 +405,3 @@
     <button type="submit" class="text-xs bg-slate-900 text-white rounded px-2 py-1">Save</button>
   </div>
 </form>{{end}}
-

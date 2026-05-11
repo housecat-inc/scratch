@@ -38,6 +38,7 @@ type Session struct {
 	Dir       string
 	ID        string
 	Name      string
+	Prompt    string
 	StartedAt time.Time
 	URL       string
 
@@ -79,7 +80,8 @@ func (m *Manager) Start(name, dir, prompt string) (*Session, error) {
 
 	id := randomID()
 	tmuxName := "claude-" + id
-	args := []string{"new-session", "-d", "-s", tmuxName, "-e", "CLAUDE_SESSION_PREFIX=" + prefix, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control", "--remote-control-session-name-prefix", prefix}
+	sanitized := sanitizePrompt(prompt)
+	args := []string{"new-session", "-d", "-s", tmuxName, "-e", "CLAUDE_SESSION_PREFIX=" + prefix, "-e", "CLAUDE_SESSION_PROMPT=" + sanitized, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control", "--remote-control-session-name-prefix", prefix}
 	if prompt != "" {
 		args = append(args, prompt)
 	}
@@ -97,6 +99,7 @@ func (m *Manager) Start(name, dir, prompt string) (*Session, error) {
 		Dir:       dir,
 		ID:        id,
 		Name:      prefix,
+		Prompt:    sanitized,
 		StartedAt: time.Now(),
 		URL:       url,
 		tmuxName:  tmuxName,
@@ -139,10 +142,11 @@ func (m *Manager) Recover() error {
 			continue
 		}
 
-		prefix := recoverPrefix(m.TmuxBin, tmuxName)
+		prefix := recoverEnv(m.TmuxBin, tmuxName, "CLAUDE_SESSION_PREFIX")
 		if prefix == "" {
 			prefix = filepath.Base(dir)
 		}
+		sessionPrompt := recoverEnv(m.TmuxBin, tmuxName, "CLAUDE_SESSION_PROMPT")
 
 		startedAt := time.Now()
 		if ts, err := strconv.ParseInt(createdStr, 10, 64); err == nil {
@@ -154,6 +158,7 @@ func (m *Manager) Recover() error {
 			Dir:       dir,
 			ID:        id,
 			Name:      prefix,
+			Prompt:    sessionPrompt,
 			StartedAt: startedAt,
 			URL:       string(match),
 			tmuxName:  tmuxName,
@@ -163,13 +168,21 @@ func (m *Manager) Recover() error {
 	return nil
 }
 
-func recoverPrefix(tmuxBin, tmuxName string) string {
-	out, err := exec.Command(tmuxBin, "show-environment", "-t", tmuxName, "CLAUDE_SESSION_PREFIX").Output()
+func recoverEnv(tmuxBin, tmuxName, key string) string {
+	out, err := exec.Command(tmuxBin, "show-environment", "-t", tmuxName, key).Output()
 	if err != nil {
 		return ""
 	}
 	line := strings.TrimSpace(string(out))
-	return strings.TrimPrefix(line, "CLAUDE_SESSION_PREFIX=")
+	return strings.TrimPrefix(line, key+"=")
+}
+
+func sanitizePrompt(p string) string {
+	one := strings.Join(strings.Fields(p), " ")
+	if len(one) > 200 {
+		one = one[:200] + "…"
+	}
+	return one
 }
 
 func (m *Manager) hostname() string {
@@ -195,6 +208,61 @@ func (m *Manager) Get(id string) *Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.sessions[id]
+}
+
+func (m *Manager) Tail(id string, lines int) []string {
+	m.mu.Lock()
+	s, ok := m.sessions[id]
+	m.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	return captureTail(m.TmuxBin, s.tmuxName, lines)
+}
+
+func captureTail(tmuxBin, tmuxName string, lines int) []string {
+	if lines <= 0 {
+		return nil
+	}
+	out, err := exec.Command(tmuxBin, "capture-pane", "-t", tmuxName, "-p", "-J", "-S", "-").Output()
+	if err != nil {
+		return nil
+	}
+	var content []string
+	for _, l := range strings.Split(string(out), "\n") {
+		trimmed := strings.TrimRight(l, " \t\r")
+		if !isContentLine(trimmed) {
+			continue
+		}
+		content = append(content, trimmed)
+	}
+	if len(content) <= lines {
+		return content
+	}
+	return content[len(content)-lines:]
+}
+
+var statusLineSuffixes = []string{"Remote Control active", "shift+tab to cycle"}
+
+func isContentLine(l string) bool {
+	t := strings.TrimSpace(l)
+	if t == "" {
+		return false
+	}
+	if strings.HasPrefix(t, "❯") || strings.HasPrefix(t, "⏵") {
+		return false
+	}
+	for _, suffix := range statusLineSuffixes {
+		if strings.HasSuffix(t, suffix) {
+			return false
+		}
+	}
+	for _, r := range t {
+		if r != '─' && r != '━' && r != '═' && r != '│' && r != ' ' {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Manager) Stop(id string) error {

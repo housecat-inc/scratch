@@ -117,19 +117,24 @@
     {{if .Sessions}}
       <ul class="space-y-2 mb-3">
         {{range .Sessions}}
-          <li id="session-{{.ID}}" class="bg-white border border-slate-200 rounded-lg p-3 flex gap-3 items-start">
-            <img class="w-24 h-24 flex-shrink-0 border border-slate-200 rounded" src="/sessions/{{.ID}}/qr" alt="QR code for {{.Name}}">
-            <div class="flex-1 min-w-0">
-              <div class="font-semibold truncate">{{.Name}}</div>
-              <div class="text-xs text-slate-500 truncate">{{.Dir}}</div>
-              <a class="text-xs text-blue-700 break-all hover:underline" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>
+          <li id="session-{{.ID}}" class="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
+            <div class="flex gap-3 items-start">
+              <img class="w-24 h-24 flex-shrink-0 border border-slate-200 rounded" src="/sessions/{{.ID}}/qr" alt="QR code for {{.Name}}">
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold truncate">{{.Name}}</div>
+                <div class="text-xs text-slate-500 truncate">{{.Dir}}</div>
+                <a class="text-xs text-blue-700 break-all hover:underline" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>
+                {{if .Prompt}}<div class="mt-1 text-xs text-slate-700 line-clamp-2" title="{{.Prompt}}">› {{.Prompt}}</div>{{end}}
+              </div>
+              <div class="flex flex-col gap-1 flex-shrink-0">
+                <button type="button" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-blue-700"
+                        data-url="{{.URL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy</button>
+                <button class="text-xs px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded"
+                        hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
+              </div>
             </div>
-            <div class="flex flex-col gap-1 flex-shrink-0">
-              <button type="button" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-blue-700"
-                      data-url="{{.URL}}" onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy</button>
-              <button class="text-xs px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded"
-                      hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
-            </div>
+            {{if .Tail}}<pre class="bg-slate-50 border border-slate-100 rounded text-xs text-slate-600 px-2 py-1 overflow-x-auto whitespace-pre font-mono leading-snug">{{range .Tail}}{{.}}
+{{end}}</pre>{{end}}
           </li>
         {{end}}
       </ul>
