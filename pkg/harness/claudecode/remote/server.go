@@ -79,6 +79,9 @@ type pickerModel struct {
 
 func DefaultDeps() Deps {
 	mgr := claudecode.NewManager()
+	if err := mgr.Recover(); err != nil {
+		slog.Warn("session recovery failed", "error", err.Error())
+	}
 	return Deps{
 		AgentsStatus:  agents.Status,
 		Authenticated: claudecode.Authenticated,

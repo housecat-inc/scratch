@@ -134,6 +134,83 @@ func TestManagerStartErrors(t *testing.T) {
 	}
 }
 
+func TestManagerRecover(t *testing.T) {
+	r := require.New(t)
+	a := assert.New(t)
+
+	dir := t.TempDir()
+	tmuxBin := writeFakeTmux(t)
+	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_recovered")
+
+	first := NewManager()
+	first.ClaudeBin = claudeBin
+	first.Hostname = "jukelab"
+	first.StartTimeout = 3 * time.Second
+	first.TmuxBin = tmuxBin
+	first.TrustProject = func(string) error { return nil }
+
+	s, err := first.Start("foobar", dir, "")
+	r.NoError(err)
+
+	fresh := NewManager()
+	fresh.TmuxBin = tmuxBin
+	r.NoError(fresh.Recover())
+	a.Len(fresh.List(), 1)
+
+	recovered := fresh.Get(s.ID)
+	r.NotNil(recovered, "session id survives across managers via tmux scan")
+	a.Equal(s.URL, recovered.URL)
+	a.Equal(s.Dir, recovered.Dir)
+	a.Equal(s.Name, recovered.Name, "prefix recovered from tmux env")
+}
+
+func TestManagerRecoverIsIdempotent(t *testing.T) {
+	r := require.New(t)
+	a := assert.New(t)
+
+	dir := t.TempDir()
+	tmuxBin := writeFakeTmux(t)
+	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
+
+	m := NewManager()
+	m.ClaudeBin = claudeBin
+	m.Hostname = "h"
+	m.StartTimeout = 3 * time.Second
+	m.TmuxBin = tmuxBin
+	m.TrustProject = func(string) error { return nil }
+
+	_, err := m.Start("alpha", dir, "")
+	r.NoError(err)
+
+	r.NoError(m.Recover())
+	r.NoError(m.Recover())
+	a.Len(m.List(), 1, "running Recover twice does not duplicate sessions")
+}
+
+func TestManagerRecoverIgnoresUnreadySessions(t *testing.T) {
+	r := require.New(t)
+	a := assert.New(t)
+
+	dir := t.TempDir()
+	tmuxBin := writeFakeTmux(t)
+	claudeBin := writeFakeClaudeRemoteCtl(t, "")
+
+	starter := NewManager()
+	starter.ClaudeBin = claudeBin
+	starter.Hostname = "h"
+	starter.StartTimeout = 300 * time.Millisecond
+	starter.TmuxBin = tmuxBin
+	starter.TrustProject = func(string) error { return nil }
+
+	_, err := starter.Start("nourl", dir, "")
+	a.Error(err, "session start fails because no URL emitted")
+
+	fresh := NewManager()
+	fresh.TmuxBin = tmuxBin
+	r.NoError(fresh.Recover())
+	a.Empty(fresh.List(), "session without URL is skipped on recover")
+}
+
 func TestManagerStopAll(t *testing.T) {
 	r := require.New(t)
 	a := assert.New(t)
@@ -185,17 +262,46 @@ shift
 case "$SUB" in
   new-session)
     NAME=
+    DIR=
+    ENV=
     while [ $# -gt 0 ]; do
       case "$1" in
         -d) shift;;
         -s) NAME=$2; shift 2;;
-        -c|-x|-y) shift 2;;
+        -c) DIR=$2; shift 2;;
+        -e) ENV=$2; shift 2;;
+        -x|-y) shift 2;;
         *) break;;
       esac
     done
     : > "$TMUX_PANES/$NAME"
+    echo "$DIR" > "$TMUX_PANES/$NAME.dir"
+    date +%s > "$TMUX_PANES/$NAME.created"
+    echo "$ENV" > "$TMUX_PANES/$NAME.env"
     ("$@" > "$TMUX_PANES/$NAME" 2>&1) &
     echo $! > "$TMUX_PANES/$NAME.pid"
+    ;;
+  list-sessions)
+    for f in "$TMUX_PANES"/*.dir; do
+      [ -e "$f" ] || continue
+      NAME=$(basename "$f" .dir)
+      DIR=$(cat "$f")
+      CREATED=$(cat "$TMUX_PANES/$NAME.created" 2>/dev/null)
+      printf '%s\t%s\t%s\n' "$NAME" "$DIR" "$CREATED"
+    done
+    ;;
+  show-environment)
+    NAME=
+    KEY=
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -t) NAME=$2; shift 2;;
+        *) KEY=$1; shift;;
+      esac
+    done
+    if [ -f "$TMUX_PANES/$NAME.env" ]; then
+      grep "^$KEY=" "$TMUX_PANES/$NAME.env"
+    fi
     ;;
   capture-pane)
     NAME=
@@ -220,7 +326,7 @@ case "$SUB" in
       kill $(cat "$TMUX_PANES/$NAME.pid") 2>/dev/null || true
       rm -f "$TMUX_PANES/$NAME.pid"
     fi
-    rm -f "$TMUX_PANES/$NAME"
+    rm -f "$TMUX_PANES/$NAME" "$TMUX_PANES/$NAME.dir" "$TMUX_PANES/$NAME.created" "$TMUX_PANES/$NAME.env"
     ;;
 esac
 `), 0o755))

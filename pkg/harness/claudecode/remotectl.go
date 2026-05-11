@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -77,7 +79,7 @@ func (m *Manager) Start(name, dir, prompt string) (*Session, error) {
 
 	id := randomID()
 	tmuxName := "claude-" + id
-	args := []string{"new-session", "-d", "-s", tmuxName, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control", "--remote-control-session-name-prefix", prefix}
+	args := []string{"new-session", "-d", "-s", tmuxName, "-e", "CLAUDE_SESSION_PREFIX=" + prefix, "-x", "300", "-y", "50", "-c", dir, m.ClaudeBin, "--remote-control", "--remote-control-session-name-prefix", prefix}
 	if prompt != "" {
 		args = append(args, prompt)
 	}
@@ -103,6 +105,71 @@ func (m *Manager) Start(name, dir, prompt string) (*Session, error) {
 	m.sessions[id] = s
 	m.mu.Unlock()
 	return s, nil
+}
+
+func (m *Manager) Recover() error {
+	out, err := exec.Command(m.TmuxBin, "list-sessions", "-F", "#{session_name}\t#{session_path}\t#{session_created}").Output()
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 || !strings.HasPrefix(parts[0], "claude-") {
+			continue
+		}
+		tmuxName, dir, createdStr := parts[0], parts[1], parts[2]
+		id := strings.TrimPrefix(tmuxName, "claude-")
+
+		m.mu.Lock()
+		_, exists := m.sessions[id]
+		m.mu.Unlock()
+		if exists {
+			continue
+		}
+
+		pane, err := exec.Command(m.TmuxBin, "capture-pane", "-t", tmuxName, "-p", "-J", "-S", "-").Output()
+		if err != nil {
+			continue
+		}
+		match := urlRegex.Find(pane)
+		if match == nil {
+			continue
+		}
+
+		prefix := recoverPrefix(m.TmuxBin, tmuxName)
+		if prefix == "" {
+			prefix = filepath.Base(dir)
+		}
+
+		startedAt := time.Now()
+		if ts, err := strconv.ParseInt(createdStr, 10, 64); err == nil {
+			startedAt = time.Unix(ts, 0)
+		}
+
+		m.mu.Lock()
+		m.sessions[id] = &Session{
+			Dir:       dir,
+			ID:        id,
+			Name:      prefix,
+			StartedAt: startedAt,
+			URL:       string(match),
+			tmuxName:  tmuxName,
+		}
+		m.mu.Unlock()
+	}
+	return nil
+}
+
+func recoverPrefix(tmuxBin, tmuxName string) string {
+	out, err := exec.Command(tmuxBin, "show-environment", "-t", tmuxName, "CLAUDE_SESSION_PREFIX").Output()
+	if err != nil {
+		return ""
+	}
+	line := strings.TrimSpace(string(out))
+	return strings.TrimPrefix(line, "CLAUDE_SESSION_PREFIX=")
 }
 
 func (m *Manager) hostname() string {
