@@ -131,8 +131,7 @@ templ overviewItem(r repo.Repo) {
 }
 
 templ CommitsPage(p CommitsProps) {
-	@Layout(fmt.Sprintf("%s · commits", p.Repo.Slug()), "code") {
-		@CodeSubnav(CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo})
+	@CodeLayout(fmt.Sprintf("%s · commits", p.Repo.Slug()), CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo}) {
 		if p.Error != "" {
 			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 		}
@@ -155,6 +154,20 @@ templ CommitsPage(p CommitsProps) {
 			}
 		</ul>
 	}
+}
+
+templ CodeLayout(title string, subnav CodeSubnavProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@Head(title)
+		<body class="bg-background text-foreground min-h-screen">
+			@TopNav("code")
+			@CodeSubnav(subnav)
+			<main class="max-w-2xl mx-auto px-4 py-4">
+				{ children... }
+			</main>
+		</body>
+	</html>
 }
 
 templ DiffPage(p DiffProps) {
@@ -208,8 +221,7 @@ templ diffHead(slug string) {
 }
 
 templ CommentListPage(p CommentListProps) {
-	@Layout(fmt.Sprintf("%s · comments", p.Repo.Slug()), "code") {
-		@CodeSubnav(CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo})
+	@CodeLayout(fmt.Sprintf("%s · comments", p.Repo.Slug()), CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo}) {
 		if p.Error != "" {
 			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 		}
