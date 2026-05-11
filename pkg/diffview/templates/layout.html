@@ -203,8 +203,8 @@
   </div>
 </details>{{end}}
 
-{{define "file"}}<details class="group bg-white rounded-lg border border-slate-200 mb-2 overflow-hidden">
-  <summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100">
+{{define "file"}}<details class="group bg-white rounded-lg border border-slate-200 mb-2">
+  <summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100 group-open:sticky group-open:top-14 group-open:z-10 group-open:bg-white group-open:rounded-t-lg">
     <svg class="w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
     <span class="font-mono text-xs truncate flex-1 min-w-0 text-slate-700">{{.Path}}</span>
     {{if ne (printf "%s" .Status) "modified"}}<span class="text-xs {{statusColor .Status}} flex-shrink-0">{{statusLabel .Status}}</span>{{end}}
@@ -294,14 +294,16 @@
             class="text-slate-300 hover:text-slate-900 px-1 -my-0.5 flex-shrink-0"
             hx-get="/diff/{{.Slug}}/comments/form?path={{.Path | urlquery}}&side={{.Side}}&line={{.AnchorLine}}"
             hx-target="#comment-form-{{.Anchor}}"
-            hx-swap="innerHTML">+</button>{{end}}
+            hx-swap="innerHTML">
+      <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h12v8H8l-3 3v-3H2V3z"/></svg>
+    </button>{{end}}
   </div>
   {{if .Anchor}}{{template "comment-thread" (dict "Anchor" .Anchor "Comments" .Comments "Slug" .Slug)}}<div id="comment-form-{{.Anchor}}"></div>{{end}}
 </div>{{end}}
 
 {{define "comment-thread"}}<div id="comment-thread-{{.Anchor}}">{{range .Comments}}{{template "comment-item" (dict "Anchor" $.Anchor "Comment" . "Slug" $.Slug "View" "thread")}}{{end}}</div>{{end}}
 
-{{define "comment-item"}}<div id="comment-{{.Comment.ID}}" class="flex gap-2 items-start bg-amber-50 border-l-2 border-amber-300 px-2 py-1 text-xs {{if .Comment.Resolved}}opacity-50{{end}}">
+{{define "comment-item"}}<div id="comment-{{.Comment.ID}}" class="flex gap-2 items-start bg-amber-50 px-2 py-0.5 text-xs {{if .Comment.Resolved}}opacity-50{{end}}">
   <div class="flex-1 min-w-0 whitespace-pre-wrap break-words font-sans">{{.Comment.Body}}</div>
   {{template "comment-icons" .}}
 </div>{{end}}

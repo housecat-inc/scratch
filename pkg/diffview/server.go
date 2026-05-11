@@ -93,19 +93,19 @@ func (s *Server) Handler() http.Handler {
 	return logging(mux)
 }
 
-type overviewVM struct {
+type overviewPage struct {
 	Error string
 	Home  string
 	Repos []repo.Repo
 }
 
-type diffVM struct {
+type diffPage struct {
 	Error string
-	Files []fileVM
+	Files []fileRow
 	Repo  repo.Repo
 }
 
-type fileVM struct {
+type fileRow struct {
 	Adds   int
 	Binary bool
 	Dels   int
@@ -119,12 +119,12 @@ type hunkBlock struct {
 	Commit   git.Commit
 	Hunk     *git.Hunk
 	Lang     string
-	Lines    []lineVM
+	Lines    []lineRow
 	PrevSpot *expandSpot
 	Virtual  bool
 }
 
-type lineVM struct {
+type lineRow struct {
 	Anchor     string
 	AnchorLine int
 	Comments   []db.Comment
@@ -135,13 +135,13 @@ type lineVM struct {
 	Slug       string
 }
 
-type threadVM struct {
+type commentThread struct {
 	Anchor   string
 	Comments []db.Comment
 	Slug     string
 }
 
-type formVM struct {
+type newCommentForm struct {
 	Anchor string
 	Line   int
 	Path   string
@@ -149,27 +149,27 @@ type formVM struct {
 	Slug   string
 }
 
-type commentItemVM struct {
+type commentItem struct {
 	Anchor  string
 	Comment db.Comment
 	Slug    string
 	View    string
 }
 
-type commentEditVM struct {
+type editCommentForm struct {
 	Anchor  string
 	Comment db.Comment
 	Slug    string
 	View    string
 }
 
-type commentListVM struct {
+type commentListPage struct {
 	Error string
-	Files []commentListFileVM
+	Files []commentListFile
 	Repo  repo.Repo
 }
 
-type commentListFileVM struct {
+type commentListFile struct {
 	Comments []db.Comment
 	Path     string
 }
@@ -187,7 +187,7 @@ type expandSpot struct {
 	To        int
 }
 
-type contextVM struct {
+type contextResponse struct {
 	Continuation *expandSpot
 	Direction    string
 	From         int
@@ -198,7 +198,7 @@ type contextVM struct {
 }
 
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
-	vm := overviewVM{Home: s.deps.Home}
+	vm := overviewPage{Home: s.deps.Home}
 	repos, err := s.deps.ListRepos()
 	if err != nil {
 		vm.Error = err.Error()
@@ -215,7 +215,7 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := diffVM{Repo: rp}
+	vm := diffPage{Repo: rp}
 	files, err := s.deps.Diff(rp)
 	if err != nil {
 		vm.Error = err.Error()
@@ -228,13 +228,13 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	byAnchor := groupCommentsByAnchor(comments)
 	for _, f := range files {
-		vm.Files = append(vm.Files, s.buildFileVM(rp, f, slug, byAnchor))
+		vm.Files = append(vm.Files, s.buildFileRow(rp, f, slug, byAnchor))
 	}
 	s.render(w, "diff", vm)
 }
 
-func (s *Server) buildFileVM(rp repo.Repo, f git.File, slug string, byAnchor map[string][]db.Comment) fileVM {
-	vm := fileVM{
+func (s *Server) buildFileRow(rp repo.Repo, f git.File, slug string, byAnchor map[string][]db.Comment) fileRow {
+	vm := fileRow{
 		Adds:   f.Adds(),
 		Binary: f.Binary,
 		Dels:   f.Dels(),
@@ -247,7 +247,7 @@ func (s *Server) buildFileVM(rp repo.Repo, f git.File, slug string, byAnchor map
 	lang := langFor(f.Path())
 	makeBlock := func(h *git.Hunk) *hunkBlock {
 		hb := &hunkBlock{Hunk: h, Lang: lang}
-		hb.Lines = buildLineVMs(slug, f.Path(), lang, h.Lines, byAnchor)
+		hb.Lines = buildLineRows(slug, f.Path(), lang, h.Lines, byAnchor)
 		if s.deps.HunkCommit != nil && f.NewPath != "" {
 			if c, err := s.deps.HunkCommit(rp, f.NewPath, h.NewStart, h.NewCount); err == nil {
 				hb.Commit = c
@@ -344,7 +344,7 @@ func (s *Server) handleCommentForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid anchor", http.StatusBadRequest)
 		return
 	}
-	s.render(w, "comment-form", formVM{
+	s.render(w, "comment-form", newCommentForm{
 		Anchor: db.CommentAnchor(path, side, line),
 		Line:   line,
 		Path:   path,
@@ -416,7 +416,7 @@ func (s *Server) handleCommentEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.render(w, "comment-edit-form", commentEditVM{
+	s.render(w, "comment-edit-form", editCommentForm{
 		Anchor:  c.Anchor(),
 		Comment: c,
 		Slug:    slug,
@@ -431,7 +431,7 @@ func (s *Server) handleCommentList(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := commentListVM{Repo: rp}
+	vm := commentListPage{Repo: rp}
 	comments, err := s.deps.Comments.ListComments(slug, rp.Branch)
 	if err != nil {
 		vm.Error = err.Error()
@@ -520,7 +520,7 @@ func (s *Server) handleCommentUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderCommentItem(w http.ResponseWriter, c db.Comment, slug, view string) {
-	vm := commentItemVM{Anchor: c.Anchor(), Comment: c, Slug: slug, View: view}
+	vm := commentItem{Anchor: c.Anchor(), Comment: c, Slug: slug, View: view}
 	if view == viewList {
 		s.render(w, "comment-card-item", vm)
 		return
@@ -541,7 +541,7 @@ func (s *Server) renderThread(w http.ResponseWriter, slug, branch, path, side st
 			matches = append(matches, c)
 		}
 	}
-	s.render(w, "comment-thread", threadVM{Anchor: anchor, Comments: matches, Slug: slug})
+	s.render(w, "comment-thread", commentThread{Anchor: anchor, Comments: matches, Slug: slug})
 }
 
 func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
@@ -572,7 +572,7 @@ func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
 		to = len(lines)
 	}
 
-	vm := contextVM{
+	vm := contextResponse{
 		Direction: direction,
 		From:      from,
 		HunkKey:   hunkKey,
@@ -639,11 +639,11 @@ func atoi(s string) int {
 	return n
 }
 
-func buildLineVMs(slug, path, lang string, lines []git.Line, byAnchor map[string][]db.Comment) []lineVM {
-	out := make([]lineVM, 0, len(lines))
+func buildLineRows(slug, path, lang string, lines []git.Line, byAnchor map[string][]db.Comment) []lineRow {
+	out := make([]lineRow, 0, len(lines))
 	for _, l := range lines {
 		side, line := lineAnchorParts(l)
-		vm := lineVM{Lang: lang, Line: l, Path: path, Side: side, Slug: slug}
+		vm := lineRow{Lang: lang, Line: l, Path: path, Side: side, Slug: slug}
 		if line > 0 {
 			vm.Anchor = db.CommentAnchor(path, side, line)
 			vm.AnchorLine = line
@@ -663,7 +663,7 @@ func groupCommentsByAnchor(cs []db.Comment) map[string][]db.Comment {
 	return out
 }
 
-func groupCommentsByFile(cs []db.Comment) []commentListFileVM {
+func groupCommentsByFile(cs []db.Comment) []commentListFile {
 	byPath := make(map[string][]db.Comment)
 	for _, c := range cs {
 		byPath[c.Path] = append(byPath[c.Path], c)
@@ -673,7 +673,7 @@ func groupCommentsByFile(cs []db.Comment) []commentListFileVM {
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
-	out := make([]commentListFileVM, 0, len(paths))
+	out := make([]commentListFile, 0, len(paths))
 	for _, p := range paths {
 		items := byPath[p]
 		sort.SliceStable(items, func(i, j int) bool {
@@ -685,7 +685,7 @@ func groupCommentsByFile(cs []db.Comment) []commentListFileVM {
 			}
 			return items[i].CreatedAt.Before(items[j].CreatedAt)
 		})
-		out = append(out, commentListFileVM{Comments: items, Path: p})
+		out = append(out, commentListFile{Comments: items, Path: p})
 	}
 	return out
 }
