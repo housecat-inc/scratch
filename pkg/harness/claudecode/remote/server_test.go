@@ -440,7 +440,7 @@ func TestSessionsPageGate(t *testing.T) {
 			mustHave: []string{
 				`hx-post="/sessions"`,
 				`value="` + mustHome(t) + `"`,
-				"No sessions running.",
+				"No sessions running yet.",
 				`name="prompt"`,
 				`hx-get="/sessions/picker?dir=` + mustHome(t) + `"`,
 			},
@@ -671,7 +671,7 @@ func TestSessionStop(t *testing.T) {
 
 	a.Equal(http.StatusOK, rec.Code)
 	a.Equal(1, fd.stopCalls)
-	a.Contains(rec.Body.String(), "No sessions running.")
+	a.Contains(rec.Body.String(), "No sessions running yet.")
 }
 
 func TestSessionQR(t *testing.T) {
