@@ -12,6 +12,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/server/code"
 	"github.com/housecat-inc/scratch/pkg/server/files"
 	"github.com/housecat-inc/scratch/pkg/server/sessions"
+	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -63,6 +64,7 @@ func newRootCmd() *cobra.Command {
 			mux := http.NewServeMux()
 			mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
 			mux.Handle("/files/", http.StripPrefix("/files", filesSrv.Handler()))
+			mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 			mux.Handle("/", sessionsSrv.Handler())
 
 			addr := fmt.Sprintf(":%d", port)

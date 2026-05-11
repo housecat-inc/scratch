@@ -8,13 +8,13 @@ import (
 	"github.com/housecat-inc/scratch/pkg/repo"
 )
 
-type CodeSubnav struct {
+type CodeSubnavProps struct {
 	Active   string
 	Comments int
 	Repo     repo.Repo
 }
 
-type CommentForm struct {
+type CommentFormProps struct {
 	Anchor string
 	Line   int
 	Path   string
@@ -22,39 +22,40 @@ type CommentForm struct {
 	Slug   string
 }
 
-type CommentItem struct {
+type CommentItemProps struct {
 	Anchor  string
 	Comment db.Comment
 	Slug    string
 	View    string
 }
 
-type CommentListFile struct {
+type CommentListFileProps struct {
 	Comments []db.Comment
 	Path     string
+	Slug     string
 }
 
-type CommentListPage struct {
+type CommentListProps struct {
 	Comments int
 	Error    string
-	Files    []CommentListFile
+	Files    []CommentListFileProps
 	Repo     repo.Repo
 }
 
-type CommentThread struct {
+type CommentThreadProps struct {
 	Anchor   string
 	Comments []db.Comment
 	Slug     string
 }
 
-type CommitsPage struct {
+type CommitsProps struct {
 	Commits  []git.Commit
 	Comments int
 	Error    string
 	Repo     repo.Repo
 }
 
-type ContextResponse struct {
+type ContextProps struct {
 	Continuation *ExpandSpot
 	Direction    string
 	From         int
@@ -64,7 +65,7 @@ type ContextResponse struct {
 	Offset       int
 }
 
-type DiffLine struct {
+type DiffLineProps struct {
 	Anchor     string
 	AnchorLine int
 	Comments   []db.Comment
@@ -75,14 +76,14 @@ type DiffLine struct {
 	Slug       string
 }
 
-type DiffPage struct {
+type DiffProps struct {
 	Comments int
 	Error    string
-	Files    []FileRow
+	Files    []FileProps
 	Repo     repo.Repo
 }
 
-type EditCommentForm struct {
+type EditCommentFormProps struct {
 	Anchor  string
 	Comment db.Comment
 	Slug    string
@@ -108,43 +109,43 @@ type FileEntry struct {
 	Path string
 }
 
-type FileRow struct {
+type FileProps struct {
 	Adds     int
 	Binary   bool
 	Comments int
 	Dels     int
-	Hunks    []*HunkBlock
+	Hunks    []*HunkProps
 	Path     string
 	Slug     string
 	Status   git.FileStatus
 }
 
-type FileTree struct {
+type FileTreeProps struct {
 	Entries []FileEntry
 }
 
-type FilesPage struct {
+type FilesProps struct {
 	Entries []FileEntry
 	Error   string
 	Root    string
 }
 
-type HunkBlock struct {
+type HunkProps struct {
 	Commit   git.Commit
 	Hunk     *git.Hunk
 	Lang     string
-	Lines    []DiffLine
+	Lines    []DiffLineProps
 	PrevSpot *ExpandSpot
 	Virtual  bool
 }
 
-type OverviewPage struct {
+type OverviewProps struct {
 	Error string
 	Home  string
 	Repos []repo.Repo
 }
 
-type PickerView struct {
+type PickerProps struct {
 	Dir     string
 	Entries []string
 	Error   string
@@ -152,7 +153,7 @@ type PickerView struct {
 	Parent  string
 }
 
-type SessionView struct {
+type SessionProps struct {
 	Dir         string
 	ID          string
 	LastMessage string
@@ -162,7 +163,7 @@ type SessionView struct {
 	URL         string
 }
 
-type SessionsView struct {
+type SessionsProps struct {
 	AgentsBehind   int
 	AgentsDir      string
 	AgentsDirty    bool
@@ -178,5 +179,5 @@ type SessionsView struct {
 	Oob            bool
 	SessionDir     string
 	SessionError   string
-	Sessions       []SessionView
+	Sessions       []SessionProps
 }

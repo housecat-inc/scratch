@@ -205,7 +205,7 @@ func (s *Server) handlePicker(w http.ResponseWriter, r *http.Request) {
 	}
 	dir = filepath.Clean(dir)
 
-	pm := ui.PickerView{Dir: dir}
+	pm := ui.PickerProps{Dir: dir}
 	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
 		pm.Error = "not a directory"
@@ -412,8 +412,8 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, comps ...templ.C
 	}
 }
 
-func (s *Server) viewModel() ui.SessionsView {
-	vm := ui.SessionsView{Installed: s.deps.Installed(), SessionDir: s.home}
+func (s *Server) viewModel() ui.SessionsProps {
+	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.home}
 	if dir, err := agents.Dir(); err == nil {
 		vm.AgentsDir = dir
 	}
@@ -439,9 +439,9 @@ func (s *Server) viewModel() ui.SessionsView {
 
 	if s.deps.ListSessions != nil {
 		sessions := s.deps.ListSessions()
-		vm.Sessions = make([]ui.SessionView, 0, len(sessions))
+		vm.Sessions = make([]ui.SessionProps, 0, len(sessions))
 		for _, sess := range sessions {
-			view := ui.SessionView{
+			view := ui.SessionProps{
 				Dir:       sess.Dir,
 				ID:        sess.ID,
 				Name:      sess.Name,

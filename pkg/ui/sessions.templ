@@ -2,7 +2,7 @@ package ui
 
 import "fmt"
 
-templ SetupPage(v SessionsView) {
+templ SetupPage(v SessionsProps) {
 	@Layout("Setup", "setup") {
 		<ol class="space-y-2">
 			@InstallCard(v)
@@ -12,13 +12,13 @@ templ SetupPage(v SessionsView) {
 	}
 }
 
-templ SessionsPage(v SessionsView) {
+templ SessionsPage(v SessionsProps) {
 	@Layout("Sessions", "sessions") {
 		@SessionsCard(v)
 	}
 }
 
-templ InstallCard(v SessionsView) {
+templ InstallCard(v SessionsProps) {
 	<li
 		id="card-install"
 		if v.Oob {
@@ -49,21 +49,21 @@ templ InstallCard(v SessionsView) {
 	</li>
 }
 
-func installCardTone(v SessionsView) string {
+func installCardTone(v SessionsProps) string {
 	if v.Installed {
 		return "bg-emerald-50 border border-emerald-200"
 	}
 	return "bg-amber-50 border border-amber-200"
 }
 
-func installBadgeTone(v SessionsView) string {
+func installBadgeTone(v SessionsProps) string {
 	if v.Installed {
 		return "bg-emerald-600 text-white"
 	}
 	return "bg-white border-2 border-amber-300 text-amber-700"
 }
 
-templ LoginCard(v SessionsView) {
+templ LoginCard(v SessionsProps) {
 	<li
 		id="card-login"
 		if v.Oob {
@@ -114,7 +114,7 @@ templ LoginCard(v SessionsView) {
 	</li>
 }
 
-func loginCardTone(v SessionsView) string {
+func loginCardTone(v SessionsProps) string {
 	switch {
 	case v.Authenticated:
 		return "bg-emerald-50 border border-emerald-200"
@@ -124,7 +124,7 @@ func loginCardTone(v SessionsView) string {
 	return "bg-white border border-slate-200 opacity-60"
 }
 
-func loginBadgeTone(v SessionsView) string {
+func loginBadgeTone(v SessionsProps) string {
 	switch {
 	case v.Authenticated:
 		return "bg-emerald-600 text-white"
@@ -134,7 +134,7 @@ func loginBadgeTone(v SessionsView) string {
 	return "bg-white border-2 border-slate-300 text-slate-500"
 }
 
-templ ConfigureCard(v SessionsView) {
+templ ConfigureCard(v SessionsProps) {
 	<li
 		id="card-configure"
 		if v.Oob {
@@ -174,11 +174,11 @@ templ ConfigureCard(v SessionsView) {
 	</li>
 }
 
-func configureDone(v SessionsView) bool {
+func configureDone(v SessionsProps) bool {
 	return v.Configured && !v.AgentsDirty && v.AgentsBehind <= 0
 }
 
-func configureCardTone(v SessionsView) string {
+func configureCardTone(v SessionsProps) string {
 	switch {
 	case configureDone(v):
 		return "bg-emerald-50 border border-emerald-200"
@@ -188,7 +188,7 @@ func configureCardTone(v SessionsView) string {
 	return "bg-white border border-slate-200 opacity-60"
 }
 
-func configureBadgeTone(v SessionsView) string {
+func configureBadgeTone(v SessionsProps) string {
 	switch {
 	case configureDone(v):
 		return "bg-emerald-600 text-white"
@@ -198,7 +198,7 @@ func configureBadgeTone(v SessionsView) string {
 	return "bg-white border-2 border-slate-300 text-slate-500"
 }
 
-templ SessionsCard(v SessionsView) {
+templ SessionsCard(v SessionsProps) {
 	<section
 		id="card-sessions"
 		if v.Oob {
@@ -270,7 +270,7 @@ templ SessionsCard(v SessionsView) {
 	</section>
 }
 
-templ sessionItem(s SessionView) {
+templ sessionItem(s SessionProps) {
 	<li id={ fmt.Sprintf("session-%s", s.ID) } class="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
 		<div class="flex gap-3 items-start">
 			<img class="w-24 h-24 flex-shrink-0 border border-slate-200 rounded"
@@ -298,7 +298,7 @@ templ sessionItem(s SessionView) {
 	</li>
 }
 
-templ SessionDirPicker(p PickerView) {
+templ SessionDirPicker(p PickerProps) {
 	<div class="bg-white border border-slate-200 rounded-lg mt-2 p-2">
 		<div class="flex items-center gap-2 mb-2">
 			if p.HasUp {

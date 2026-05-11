@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "fmt"
 
-func SetupPage(v SessionsView) templ.Component {
+func SetupPage(v SessionsProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -73,7 +73,7 @@ func SetupPage(v SessionsView) templ.Component {
 	})
 }
 
-func SessionsPage(v SessionsView) templ.Component {
+func SessionsPage(v SessionsProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -120,7 +120,7 @@ func SessionsPage(v SessionsView) templ.Component {
 	})
 }
 
-func InstallCard(v SessionsView) templ.Component {
+func InstallCard(v SessionsProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -243,21 +243,21 @@ func InstallCard(v SessionsView) templ.Component {
 	})
 }
 
-func installCardTone(v SessionsView) string {
+func installCardTone(v SessionsProps) string {
 	if v.Installed {
 		return "bg-emerald-50 border border-emerald-200"
 	}
 	return "bg-amber-50 border border-amber-200"
 }
 
-func installBadgeTone(v SessionsView) string {
+func installBadgeTone(v SessionsProps) string {
 	if v.Installed {
 		return "bg-emerald-600 text-white"
 	}
 	return "bg-white border-2 border-amber-300 text-amber-700"
 }
 
-func LoginCard(v SessionsView) templ.Component {
+func LoginCard(v SessionsProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -413,7 +413,7 @@ func LoginCard(v SessionsView) templ.Component {
 	})
 }
 
-func loginCardTone(v SessionsView) string {
+func loginCardTone(v SessionsProps) string {
 	switch {
 	case v.Authenticated:
 		return "bg-emerald-50 border border-emerald-200"
@@ -423,7 +423,7 @@ func loginCardTone(v SessionsView) string {
 	return "bg-white border border-slate-200 opacity-60"
 }
 
-func loginBadgeTone(v SessionsView) string {
+func loginBadgeTone(v SessionsProps) string {
 	switch {
 	case v.Authenticated:
 		return "bg-emerald-600 text-white"
@@ -433,7 +433,7 @@ func loginBadgeTone(v SessionsView) string {
 	return "bg-white border-2 border-slate-300 text-slate-500"
 }
 
-func ConfigureCard(v SessionsView) templ.Component {
+func ConfigureCard(v SessionsProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -573,11 +573,11 @@ func ConfigureCard(v SessionsView) templ.Component {
 	})
 }
 
-func configureDone(v SessionsView) bool {
+func configureDone(v SessionsProps) bool {
 	return v.Configured && !v.AgentsDirty && v.AgentsBehind <= 0
 }
 
-func configureCardTone(v SessionsView) string {
+func configureCardTone(v SessionsProps) string {
 	switch {
 	case configureDone(v):
 		return "bg-emerald-50 border border-emerald-200"
@@ -587,7 +587,7 @@ func configureCardTone(v SessionsView) string {
 	return "bg-white border border-slate-200 opacity-60"
 }
 
-func configureBadgeTone(v SessionsView) string {
+func configureBadgeTone(v SessionsProps) string {
 	switch {
 	case configureDone(v):
 		return "bg-emerald-600 text-white"
@@ -597,7 +597,7 @@ func configureBadgeTone(v SessionsView) string {
 	return "bg-white border-2 border-slate-300 text-slate-500"
 }
 
-func SessionsCard(v SessionsView) templ.Component {
+func SessionsCard(v SessionsProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -734,7 +734,7 @@ func SessionsCard(v SessionsView) templ.Component {
 	})
 }
 
-func sessionItem(s SessionView) templ.Component {
+func sessionItem(s SessionProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -952,7 +952,7 @@ func sessionItem(s SessionView) templ.Component {
 	})
 }
 
-func SessionDirPicker(p PickerView) templ.Component {
+func SessionDirPicker(p PickerProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

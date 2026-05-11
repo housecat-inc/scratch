@@ -1,7 +1,6 @@
 package files
 
 import (
-	"html/template"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/ui"
 )
@@ -27,15 +27,10 @@ func DefaultDeps(home string) Deps {
 
 type Server struct {
 	deps Deps
-	tmpl *template.Template
 }
 
 func NewServer(deps Deps) (*Server, error) {
-	tmpl, err := ui.ParseFiles(funcs)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse templates")
-	}
-	return &Server{deps: deps, tmpl: tmpl}, nil
+	return &Server{deps: deps}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -47,29 +42,13 @@ func (s *Server) Handler() http.Handler {
 	return logging(mux)
 }
 
-type pageModel struct {
-	Entries []entry
-	Error   string
-	Root    string
-}
-
-type treeFragment struct {
-	Entries []entry
-}
-
-type entry struct {
-	Dir  bool
-	Name string
-	Path string
-}
-
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	entries, err := s.readDir("")
-	vm := pageModel{Entries: entries, Root: rootLabel(s.deps.Root)}
+	vm := ui.FilesProps{Entries: entries, Root: rootLabel(s.deps.Root)}
 	if err != nil {
 		vm.Error = err.Error()
 	}
-	s.render(w, "files-page", vm)
+	s.render(w, r, ui.FilesPage(vm))
 }
 
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +58,7 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.render(w, "file-tree-list", treeFragment{Entries: entries})
+	s.render(w, r, ui.FileTreeList(ui.FileTreeProps{Entries: entries}))
 }
 
 func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +117,7 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) readDir(rel string) ([]entry, error) {
+func (s *Server) readDir(rel string) ([]ui.FileEntry, error) {
 	abs, err := safeJoin(s.deps.Root, rel)
 	if err != nil {
 		return nil, err
@@ -147,7 +126,7 @@ func (s *Server) readDir(rel string) ([]entry, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "read dir %s", abs)
 	}
-	out := make([]entry, 0, len(items))
+	out := make([]ui.FileEntry, 0, len(items))
 	for _, it := range items {
 		name := it.Name()
 		if skipName(name) {
@@ -157,7 +136,7 @@ func (s *Server) readDir(rel string) ([]entry, error) {
 		if rel != "" {
 			child = strings.TrimSuffix(rel, "/") + "/" + name
 		}
-		out = append(out, entry{Dir: it.IsDir(), Name: name, Path: child})
+		out = append(out, ui.FileEntry{Dir: it.IsDir(), Name: name, Path: child})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Dir != out[j].Dir {
@@ -235,28 +214,11 @@ func cmMode(path string) string {
 	return "text/plain"
 }
 
-func (s *Server) render(w http.ResponseWriter, name string, vm any) {
+func (s *Server) render(w http.ResponseWriter, r *http.Request, c templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, name, vm); err != nil {
+	if err := c.Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-}
-
-var funcs = template.FuncMap{
-	"dict": func(values ...any) (map[string]any, error) {
-		if len(values)%2 != 0 {
-			return nil, errors.New("dict requires even number of args")
-		}
-		m := make(map[string]any, len(values)/2)
-		for i := 0; i < len(values); i += 2 {
-			key, ok := values[i].(string)
-			if !ok {
-				return nil, errors.Errorf("dict key %d is not a string", i)
-			}
-			m[key] = values[i+1]
-		}
-		return m, nil
-	},
 }
 
 type statusRecorder struct {
