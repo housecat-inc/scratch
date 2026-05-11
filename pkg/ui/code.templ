@@ -7,6 +7,7 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
+	"github.com/templui/templui/components/card"
 )
 
 templ CodeSubnav(p CodeSubnavProps) {
@@ -54,42 +55,44 @@ templ OverviewPage(p OverviewProps) {
 }
 
 templ overviewItem(r repo.Repo) {
-	<li class="bg-white rounded-lg border border-slate-200 overflow-hidden">
-		<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block px-4 py-3 active:bg-slate-100">
-			<div class="flex items-baseline justify-between gap-2">
-				<div class="font-medium truncate">{ r.Slug() }</div>
-				<div class="flex gap-1 flex-shrink-0">
+	<li>
+		@card.Card(card.Props{Class: "overflow-hidden p-0"}) {
+			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block px-4 py-3 active:bg-accent">
+				<div class="flex items-baseline justify-between gap-2">
+					<div class="font-medium truncate">{ r.Slug() }</div>
+					<div class="flex gap-1 flex-shrink-0">
+						if r.State.Dirty {
+							<span class="text-amber-800 bg-amber-100 text-xs px-1.5 py-0.5 rounded">dirty</span>
+						}
+						if r.State.Diverged {
+							<span class="text-blue-800 bg-blue-100 text-xs px-1.5 py-0.5 rounded">ahead</span>
+						}
+						if r.State.Behind > 0 {
+							<span class="text-secondary-foreground bg-secondary text-xs px-1.5 py-0.5 rounded">{ strconv.Itoa(r.State.Behind) }↓</span>
+						}
+					</div>
+				</div>
+				<div class="text-muted-foreground text-sm mt-0.5 truncate">on { r.Branch }</div>
+				if r.LastCommit.SHA != "" {
+					<div class="text-muted-foreground text-xs mt-1 truncate">{ r.LastCommit.Subject }</div>
+				}
+			</a>
+			if r.State.Dirty || r.State.Behind > 0 {
+				<div class="border-t border-border px-4 py-2 flex flex-wrap gap-2">
 					if r.State.Dirty {
-						<span class="text-amber-800 bg-amber-100 text-xs px-1.5 py-0.5 rounded">dirty</span>
-					}
-					if r.State.Diverged {
-						<span class="text-blue-800 bg-blue-100 text-xs px-1.5 py-0.5 rounded">ahead</span>
+						<button type="button" class="text-xs px-2 py-1 bg-primary text-primary-foreground rounded"
+							hx-post="/sessions"
+							hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"commit then push local changes","redirect":"1"}`, r.Path) }
+							hx-disabled-elt="this">Commit &amp; Push</button>
 					}
 					if r.State.Behind > 0 {
-						<span class="text-slate-700 bg-slate-200 text-xs px-1.5 py-0.5 rounded">{ strconv.Itoa(r.State.Behind) }↓</span>
+						<button type="button" class="text-xs px-2 py-1 bg-primary text-primary-foreground rounded"
+							hx-post="/sessions"
+							hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"git pull remote changes","redirect":"1"}`, r.Path) }
+							hx-disabled-elt="this">Pull</button>
 					}
 				</div>
-			</div>
-			<div class="text-slate-500 text-sm mt-0.5 truncate">on { r.Branch }</div>
-			if r.LastCommit.SHA != "" {
-				<div class="text-slate-400 text-xs mt-1 truncate">{ r.LastCommit.Subject }</div>
 			}
-		</a>
-		if r.State.Dirty || r.State.Behind > 0 {
-			<div class="border-t border-slate-100 px-4 py-2 flex flex-wrap gap-2">
-				if r.State.Dirty {
-					<button type="button" class="text-xs px-2 py-1 bg-slate-900 text-white rounded"
-						hx-post="/sessions"
-						hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"commit then push local changes","redirect":"1"}`, r.Path) }
-						hx-disabled-elt="this">Commit &amp; Push</button>
-				}
-				if r.State.Behind > 0 {
-					<button type="button" class="text-xs px-2 py-1 bg-slate-900 text-white rounded"
-						hx-post="/sessions"
-						hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"git pull remote changes","redirect":"1"}`, r.Path) }
-						hx-disabled-elt="this">Pull</button>
-				}
-			</div>
 		}
 	</li>
 }
@@ -105,12 +108,14 @@ templ CommitsPage(p CommitsProps) {
 		}
 		<ul class="space-y-2">
 			for _, c := range p.Commits {
-				<li class="block bg-white rounded-lg border border-slate-200 px-4 py-3">
-					<div class="flex items-baseline justify-between gap-2">
-						<div class="font-medium truncate">{ c.Subject }</div>
-						<code class="text-xs text-slate-400 tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
-					</div>
-					<div class="text-slate-500 text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
+				<li>
+					@card.Card(card.Props{Class: "px-4 py-3"}) {
+						<div class="flex items-baseline justify-between gap-2">
+							<div class="font-medium truncate">{ c.Subject }</div>
+							<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
+						</div>
+						<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
+					}
 				</li>
 			}
 		</ul>
