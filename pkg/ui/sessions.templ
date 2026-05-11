@@ -52,7 +52,7 @@ templ InstallCard(v SessionsProps) {
 
 templ stepCard(num string, done bool, title, hint string) {
 	@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3"}) {
-		@card.Header(card.HeaderProps{Class: "flex flex-row items-start justify-between gap-2 space-y-0"}) {
+		@card.Header(card.HeaderProps{Class: stepHeaderClass(done)}) {
 			<div class="flex-1 min-w-0 space-y-1.5">
 				@card.Title(card.TitleProps{Class: "text-base"}) {
 					{ title }
@@ -71,6 +71,14 @@ templ stepCard(num string, done bool, title, hint string) {
 			}
 		}
 	}
+}
+
+func stepHeaderClass(done bool) string {
+	base := "flex flex-row items-start justify-between gap-2 space-y-0"
+	if done {
+		return base + " pb-6"
+	}
+	return base
 }
 
 templ stepBadge(num string, done bool) {
