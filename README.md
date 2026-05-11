@@ -1,4 +1,4 @@
-# scratch
+# Setup for Agent Computers
 
 <p align="center">
   <img src="docs/screenshots/setup.png" width="130" alt="Setup"/>
@@ -9,7 +9,12 @@
   <img src="docs/screenshots/claude-code-mobile.jpeg" width="130" alt="Claude Code mobile"/>
 </p>
 
-Setup for Agent Computers
+## Features
+
+- Claude Code Remote Control setup
+- Remote session management
+- Code review and comments
+- Claude Desktop and Mobile integration
 
 ## Install
 
