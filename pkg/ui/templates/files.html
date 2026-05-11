@@ -85,8 +85,7 @@
     function highlightTreeEntry(path) {
       document.querySelectorAll('a[data-file].bg-slate-100').forEach(el => el.classList.remove('bg-slate-100', 'text-slate-900'));
       if (!path) return;
-      const safe = path.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const a = document.querySelector('a[data-file="' + safe + '"]');
+      const a = document.querySelector('a[data-file="' + attrSel(path) + '"]');
       if (a) a.classList.add('bg-slate-100', 'text-slate-900');
     }
     function showEditor() {
@@ -191,10 +190,45 @@
       openFile(a.dataset.file);
     });
 
+    function attrSel(value) {
+      return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    }
+    function waitForTreeLoad(treeChildren) {
+      return new Promise(resolve => {
+        function done() {
+          treeChildren.removeEventListener('htmx:afterSwap', done);
+          clearTimeout(timer);
+          resolve();
+        }
+        treeChildren.addEventListener('htmx:afterSwap', done);
+        const timer = setTimeout(done, 3000);
+      });
+    }
+    async function expandToPath(path) {
+      const parts = path.split('/');
+      parts.pop();
+      let prefix = '';
+      for (const part of parts) {
+        prefix = prefix ? prefix + '/' + part : part;
+        const details = document.querySelector('details[data-dir="' + attrSel(prefix) + '"]');
+        if (!details) return;
+        if (!details.open) {
+          const children = details.querySelector('.tree-children');
+          const wait = waitForTreeLoad(children);
+          details.open = true;
+          await wait;
+        }
+      }
+      highlightTreeEntry(path);
+      const fileEl = document.querySelector('a[data-file="' + attrSel(path) + '"]');
+      if (fileEl) fileEl.scrollIntoView({block: 'center'});
+    }
+
     const initialPath = new URL(location).searchParams.get('path');
     if (initialPath) {
       history.replaceState({path: initialPath}, '', urlForPath(initialPath));
       openFile(initialPath, {fromHistory: true});
+      expandToPath(initialPath);
     }
   </script>
 </body>
@@ -204,6 +238,7 @@
   {{range .Entries}}{{if .Dir}}
     <li>
       <details class="group/dir"
+               data-dir="{{.Path}}"
                hx-get="/files/tree?path={{.Path}}"
                hx-trigger="toggle once"
                hx-target="find .tree-children"
