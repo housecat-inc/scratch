@@ -1,5 +1,14 @@
 # scratch
 
+<p align="center">
+  <img src="docs/screenshots/setup.png" width="130" alt="Setup"/>
+  <img src="docs/screenshots/sessions.png" width="130" alt="Sessions"/>
+  <img src="docs/screenshots/diff.png" width="130" alt="Diffs"/>
+  <img src="docs/screenshots/comments.png" width="130" alt="Comments"/>
+  <img src="docs/screenshots/files.png" width="130" alt="Files"/>
+  <img src="docs/screenshots/claude-code-mobile.jpeg" width="130" alt="Claude Code mobile"/>
+</p>
+
 Setup for Agent Computers
 
 ## Install
@@ -15,11 +24,3 @@ Web UI on `:8888` that walks through installing `claude`, removing interactive d
 ```sh
 claude-control --port 8888
 ```
-
-Drive the whole thing from your phone over [Claude Code on iOS](docs/screenshots/claude-code-mobile.jpeg).
-
-| Setup | Sessions | Diffs |
-| --- | --- | --- |
-| ![Setup](docs/screenshots/setup.png) | ![Sessions](docs/screenshots/sessions.png) | ![Diffs](docs/screenshots/diff.png) |
-| **Comments** | **Files** | **Claude Code** |
-| ![Comments](docs/screenshots/comments.png) | ![Files](docs/screenshots/files.png) | ![Claude Code mobile](docs/screenshots/claude-code-mobile.jpeg) |
