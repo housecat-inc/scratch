@@ -15,3 +15,7 @@ Web UI on `:8888` that walks through installing `claude`, removing interactive d
 ```sh
 claude-control --port 8888
 ```
+
+| Sessions | Setup | Code | Files |
+| --- | --- | --- | --- |
+| ![Sessions](docs/screenshots/sessions.png) | ![Setup](docs/screenshots/setup.png) | ![Code](docs/screenshots/code.png) | ![Files](docs/screenshots/files.png) |
