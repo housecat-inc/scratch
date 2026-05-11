@@ -111,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleSessions)
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
+	mux.HandleFunc("GET /sw.js", s.handleServiceWorker)
 	mux.HandleFunc("GET /setup", s.handleSetup)
 	mux.HandleFunc("POST /configure", s.handleConfigure)
 	mux.HandleFunc("POST /install", s.handleInstall)
@@ -138,6 +139,13 @@ const webManifestJSON = `{
     {"src": "/static/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable"}
   ]
 }`
+
+func (s *Server) handleServiceWorker(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	w.Header().Set("Service-Worker-Allowed", "/")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(ui.ServiceWorkerJS())
+}
 
 func (s *Server) handleManifest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/manifest+json")
