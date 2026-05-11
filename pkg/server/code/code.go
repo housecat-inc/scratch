@@ -1,7 +1,6 @@
-package diffview
+package code
 
 import (
-	"embed"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -15,10 +14,8 @@ import (
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
+	"github.com/housecat-inc/scratch/pkg/ui"
 )
-
-//go:embed templates/*.html
-var templatesFS embed.FS
 
 const (
 	contextLimit = 10
@@ -73,7 +70,7 @@ func NewServer(deps Deps) (*Server, error) {
 	if deps.Comments == nil {
 		deps.Comments = db.NopCommentStore{}
 	}
-	tmpl, err := template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html")
+	tmpl, err := ui.ParseCode(funcs)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse templates")
 	}
@@ -886,7 +883,7 @@ func logging(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		slog.Info("diffview request",
+		slog.Info("code request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rec.status,

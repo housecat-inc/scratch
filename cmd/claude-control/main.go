@@ -9,8 +9,8 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db"
-	"github.com/housecat-inc/scratch/pkg/diffview"
-	"github.com/housecat-inc/scratch/pkg/harness/claudecode/remote"
+	"github.com/housecat-inc/scratch/pkg/server/code"
+	"github.com/housecat-inc/scratch/pkg/server/sessions"
 	"github.com/spf13/cobra"
 )
 
@@ -35,9 +35,9 @@ func newRootCmd() *cobra.Command {
 		Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
-			s, err := remote.NewServer(remote.DefaultDeps())
+			sessionsSrv, err := sessions.NewServer(sessions.DefaultDeps())
 			if err != nil {
-				return errors.Wrap(err, "new server")
+				return errors.Wrap(err, "new sessions server")
 			}
 			home, err := os.UserHomeDir()
 			if err != nil {
@@ -48,16 +48,16 @@ func newRootCmd() *cobra.Command {
 				return errors.Wrap(err, "open db")
 			}
 			defer store.Close()
-			deps := diffview.DefaultDeps(home)
-			deps.Comments = store
-			dv, err := diffview.NewServer(deps)
+			codeDeps := code.DefaultDeps(home)
+			codeDeps.Comments = store
+			codeSrv, err := code.NewServer(codeDeps)
 			if err != nil {
-				return errors.Wrap(err, "new diffview server")
+				return errors.Wrap(err, "new code server")
 			}
 
 			mux := http.NewServeMux()
-			mux.Handle("/code/", http.StripPrefix("/code", dv.Handler()))
-			mux.Handle("/", s.Handler())
+			mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
+			mux.Handle("/", sessionsSrv.Handler())
 
 			addr := fmt.Sprintf(":%d", port)
 			slog.Info("listening", "addr", addr)

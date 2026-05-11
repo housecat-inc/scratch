@@ -1,4 +1,4 @@
-package remote
+package sessions
 
 import (
 	"net/http"

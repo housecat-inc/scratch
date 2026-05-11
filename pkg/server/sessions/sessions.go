@@ -1,7 +1,6 @@
-package remote
+package sessions
 
 import (
-	"embed"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -15,10 +14,8 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/agents"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
+	"github.com/housecat-inc/scratch/pkg/ui"
 )
-
-//go:embed templates/*.html
-var templatesFS embed.FS
 
 type Deps struct {
 	AgentsStatus  func() (agents.State, error)
@@ -141,7 +138,7 @@ func listSubdirs(dir string) ([]string, error) {
 }
 
 func NewServer(deps Deps) (*Server, error) {
-	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	tmpl, err := ui.ParseSessions()
 	if err != nil {
 		return nil, errors.Wrap(err, "parse templates")
 	}
@@ -182,7 +179,7 @@ func logging(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		slog.Info("request",
+		slog.Info("sessions request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rec.status,

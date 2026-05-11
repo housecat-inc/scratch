@@ -1,4 +1,4 @@
-package diffview
+package code
 
 import (
 	"net/http"
