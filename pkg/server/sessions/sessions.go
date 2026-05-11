@@ -1,7 +1,6 @@
 package sessions
 
 import (
-	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/agents"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
@@ -45,44 +45,6 @@ type Server struct {
 	home  string
 	login Login
 	mu    sync.Mutex
-	tmpl  *template.Template
-}
-
-type viewModel struct {
-	AgentsBehind   int
-	AgentsDir      string
-	AgentsDiverged bool
-	AgentsDirty    bool
-	Authenticated  bool
-	ConfigureError string
-	Configured     bool
-	InstallError   string
-	Installed      bool
-	LoginError     string
-	LoginURL       string
-	Nav            string
-	Oob            bool
-	SessionDir     string
-	SessionError   string
-	Sessions       []sessionView
-}
-
-type sessionView struct {
-	Dir         string
-	ID          string
-	LastMessage string
-	Name        string
-	Prompt      string
-	StartedAt   time.Time
-	URL         string
-}
-
-type pickerModel struct {
-	Dir     string
-	Entries []string
-	Error   string
-	Parent  string
-	HasUp   bool
 }
 
 func DefaultDeps() Deps {
@@ -138,20 +100,17 @@ func listSubdirs(dir string) ([]string, error) {
 }
 
 func NewServer(deps Deps) (*Server, error) {
-	tmpl, err := ui.ParseSessions()
-	if err != nil {
-		return nil, errors.Wrap(err, "parse templates")
-	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, errors.Wrap(err, "user home dir")
 	}
-	return &Server{deps: deps, home: home, tmpl: tmpl}, nil
+	return &Server{deps: deps, home: home}, nil
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleSessions)
+	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /setup", s.handleSetup)
 	mux.HandleFunc("POST /configure", s.handleConfigure)
 	mux.HandleFunc("POST /install", s.handleInstall)
@@ -162,6 +121,26 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sessions/{id}/qr", s.handleSessionQR)
 	mux.HandleFunc("POST /sessions", s.handleSessionStart)
 	return logging(mux)
+}
+
+const webManifestJSON = `{
+  "name": "claude-control",
+  "short_name": "claude",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {"src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180", "purpose": "any maskable"}
+  ]
+}`
+
+func (s *Server) handleManifest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/manifest+json")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	_, _ = w.Write([]byte(webManifestJSON))
 }
 
 type statusRecorder struct {
@@ -195,25 +174,25 @@ func (s *Server) handleConfigure(w http.ResponseWriter, r *http.Request) {
 	if err := s.deps.Configure(); err != nil {
 		slog.Error("configure failed", "error", err.Error())
 		vm.ConfigureError = err.Error()
-		s.render(w, "configure-card", vm)
+		s.render(w, r, ui.ConfigureCard(vm))
 		return
 	}
 	slog.Info("configured")
 	vm = s.viewModel()
 	vm.Nav = "setup"
-	s.render(w, "configure-card", vm)
+	s.render(w, r, ui.ConfigureCard(vm))
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	vm := s.viewModel()
 	vm.Nav = "sessions"
-	s.render(w, "sessions-page", vm)
+	s.render(w, r, ui.SessionsPage(vm))
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	vm := s.viewModel()
 	vm.Nav = "setup"
-	s.render(w, "setup-page", vm)
+	s.render(w, r, ui.SetupPage(vm))
 }
 
 func (s *Server) handlePicker(w http.ResponseWriter, r *http.Request) {
@@ -226,11 +205,11 @@ func (s *Server) handlePicker(w http.ResponseWriter, r *http.Request) {
 	}
 	dir = filepath.Clean(dir)
 
-	pm := pickerModel{Dir: dir}
+	pm := ui.PickerView{Dir: dir}
 	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
 		pm.Error = "not a directory"
-		s.render(w, "session-dir-picker", pm)
+		s.render(w, r, ui.SessionDirPicker(pm))
 		return
 	}
 	if s.deps.ListSubdirs != nil {
@@ -244,7 +223,7 @@ func (s *Server) handlePicker(w http.ResponseWriter, r *http.Request) {
 	parent := filepath.Dir(dir)
 	pm.Parent = parent
 	pm.HasUp = parent != dir
-	s.render(w, "session-dir-picker", pm)
+	s.render(w, r, ui.SessionDirPicker(pm))
 }
 
 func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
@@ -253,13 +232,16 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 	if err := s.deps.Install(); err != nil {
 		slog.Error("install failed", "error", err.Error())
 		vm.InstallError = err.Error()
-		s.render(w, "install-card", vm)
+		s.render(w, r, ui.InstallCard(vm))
 		return
 	}
 	slog.Info("installed")
 	vm = s.viewModel()
 	vm.Nav = "setup"
-	s.renderCascade(w, "install-card", vm, "login-card")
+	primary := ui.InstallCard(vm)
+	oob := vm
+	oob.Oob = true
+	s.render(w, r, primary, ui.LoginCard(oob))
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -271,7 +253,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	if existing != nil {
 		vm.LoginURL = existing.URL()
-		s.render(w, "login-card", vm)
+		s.render(w, r, ui.LoginCard(vm))
 		return
 	}
 
@@ -279,7 +261,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("start login failed", "error", err.Error())
 		vm.LoginError = err.Error()
-		s.render(w, "login-card", vm)
+		s.render(w, r, ui.LoginCard(vm))
 		return
 	}
 	s.mu.Lock()
@@ -288,7 +270,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("login started", "url", l.URL())
 	vm.LoginURL = l.URL()
-	s.render(w, "login-card", vm)
+	s.render(w, r, ui.LoginCard(vm))
 }
 
 func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
@@ -297,13 +279,13 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 
 	if err := r.ParseForm(); err != nil {
 		vm.LoginError = err.Error()
-		s.render(w, "login-card", vm)
+		s.render(w, r, ui.LoginCard(vm))
 		return
 	}
 	code := strings.TrimSpace(r.FormValue("code"))
 	if code == "" {
 		vm.LoginError = "code is required"
-		s.render(w, "login-card", vm)
+		s.render(w, r, ui.LoginCard(vm))
 		return
 	}
 
@@ -312,7 +294,7 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	if l == nil {
 		vm.LoginError = "no login in progress"
-		s.render(w, "login-card", vm)
+		s.render(w, r, ui.LoginCard(vm))
 		return
 	}
 
@@ -320,7 +302,7 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 		slog.Error("submit code failed", "error", err.Error())
 		vm.LoginURL = l.URL()
 		vm.LoginError = err.Error()
-		s.render(w, "login-card", vm)
+		s.render(w, r, ui.LoginCard(vm))
 		return
 	}
 
@@ -333,7 +315,10 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	vm = s.viewModel()
 	vm.Nav = "setup"
 	vm.Authenticated = true
-	s.renderCascade(w, "login-card", vm, "configure-card")
+	primary := ui.LoginCard(vm)
+	oob := vm
+	oob.Oob = true
+	s.render(w, r, primary, ui.ConfigureCard(oob))
 }
 
 func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
@@ -341,12 +326,12 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	vm.Nav = "sessions"
 	if s.deps.StartSession == nil {
 		vm.SessionError = "sessions are not enabled"
-		s.render(w, "sessions-card", vm)
+		s.render(w, r, ui.SessionsCard(vm))
 		return
 	}
 	if err := r.ParseForm(); err != nil {
 		vm.SessionError = err.Error()
-		s.render(w, "sessions-card", vm)
+		s.render(w, r, ui.SessionsCard(vm))
 		return
 	}
 	dir := strings.TrimSpace(r.FormValue("dir"))
@@ -365,7 +350,7 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("start session failed", "error", err.Error())
 		vm.SessionError = err.Error()
-		s.render(w, "sessions-card", vm)
+		s.render(w, r, ui.SessionsCard(vm))
 		return
 	}
 	slog.Info("session started", "id", sess.ID, "name", sess.Name, "url", sess.URL)
@@ -377,7 +362,7 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	vm = s.viewModel()
 	vm.Nav = "sessions"
 	vm.SessionDir = dir
-	s.render(w, "sessions-card", vm)
+	s.render(w, r, ui.SessionsCard(vm))
 }
 
 func (s *Server) handleSessionStop(w http.ResponseWriter, r *http.Request) {
@@ -385,20 +370,20 @@ func (s *Server) handleSessionStop(w http.ResponseWriter, r *http.Request) {
 	vm.Nav = "sessions"
 	if s.deps.StopSession == nil {
 		vm.SessionError = "sessions are not enabled"
-		s.render(w, "sessions-card", vm)
+		s.render(w, r, ui.SessionsCard(vm))
 		return
 	}
 	id := r.PathValue("id")
 	if err := s.deps.StopSession(id); err != nil {
 		slog.Error("stop session failed", "id", id, "error", err.Error())
 		vm.SessionError = err.Error()
-		s.render(w, "sessions-card", vm)
+		s.render(w, r, ui.SessionsCard(vm))
 		return
 	}
 	slog.Info("session stopped", "id", id)
 	vm = s.viewModel()
 	vm.Nav = "sessions"
-	s.render(w, "sessions-card", vm)
+	s.render(w, r, ui.SessionsCard(vm))
 }
 
 func (s *Server) handleSessionQR(w http.ResponseWriter, r *http.Request) {
@@ -416,30 +401,19 @@ func (s *Server) handleSessionQR(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(png)
 }
 
-func (s *Server) render(w http.ResponseWriter, name string, vm any) {
+func (s *Server) render(w http.ResponseWriter, r *http.Request, comps ...templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, name, vm); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) renderCascade(w http.ResponseWriter, primary string, vm viewModel, oob ...string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, primary, vm); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	vm.Oob = true
-	for _, name := range oob {
-		if err := s.tmpl.ExecuteTemplate(w, name, vm); err != nil {
+	ctx := r.Context()
+	for _, c := range comps {
+		if err := c.Render(ctx, w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 }
 
-func (s *Server) viewModel() viewModel {
-	vm := viewModel{Installed: s.deps.Installed(), SessionDir: s.home}
+func (s *Server) viewModel() ui.SessionsView {
+	vm := ui.SessionsView{Installed: s.deps.Installed(), SessionDir: s.home}
 	if dir, err := agents.Dir(); err == nil {
 		vm.AgentsDir = dir
 	}
@@ -465,9 +439,9 @@ func (s *Server) viewModel() viewModel {
 
 	if s.deps.ListSessions != nil {
 		sessions := s.deps.ListSessions()
-		vm.Sessions = make([]sessionView, 0, len(sessions))
+		vm.Sessions = make([]ui.SessionView, 0, len(sessions))
 		for _, sess := range sessions {
-			view := sessionView{
+			view := ui.SessionView{
 				Dir:       sess.Dir,
 				ID:        sess.ID,
 				Name:      sess.Name,
