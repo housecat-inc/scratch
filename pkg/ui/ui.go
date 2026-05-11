@@ -18,6 +18,14 @@ func ParseCode(funcs template.FuncMap) (*template.Template, error) {
 	return tmpl, nil
 }
 
+func ParseFiles(funcs template.FuncMap) (*template.Template, error) {
+	tmpl, err := template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/shared.html", "templates/files.html")
+	if err != nil {
+		return nil, errors.Wrap(err, "parse files templates")
+	}
+	return tmpl, nil
+}
+
 func ParseSessions() (*template.Template, error) {
 	tmpl, err := template.ParseFS(templatesFS, "templates/shared.html", "templates/sessions.html")
 	if err != nil {

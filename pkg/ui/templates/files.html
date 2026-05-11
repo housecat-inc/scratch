@@ -1,0 +1,182 @@
+{{define "files-overview"}}<!doctype html>
+<html lang="en">
+{{template "page-head" "Files"}}
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  {{template "top-nav" "files"}}
+  <main class="max-w-2xl mx-auto px-4 py-4">
+    {{if .Error}}<div class="text-red-700 text-sm mb-4 break-all">{{.Error}}</div>{{end}}
+    {{if not .Repos}}<p class="text-slate-500 text-sm">No repos with origin found in {{.Home}}.</p>{{end}}
+    <ul class="space-y-2">
+      {{range .Repos}}
+        <li class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <a href="/files/{{.Slug}}" class="block px-4 py-3 active:bg-slate-100">
+            <div class="font-medium truncate">{{.Slug}}</div>
+            <div class="text-slate-500 text-sm mt-0.5 truncate">on {{.Branch}}</div>
+          </a>
+        </li>
+      {{end}}
+    </ul>
+  </main>
+</body>
+</html>{{end}}
+
+{{define "files-editor"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Repo.Slug}} · files</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js"></script>
+  <style>
+    .CodeMirror { height: 100%; font-size: 13px; }
+    .file-tree { overflow: auto; }
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-flex; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden">
+  {{template "top-nav" "files"}}
+  <div class="flex flex-1 min-h-0">
+    <aside class="w-72 bg-white border-r border-slate-200 file-tree flex flex-col">
+      <div class="px-3 py-2 border-b border-slate-200 text-xs font-medium text-slate-700 truncate flex-shrink-0">{{.Repo.Slug}}</div>
+      <div class="flex-1 min-h-0 overflow-auto text-sm py-1" id="file-tree">
+        {{template "file-tree-list" (dict "Entries" .Entries "Slug" .Repo.Slug)}}
+      </div>
+    </aside>
+    <main class="flex-1 flex flex-col min-w-0">
+      <div class="px-3 py-1.5 bg-white border-b border-slate-200 text-xs flex items-center gap-2 flex-shrink-0">
+        <span id="editor-path" class="font-mono text-slate-500 flex-1 truncate">Select a file</span>
+        <span id="editor-status" class="text-slate-400"></span>
+        <button id="editor-save" type="button" disabled class="px-2 py-1 bg-slate-900 text-white rounded disabled:opacity-40">Save</button>
+      </div>
+      <div id="editor-area" class="flex-1 min-h-0 bg-white"></div>
+    </main>
+  </div>
+  <script>
+    const slug = "{{.Repo.Slug}}";
+    const editor = CodeMirror(document.getElementById('editor-area'), {
+      lineNumbers: true,
+      theme: 'neat',
+      keyMap: 'sublime',
+      mode: 'text/plain',
+      lineWrapping: false,
+      placeholder: 'Select a file from the tree',
+    });
+    let currentPath = null;
+    let savedValue = '';
+    const saveBtn = document.getElementById('editor-save');
+    const pathLabel = document.getElementById('editor-path');
+    const statusLabel = document.getElementById('editor-status');
+
+    function setDirty(dirty) {
+      saveBtn.disabled = !dirty || !currentPath;
+      statusLabel.textContent = dirty ? '● modified' : '';
+    }
+
+    editor.on('change', () => {
+      if (currentPath === null) return;
+      setDirty(editor.getValue() !== savedValue);
+    });
+
+    async function openFile(path) {
+      pathLabel.textContent = 'Loading ' + path + '…';
+      statusLabel.textContent = '';
+      try {
+        const res = await fetch('/files/' + slug + '/read?path=' + encodeURIComponent(path));
+        if (!res.ok) throw new Error(await res.text());
+        const mode = res.headers.get('X-CM-Mode') || 'text/plain';
+        const content = await res.text();
+        currentPath = path;
+        savedValue = content;
+        editor.setOption('mode', mode);
+        editor.setValue(content);
+        editor.clearHistory();
+        pathLabel.textContent = path;
+        setDirty(false);
+        editor.focus();
+      } catch (e) {
+        pathLabel.textContent = path;
+        statusLabel.textContent = 'load error: ' + e.message;
+      }
+    }
+
+    async function saveFile() {
+      if (!currentPath) return;
+      const value = editor.getValue();
+      saveBtn.disabled = true;
+      statusLabel.textContent = 'saving…';
+      try {
+        const res = await fetch('/files/' + slug + '/save?path=' + encodeURIComponent(currentPath), {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain'},
+          body: value,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        savedValue = value;
+        statusLabel.textContent = 'saved';
+        setTimeout(() => { if (statusLabel.textContent === 'saved') statusLabel.textContent = ''; }, 1500);
+        setDirty(editor.getValue() !== savedValue);
+      } catch (e) {
+        statusLabel.textContent = 'save error: ' + e.message;
+        setDirty(true);
+      }
+    }
+
+    saveBtn.addEventListener('click', saveFile);
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (!saveBtn.disabled) saveFile();
+      }
+    });
+
+    document.body.addEventListener('click', e => {
+      const a = e.target.closest('a[data-file]');
+      if (!a) return;
+      e.preventDefault();
+      document.querySelectorAll('a[data-file].bg-slate-100').forEach(el => el.classList.remove('bg-slate-100', 'text-slate-900'));
+      a.classList.add('bg-slate-100', 'text-slate-900');
+      openFile(a.dataset.file);
+    });
+  </script>
+</body>
+</html>{{end}}
+
+{{define "file-tree-list"}}<ul>
+  {{range .Entries}}{{if .Dir}}
+    <li>
+      <details class="group/dir"
+               hx-get="/files/{{$.Slug}}/tree?path={{.Path}}"
+               hx-trigger="toggle once"
+               hx-target="find .tree-children"
+               hx-swap="innerHTML">
+        <summary class="px-2 py-0.5 cursor-pointer list-none flex items-center gap-1 hover:bg-slate-50 text-slate-700">
+          <svg class="w-3 h-3 text-slate-400 transition-transform group-open/dir:rotate-90 flex-shrink-0" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+          <span class="font-mono text-xs truncate">{{.Name}}/</span>
+        </summary>
+        <div class="pl-3 tree-children"><div class="px-2 py-0.5 text-xs text-slate-400 italic">loading…</div></div>
+      </details>
+    </li>
+  {{else}}
+    <li>
+      <a href="#" data-file="{{.Path}}" class="flex items-center gap-1 px-2 py-0.5 pl-5 hover:bg-slate-50 text-slate-600">
+        <span class="font-mono text-xs truncate">{{.Name}}</span>
+      </a>
+    </li>
+  {{end}}{{end}}
+  {{if not .Entries}}<li class="px-2 py-0.5 text-xs text-slate-400 italic">empty</li>{{end}}
+</ul>{{end}}
