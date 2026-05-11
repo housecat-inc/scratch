@@ -33,10 +33,10 @@
   {{template "top-nav" "files"}}
   <div id="files-wrap" class="flex flex-1 min-h-0">
     <aside class="tree-pane w-full md:w-72 md:flex-shrink-0 bg-white md:border-r border-slate-200 flex flex-col">
-      <div class="px-3 py-2 border-b border-slate-200 text-xs font-medium text-slate-700 truncate flex-shrink-0">
+      <div class="px-3 py-3 md:py-2 border-b border-slate-200 text-sm md:text-xs font-medium text-slate-700 truncate flex-shrink-0">
         {{.Root}}
       </div>
-      <div class="flex-1 min-h-0 overflow-auto text-sm py-1" id="file-tree">
+      <div class="flex-1 min-h-0 overflow-auto py-1" id="file-tree">
         {{template "file-tree-list" (dict "Entries" .Entries)}}
       </div>
     </aside>
@@ -164,19 +164,19 @@
                hx-trigger="toggle once"
                hx-target="find .tree-children"
                hx-swap="innerHTML">
-        <summary class="px-2 py-1 md:py-0.5 cursor-pointer list-none flex items-center gap-1 hover:bg-slate-50 text-slate-700">
-          <svg class="w-3 h-3 text-slate-400 transition-transform group-open/dir:rotate-90 flex-shrink-0" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
-          <span class="font-mono text-xs truncate">{{.Name}}/</span>
+        <summary class="px-2 py-2 md:py-0.5 cursor-pointer list-none flex items-center gap-2 md:gap-1 hover:bg-slate-50 active:bg-slate-100 text-slate-700">
+          <svg class="w-4 h-4 md:w-3 md:h-3 text-slate-400 transition-transform group-open/dir:rotate-90 flex-shrink-0" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+          <span class="font-mono text-base md:text-xs truncate">{{.Name}}/</span>
         </summary>
-        <div class="pl-3 tree-children"><div class="px-2 py-0.5 text-xs text-slate-400 italic">loading…</div></div>
+        <div class="pl-4 md:pl-3 tree-children"><div class="px-2 py-2 md:py-0.5 text-sm md:text-xs text-slate-400 italic">loading…</div></div>
       </details>
     </li>
   {{else}}
     <li>
-      <a href="#" data-file="{{.Path}}" class="flex items-center gap-1 px-2 py-1 md:py-0.5 pl-5 hover:bg-slate-50 text-slate-600">
-        <span class="font-mono text-xs truncate">{{.Name}}</span>
+      <a href="#" data-file="{{.Path}}" class="flex items-center gap-2 md:gap-1 px-2 py-2 md:py-0.5 pl-8 md:pl-5 hover:bg-slate-50 active:bg-slate-100 text-slate-600">
+        <span class="font-mono text-base md:text-xs truncate">{{.Name}}</span>
       </a>
     </li>
   {{end}}{{end}}
-  {{if not .Entries}}<li class="px-2 py-0.5 text-xs text-slate-400 italic">empty</li>{{end}}
+  {{if not .Entries}}<li class="px-2 py-2 md:py-0.5 text-sm md:text-xs text-slate-400 italic">empty</li>{{end}}
 </ul>{{end}}
