@@ -58,7 +58,7 @@ templ OverviewPage(p OverviewProps) {
 
 templ overviewItem(r repo.Repo) {
 	<li>
-		@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 py-4 transition hover:shadow-md"}) {
+		@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 transition hover:shadow-md"}) {
 			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block px-4 -my-1 active:bg-accent rounded-lg">
 				@card.Header(card.HeaderProps{Class: "p-0 flex flex-row items-start justify-between gap-2 space-y-0"}) {
 					<div class="flex-1 min-w-0">

@@ -74,9 +74,9 @@ templ stepCard(num string, done bool, title, hint string) {
 
 templ stepBadge(num string, done bool) {
 	if done {
-		<span class="inline-flex w-10 h-10 rounded-full bg-emerald-600 text-white items-center justify-center text-base font-bold shrink-0" aria-hidden="true">✓</span>
+		<span class="inline-flex w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 items-center justify-center text-base font-semibold shrink-0" aria-hidden="true">✓</span>
 	} else {
-		<span class="inline-flex w-10 h-10 rounded-full bg-secondary text-secondary-foreground items-center justify-center text-base font-semibold shrink-0 ring-1 ring-border" aria-hidden="true">{ num }</span>
+		<span class="inline-flex w-10 h-10 rounded-full bg-secondary text-secondary-foreground ring-1 ring-border items-center justify-center text-base font-semibold shrink-0" aria-hidden="true">{ num }</span>
 	}
 }
 
@@ -226,14 +226,13 @@ templ SessionsCard(v SessionsProps) {
 						}
 					}
 					@card.Content() {
-						<fieldset class="space-y-3 p-0 m-0 border-0">
-							<div>
-								<label class="block text-xs font-medium text-foreground mb-1">Working directory</label>
+						<fieldset class="space-y-4 p-0 m-0 border-0">
+							<div class="space-y-2">
+								<label class="block text-sm font-medium text-foreground">Working directory</label>
 								<div class="flex items-center gap-2">
-									<span id="dir-text" class="flex-1 font-mono text-xs text-foreground truncate bg-muted px-2 py-1.5 border border-border rounded-md">{ v.SessionDir }</span>
+									<span id="dir-text" class="flex-1 font-mono text-sm text-foreground truncate bg-muted px-3 py-2 border border-border rounded-md">{ v.SessionDir }</span>
 									@button.Button(button.Props{
 										Variant: button.VariantOutline,
-										Size:    button.SizeSm,
 										Type:    button.TypeButton,
 										Attributes: templ.Attributes{
 											"hx-get":    fmt.Sprintf("/sessions/picker?dir=%s", v.SessionDir),
@@ -247,8 +246,8 @@ templ SessionsCard(v SessionsProps) {
 								<input type="hidden" name="dir" id="session-dir" value={ v.SessionDir } required/>
 								<div id="dir-picker"></div>
 							</div>
-							<div>
-								<label class="block text-xs font-medium text-foreground mb-1">Prompt <span class="text-muted-foreground font-normal">(optional)</span></label>
+							<div class="space-y-2">
+								<label class="block text-sm font-medium text-foreground">Prompt <span class="text-muted-foreground font-normal">(optional)</span></label>
 								<textarea name="prompt" rows="3" placeholder="What should this session do?"
 									class="w-full px-3 py-2 text-sm border border-input rounded-md bg-background shadow-xs resize-y focus-visible:ring-2 focus-visible:ring-ring/40 outline-none"></textarea>
 							</div>
@@ -287,29 +286,56 @@ templ SessionsCard(v SessionsProps) {
 
 templ sessionItem(s SessionProps) {
 	<li id={ fmt.Sprintf("session-%s", s.ID) }>
-		@card.Card(card.Props{Class: "p-3 space-y-2"}) {
-			<div class="flex gap-3 items-start">
-				<img class="w-24 h-24 flex-shrink-0 border border-border rounded"
+		@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3"}) {
+			@card.Header(card.HeaderProps{Class: "pb-0 flex flex-row items-start gap-4 space-y-0"}) {
+				<img class="w-16 h-16 flex-shrink-0 border border-border rounded-md"
 					src={ fmt.Sprintf("/sessions/%s/qr", s.ID) }
 					alt={ fmt.Sprintf("QR code for %s", s.Name) }/>
-				<div class="flex-1 min-w-0">
-					<div class="font-semibold truncate">{ s.Name }</div>
-					<div class="text-xs text-muted-foreground truncate">{ s.Dir }</div>
-					<a class="text-xs text-blue-700 break-all hover:underline" href={ templ.SafeURL(s.URL) } target="_blank" rel="noopener">{ s.URL }</a>
-					if s.Prompt != "" {
-						<div class="mt-1 text-xs text-card-foreground line-clamp-2" title={ s.Prompt }>› { s.Prompt }</div>
+				<div class="flex-1 min-w-0 space-y-1.5">
+					@card.Title(card.TitleProps{Class: "text-base truncate"}) {
+						{ s.Name }
 					}
+					@card.Description(card.DescriptionProps{Class: "truncate font-mono"}) {
+						{ s.Dir }
+					}
+					<a class="block text-xs text-blue-700 break-all hover:underline" href={ templ.SafeURL(s.URL) } target="_blank" rel="noopener">{ s.URL }</a>
 				</div>
 				<div class="flex flex-col gap-1 flex-shrink-0">
-					<button type="button" class="text-xs px-2 py-1 bg-secondary hover:bg-secondary/80 rounded text-blue-700"
-						data-url={ s.URL }
-						onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">Copy</button>
-					<button class="text-xs px-2 py-1 bg-red-50 hover:bg-red-100 text-destructive border border-red-200 rounded"
-						hx-delete={ fmt.Sprintf("/sessions/%s", s.ID) } hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
+					@button.Button(button.Props{
+						Size:    button.SizeSm,
+						Variant: button.VariantOutline,
+						Type:    button.TypeButton,
+						Attributes: templ.Attributes{
+							"data-url": s.URL,
+							"onclick":  "navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'",
+						},
+					}) {
+						Copy
+					}
+					@button.Button(button.Props{
+						Size:    button.SizeSm,
+						Variant: button.VariantDestructive,
+						Type:    button.TypeButton,
+						Attributes: templ.Attributes{
+							"hx-delete":       fmt.Sprintf("/sessions/%s", s.ID),
+							"hx-target":       "#card-sessions",
+							"hx-swap":         "outerHTML",
+							"hx-disabled-elt": "this",
+						},
+					}) {
+						Stop
+					}
 				</div>
-			</div>
-			if s.LastMessage != "" {
-				<div class="bg-muted border border-border rounded text-xs text-card-foreground px-2 py-1 line-clamp-2" title={ s.LastMessage }>{ s.LastMessage }</div>
+			}
+			if s.Prompt != "" || s.LastMessage != "" {
+				@card.Content(card.ContentProps{Class: "space-y-2"}) {
+					if s.Prompt != "" {
+						<div class="text-xs text-foreground line-clamp-2" title={ s.Prompt }>› { s.Prompt }</div>
+					}
+					if s.LastMessage != "" {
+						<div class="bg-muted border border-border rounded-md text-xs text-muted-foreground px-2 py-1 line-clamp-2" title={ s.LastMessage }>{ s.LastMessage }</div>
+					}
+				}
 			}
 		}
 	</li>
