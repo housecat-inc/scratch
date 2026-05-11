@@ -26,9 +26,9 @@ type Deps struct {
 	Installed     func() bool
 	ListSessions  func() []*claudecode.Session
 	ListSubdirs   func(dir string) ([]string, error)
-	SessionQR     func(id string) ([]byte, error)
-	SessionTail   func(id string, lines int) []string
-	SlugForPrompt func(prompt string) string
+	SessionLastMessage func(id string) string
+	SessionQR          func(id string) ([]byte, error)
+	SlugForPrompt      func(prompt string) string
 	StartLogin    func() (Login, error)
 	StartSession  func(name, dir, prompt string) (*claudecode.Session, error)
 	StopSession   func(id string) error
@@ -68,13 +68,13 @@ type viewModel struct {
 }
 
 type sessionView struct {
-	Dir       string
-	ID        string
-	Name      string
-	Prompt    string
-	StartedAt time.Time
-	Tail      []string
-	URL       string
+	Dir         string
+	ID          string
+	LastMessage string
+	Name        string
+	Prompt      string
+	StartedAt   time.Time
+	URL         string
 }
 
 type pickerModel struct {
@@ -99,6 +99,7 @@ func DefaultDeps() Deps {
 		Installed:     claudecode.Installed,
 		ListSessions:  mgr.List,
 		ListSubdirs:   listSubdirs,
+		SessionLastMessage: func(id string) string { return mgr.LastMessage(id) },
 		SessionQR: func(id string) ([]byte, error) {
 			s := mgr.Get(id)
 			if s == nil {
@@ -106,7 +107,6 @@ func DefaultDeps() Deps {
 			}
 			return s.QRPNG(256)
 		},
-		SessionTail: func(id string, lines int) []string { return mgr.Tail(id, lines) },
 		SlugForPrompt: func(prompt string) string {
 			return claudecode.SlugForPrompt(mgr.ClaudeBin, prompt)
 		},
@@ -475,8 +475,8 @@ func (s *Server) viewModel() viewModel {
 				StartedAt: sess.StartedAt,
 				URL:       sess.URL,
 			}
-			if s.deps.SessionTail != nil {
-				view.Tail = s.deps.SessionTail(sess.ID, 3)
+			if s.deps.SessionLastMessage != nil {
+				view.LastMessage = s.deps.SessionLastMessage(sess.ID)
 			}
 			vm.Sessions = append(vm.Sessions, view)
 		}

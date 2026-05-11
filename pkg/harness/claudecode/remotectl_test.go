@@ -33,6 +33,51 @@ func TestURLRegex(t *testing.T) {
 	}
 }
 
+func TestExtractLastAssistantMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		pane string
+		want string
+	}{
+		{
+			name: "plain assistant message",
+			pane: "● Hello world\n",
+			want: "Hello world",
+		},
+		{
+			name: "skips tool call before assistant",
+			pane: "● Bash(go test ./...)\n  ⎿  ok pkg/foo\n● All tests pass on main.\n",
+			want: "All tests pass on main.",
+		},
+		{
+			name: "skips trailing tool call to find prior assistant",
+			pane: "● Earlier reply from claude.\n● Read(/etc/hosts)\n  ⎿  127.0.0.1 localhost\n",
+			want: "Earlier reply from claude.",
+		},
+		{
+			name: "ignores TUI chrome",
+			pane: "──────────\n❯ user typing\n  ⏵⏵ bypass permissions on (shift+tab to cycle)                Remote Control active\n",
+			want: "",
+		},
+		{
+			name: "treats nested-parens tool call as tool call",
+			pane: "● Edit(pkg/server/code/code.go)\n  ⎿  Modified 1 line\n",
+			want: "",
+		},
+		{
+			name: "lowercase word + parens is prose, not tool call",
+			pane: "● go test (1 failure)\n",
+			want: "go test (1 failure)",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tc.want, extractLastAssistantMessage(tc.pane))
+		})
+	}
+}
+
 func TestSessionPrefix(t *testing.T) {
 	tests := []struct {
 		dir  string

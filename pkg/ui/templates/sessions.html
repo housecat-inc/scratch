@@ -136,8 +136,7 @@
                         hx-delete="/sessions/{{.ID}}" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="this">Stop</button>
               </div>
             </div>
-            {{if .Tail}}<pre class="bg-slate-50 border border-slate-100 rounded text-xs text-slate-600 px-2 py-1 overflow-x-auto whitespace-pre font-mono leading-snug">{{range .Tail}}{{.}}
-{{end}}</pre>{{end}}
+            {{if .LastMessage}}<div class="bg-slate-50 border border-slate-100 rounded text-xs text-slate-700 px-2 py-1 line-clamp-2" title="{{.LastMessage}}">{{.LastMessage}}</div>{{end}}
           </li>
         {{end}}
       </ul>

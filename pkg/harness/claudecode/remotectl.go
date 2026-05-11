@@ -18,8 +18,10 @@ import (
 )
 
 var (
+	assistantLineRegex  = regexp.MustCompile(`^\s*●\s+(.+)$`)
 	defaultStartTimeout = 20 * time.Second
 	nameRegex           = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+	toolCallRegex       = regexp.MustCompile(`^\s*●\s+[A-Z][A-Za-z0-9_]*\(`)
 	urlRegex            = regexp.MustCompile(`https://(?:claude\.ai|code\.claude\.com)/code/session_[A-Za-z0-9]+`)
 )
 
@@ -200,7 +202,7 @@ func (m *Manager) List() []*Session {
 	for _, s := range m.sessions {
 		out = append(out, s)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.Before(out[j].StartedAt) })
+	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
 	return out
 }
 
@@ -210,59 +212,34 @@ func (m *Manager) Get(id string) *Session {
 	return m.sessions[id]
 }
 
-func (m *Manager) Tail(id string, lines int) []string {
+func (m *Manager) LastMessage(id string) string {
 	m.mu.Lock()
 	s, ok := m.sessions[id]
 	m.mu.Unlock()
 	if !ok {
-		return nil
+		return ""
 	}
-	return captureTail(m.TmuxBin, s.tmuxName, lines)
+	out, err := exec.Command(m.TmuxBin, "capture-pane", "-t", s.tmuxName, "-p", "-J", "-S", "-").Output()
+	if err != nil {
+		return ""
+	}
+	return extractLastAssistantMessage(string(out))
 }
 
-func captureTail(tmuxBin, tmuxName string, lines int) []string {
-	if lines <= 0 {
-		return nil
-	}
-	out, err := exec.Command(tmuxBin, "capture-pane", "-t", tmuxName, "-p", "-J", "-S", "-").Output()
-	if err != nil {
-		return nil
-	}
-	var content []string
-	for _, l := range strings.Split(string(out), "\n") {
-		trimmed := strings.TrimRight(l, " \t\r")
-		if !isContentLine(trimmed) {
+func extractLastAssistantMessage(pane string) string {
+	lines := strings.Split(pane, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		l := lines[i]
+		if toolCallRegex.MatchString(l) {
 			continue
 		}
-		content = append(content, trimmed)
-	}
-	if len(content) <= lines {
-		return content
-	}
-	return content[len(content)-lines:]
-}
-
-var statusLineSuffixes = []string{"Remote Control active", "shift+tab to cycle"}
-
-func isContentLine(l string) bool {
-	t := strings.TrimSpace(l)
-	if t == "" {
-		return false
-	}
-	if strings.HasPrefix(t, "❯") || strings.HasPrefix(t, "⏵") {
-		return false
-	}
-	for _, suffix := range statusLineSuffixes {
-		if strings.HasSuffix(t, suffix) {
-			return false
+		m := assistantLineRegex.FindStringSubmatch(l)
+		if m == nil {
+			continue
 		}
+		return strings.TrimSpace(m[1])
 	}
-	for _, r := range t {
-		if r != '─' && r != '━' && r != '═' && r != '│' && r != ' ' {
-			return true
-		}
-	}
-	return false
+	return ""
 }
 
 func (m *Manager) Stop(id string) error {

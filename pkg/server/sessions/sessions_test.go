@@ -47,7 +47,7 @@ type fakeDeps struct {
 
 	listSubdirs    func(dir string) ([]string, error)
 	sessions       []*claudecode.Session
-	sessionTail    []string
+	sessionLast    string
 	slugForPrompt  func(prompt string) string
 	startSessionFn func(name, dir, prompt string) (*claudecode.Session, error)
 	stopSessionFn  func(id string) error
@@ -86,13 +86,13 @@ func (f *fakeDeps) deps() Deps {
 			}
 			return nil, nil
 		},
+		SessionLastMessage: func(id string) string { return f.sessionLast },
 		SessionQR: func(id string) ([]byte, error) {
 			if f.sessionQRErr != nil {
 				return nil, f.sessionQRErr
 			}
 			return f.sessionQR, nil
 		},
-		SessionTail: func(id string, lines int) []string { return f.sessionTail },
 		SlugForPrompt: func(prompt string) string {
 			if f.slugForPrompt != nil {
 				return f.slugForPrompt(prompt)
