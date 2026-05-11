@@ -118,6 +118,14 @@ func Diff(dir, base, head string) ([]File, error) {
 	return ParseDiff(out)
 }
 
+func DiffCommit(dir, sha string) ([]File, error) {
+	out, err := outputIn(dir, "git", "diff", "--no-color", sha+"^!")
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiff(out)
+}
+
 func ParseDiff(raw string) ([]File, error) {
 	var files []File
 	var f *File
@@ -135,11 +143,17 @@ func ParseDiff(raw string) ([]File, error) {
 		case strings.HasPrefix(line, "diff --git "):
 			flush()
 			f = &File{Status: StatusModified}
+			old, new, ok := parseDiffGitPaths(line)
+			if ok {
+				f.OldPath = old
+				f.NewPath = new
+			}
 		case f == nil:
 			continue
 		case strings.HasPrefix(line, "--- "):
 			old := strings.TrimPrefix(line, "--- ")
 			if old == "/dev/null" {
+				f.OldPath = ""
 				f.Status = StatusAdded
 			} else {
 				f.OldPath = strings.TrimPrefix(old, "a/")
@@ -147,10 +161,17 @@ func ParseDiff(raw string) ([]File, error) {
 		case strings.HasPrefix(line, "+++ "):
 			n := strings.TrimPrefix(line, "+++ ")
 			if n == "/dev/null" {
+				f.NewPath = ""
 				f.Status = StatusDeleted
 			} else {
 				f.NewPath = strings.TrimPrefix(n, "b/")
 			}
+		case strings.HasPrefix(line, "new file mode "):
+			f.Status = StatusAdded
+			f.OldPath = ""
+		case strings.HasPrefix(line, "deleted file mode "):
+			f.Status = StatusDeleted
+			f.NewPath = ""
 		case strings.HasPrefix(line, "rename from "):
 			f.OldPath = strings.TrimPrefix(line, "rename from ")
 			f.Status = StatusRenamed
@@ -185,6 +206,23 @@ func ParseDiff(raw string) ([]File, error) {
 	}
 	flush()
 	return files, nil
+}
+
+func parseDiffGitPaths(line string) (old, new string, ok bool) {
+	rest := strings.TrimPrefix(line, "diff --git ")
+	if rest == line {
+		return "", "", false
+	}
+	sep := strings.LastIndex(rest, " b/")
+	if sep <= 0 {
+		return "", "", false
+	}
+	left := rest[:sep]
+	right := rest[sep+len(" b/"):]
+	if !strings.HasPrefix(left, "a/") {
+		return "", "", false
+	}
+	return strings.TrimPrefix(left, "a/"), right, true
 }
 
 func parseHunkHeader(line string) (Hunk, error) {

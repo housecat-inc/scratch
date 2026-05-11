@@ -3,7 +3,9 @@ package ui
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
@@ -129,8 +131,7 @@ templ overviewItem(r repo.Repo) {
 }
 
 templ CommitsPage(p CommitsProps) {
-	@Layout(fmt.Sprintf("%s · commits", p.Repo.Slug()), "code") {
-		@CodeSubnav(CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo})
+	@CodeLayout(fmt.Sprintf("%s · commits", p.Repo.Slug()), CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo}) {
 		if p.Error != "" {
 			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 		}
@@ -140,19 +141,35 @@ templ CommitsPage(p CommitsProps) {
 		<ul class="space-y-2">
 			for _, c := range p.Commits {
 				<li>
-					@AppCard() {
-						@card.Content() {
-							<div class="flex items-baseline justify-between gap-2">
-								<div class="font-medium truncate">{ c.Subject }</div>
-								<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
-							</div>
-							<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
-						}
+					@AppCard("transition hover:shadow-md overflow-hidden") {
+						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits/%s", p.Repo.Slug(), c.SHA)) } class="block active:bg-accent">
+							@card.Content() {
+								<div class="flex items-baseline justify-between gap-2">
+									<div class="font-medium truncate">{ c.Subject }</div>
+									<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
+								</div>
+								<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
+							}
+						</a>
 					}
 				</li>
 			}
 		</ul>
 	}
+}
+
+templ CodeLayout(title string, subnav CodeSubnavProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@Head(title)
+		<body class="bg-background text-foreground min-h-screen">
+			@TopNav("code")
+			@CodeSubnav(subnav)
+			<main class="max-w-2xl mx-auto px-4 py-4">
+				{ children... }
+			</main>
+		</body>
+	</html>
 }
 
 templ DiffPage(p DiffProps) {
@@ -163,6 +180,15 @@ templ DiffPage(p DiffProps) {
 			@TopNav("code")
 			@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
 			<main class="max-w-2xl mx-auto px-3 py-3">
+				if p.Commit.SHA != "" {
+					<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits", p.Repo.Slug())) } class="block bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 active:bg-accent">
+						<div class="flex items-baseline justify-between gap-2">
+							<div class="font-medium truncate text-sm">{ p.Commit.Subject }</div>
+							<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(p.Commit.SHA) }</code>
+						</div>
+						<div class="text-muted-foreground text-xs mt-1 truncate">{ p.Commit.Author } · { p.Commit.Date.Format("2006-01-02 15:04") }</div>
+					</a>
+				}
 				if p.Error != "" {
 					<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 				}
@@ -196,6 +222,7 @@ templ diffHead(slug string) {
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>
+		<script src="/static/ptr.js" defer></script>
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"/>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 		<style>
@@ -206,8 +233,7 @@ templ diffHead(slug string) {
 }
 
 templ CommentListPage(p CommentListProps) {
-	@Layout(fmt.Sprintf("%s · comments", p.Repo.Slug()), "code") {
-		@CodeSubnav(CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo})
+	@CodeLayout(fmt.Sprintf("%s · comments", p.Repo.Slug()), CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo}) {
 		if p.Error != "" {
 			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 		}
@@ -266,7 +292,12 @@ templ FileBlock(f FileProps) {
 			</div>
 		</summary>
 		<div>
-			if f.Binary {
+			if f.Binary && isImagePath(f.Path) {
+				<div class="p-3 flex justify-center bg-slate-50">
+					<img src={ "/code/" + f.Slug + "/file/blob?path=" + url.QueryEscape(f.Path) } alt={ f.Path } class="max-w-full h-auto"/>
+				</div>
+			}
+			if f.Binary && !isImagePath(f.Path) {
 				<div class="h-10 flex items-center px-3 text-slate-500 text-xs">Binary file</div>
 			}
 			if !f.Binary && len(f.Hunks) == 0 {
@@ -598,4 +629,12 @@ func resolveBtnColor(resolved bool) string {
 		return "text-emerald-600 hover:text-emerald-800"
 	}
 	return "text-slate-400 hover:text-emerald-700"
+}
+
+func isImagePath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp":
+		return true
+	}
+	return false
 }

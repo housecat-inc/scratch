@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -79,6 +80,22 @@ func LastCommit(dir string) (Commit, error) {
 	return Commit{Author: parts[1], Date: date, SHA: parts[0], Subject: parts[3]}, nil
 }
 
+func ShowCommit(dir, sha string) (Commit, error) {
+	out, err := outputIn(dir, "git", "log", "-1", "--format=%H%x00%an%x00%aI%x00%s", sha)
+	if err != nil {
+		return Commit{}, err
+	}
+	parts := strings.SplitN(strings.TrimRight(out, "\n"), "\x00", 4)
+	if len(parts) != 4 {
+		return Commit{}, errors.Errorf("bad git log output: %q", out)
+	}
+	date, err := time.Parse(time.RFC3339, parts[2])
+	if err != nil {
+		return Commit{}, errors.Wrapf(err, "parse date %q", parts[2])
+	}
+	return Commit{Author: parts[1], Date: date, SHA: parts[0], Subject: parts[3]}, nil
+}
+
 func HunkCommit(dir, base, head, path string, newStart, newCount int) (Commit, error) {
 	if path == "" || newCount <= 0 {
 		return Commit{}, nil
@@ -117,6 +134,16 @@ func ShowFile(dir, ref, path string) ([]string, error) {
 		return nil, nil
 	}
 	return strings.Split(out, "\n"), nil
+}
+
+func ShowBlob(dir, ref, path string) ([]byte, error) {
+	cmd := exec.Command("git", "show", ref+":"+path)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, errors.Wrapf(err, "git show %s:%s", ref, path)
+	}
+	return out, nil
 }
 
 func RemoteSlug(dir string) (org, name string, err error) {
