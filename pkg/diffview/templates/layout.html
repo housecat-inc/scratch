@@ -105,6 +105,14 @@
       btn.classList.toggle('text-slate-400', !done);
       hunk.open = !done;
     }
+    document.addEventListener('toggle', function(evt) {
+      const file = evt.target;
+      if (!(file instanceof HTMLDetailsElement)) return;
+      if (!file.classList.contains('group')) return;
+      if (!file.open) return;
+      const firstHunk = file.querySelector('details');
+      if (firstHunk) firstHunk.open = true;
+    }, true);
     function handlePrevClick(btn, event) {
       const span = btn.closest('[id^="prev-buttons-"]');
       if (!span) return;
