@@ -303,25 +303,32 @@
 
 {{define "comment-thread"}}<div id="comment-thread-{{.Anchor}}">{{range .Comments}}{{template "comment-item" (dict "Anchor" $.Anchor "Comment" . "Slug" $.Slug "View" "thread")}}{{end}}</div>{{end}}
 
-{{define "comment-item"}}<div id="comment-{{.Comment.ID}}" class="flex gap-2 items-start bg-amber-50 px-2 py-0.5 text-xs {{if .Comment.Resolved}}opacity-60{{end}}">
-  <div class="flex-1 min-w-0 font-sans">
-    <div class="whitespace-pre-wrap break-words">{{.Comment.Body}}</div>
-    {{if and .Comment.Resolved .Comment.ResolvedBody}}<div class="text-slate-500 italic whitespace-pre-wrap break-words mt-0.5">↩ {{.Comment.ResolvedBody}}</div>{{end}}
-  </div>
-  {{template "comment-icons" .}}
-</div>{{end}}
+{{define "comment-item"}}<details id="comment-{{.Comment.ID}}" class="group/comment bg-amber-50 text-xs {{if .Comment.Resolved}}opacity-60{{end}}">
+  <summary class="cursor-pointer list-none flex items-start gap-2 px-2 py-0.5">
+    <svg class="w-3 h-3 mt-0.5 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+    <div class="flex-1 min-w-0 font-sans">
+      <div class="truncate group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">{{.Comment.Body}}</div>
+      {{if and .Comment.Resolved .Comment.ResolvedBody}}<div class="truncate text-slate-500 italic group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">↩ {{.Comment.ResolvedBody}}</div>{{end}}
+    </div>
+    {{template "comment-icons" .}}
+  </summary>
+</details>{{end}}
 
-{{define "comment-card-item"}}<div id="comment-{{.Comment.ID}}" class="flex gap-2 items-start border-b border-slate-100 last:border-b-0 px-3 py-2 text-xs {{if .Comment.Resolved}}opacity-60{{end}}">
-  <a href="/diff/{{.Slug}}#comment-thread-{{.Anchor}}" class="text-slate-400 hover:text-slate-700 tabular-nums flex-shrink-0 font-mono"
-     title="View in diff">L{{.Comment.Line}}{{if eq .Comment.Side "old"}}<span class="text-red-600">−</span>{{else}}<span class="text-green-600">+</span>{{end}}</a>
-  <div class="flex-1 min-w-0 font-sans">
-    <div class="whitespace-pre-wrap break-words">{{.Comment.Body}}</div>
-    {{if and .Comment.Resolved .Comment.ResolvedBody}}<div class="text-slate-500 italic whitespace-pre-wrap break-words mt-0.5">↩ {{.Comment.ResolvedBody}}</div>{{end}}
-  </div>
-  {{template "comment-icons" .}}
-</div>{{end}}
+{{define "comment-card-item"}}<details id="comment-{{.Comment.ID}}" class="group/comment border-b border-slate-100 last:border-b-0 text-xs {{if .Comment.Resolved}}opacity-60{{end}}">
+  <summary class="cursor-pointer list-none flex items-start gap-2 px-3 py-2">
+    <svg class="w-3 h-3 mt-0.5 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+    <a href="/diff/{{.Slug}}#comment-thread-{{.Anchor}}" onclick="event.stopPropagation()"
+       class="text-slate-400 hover:text-slate-700 tabular-nums flex-shrink-0 font-mono"
+       title="View in diff">L{{.Comment.Line}}{{if eq .Comment.Side "old"}}<span class="text-red-600">−</span>{{else}}<span class="text-green-600">+</span>{{end}}</a>
+    <div class="flex-1 min-w-0 font-sans">
+      <div class="truncate group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">{{.Comment.Body}}</div>
+      {{if and .Comment.Resolved .Comment.ResolvedBody}}<div class="truncate text-slate-500 italic group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">↩ {{.Comment.ResolvedBody}}</div>{{end}}
+    </div>
+    {{template "comment-icons" .}}
+  </summary>
+</details>{{end}}
 
-{{define "comment-icons"}}<div class="flex items-center flex-shrink-0">
+{{define "comment-icons"}}<div class="flex items-center flex-shrink-0" onclick="event.stopPropagation()">
   <button type="button" title="Edit"
           class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
           hx-get="/diff/{{.Slug}}/comments/{{.Comment.ID}}/edit?view={{.View}}"
