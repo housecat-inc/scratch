@@ -79,25 +79,43 @@
       statusLabel.textContent = dirty ? '● modified' : '';
     }
 
+    function urlForPath(path) {
+      return '/files/' + (path ? '?path=' + encodeURIComponent(path) : '');
+    }
+    function highlightTreeEntry(path) {
+      document.querySelectorAll('a[data-file].bg-slate-100').forEach(el => el.classList.remove('bg-slate-100', 'text-slate-900'));
+      if (!path) return;
+      const safe = path.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const a = document.querySelector('a[data-file="' + safe + '"]');
+      if (a) a.classList.add('bg-slate-100', 'text-slate-900');
+    }
     function showEditor() {
       wrap.classList.add('show-editor');
       setTimeout(() => editor.refresh(), 0);
     }
-    function showTree() {
+    function showTree(opts) {
       wrap.classList.remove('show-editor');
+      if (!(opts && opts.fromHistory)) {
+        history.pushState(null, '', urlForPath(null));
+      }
     }
 
-    backBtn.addEventListener('click', showTree);
+    backBtn.addEventListener('click', () => showTree());
 
     editor.on('change', () => {
       if (currentPath === null) return;
       setDirty(editor.getValue() !== savedValue);
     });
 
-    async function openFile(path) {
+    async function openFile(path, opts) {
+      opts = opts || {};
+      if (currentPath !== path && savedValue !== editor.getValue() && currentPath !== null) {
+        if (!confirm('Discard unsaved changes to ' + currentPath + '?')) return;
+      }
       pathLabel.textContent = 'Loading ' + path + '…';
       statusLabel.textContent = '';
       showEditor();
+      highlightTreeEntry(path);
       try {
         const res = await fetch('/files/read?path=' + encodeURIComponent(path));
         if (!res.ok) throw new Error(await res.text());
@@ -111,11 +129,30 @@
         pathLabel.textContent = path;
         setDirty(false);
         editor.refresh();
+        if (!opts.fromHistory) {
+          history.pushState({path}, '', urlForPath(path));
+        }
       } catch (e) {
         pathLabel.textContent = path;
         statusLabel.textContent = 'load error: ' + e.message;
       }
     }
+
+    window.addEventListener('popstate', () => {
+      const path = new URL(location).searchParams.get('path');
+      if (path) {
+        if (currentPath !== path) openFile(path, {fromHistory: true});
+        else showEditor();
+      } else {
+        showTree({fromHistory: true});
+      }
+    });
+    window.addEventListener('beforeunload', e => {
+      if (currentPath && savedValue !== editor.getValue()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
 
     async function saveFile() {
       if (!currentPath) return;
@@ -151,10 +188,14 @@
       const a = e.target.closest('a[data-file]');
       if (!a) return;
       e.preventDefault();
-      document.querySelectorAll('a[data-file].bg-slate-100').forEach(el => el.classList.remove('bg-slate-100', 'text-slate-900'));
-      a.classList.add('bg-slate-100', 'text-slate-900');
       openFile(a.dataset.file);
     });
+
+    const initialPath = new URL(location).searchParams.get('path');
+    if (initialPath) {
+      history.replaceState({path: initialPath}, '', urlForPath(initialPath));
+      openFile(initialPath, {fromHistory: true});
+    }
   </script>
 </body>
 </html>{{end}}
