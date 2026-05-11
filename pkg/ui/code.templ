@@ -3,7 +3,9 @@ package ui
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
@@ -266,7 +268,12 @@ templ FileBlock(f FileProps) {
 			</div>
 		</summary>
 		<div>
-			if f.Binary {
+			if f.Binary && isImagePath(f.Path) {
+				<div class="p-3 flex justify-center bg-slate-50">
+					<img src={ "/code/" + f.Slug + "/file/blob?path=" + url.QueryEscape(f.Path) } alt={ f.Path } class="max-w-full h-auto"/>
+				</div>
+			}
+			if f.Binary && !isImagePath(f.Path) {
 				<div class="h-10 flex items-center px-3 text-slate-500 text-xs">Binary file</div>
 			}
 			if !f.Binary && len(f.Hunks) == 0 {
@@ -598,4 +605,12 @@ func resolveBtnColor(resolved bool) string {
 		return "text-emerald-600 hover:text-emerald-800"
 	}
 	return "text-slate-400 hover:text-emerald-700"
+}
+
+func isImagePath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp":
+		return true
+	}
+	return false
 }

@@ -127,8 +127,25 @@ func TestParseDiff(t *testing.T) {
 				"",
 			}, "\n"),
 			want: []File{{
-				Binary: true,
-				Status: StatusModified,
+				Binary:  true,
+				NewPath: "img.png",
+				OldPath: "img.png",
+				Status:  StatusModified,
+			}},
+		},
+		{
+			name: "binary file added",
+			in: strings.Join([]string{
+				"diff --git a/img.png b/img.png",
+				"new file mode 100644",
+				"index 0000000..abc",
+				"Binary files /dev/null and b/img.png differ",
+				"",
+			}, "\n"),
+			want: []File{{
+				Binary:  true,
+				NewPath: "img.png",
+				Status:  StatusAdded,
 			}},
 		},
 		{

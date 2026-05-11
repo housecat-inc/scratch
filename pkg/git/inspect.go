@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -117,6 +118,16 @@ func ShowFile(dir, ref, path string) ([]string, error) {
 		return nil, nil
 	}
 	return strings.Split(out, "\n"), nil
+}
+
+func ShowBlob(dir, ref, path string) ([]byte, error) {
+	cmd := exec.Command("git", "show", ref+":"+path)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, errors.Wrapf(err, "git show %s:%s", ref, path)
+	}
+	return out, nil
 }
 
 func RemoteSlug(dir string) (org, name string, err error) {

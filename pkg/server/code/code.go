@@ -2,6 +2,7 @@ package code
 
 import (
 	"log/slog"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -30,6 +31,7 @@ type Deps struct {
 	HunkCommit func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error)
 	ListRepos  func() ([]repo.Repo, error)
 	LookupRepo func(slug string) (repo.Repo, bool)
+	ShowBlob   func(r repo.Repo, path string) ([]byte, error)
 	ShowFile   func(r repo.Repo, path string) ([]string, error)
 }
 
@@ -47,6 +49,9 @@ func DefaultDeps(home string) Deps {
 		},
 		ListRepos:  func() ([]repo.Repo, error) { return repo.Scan(home) },
 		LookupRepo: func(slug string) (repo.Repo, bool) { return repo.Find(home, slug) },
+		ShowBlob: func(r repo.Repo, path string) ([]byte, error) {
+			return git.ShowBlob(r.Path, "HEAD", path)
+		},
 		ShowFile: func(r repo.Repo, path string) ([]string, error) {
 			return git.ShowFile(r.Path, "HEAD", path)
 		},
@@ -76,6 +81,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleOverview)
 	mux.HandleFunc("GET /{org}/{name}", s.handleDiff)
 	mux.HandleFunc("GET /{org}/{name}/commits", s.handleCommits)
+	mux.HandleFunc("GET /{org}/{name}/file/blob", s.handleBlob)
 	mux.HandleFunc("GET /{org}/{name}/file/lines", s.handleContext)
 	mux.HandleFunc("GET /{org}/{name}/comments", s.handleCommentList)
 	mux.HandleFunc("GET /{org}/{name}/comments/form", s.handleCommentForm)
@@ -481,6 +487,36 @@ func (s *Server) renderThread(w http.ResponseWriter, r *http.Request, slug, bran
 		}
 	}
 	s.render(w, r, ui.CommentThread(ui.CommentThreadProps{Anchor: anchor, Comments: matches, Slug: slug}))
+}
+
+func (s *Server) handleBlob(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("org") + "/" + r.PathValue("name")
+	rp, ok := s.deps.LookupRepo(slug)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	path := r.URL.Query().Get("path")
+	if path == "" || strings.Contains(path, "..") {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	if s.deps.ShowBlob == nil {
+		http.Error(w, "blob not available", http.StatusNotFound)
+		return
+	}
+	data, err := s.deps.ShowBlob(rp, path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	ct := mime.TypeByExtension(filepath.Ext(path))
+	if ct == "" {
+		ct = http.DetectContentType(data)
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(data)
 }
 
 func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
