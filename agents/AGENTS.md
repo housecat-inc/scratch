@@ -20,14 +20,20 @@ Write code that is easy to read, build, test, and deploy.
 
 - Start every change on a new branch off `main`; never commit directly to `main`
 - Commit after every turn so the user can review progress incrementally — small commits are fine
-- Review feedback lives in `$HOME/.config/scratch/diff.db` (sqlite). To find open comments on the current branch:
+- Review feedback lives in `$HOME/.config/scratch/scratch.db` (sqlite). To find open comments on the current branch:
 
   ```bash
-  sqlite3 -separator $'\t' ~/.config/scratch/diff.db \
-    "SELECT path, line, side, body FROM comments WHERE slug = 'housecat-inc/scratch' AND resolved = 0 ORDER BY created"
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  sqlite3 -separator $'\t' ~/.config/scratch/scratch.db \
+    "SELECT id, path, line, side, body FROM comments WHERE slug = 'housecat-inc/scratch' AND branch = '$BRANCH' AND resolved = 0 ORDER BY created_at"
   ```
 
-  Address each comment in code, then mark it resolved with `UPDATE comments SET resolved = 1, updated = strftime('%s','now') * 1000000000 WHERE id = ?`
+  After addressing a comment, mark it resolved together with a one-line reason so the next reviewer can see what was done:
+
+  ```bash
+  sqlite3 ~/.config/scratch/scratch.db \
+    "UPDATE comments SET resolved = 1, resolved_body = 'short reason here', updated_at = CURRENT_TIMESTAMP WHERE id = '<id>'"
+  ```
 
 ## Git
 

@@ -3,53 +3,51 @@
 //   sqlc v1.31.1
 // source: comments.sql
 
-package db
+package sqlite
 
 import (
 	"context"
 )
 
 const addComment = `-- name: AddComment :one
-INSERT INTO comments (body, created, id, line, path, resolved, side, slug, updated)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING body, created, id, line, path, resolved, side, slug, updated
+INSERT INTO comments (body, branch, id, line, path, side, slug)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING body, branch, created_at, id, line, path, resolved, resolved_body, side, slug, updated_at
 `
 
 type AddCommentParams struct {
-	Body     string
-	Created  int64
-	ID       string
-	Line     int64
-	Path     string
-	Resolved int64
-	Side     string
-	Slug     string
-	Updated  int64
+	Body   string
+	Branch string
+	ID     string
+	Line   int64
+	Path   string
+	Side   string
+	Slug   string
 }
 
 func (q *Queries) AddComment(ctx context.Context, arg AddCommentParams) (Comment, error) {
 	row := q.db.QueryRowContext(ctx, addComment,
 		arg.Body,
-		arg.Created,
+		arg.Branch,
 		arg.ID,
 		arg.Line,
 		arg.Path,
-		arg.Resolved,
 		arg.Side,
 		arg.Slug,
-		arg.Updated,
 	)
 	var i Comment
 	err := row.Scan(
 		&i.Body,
-		&i.Created,
+		&i.Branch,
+		&i.CreatedAt,
 		&i.ID,
 		&i.Line,
 		&i.Path,
 		&i.Resolved,
+		&i.ResolvedBody,
 		&i.Side,
 		&i.Slug,
-		&i.Updated,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -72,7 +70,7 @@ func (q *Queries) DeleteComment(ctx context.Context, arg DeleteCommentParams) (i
 }
 
 const getComment = `-- name: GetComment :one
-SELECT body, created, id, line, path, resolved, side, slug, updated FROM comments WHERE id = ? AND slug = ?
+SELECT body, branch, created_at, id, line, path, resolved, resolved_body, side, slug, updated_at FROM comments WHERE id = ? AND slug = ?
 `
 
 type GetCommentParams struct {
@@ -85,24 +83,31 @@ func (q *Queries) GetComment(ctx context.Context, arg GetCommentParams) (Comment
 	var i Comment
 	err := row.Scan(
 		&i.Body,
-		&i.Created,
+		&i.Branch,
+		&i.CreatedAt,
 		&i.ID,
 		&i.Line,
 		&i.Path,
 		&i.Resolved,
+		&i.ResolvedBody,
 		&i.Side,
 		&i.Slug,
-		&i.Updated,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const listComments = `-- name: ListComments :many
-SELECT body, created, id, line, path, resolved, side, slug, updated FROM comments WHERE slug = ? ORDER BY created ASC
+SELECT body, branch, created_at, id, line, path, resolved, resolved_body, side, slug, updated_at FROM comments WHERE slug = ? AND branch = ? ORDER BY created_at ASC
 `
 
-func (q *Queries) ListComments(ctx context.Context, slug string) ([]Comment, error) {
-	rows, err := q.db.QueryContext(ctx, listComments, slug)
+type ListCommentsParams struct {
+	Slug   string
+	Branch string
+}
+
+func (q *Queries) ListComments(ctx context.Context, arg ListCommentsParams) ([]Comment, error) {
+	rows, err := q.db.QueryContext(ctx, listComments, arg.Slug, arg.Branch)
 	if err != nil {
 		return nil, err
 	}
@@ -112,14 +117,16 @@ func (q *Queries) ListComments(ctx context.Context, slug string) ([]Comment, err
 		var i Comment
 		if err := rows.Scan(
 			&i.Body,
-			&i.Created,
+			&i.Branch,
+			&i.CreatedAt,
 			&i.ID,
 			&i.Line,
 			&i.Path,
 			&i.Resolved,
+			&i.ResolvedBody,
 			&i.Side,
 			&i.Slug,
-			&i.Updated,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -135,20 +142,20 @@ func (q *Queries) ListComments(ctx context.Context, slug string) ([]Comment, err
 }
 
 const setCommentResolved = `-- name: SetCommentResolved :execrows
-UPDATE comments SET resolved = ?, updated = ? WHERE id = ? AND slug = ?
+UPDATE comments SET resolved = ?, resolved_body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND slug = ?
 `
 
 type SetCommentResolvedParams struct {
-	Resolved int64
-	Updated  int64
-	ID       string
-	Slug     string
+	Resolved     int64
+	ResolvedBody string
+	ID           string
+	Slug         string
 }
 
 func (q *Queries) SetCommentResolved(ctx context.Context, arg SetCommentResolvedParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setCommentResolved,
 		arg.Resolved,
-		arg.Updated,
+		arg.ResolvedBody,
 		arg.ID,
 		arg.Slug,
 	)
@@ -159,23 +166,17 @@ func (q *Queries) SetCommentResolved(ctx context.Context, arg SetCommentResolved
 }
 
 const updateCommentBody = `-- name: UpdateCommentBody :execrows
-UPDATE comments SET body = ?, updated = ? WHERE id = ? AND slug = ?
+UPDATE comments SET body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND slug = ?
 `
 
 type UpdateCommentBodyParams struct {
-	Body    string
-	Updated int64
-	ID      string
-	Slug    string
+	Body string
+	ID   string
+	Slug string
 }
 
 func (q *Queries) UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateCommentBody,
-		arg.Body,
-		arg.Updated,
-		arg.ID,
-		arg.Slug,
-	)
+	result, err := q.db.ExecContext(ctx, updateCommentBody, arg.Body, arg.ID, arg.Slug)
 	if err != nil {
 		return 0, err
 	}

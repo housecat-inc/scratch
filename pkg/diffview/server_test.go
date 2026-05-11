@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/errors"
+	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
 	"github.com/stretchr/testify/assert"
@@ -156,7 +157,7 @@ func TestCommentRoutes(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
 	r.NoError(err)
 	t.Cleanup(func() { store.Close() })
 
@@ -174,7 +175,7 @@ func TestCommentRoutes(t *testing.T) {
 	a.Contains(postRec.Body.String(), "nit: rename")
 	a.Contains(postRec.Body.String(), `id="comment-thread-`)
 
-	list, err := store.List("acme/alpha")
+	list, err := store.ListComments("acme/alpha", "feature")
 	r.NoError(err)
 	r.Len(list, 1)
 	created := list[0]
@@ -196,7 +197,7 @@ func TestCommentRoutes(t *testing.T) {
 	r.Equal(http.StatusOK, delRec.Code, delRec.Body.String())
 	a.NotContains(delRec.Body.String(), "nit: rename")
 
-	list, err = store.List("acme/alpha")
+	list, err = store.ListComments("acme/alpha", "feature")
 	r.NoError(err)
 	a.Empty(list)
 }
@@ -240,7 +241,7 @@ func TestCommentRoutesValidation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			r := require.New(t)
-			store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+			store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
 			r.NoError(err)
 			t.Cleanup(func() { store.Close() })
 
@@ -267,7 +268,7 @@ func TestCommentEditFlow(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
 	r.NoError(err)
 	t.Cleanup(func() { store.Close() })
 
@@ -276,7 +277,7 @@ func TestCommentEditFlow(t *testing.T) {
 	s, err := NewServer(deps)
 	r.NoError(err)
 
-	c, err := store.Add("acme/alpha", "foo.txt", "new", 4, "first")
+	c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "first")
 	r.NoError(err)
 
 	editRec := httptest.NewRecorder()
@@ -295,7 +296,7 @@ func TestCommentEditFlow(t *testing.T) {
 	a.Contains(putRec.Body.String(), "second")
 	a.NotContains(putRec.Body.String(), `name="body"`)
 
-	got, err := store.Get("acme/alpha", c.ID)
+	got, err := store.GetComment("acme/alpha", c.ID)
 	r.NoError(err)
 	a.Equal("second", got.Body)
 
@@ -309,7 +310,7 @@ func TestCommentResolveToggle(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
 	r.NoError(err)
 	t.Cleanup(func() { store.Close() })
 
@@ -318,7 +319,7 @@ func TestCommentResolveToggle(t *testing.T) {
 	s, err := NewServer(deps)
 	r.NoError(err)
 
-	c, err := store.Add("acme/alpha", "foo.txt", "new", 4, "ping")
+	c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "ping")
 	r.NoError(err)
 
 	post := func() {
@@ -330,12 +331,12 @@ func TestCommentResolveToggle(t *testing.T) {
 	}
 
 	post()
-	got, err := store.Get("acme/alpha", c.ID)
+	got, err := store.GetComment("acme/alpha", c.ID)
 	r.NoError(err)
 	a.True(got.Resolved)
 
 	post()
-	got, err = store.Get("acme/alpha", c.ID)
+	got, err = store.GetComment("acme/alpha", c.ID)
 	r.NoError(err)
 	a.False(got.Resolved)
 }
@@ -344,7 +345,7 @@ func TestCommentListPage(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
 	r.NoError(err)
 	t.Cleanup(func() { store.Close() })
 
@@ -353,9 +354,9 @@ func TestCommentListPage(t *testing.T) {
 	s, err := NewServer(deps)
 	r.NoError(err)
 
-	_, err = store.Add("acme/alpha", "bar.txt", "new", 2, "bar comment")
+	_, err = store.AddComment("acme/alpha", "feature", "bar.txt", "new", 2, "bar comment")
 	r.NoError(err)
-	_, err = store.Add("acme/alpha", "foo.txt", "new", 9, "foo comment")
+	_, err = store.AddComment("acme/alpha", "feature", "foo.txt", "new", 9, "foo comment")
 	r.NoError(err)
 
 	rec := httptest.NewRecorder()
@@ -373,7 +374,7 @@ func TestCommentDeleteReturnsOK(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	store, err := OpenSQLiteCommentStore(filepath.Join(t.TempDir(), "comments.db"))
+	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
 	r.NoError(err)
 	t.Cleanup(func() { store.Close() })
 
@@ -382,7 +383,7 @@ func TestCommentDeleteReturnsOK(t *testing.T) {
 	s, err := NewServer(deps)
 	r.NoError(err)
 
-	c, err := store.Add("acme/alpha", "foo.txt", "new", 4, "x")
+	c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "x")
 	r.NoError(err)
 
 	rec := httptest.NewRecorder()
@@ -390,7 +391,7 @@ func TestCommentDeleteReturnsOK(t *testing.T) {
 	a.Equal(http.StatusOK, rec.Code)
 	a.Empty(rec.Body.String())
 
-	list, err := store.List("acme/alpha")
+	list, err := store.ListComments("acme/alpha", "feature")
 	r.NoError(err)
 	a.Empty(list)
 }

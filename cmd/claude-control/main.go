@@ -43,13 +43,13 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "user home dir")
 			}
-			conn, err := db.Open(filepath.Join(home, ".config", "scratch", "diff.db"))
+			store, err := db.New(filepath.Join(home, ".config", "scratch", "scratch.db"))
 			if err != nil {
 				return errors.Wrap(err, "open db")
 			}
-			defer conn.Close()
+			defer store.Close()
 			deps := diffview.DefaultDeps(home)
-			deps.Comments = diffview.NewSQLiteCommentStore(conn)
+			deps.Comments = store
 			dv, err := diffview.NewServer(deps)
 			if err != nil {
 				return errors.Wrap(err, "new diffview server")
