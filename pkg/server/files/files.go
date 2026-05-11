@@ -12,24 +12,17 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/housecat-inc/scratch/pkg/repo"
 	"github.com/housecat-inc/scratch/pkg/ui"
 )
 
 const maxFileSize = 2 * 1024 * 1024
 
 type Deps struct {
-	Home       string
-	ListRepos  func() ([]repo.Repo, error)
-	LookupRepo func(slug string) (repo.Repo, bool)
+	Root string
 }
 
 func DefaultDeps(home string) Deps {
-	return Deps{
-		Home:       home,
-		ListRepos:  func() ([]repo.Repo, error) { return repo.Scan(home) },
-		LookupRepo: func(slug string) (repo.Repo, bool) { return repo.Find(home, slug) },
-	}
+	return Deps{Root: home}
 }
 
 type Server struct {
@@ -47,29 +40,21 @@ func NewServer(deps Deps) (*Server, error) {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", s.handleOverview)
-	mux.HandleFunc("GET /{org}/{name}", s.handleEditor)
-	mux.HandleFunc("GET /{org}/{name}/read", s.handleRead)
-	mux.HandleFunc("GET /{org}/{name}/tree", s.handleTree)
-	mux.HandleFunc("POST /{org}/{name}/save", s.handleSave)
+	mux.HandleFunc("GET /{$}", s.handlePage)
+	mux.HandleFunc("GET /read", s.handleRead)
+	mux.HandleFunc("GET /tree", s.handleTree)
+	mux.HandleFunc("POST /save", s.handleSave)
 	return logging(mux)
 }
 
-type overviewPage struct {
-	Error string
-	Home  string
-	Repos []repo.Repo
-}
-
-type editorPage struct {
+type pageModel struct {
 	Entries []entry
 	Error   string
-	Repo    repo.Repo
+	Root    string
 }
 
 type treeFragment struct {
 	Entries []entry
-	Slug    string
 }
 
 type entry struct {
@@ -78,56 +63,27 @@ type entry struct {
 	Path string
 }
 
-func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
-	vm := overviewPage{Home: s.deps.Home}
-	repos, err := s.deps.ListRepos()
-	if err != nil {
-		vm.Error = err.Error()
-	} else {
-		vm.Repos = repos
-	}
-	s.render(w, "files-overview", vm)
-}
-
-func (s *Server) handleEditor(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("org") + "/" + r.PathValue("name")
-	rp, ok := s.deps.LookupRepo(slug)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	entries, err := readDir(rp.Path, "")
-	vm := editorPage{Repo: rp, Entries: entries}
+func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
+	entries, err := s.readDir("")
+	vm := pageModel{Entries: entries, Root: rootLabel(s.deps.Root)}
 	if err != nil {
 		vm.Error = err.Error()
 	}
-	s.render(w, "files-editor", vm)
+	s.render(w, "files-page", vm)
 }
 
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("org") + "/" + r.PathValue("name")
-	rp, ok := s.deps.LookupRepo(slug)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
 	rel := strings.TrimSpace(r.URL.Query().Get("path"))
-	entries, err := readDir(rp.Path, rel)
+	entries, err := s.readDir(rel)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.render(w, "file-tree-list", treeFragment{Entries: entries, Slug: slug})
+	s.render(w, "file-tree-list", treeFragment{Entries: entries})
 }
 
 func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("org") + "/" + r.PathValue("name")
-	rp, ok := s.deps.LookupRepo(slug)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	abs, err := safeJoin(rp.Path, r.URL.Query().Get("path"))
+	abs, err := safeJoin(s.deps.Root, r.URL.Query().Get("path"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -156,13 +112,7 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("org") + "/" + r.PathValue("name")
-	rp, ok := s.deps.LookupRepo(slug)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	abs, err := safeJoin(rp.Path, r.URL.Query().Get("path"))
+	abs, err := safeJoin(s.deps.Root, r.URL.Query().Get("path"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -188,8 +138,8 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func readDir(root, rel string) ([]entry, error) {
-	abs, err := safeJoin(root, rel)
+func (s *Server) readDir(rel string) ([]entry, error) {
+	abs, err := safeJoin(s.deps.Root, rel)
 	if err != nil {
 		return nil, err
 	}
@@ -200,12 +150,12 @@ func readDir(root, rel string) ([]entry, error) {
 	out := make([]entry, 0, len(items))
 	for _, it := range items {
 		name := it.Name()
-		if name == ".git" || strings.HasPrefix(name, ".") && name != ".gitignore" && name != ".env.example" {
+		if skipName(name) {
 			continue
 		}
 		child := name
 		if rel != "" {
-			child = rel + "/" + name
+			child = strings.TrimSuffix(rel, "/") + "/" + name
 		}
 		out = append(out, entry{Dir: it.IsDir(), Name: name, Path: child})
 	}
@@ -216,6 +166,28 @@ func readDir(root, rel string) ([]entry, error) {
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
+}
+
+func skipName(name string) bool {
+	switch name {
+	case "node_modules":
+		return true
+	}
+	if !strings.HasPrefix(name, ".") {
+		return false
+	}
+	switch name {
+	case ".env.example", ".gitignore":
+		return false
+	}
+	return true
+}
+
+func rootLabel(root string) string {
+	if home, err := os.UserHomeDir(); err == nil && home == root {
+		return "~"
+	}
+	return root
 }
 
 func safeJoin(root, rel string) (string, error) {
@@ -230,7 +202,7 @@ func safeJoin(root, rel string) (string, error) {
 		return "", errors.Wrap(err, "abs path")
 	}
 	if absAbs != rootAbs && !strings.HasPrefix(absAbs, rootAbs+string(filepath.Separator)) {
-		return "", errors.New("path escapes repo")
+		return "", errors.New("path escapes root")
 	}
 	return absAbs, nil
 }
