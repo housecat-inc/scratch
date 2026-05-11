@@ -88,6 +88,23 @@ func TestLastCommit(t *testing.T) {
 	a.False(c.Date.IsZero())
 }
 
+func TestShowFile(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	a := assert.New(t)
+	r := require.New(t)
+
+	clone, _ := setupRepo(t)
+	r.NoError(writeFile(clone+"/multi.txt", "a\nb\nc\n"))
+	runGit(t, clone, "add", ".")
+	runGit(t, clone, "commit", "-m", "multi")
+
+	lines, err := ShowFile(clone, "HEAD", "multi.txt")
+	r.NoError(err)
+	a.Equal([]string{"a", "b", "c"}, lines)
+}
+
 func TestRemoteSlug(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

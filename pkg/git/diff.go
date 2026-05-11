@@ -33,6 +33,30 @@ func (f File) Path() string {
 	return f.OldPath
 }
 
+func (f File) Adds() int {
+	var n int
+	for _, h := range f.Hunks {
+		for _, l := range h.Lines {
+			if l.Kind == LineAdd {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func (f File) Dels() int {
+	var n int
+	for _, h := range f.Hunks {
+		for _, l := range h.Lines {
+			if l.Kind == LineDelete {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 type Hunk struct {
 	Header   string
 	Lines    []Line
@@ -40,11 +64,32 @@ type Hunk struct {
 	NewStart int
 	OldCount int
 	OldStart int
+	Section  string
 }
 
 func (h Hunk) Key() string {
 	sum := sha1.Sum([]byte(h.Header))
 	return hex.EncodeToString(sum[:8])
+}
+
+func (h Hunk) Adds() int {
+	var n int
+	for _, l := range h.Lines {
+		if l.Kind == LineAdd {
+			n++
+		}
+	}
+	return n
+}
+
+func (h Hunk) Dels() int {
+	var n int
+	for _, l := range h.Lines {
+		if l.Kind == LineDelete {
+			n++
+		}
+	}
+	return n
 }
 
 type LineKind string
@@ -166,6 +211,9 @@ func parseHunkHeader(line string) (Hunk, error) {
 	}
 	h.OldStart, h.OldCount = oldStart, oldCount
 	h.NewStart, h.NewCount = newStart, newCount
+	if end+3 < len(rest) {
+		h.Section = strings.TrimSpace(rest[end+3:])
+	}
 	return h, nil
 }
 

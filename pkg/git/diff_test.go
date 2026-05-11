@@ -132,6 +132,35 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
+			name: "hunk header with section context",
+			in: strings.Join([]string{
+				"diff --git a/main.go b/main.go",
+				"--- a/main.go",
+				"+++ b/main.go",
+				"@@ -7,3 +7,4 @@ func main() {",
+				" a",
+				"+b",
+				" c",
+				" d",
+				"",
+			}, "\n"),
+			want: []File{{
+				NewPath: "main.go", OldPath: "main.go", Status: StatusModified,
+				Hunks: []Hunk{{
+					Header:   "@@ -7,3 +7,4 @@ func main() {",
+					Section:  "func main() {",
+					OldStart: 7, OldCount: 3,
+					NewStart: 7, NewCount: 4,
+					Lines: []Line{
+						{Content: "a", Kind: LineContext, NewLine: 7, OldLine: 7},
+						{Content: "b", Kind: LineAdd, NewLine: 8},
+						{Content: "c", Kind: LineContext, NewLine: 9, OldLine: 8},
+						{Content: "d", Kind: LineContext, NewLine: 10, OldLine: 9},
+					},
+				}},
+			}},
+		},
+		{
 			name: "two files",
 			in: strings.Join([]string{
 				"diff --git a/a.txt b/a.txt",

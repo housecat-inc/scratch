@@ -51,6 +51,53 @@
   <title>{{.Repo.Slug}} · diff</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+  <script>
+    function expandAllBlocks(btn, evt) {
+      evt.preventDefault(); evt.stopPropagation();
+      const file = btn.closest('details');
+      const hunks = Array.from(file.querySelectorAll('details'));
+      if (hunks.length === 0) return;
+      const allOpen = hunks.every(d => d.open);
+      if (allOpen) {
+        hunks.forEach(d => d.open = false);
+      } else {
+        file.open = true;
+        hunks.forEach(d => d.open = true);
+      }
+    }
+    function expandWholeFile(btn, evt) {
+      evt.preventDefault(); evt.stopPropagation();
+      const file = btn.closest('details');
+      const hunks = Array.from(file.querySelectorAll('details'));
+      if (hunks.length === 0) return;
+      const allOpen = hunks.every(d => d.open);
+      if (allOpen) {
+        hunks.forEach(d => d.open = false);
+      } else {
+        file.open = true;
+        hunks.forEach(d => d.open = true);
+        file.querySelectorAll('button[data-expand-all="true"]').forEach(b => b.click());
+      }
+    }
+    function markFileDone(btn, evt) {
+      evt.preventDefault(); evt.stopPropagation();
+      const file = btn.closest('details');
+      const done = !file.classList.contains('opacity-60');
+      file.classList.toggle('opacity-60', done);
+      btn.classList.toggle('text-green-600', done);
+      btn.classList.toggle('text-slate-400', !done);
+      file.open = !done;
+    }
+    function markHunkDone(btn, evt) {
+      evt.preventDefault(); evt.stopPropagation();
+      const hunk = btn.closest('details');
+      const done = !hunk.classList.contains('opacity-60');
+      hunk.classList.toggle('opacity-60', done);
+      btn.classList.toggle('text-green-600', done);
+      btn.classList.toggle('text-slate-400', !done);
+      hunk.open = !done;
+    }
+  </script>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
@@ -62,45 +109,97 @@
       </div>
     </div>
   </header>
-  <main class="max-w-2xl mx-auto px-4 py-4">
+  <main class="max-w-2xl mx-auto px-3 py-3">
     {{if .Error}}<div class="text-red-700 text-sm mb-4 break-all">{{.Error}}</div>{{end}}
     {{if not .Files}}<p class="text-slate-500 text-sm">No changes.</p>{{end}}
-    {{range .Files}}
-      <section class="mb-5">
-        <h2 class="text-xs font-mono text-slate-600 mb-1.5 px-1 truncate">
-          {{.Path}}
-          {{if eq (printf "%s" .Status) "added"}}<span class="text-green-700 ml-1">new</span>{{end}}
-          {{if eq (printf "%s" .Status) "deleted"}}<span class="text-red-700 ml-1">deleted</span>{{end}}
-          {{if eq (printf "%s" .Status) "renamed"}}<span class="text-blue-700 ml-1">renamed</span>{{end}}
-        </h2>
-        {{if .Binary}}<p class="text-slate-500 text-xs px-1">Binary file</p>{{end}}
-        <ul class="space-y-2">
-          {{range .Hunks}}{{template "hunk" .}}{{end}}
-        </ul>
-      </section>
-    {{end}}
+    {{range .Files}}{{template "file" .}}{{end}}
   </main>
 </body>
 </html>{{end}}
 
-{{define "hunk"}}<li>
-  <details class="bg-white rounded-lg border border-slate-200 group overflow-hidden">
-    <summary class="px-4 py-3 cursor-pointer flex items-center justify-between gap-3 list-none">
-      <div class="min-w-0 flex-1">
-        <div class="text-xs text-slate-500">Lines {{.OldStart}}{{if gt .OldCount 1}}–{{addInt .OldStart .OldCount}}{{end}} <span class="text-slate-300">→</span> {{.NewStart}}{{if gt .NewCount 1}}–{{addInt .NewStart .NewCount}}{{end}}</div>
-        <div class="font-mono text-xs text-slate-700 truncate mt-0.5">{{.Header}}</div>
-      </div>
-      <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
-    </summary>
-    <div class="border-t border-slate-100 font-mono text-xs overflow-x-auto">
-      {{range .Lines}}
-        <div class="flex gap-2 px-2 py-0.5 {{lineClass .Kind}}">
-          <span class="text-slate-400 select-none w-7 text-right flex-shrink-0">{{if .OldLine}}{{.OldLine}}{{end}}</span>
-          <span class="text-slate-400 select-none w-7 text-right flex-shrink-0">{{if .NewLine}}{{.NewLine}}{{end}}</span>
-          <span class="text-slate-400 select-none w-3 flex-shrink-0">{{lineMarker .Kind}}</span>
-          <pre class="whitespace-pre-wrap break-all flex-1 m-0">{{.Content}}</pre>
-        </div>
-      {{end}}
+{{define "file"}}<details class="group bg-white rounded-lg border border-slate-200 mb-2 overflow-hidden">
+  <summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100">
+    <svg class="w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+    <span class="font-mono text-xs truncate flex-1 min-w-0 text-slate-700">{{.Path}}</span>
+    {{if ne (printf "%s" .Status) "modified"}}<span class="text-xs {{statusColor .Status}} flex-shrink-0">{{statusLabel .Status}}</span>{{end}}
+    {{if not .Binary}}
+      <span class="text-xs text-green-700 flex-shrink-0 tabular-nums">+{{.Adds}}</span>
+      <span class="text-xs text-red-700 flex-shrink-0 tabular-nums">−{{.Dels}}</span>
+    {{end}}
+    <div class="flex items-center flex-shrink-0">
+      <button type="button" title="Expand entire file" onclick="expandWholeFile(this, event)" class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3"/></svg>
+      </button>
+      <button type="button" title="Expand all blocks" onclick="expandAllBlocks(this, event)" class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v8M4 8h8"/></svg>
+      </button>
+      <button type="button" title="Mark as done" onclick="markFileDone(this, event)" class="p-1.5 text-slate-400 rounded hover:bg-slate-100">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>
+      </button>
     </div>
-  </details>
-</li>{{end}}
+  </summary>
+  <div>
+    {{if .Binary}}<div class="h-10 flex items-center px-3 text-slate-500 text-xs">Binary file</div>{{end}}
+    {{if and (not .Binary) (not .Hunks)}}<div class="h-10 flex items-center px-3 text-slate-500 text-xs">No content changes</div>{{end}}
+    {{range .Hunks}}{{template "hunk" .}}{{end}}
+  </div>
+</details>{{end}}
+
+{{define "hunk"}}{{if .PrevSpot}}<div id="prev-lines-{{.Hunk.Key}}"></div>{{end}}{{if .Virtual}}<div class="h-10 flex items-center gap-2 px-2 list-none border-b border-slate-100 bg-slate-50">
+  <span class="w-3 ml-1 flex-shrink-0"></span>
+  <span class="font-mono text-xs text-slate-400 truncate flex-1 min-w-0">…</span>
+  <div class="flex items-center flex-shrink-0">
+    <span id="prev-buttons-{{.Hunk.Key}}" class="flex items-center">{{if .PrevSpot}}{{template "prev-buttons-inner" .PrevSpot}}{{else}}{{template "prev-buttons-empty"}}{{end}}</span>
+    {{template "control-placeholder"}}
+  </div>
+</div>{{else}}<details class="group/hunk" id="hunk-{{.Hunk.Key}}">
+  <summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none border-b border-slate-100 hover:bg-slate-50">
+    <svg class="w-3 h-3 text-slate-400 transition-transform group-open/hunk:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"/></svg>
+    <span class="font-mono text-xs text-slate-600 truncate flex-1 min-w-0">{{.Hunk.Section}}</span>
+    <span class="text-xs text-green-700 flex-shrink-0 tabular-nums">+{{.Hunk.Adds}}</span>
+    <span class="text-xs text-red-700 flex-shrink-0 tabular-nums">−{{.Hunk.Dels}}</span>
+    <div class="flex items-center flex-shrink-0">
+      <span id="prev-buttons-{{.Hunk.Key}}" class="flex items-center">{{if .PrevSpot}}{{template "prev-buttons-inner" .PrevSpot}}{{else}}{{template "prev-buttons-empty"}}{{end}}</span>
+      <button type="button" title="Mark hunk as done" onclick="markHunkDone(this, event)" class="p-1.5 text-slate-400 rounded hover:bg-slate-100">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>
+      </button>
+    </div>
+  </summary>
+  <div class="bg-slate-50 font-mono text-xs overflow-x-auto border-b border-slate-100">
+    {{range .Hunk.Lines}}{{template "diff-line" .}}{{end}}
+  </div>
+</details>{{end}}{{end}}
+
+{{define "prev-buttons-inner"}}<button type="button" title="Expand all context"
+        data-expand-all="true"
+        class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+        hx-get="/diff/{{.Slug}}/file/lines?path={{.Path | urlquery}}&from={{.FullFrom}}&to={{.FullTo}}&direction=all&offset={{.Offset}}&hunk={{.HunkKey | urlquery}}"
+        hx-target="#prev-buttons-{{.HunkKey}}"
+        hx-swap="outerHTML">
+  <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3"/></svg>
+</button><button type="button" title="Expand context"
+        class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+        hx-get="/diff/{{.Slug}}/file/lines?path={{.Path | urlquery}}&from={{.From}}&to={{.To}}&direction={{.Direction}}&bound={{.Bound}}&offset={{.Offset}}&hunk={{.HunkKey | urlquery}}"
+        hx-target="#prev-buttons-{{.HunkKey}}"
+        hx-swap="outerHTML">
+  <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v8M4 8h8"/></svg>
+</button>{{end}}
+
+{{define "prev-buttons-empty"}}{{template "control-placeholder"}}{{template "control-placeholder"}}{{end}}
+
+{{define "control-placeholder"}}<span class="p-1.5 invisible inline-flex"><svg class="w-3.5 h-3.5" viewBox="0 0 16 16"></svg></span>{{end}}
+
+{{define "context-fragment-attached"}}<span id="prev-buttons-{{.HunkKey}}" class="flex items-center">{{if .Continuation}}{{template "prev-buttons-inner" .Continuation}}{{else}}{{template "prev-buttons-empty"}}{{end}}</span><div id="prev-lines-{{.HunkKey}}" hx-swap-oob="afterbegin">{{range $i, $l := .Lines}}<div class="flex gap-2 px-2 py-0.5 font-mono text-xs bg-white border-b border-slate-100">
+  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{oldLineNum $.From $.Offset $i}}</span>
+  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{addInt $.From $i}}</span>
+  <span class="text-slate-400 select-none w-3 flex-shrink-0"> </span>
+  <pre class="whitespace-pre-wrap break-all flex-1 m-0">{{$l}}</pre>
+</div>{{end}}</div>{{end}}
+
+{{define "diff-line"}}<div class="flex gap-2 px-2 py-0.5 {{lineClass .Kind}}">
+  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .OldLine}}{{.OldLine}}{{end}}</span>
+  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .NewLine}}{{.NewLine}}{{end}}</span>
+  <span class="text-slate-400 select-none w-3 flex-shrink-0">{{lineMarker .Kind}}</span>
+  <pre class="whitespace-pre-wrap break-all flex-1 m-0">{{.Content}}</pre>
+</div>{{end}}
+

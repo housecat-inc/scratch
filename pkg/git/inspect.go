@@ -51,6 +51,18 @@ func LastCommit(dir string) (Commit, error) {
 	return Commit{Author: parts[1], Date: date, SHA: parts[0], Subject: parts[3]}, nil
 }
 
+func ShowFile(dir, ref, path string) ([]string, error) {
+	out, err := outputIn(dir, "git", "show", ref+":"+path)
+	if err != nil {
+		return nil, err
+	}
+	out = strings.TrimSuffix(out, "\n")
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(out, "\n"), nil
+}
+
 func RemoteSlug(dir string) (org, name string, err error) {
 	out, err := outputIn(dir, "git", "remote", "get-url", "origin")
 	if err != nil {
