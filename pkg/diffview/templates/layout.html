@@ -210,7 +210,7 @@
     </div>
   </summary>
   <div class="bg-slate-50 font-mono text-xs overflow-x-auto border-b border-slate-100">
-    {{range .Hunk.Lines}}{{template "diff-line" (dict "Line" . "Lang" $.Lang)}}{{end}}
+    {{range .Lines}}{{template "diff-line" .}}{{end}}
   </div>
 </details>{{end}}{{end}}
 
@@ -242,10 +242,48 @@
   <pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class="{{$.Lang}}">{{$l}}</code></pre>
 </div>{{end}}</div>{{end}}
 
-{{define "diff-line"}}<div class="flex gap-2 px-2 py-0.5 {{lineClass .Line.Kind}}">
-  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .Line.OldLine}}{{.Line.OldLine}}{{end}}</span>
-  <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .Line.NewLine}}{{.Line.NewLine}}{{end}}</span>
-  <span class="text-slate-400 select-none w-3 flex-shrink-0">{{lineMarker .Line.Kind}}</span>
-  <pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class="{{.Lang}}">{{.Line.Content}}</code></pre>
+{{define "diff-line"}}<div class="border-b border-slate-100 last:border-b-0">
+  <div class="group/line flex gap-2 px-2 py-0.5 {{lineClass .Line.Kind}}">
+    <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .Line.OldLine}}{{.Line.OldLine}}{{end}}</span>
+    <span class="text-slate-400 select-none w-7 text-right flex-shrink-0 tabular-nums">{{if .Line.NewLine}}{{.Line.NewLine}}{{end}}</span>
+    <span class="text-slate-400 select-none w-3 flex-shrink-0">{{lineMarker .Line.Kind}}</span>
+    <pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class="{{.Lang}}">{{.Line.Content}}</code></pre>
+    {{if .Anchor}}<button type="button" title="Add comment"
+            class="text-slate-300 hover:text-slate-900 px-1 -my-0.5 flex-shrink-0"
+            hx-get="/diff/{{.Slug}}/comments/form?path={{.Path | urlquery}}&side={{.Side}}&line={{.AnchorLine}}"
+            hx-target="#comment-form-{{.Anchor}}"
+            hx-swap="innerHTML">+</button>{{end}}
+  </div>
+  {{if .Anchor}}{{template "comment-thread" (dict "Anchor" .Anchor "Comments" .Comments "Slug" .Slug)}}<div id="comment-form-{{.Anchor}}"></div>{{end}}
 </div>{{end}}
+
+{{define "comment-thread"}}<div id="comment-thread-{{.Anchor}}">{{range .Comments}}{{template "comment-item" (dict "Anchor" $.Anchor "Comment" . "Slug" $.Slug)}}{{end}}</div>{{end}}
+
+{{define "comment-item"}}<div class="flex gap-2 items-start bg-amber-50 border-l-2 border-amber-300 px-2 py-1 text-xs">
+  <div class="flex-1 min-w-0 whitespace-pre-wrap break-words font-sans">{{.Comment.Body}}</div>
+  <button type="button" title="Delete comment"
+          class="text-slate-400 hover:text-red-700 px-1 -my-0.5"
+          hx-delete="/diff/{{.Slug}}/comments/{{.Comment.ID}}?path={{.Comment.Path | urlquery}}&side={{.Comment.Side}}&line={{.Comment.Line}}"
+          hx-target="#comment-thread-{{.Anchor}}"
+          hx-swap="outerHTML"
+          hx-confirm="Delete this comment?">×</button>
+</div>{{end}}
+
+{{define "comment-form"}}<form class="flex flex-col gap-1 bg-white border border-slate-200 rounded px-2 py-2 m-1"
+      hx-post="/diff/{{.Slug}}/comments"
+      hx-target="#comment-thread-{{.Anchor}}"
+      hx-swap="outerHTML"
+      hx-on::after-request="if(event.detail.successful)this.closest('[id^=comment-form-]').innerHTML=''">
+  <input type="hidden" name="path" value="{{.Path}}">
+  <input type="hidden" name="side" value="{{.Side}}">
+  <input type="hidden" name="line" value="{{.Line}}">
+  <textarea name="body" rows="2" required autofocus
+            class="w-full border border-slate-200 rounded px-2 py-1 text-xs font-sans resize-y"
+            placeholder="Add a comment"></textarea>
+  <div class="flex gap-1 justify-end">
+    <button type="button" class="text-xs text-slate-500 px-2 py-1"
+            onclick="this.closest('[id^=comment-form-]').innerHTML=''">Cancel</button>
+    <button type="submit" class="text-xs bg-slate-900 text-white rounded px-2 py-1">Save</button>
+  </div>
+</form>{{end}}
 
