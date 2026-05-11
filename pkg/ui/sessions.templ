@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
 )
 
@@ -28,44 +29,57 @@ templ InstallCard(v SessionsProps) {
 			hx-swap-oob="true"
 		}
 	>
-		@card.Card(card.Props{Class: "px-4 py-3 flex items-start gap-3 " + installCardTone(v)}) {
-			<span class={ "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold", installBadgeTone(v) }>
-				if v.Installed {
-					✓
-				} else {
-					1
+		@stepCard("1", v.Installed, "Install", "Run claude.ai/install.sh") {
+			if !v.Installed {
+				@button.Button(button.Props{
+					Attributes: templ.Attributes{
+						"hx-post":         "/install",
+						"hx-target":       "#card-install",
+						"hx-swap":         "outerHTML",
+						"hx-disabled-elt": "this",
+					},
+				}) {
+					Install
 				}
-			</span>
-			<div class="flex-1 min-w-0">
-				<div class="font-semibold">Install</div>
-				if !v.Installed {
-					<p class="text-xs text-muted-foreground mt-0.5">Run claude.ai/install.sh</p>
-					<button hx-post="/install" hx-target="#card-install" hx-swap="outerHTML" hx-disabled-elt="this"
-						class="mt-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded disabled:opacity-50">
-						Install
-					</button>
-				}
-				if v.InstallError != "" {
-					<div class="text-destructive text-xs mt-2 break-all">{ v.InstallError }</div>
-				}
-			</div>
+			}
+			if v.InstallError != "" {
+				<div class="text-destructive text-xs mt-2 break-all">{ v.InstallError }</div>
+			}
 		}
 	</li>
 }
 
-func installCardTone(v SessionsProps) string {
-	if v.Installed {
-		return "bg-emerald-50 border border-emerald-200"
+templ stepCard(num string, done bool, title, hint string) {
+	@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 py-4"}) {
+		@card.Header(card.HeaderProps{Class: "px-4 pb-0 flex flex-row items-center gap-3 space-y-0"}) {
+			@stepBadge(num, done)
+			<div class="flex-1 min-w-0">
+				@card.Title(card.TitleProps{Class: "text-base"}) {
+					{ title }
+				}
+				if !done && hint != "" {
+					@card.Description() {
+						{ hint }
+					}
+				}
+			</div>
+		}
+		if !done {
+			@card.Content(card.ContentProps{Class: "px-4 pt-0 pl-13 flex flex-wrap items-center gap-2"}) {
+				{ children... }
+			}
+		}
 	}
-	return "bg-amber-50 border border-amber-200"
 }
 
-func installBadgeTone(v SessionsProps) string {
-	if v.Installed {
-		return "bg-emerald-600 text-white"
+templ stepBadge(num string, done bool) {
+	if done {
+		<span class="inline-flex w-8 h-8 rounded-full bg-emerald-600 text-white items-center justify-center text-sm font-bold shrink-0" aria-hidden="true">✓</span>
+	} else {
+		<span class="inline-flex w-8 h-8 rounded-full bg-secondary text-secondary-foreground items-center justify-center text-sm font-semibold shrink-0 ring-1 ring-border" aria-hidden="true">{ num }</span>
 	}
-	return "bg-white border-2 border-amber-300 text-amber-700"
 }
+
 
 templ LoginCard(v SessionsProps) {
 	<li id="card-login"
@@ -73,69 +87,52 @@ templ LoginCard(v SessionsProps) {
 			hx-swap-oob="true"
 		}
 	>
-		@card.Card(card.Props{Class: "px-4 py-3 flex items-start gap-3 " + loginCardTone(v)}) {
-			<span class={ "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold", loginBadgeTone(v) }>
-				if v.Authenticated {
-					✓
-				} else {
-					2
-				}
-			</span>
-			<div class="flex-1 min-w-0">
-				<div class="font-semibold">Pay</div>
-				if !v.Authenticated {
-					if v.LoginURL != "" {
-						<p class="text-xs text-muted-foreground mt-0.5">Open the authorize page and paste the code below</p>
-						<div class="flex gap-2 mt-2 flex-wrap">
-							<a href={ templ.SafeURL(v.LoginURL) } target="_blank" rel="noopener"
-								class="px-3 py-1.5 text-sm bg-secondary rounded text-blue-700 hover:bg-secondary/80">
-								Open claude.com →
-							</a>
-							<button type="button" class="px-3 py-1.5 text-sm bg-secondary rounded text-secondary-foreground hover:bg-secondary/80"
-								data-url={ v.LoginURL }
-								onclick="navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'">
-								Copy URL
-							</button>
-						</div>
-						<form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML" class="flex gap-2 mt-2">
-							<input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required
-								class="flex-1 px-2 py-1.5 text-sm border border-input rounded bg-background"/>
-							<button type="submit" class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded">Submit</button>
-						</form>
-					} else if v.Installed {
-						<p class="text-xs text-muted-foreground mt-0.5">Connect Anthropic subscription</p>
-						<button hx-post="/login" hx-target="#card-login" hx-swap="outerHTML" hx-disabled-elt="this"
-							class="mt-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded disabled:opacity-50">
-							Connect
-						</button>
+		@stepCard("2", v.Authenticated, "Pay", "Connect Anthropic subscription") {
+			if !v.Authenticated {
+				if v.LoginURL != "" {
+					@button.Button(button.Props{
+						Variant: button.VariantSecondary,
+						Href:    v.LoginURL,
+						Target:  "_blank",
+						Attributes: templ.Attributes{"rel": "noopener"},
+					}) {
+						Open claude.com →
+					}
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+						Type:    button.TypeButton,
+						Attributes: templ.Attributes{
+							"data-url": v.LoginURL,
+							"onclick":  "navigator.clipboard.writeText(this.dataset.url);this.textContent='Copied'",
+						},
+					}) {
+						Copy URL
+					}
+					<form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML" class="flex gap-2 mt-2 basis-full">
+						<input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required
+							class="flex-1 px-3 py-2 text-sm border border-input rounded-md bg-background shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 outline-none"/>
+						@button.Button(button.Props{Type: button.TypeSubmit}) {
+							Submit
+						}
+					</form>
+				} else if v.Installed {
+					@button.Button(button.Props{
+						Attributes: templ.Attributes{
+							"hx-post":         "/login",
+							"hx-target":       "#card-login",
+							"hx-swap":         "outerHTML",
+							"hx-disabled-elt": "this",
+						},
+					}) {
+						Connect
 					}
 				}
-				if v.LoginError != "" {
-					<div class="text-destructive text-xs mt-2 break-all">{ v.LoginError }</div>
-				}
-			</div>
+			}
+			if v.LoginError != "" {
+				<div class="text-destructive text-xs mt-2 break-all basis-full">{ v.LoginError }</div>
+			}
 		}
 	</li>
-}
-
-func loginCardTone(v SessionsProps) string {
-	switch {
-	case v.Authenticated:
-		return "bg-emerald-50 border border-emerald-200"
-	case v.Installed:
-		return "bg-amber-50 border border-amber-200"
-	}
-	return "bg-white border border-slate-200 opacity-60"
-}
-
-func loginBadgeTone(v SessionsProps) string {
-	switch {
-	case v.Authenticated:
-		return "bg-emerald-600 text-white"
-	case v.Installed:
-		return "bg-white border-2 border-amber-300 text-amber-700"
-	}
-	return "bg-white border-2 border-slate-300 text-slate-500"
 }
 
 templ ConfigureCard(v SessionsProps) {
@@ -144,36 +141,33 @@ templ ConfigureCard(v SessionsProps) {
 			hx-swap-oob="true"
 		}
 	>
-		@card.Card(card.Props{Class: "px-4 py-3 flex items-start gap-3 " + configureCardTone(v)}) {
-			<span class={ "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold", configureBadgeTone(v) }>
-				if configureDone(v) {
-					✓
-				} else {
-					3
+		@stepCard("3", configureDone(v), "Configure", configureHint(v)) {
+			if !v.Configured && v.Authenticated {
+				@button.Button(button.Props{
+					Attributes: templ.Attributes{
+						"hx-post":         "/configure",
+						"hx-target":       "#card-configure",
+						"hx-swap":         "outerHTML",
+						"hx-disabled-elt": "this",
+					},
+				}) {
+					Configure
 				}
-			</span>
-			<div class="flex-1 min-w-0">
-				<div class="font-semibold">Configure</div>
-				if !v.Configured && v.Authenticated {
-					<p class="text-xs text-muted-foreground mt-0.5">Write claude markdown and settings in $HOME</p>
-					<button hx-post="/configure" hx-target="#card-configure" hx-swap="outerHTML" hx-disabled-elt="this"
-						class="mt-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded disabled:opacity-50">
-						Configure
-					</button>
-				} else if v.Configured {
-					if v.AgentsDirty {
-						<p class="text-xs text-muted-foreground mt-0.5">Local changes in ./scratch</p>
-						<a href="/" class="inline-block mt-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded">Commit &amp; Push from Sessions →</a>
-					}
-					if v.AgentsBehind > 0 {
-						<p class="text-xs text-muted-foreground mt-0.5">Upstream changes to ./scratch</p>
-						<a href="/" class="inline-block mt-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded">Pull from Sessions →</a>
+			} else if v.Configured {
+				if v.AgentsDirty {
+					@button.Button(button.Props{Href: "/"}) {
+						Commit &amp; Push from Sessions →
 					}
 				}
-				if v.ConfigureError != "" {
-					<div class="text-destructive text-xs mt-2 break-all">{ v.ConfigureError }</div>
+				if v.AgentsBehind > 0 {
+					@button.Button(button.Props{Href: "/"}) {
+						Pull from Sessions →
+					}
 				}
-			</div>
+			}
+			if v.ConfigureError != "" {
+				<div class="text-destructive text-xs mt-2 break-all basis-full">{ v.ConfigureError }</div>
+			}
 		}
 	</li>
 }
@@ -182,24 +176,18 @@ func configureDone(v SessionsProps) bool {
 	return v.Configured && !v.AgentsDirty && v.AgentsBehind <= 0
 }
 
-func configureCardTone(v SessionsProps) string {
+func configureHint(v SessionsProps) string {
 	switch {
-	case configureDone(v):
-		return "bg-emerald-50 border border-emerald-200"
-	case v.Authenticated:
-		return "bg-amber-50 border border-amber-200"
+	case !v.Authenticated:
+		return ""
+	case !v.Configured:
+		return "Write claude markdown and settings in $HOME"
+	case v.AgentsDirty:
+		return "Local changes in ./scratch"
+	case v.AgentsBehind > 0:
+		return "Upstream changes to ./scratch"
 	}
-	return "bg-white border border-slate-200 opacity-60"
-}
-
-func configureBadgeTone(v SessionsProps) string {
-	switch {
-	case configureDone(v):
-		return "bg-emerald-600 text-white"
-	case v.Authenticated:
-		return "bg-white border-2 border-amber-300 text-amber-700"
-	}
-	return "bg-white border-2 border-slate-300 text-slate-500"
+	return ""
 }
 
 templ SessionsCard(v SessionsProps) {
@@ -210,53 +198,76 @@ templ SessionsCard(v SessionsProps) {
 		}
 	>
 		if !v.Configured {
-			<div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-				<p class="text-sm text-slate-700">Finish <a href="/setup" class="text-blue-700 underline">Setup</a> to start sessions.</p>
-			</div>
+			@card.Card(card.Props{Class: "rounded-xl shadow-sm bg-amber-50 border-amber-200"}) {
+				@card.Content() {
+					<p class="text-sm text-foreground">Finish <a href="/setup" class="text-blue-700 underline">Setup</a> to start sessions.</p>
+				}
+			}
 		} else {
-			<form id="session-form" class="bg-card text-card-foreground border border-border rounded-lg shadow-xs p-3 space-y-2 mb-3 session-form"
+			<style>
+				.session-form .session-spinner { display: none; }
+				.session-form.htmx-request .session-spinner { display: inline-flex; }
+				.session-form.htmx-request .session-idle-label { display: none; }
+				.session-form.htmx-request .session-busy-label { display: inline; }
+				.session-busy-label { display: none; }
+				.session-form.htmx-request fieldset { opacity: 0.6; pointer-events: none; }
+				@keyframes session-spin { to { transform: rotate(360deg); } }
+				.session-spinner svg { animation: session-spin 0.8s linear infinite; }
+			</style>
+			<form id="session-form" class="session-form mb-3"
 				hx-post="/sessions" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
-				<style>
-					.session-form .session-spinner { display: none; }
-					.session-form.htmx-request .session-spinner { display: inline-flex; }
-					.session-form.htmx-request .session-idle-label { display: none; }
-					.session-form.htmx-request .session-busy-label { display: inline; }
-					.session-busy-label { display: none; }
-					.session-form.htmx-request fieldset { opacity: 0.6; pointer-events: none; }
-					@keyframes session-spin { to { transform: rotate(360deg); } }
-					.session-spinner svg { animation: session-spin 0.8s linear infinite; }
-				</style>
-				<fieldset class="space-y-2 p-0 m-0 border-0">
-					<div>
-						<label class="block text-xs font-medium text-slate-600 mb-1">Working directory</label>
-						<div class="flex items-center gap-2">
-							<span id="dir-text" class="flex-1 font-mono text-xs text-slate-700 truncate bg-slate-50 px-2 py-1.5 border border-slate-200 rounded">{ v.SessionDir }</span>
-							<button type="button" class="text-xs px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200"
-								hx-get={ fmt.Sprintf("/sessions/picker?dir=%s", v.SessionDir) }
-								hx-target="#dir-picker" hx-swap="innerHTML">Browse</button>
-						</div>
-						<input type="hidden" name="dir" id="session-dir" value={ v.SessionDir } required/>
-						<div id="dir-picker"></div>
-					</div>
-					<div>
-						<label class="block text-xs font-medium text-slate-600 mb-1">Prompt <span class="text-slate-400 font-normal">(optional)</span></label>
-						<textarea name="prompt" rows="3" placeholder="What should this session do?"
-							class="w-full px-2 py-1.5 text-sm border border-slate-300 rounded resize-y"></textarea>
-					</div>
-				</fieldset>
-				<div class="flex justify-end items-center gap-2">
-					<span class="session-spinner items-center gap-1.5 text-xs text-slate-500">
-						<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-							<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-opacity="0.25"></circle>
-							<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
-						</svg>
-						<span>Starting session…</span>
-					</span>
-					<button type="submit" class="px-3 py-1.5 text-sm bg-slate-900 text-white rounded disabled:opacity-60 inline-flex items-center gap-1.5">
-						<span class="session-idle-label">Start session</span>
-						<span class="session-busy-label">Starting…</span>
-					</button>
-				</div>
+				@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3"}) {
+					@card.Header(card.HeaderProps{Class: "pb-0"}) {
+						@card.Title(card.TitleProps{Class: "text-base"}) {
+							New session
+						}
+						@card.Description() {
+							Spawn a claude-code session in a working directory
+						}
+					}
+					@card.Content() {
+						<fieldset class="space-y-3 p-0 m-0 border-0">
+							<div>
+								<label class="block text-xs font-medium text-foreground mb-1">Working directory</label>
+								<div class="flex items-center gap-2">
+									<span id="dir-text" class="flex-1 font-mono text-xs text-foreground truncate bg-muted px-2 py-1.5 border border-border rounded-md">{ v.SessionDir }</span>
+									@button.Button(button.Props{
+										Variant: button.VariantOutline,
+										Size:    button.SizeSm,
+										Type:    button.TypeButton,
+										Attributes: templ.Attributes{
+											"hx-get":    fmt.Sprintf("/sessions/picker?dir=%s", v.SessionDir),
+											"hx-target": "#dir-picker",
+											"hx-swap":   "innerHTML",
+										},
+									}) {
+										Browse
+									}
+								</div>
+								<input type="hidden" name="dir" id="session-dir" value={ v.SessionDir } required/>
+								<div id="dir-picker"></div>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-foreground mb-1">Prompt <span class="text-muted-foreground font-normal">(optional)</span></label>
+								<textarea name="prompt" rows="3" placeholder="What should this session do?"
+									class="w-full px-3 py-2 text-sm border border-input rounded-md bg-background shadow-xs resize-y focus-visible:ring-2 focus-visible:ring-ring/40 outline-none"></textarea>
+							</div>
+						</fieldset>
+					}
+					@card.Footer(card.FooterProps{Class: "justify-end gap-2"}) {
+						<span class="session-spinner items-center gap-1.5 text-xs text-muted-foreground">
+							<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+								<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-opacity="0.25"></circle>
+								<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+							</svg>
+							<span>Starting session…</span>
+						</span>
+						@button.Button(button.Props{Type: button.TypeSubmit}) {
+							<span class="session-idle-label">Start session</span>
+							<span class="session-busy-label">Starting…</span>
+						}
+					}
+				}
 			</form>
 			if v.SessionError != "" {
 				<div class="text-red-700 text-xs mb-3 break-all">{ v.SessionError }</div>

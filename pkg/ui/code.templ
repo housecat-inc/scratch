@@ -7,6 +7,8 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
+	"github.com/templui/templui/components/badge"
+	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
 )
 
@@ -56,42 +58,71 @@ templ OverviewPage(p OverviewProps) {
 
 templ overviewItem(r repo.Repo) {
 	<li>
-		@card.Card(card.Props{Class: "overflow-hidden p-0"}) {
-			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block px-4 py-3 active:bg-accent">
-				<div class="flex items-baseline justify-between gap-2">
-					<div class="font-medium truncate">{ r.Slug() }</div>
-					<div class="flex gap-1 flex-shrink-0">
-						if r.State.Dirty {
-							<span class="text-amber-800 bg-amber-100 text-xs px-1.5 py-0.5 rounded">dirty</span>
+		@card.Card(card.Props{Class: "rounded-xl shadow-sm gap-3 py-4 transition hover:shadow-md"}) {
+			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s", r.Slug())) } class="block px-4 -my-1 active:bg-accent rounded-lg">
+				@card.Header(card.HeaderProps{Class: "p-0 flex flex-row items-start justify-between gap-2 space-y-0"}) {
+					<div class="flex-1 min-w-0">
+						@card.Title(card.TitleProps{Class: "text-base font-mono"}) {
+							{ r.Slug() }
 						}
-						if r.State.Diverged {
-							<span class="text-blue-800 bg-blue-100 text-xs px-1.5 py-0.5 rounded">ahead</span>
-						}
-						if r.State.Behind > 0 {
-							<span class="text-secondary-foreground bg-secondary text-xs px-1.5 py-0.5 rounded">{ strconv.Itoa(r.State.Behind) }↓</span>
+						@card.Description() {
+							on { r.Branch }
 						}
 					</div>
-				</div>
-				<div class="text-muted-foreground text-sm mt-0.5 truncate">on { r.Branch }</div>
+					<div class="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+						if r.State.Dirty {
+							@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "bg-amber-100 text-amber-900"}) {
+								dirty
+							}
+						}
+						if r.State.Diverged {
+							@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "bg-blue-100 text-blue-900"}) {
+								ahead
+							}
+						}
+						if r.State.Behind > 0 {
+							@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+								{ strconv.Itoa(r.State.Behind) }↓
+							}
+						}
+					</div>
+				}
 				if r.LastCommit.SHA != "" {
-					<div class="text-muted-foreground text-xs mt-1 truncate">{ r.LastCommit.Subject }</div>
+					@card.Content(card.ContentProps{Class: "px-0 pt-2 text-xs text-muted-foreground truncate"}) {
+						{ r.LastCommit.Subject }
+					}
 				}
 			</a>
 			if r.State.Dirty || r.State.Behind > 0 {
-				<div class="border-t border-border px-4 py-2 flex flex-wrap gap-2">
+				@card.Footer(card.FooterProps{Class: "border-t border-border pt-3 gap-2 flex-wrap"}) {
 					if r.State.Dirty {
-						<button type="button" class="text-xs px-2 py-1 bg-primary text-primary-foreground rounded"
-							hx-post="/sessions"
-							hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"commit then push local changes","redirect":"1"}`, r.Path) }
-							hx-disabled-elt="this">Commit &amp; Push</button>
+						@button.Button(button.Props{
+							Size: button.SizeSm,
+							Type: button.TypeButton,
+							Attributes: templ.Attributes{
+								"hx-post":         "/sessions",
+								"hx-vals":         fmt.Sprintf(`{"dir":"%s","prompt":"commit then push local changes","redirect":"1"}`, r.Path),
+								"hx-disabled-elt": "this",
+							},
+						}) {
+							Commit &amp; Push
+						}
 					}
 					if r.State.Behind > 0 {
-						<button type="button" class="text-xs px-2 py-1 bg-primary text-primary-foreground rounded"
-							hx-post="/sessions"
-							hx-vals={ fmt.Sprintf(`{"dir":"%s","prompt":"git pull remote changes","redirect":"1"}`, r.Path) }
-							hx-disabled-elt="this">Pull</button>
+						@button.Button(button.Props{
+							Size:    button.SizeSm,
+							Variant: button.VariantOutline,
+							Type:    button.TypeButton,
+							Attributes: templ.Attributes{
+								"hx-post":         "/sessions",
+								"hx-vals":         fmt.Sprintf(`{"dir":"%s","prompt":"git pull remote changes","redirect":"1"}`, r.Path),
+								"hx-disabled-elt": "this",
+							},
+						}) {
+							Pull
+						}
 					}
-				</div>
+				}
 			}
 		}
 	</li>
