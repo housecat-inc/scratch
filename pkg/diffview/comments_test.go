@@ -1,7 +1,6 @@
 package diffview
 
 import (
-	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -108,38 +107,6 @@ func TestSQLiteCommentStoreGetMissing(t *testing.T) {
 	store := newTestStore(t)
 	_, err := store.Get("acme/alpha", "nope")
 	a.True(IsCommentNotFound(err))
-}
-
-func TestSQLiteCommentStoreMigratesOldSchema(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	path := filepath.Join(t.TempDir(), "comments.db")
-	old, err := sql.Open("sqlite", commentDSN(path))
-	r.NoError(err)
-	_, err = old.Exec(`CREATE TABLE comments (
-        body TEXT NOT NULL,
-        created INTEGER NOT NULL,
-        id TEXT PRIMARY KEY,
-        line INTEGER NOT NULL,
-        path TEXT NOT NULL,
-        side TEXT NOT NULL,
-        slug TEXT NOT NULL
-    )`)
-	r.NoError(err)
-	_, err = old.Exec(`INSERT INTO comments (body, created, id, line, path, side, slug) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		"legacy", time.Now().UnixNano(), "legacy-id", 1, "foo.txt", "new", "acme/alpha")
-	r.NoError(err)
-	r.NoError(old.Close())
-
-	store, err := OpenSQLiteCommentStore(path)
-	r.NoError(err)
-	t.Cleanup(func() { store.Close() })
-
-	got, err := store.Get("acme/alpha", "legacy-id")
-	r.NoError(err)
-	a.Equal("legacy", got.Body)
-	a.False(got.Resolved)
 }
 
 func TestCommentAnchorStable(t *testing.T) {

@@ -1,0 +1,15 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "pkg/db/migrations"
+    queries: "pkg/db/queries"
+    gen:
+      go:
+        package: "db"
+        out: "pkg/db"
+        sql_package: "database/sql"
+        emit_empty_slices: true
+        emit_exact_table_names: false
+        emit_interface: false
+        emit_json_tags: false
+        emit_prepared_queries: false

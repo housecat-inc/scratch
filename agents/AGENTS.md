@@ -16,6 +16,19 @@ Write code that is easy to read, build, test, and deploy.
 - HTMX from `<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>`
 - Vanilla JS sparingly
 
+## Version Control
+
+- Start every change on a new branch off `main`; never commit directly to `main`
+- Commit after every turn so the user can review progress incrementally — small commits are fine
+- Review feedback lives in `$HOME/.config/scratch/diff.db` (sqlite). To find open comments on the current branch:
+
+  ```bash
+  sqlite3 -separator $'\t' ~/.config/scratch/diff.db \
+    "SELECT path, line, side, body FROM comments WHERE slug = 'housecat-inc/scratch' AND resolved = 0 ORDER BY created"
+  ```
+
+  Address each comment in code, then mark it resolved with `UPDATE comments SET resolved = 1, updated = strftime('%s','now') * 1000000000 WHERE id = ?`
+
 ## Git
 
 Pull requests are validated by the `lint-pr` CI job. Format them as customer-facing release notes:
