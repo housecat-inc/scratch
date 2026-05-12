@@ -47,10 +47,12 @@ func Scan(home string) ([]Repo, error) {
 	return repos, nil
 }
 
+const LocalOrg = "local"
+
 func Inspect(path string) (Repo, bool) {
 	org, name, err := git.RemoteSlug(path)
 	if err != nil {
-		return Repo{}, false
+		org, name = LocalOrg, filepath.Base(path)
 	}
 	r := Repo{Name: name, Org: org, Path: path}
 	if b, err := git.Branch(path); err == nil {
