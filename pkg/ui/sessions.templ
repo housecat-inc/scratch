@@ -32,18 +32,41 @@ templ SessionsPage(v SessionsProps) {
 }
 
 templ InstallCard(v SessionsProps) {
-	@stepCard("card-install", v.Oob, "1", v.Installed, "Install", "Run claude.ai/install.sh") {
+	@stepCard("card-install", v.Oob, "1", installDone(v), "Install", installHint(v)) {
 		if !v.Installed {
 			@button.Button(button.Props{
 				Attributes: hxAction("post", "/install", "#card-install"),
 			}) {
 				Install
 			}
+		} else if v.UpdateAvailable {
+			@button.Button(button.Props{
+				Attributes: hxAction("post", "/install", "#card-install"),
+			}) {
+				Update
+			}
+			if v.ClaudeVersion != "" {
+				<span class="text-xs text-muted-foreground font-mono">v{ v.ClaudeVersion }</span>
+			}
 		}
 		if v.InstallError != "" {
 			@stepError(v.InstallError)
 		}
 	}
+}
+
+func installDone(v SessionsProps) bool {
+	return v.Installed && !v.UpdateAvailable
+}
+
+func installHint(v SessionsProps) string {
+	switch {
+	case !v.Installed:
+		return "Run claude.ai/install.sh"
+	case v.UpdateAvailable:
+		return "Update claude to the latest version"
+	}
+	return ""
 }
 
 templ stepCard(id string, oob bool, num string, done bool, title, hint string) {

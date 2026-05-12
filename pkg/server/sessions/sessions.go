@@ -18,20 +18,22 @@ import (
 )
 
 type Deps struct {
-	AgentsStatus  func() (agents.State, error)
-	Authenticated func() (bool, error)
-	Configure     func() error
-	Configured    func() (bool, error)
-	Install       func() error
-	Installed     func() bool
-	ListSessions  func() []*claudecode.Session
-	ListSubdirs   func(dir string) ([]string, error)
+	AgentsStatus       func() (agents.State, error)
+	Authenticated      func() (bool, error)
+	ClaudeVersion      func() string
+	Configure          func() error
+	Configured         func() (bool, error)
+	Install            func() error
+	Installed          func() bool
+	ListSessions       func() []*claudecode.Session
+	ListSubdirs        func(dir string) ([]string, error)
 	SessionLastMessage func(id string) string
 	SessionQR          func(id string) ([]byte, error)
 	SlugForPrompt      func(prompt string) string
-	StartLogin    func() (Login, error)
-	StartSession  func(name, dir, prompt string) (*claudecode.Session, error)
-	StopSession   func(id string) error
+	StartLogin         func() (Login, error)
+	StartSession       func(name, dir, prompt string) (*claudecode.Session, error)
+	StopSession        func(id string) error
+	UpdateAvailable    func() bool
 }
 
 type Login interface {
@@ -52,15 +54,29 @@ func DefaultDeps() Deps {
 	if err := mgr.Recover(); err != nil {
 		slog.Warn("session recovery failed", "error", err.Error())
 	}
+	updates := &updateChecker{ttl: time.Hour, check: claudecode.UpdateAvailable}
 	return Deps{
 		AgentsStatus:  agents.Status,
 		Authenticated: claudecode.Authenticated,
-		Configure:     claudecode.Configure,
-		Configured:    claudecode.Configured,
-		Install:       claudecode.EnsureInstalled,
-		Installed:     claudecode.Installed,
-		ListSessions:  mgr.List,
-		ListSubdirs:   listSubdirs,
+		ClaudeVersion: func() string {
+			v, err := claudecode.Version()
+			if err != nil {
+				slog.Warn("claude version failed", "error", err.Error())
+			}
+			return v
+		},
+		Configure: claudecode.Configure,
+		Configured: claudecode.Configured,
+		Install: func() error {
+			if err := claudecode.EnsureInstalled(); err != nil {
+				return err
+			}
+			updates.markFresh()
+			return nil
+		},
+		Installed:    claudecode.Installed,
+		ListSessions: mgr.List,
+		ListSubdirs:  listSubdirs,
 		SessionLastMessage: func(id string) string { return mgr.LastMessage(id) },
 		SessionQR: func(id string) ([]byte, error) {
 			s := mgr.Get(id)
@@ -75,9 +91,40 @@ func DefaultDeps() Deps {
 		StartLogin: func() (Login, error) {
 			return claudecode.StartLogin()
 		},
-		StartSession: mgr.Start,
-		StopSession:  mgr.Stop,
+		StartSession:    mgr.Start,
+		StopSession:     mgr.Stop,
+		UpdateAvailable: updates.Available,
 	}
+}
+
+type updateChecker struct {
+	check   func() (bool, error)
+	cached  bool
+	checked time.Time
+	mu      sync.Mutex
+	ttl     time.Duration
+}
+
+func (u *updateChecker) Available() bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if !u.checked.IsZero() && time.Since(u.checked) < u.ttl {
+		return u.cached
+	}
+	ok, err := u.check()
+	if err != nil {
+		slog.Warn("update check failed", "error", err.Error())
+	}
+	u.cached = ok
+	u.checked = time.Now()
+	return u.cached
+}
+
+func (u *updateChecker) markFresh() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.cached = false
+	u.checked = time.Now()
 }
 
 func listSubdirs(dir string) ([]string, error) {
@@ -424,6 +471,14 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, comps ...templ.C
 
 func (s *Server) viewModel() ui.SessionsProps {
 	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.home}
+	if vm.Installed {
+		if s.deps.ClaudeVersion != nil {
+			vm.ClaudeVersion = s.deps.ClaudeVersion()
+		}
+		if s.deps.UpdateAvailable != nil {
+			vm.UpdateAvailable = s.deps.UpdateAvailable()
+		}
+	}
 	if dir, err := agents.Dir(); err == nil {
 		vm.AgentsDir = dir
 	}

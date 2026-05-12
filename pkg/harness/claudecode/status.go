@@ -1,15 +1,20 @@
 package claudecode
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/agents"
 )
+
+const npmLatestURL = "https://registry.npmjs.org/@anthropic-ai/claude-code/latest"
 
 type Credentials struct {
 	ClaudeAIOauth ClaudeAIOauth `json:"claudeAiOauth"`
@@ -79,4 +84,55 @@ func Installed() bool {
 		}
 	}
 	return true
+}
+
+func Version() (string, error) {
+	if _, err := exec.LookPath("claude"); err != nil {
+		return "", nil
+	}
+	out, err := exec.Command("claude", "--version").Output()
+	if err != nil {
+		return "", errors.Wrap(err, "claude --version")
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 {
+		return "", nil
+	}
+	return fields[0], nil
+}
+
+func LatestVersion(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, npmLatestURL, nil)
+	if err != nil {
+		return "", errors.Wrap(err, "build npm registry request")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", errors.Wrap(err, "fetch npm registry")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.Newf("npm registry returned %s", resp.Status)
+	}
+	var body struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", errors.Wrap(err, "decode npm response")
+	}
+	return body.Version, nil
+}
+
+func UpdateAvailable() (bool, error) {
+	current, err := Version()
+	if err != nil || current == "" {
+		return false, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	latest, err := LatestVersion(ctx)
+	if err != nil || latest == "" {
+		return false, err
+	}
+	return current != latest, nil
 }
