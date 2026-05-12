@@ -74,7 +74,10 @@ func ConfiguredAt(home string) (bool, error) {
 	if ok, err := agents.InstalledAt(filepath.Join(home, "scratch")); err != nil || !ok {
 		return ok, err
 	}
-	return HasSymlinksAt(home)
+	if ok, err := HasSymlinksAt(home); err != nil || !ok {
+		return ok, err
+	}
+	return HasGoBinOnPathAt(home)
 }
 
 func Installed() bool {

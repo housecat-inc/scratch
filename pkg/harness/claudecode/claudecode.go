@@ -133,7 +133,10 @@ func Configure() error {
 	if err := agents.InstallOrUpdate(); err != nil {
 		return err
 	}
-	return EnsureSymlinks()
+	if err := EnsureSymlinks(); err != nil {
+		return err
+	}
+	return EnsureGoBinOnPath()
 }
 
 func Setup() error {
