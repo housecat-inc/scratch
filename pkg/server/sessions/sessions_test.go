@@ -31,10 +31,12 @@ func (f *fakeLogin) SubmitCode(code string) error {
 func (f *fakeLogin) URL() string { return f.url }
 
 type fakeDeps struct {
-	agents        agents.State
-	authenticated bool
-	configured    bool
-	installed     bool
+	agents          agents.State
+	authenticated   bool
+	claudeVersion   string
+	configured      bool
+	installed       bool
+	updateAvailable bool
 
 	configureErr error
 	installErr   error
@@ -61,6 +63,7 @@ func (f *fakeDeps) deps() Deps {
 	return Deps{
 		AgentsStatus:  func() (agents.State, error) { return f.agents, nil },
 		Authenticated: func() (bool, error) { return f.authenticated, nil },
+		ClaudeVersion: func() string { return f.claudeVersion },
 		Configure: func() error {
 			f.configureCalls++
 			if f.configureErr != nil {
@@ -76,6 +79,7 @@ func (f *fakeDeps) deps() Deps {
 				return f.installErr
 			}
 			f.installed = true
+			f.updateAvailable = false
 			return nil
 		},
 		Installed: func() bool { return f.installed },
@@ -129,6 +133,7 @@ func (f *fakeDeps) deps() Deps {
 			f.sessions = out
 			return nil
 		},
+		UpdateAvailable: func() bool { return f.updateAvailable },
 	}
 }
 
@@ -159,6 +164,16 @@ func TestSetupPage(t *testing.T) {
 				`hx-post="/login"`,
 			},
 			mustMiss: []string{`hx-post="/install"`, `hx-post="/configure"`},
+		},
+		{
+			name: "update available re-opens step 1 with version label",
+			fake: fakeDeps{installed: true, updateAvailable: true, claudeVersion: "2.1.139"},
+			mustHave: []string{
+				`hx-post="/install"`,
+				">Update<",
+				"v2.1.139",
+				"Update claude to the latest version",
+			},
 		},
 		{
 			name: "authenticated checks step 2, activates step 3",
