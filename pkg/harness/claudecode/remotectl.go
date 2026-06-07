@@ -1,6 +1,7 @@
 package claudecode
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"os"
@@ -18,11 +19,13 @@ import (
 )
 
 var (
-	assistantLineRegex  = regexp.MustCompile(`^\s*●\s+(.+)$`)
-	defaultStartTimeout = 20 * time.Second
-	nameRegex           = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
-	toolCallRegex       = regexp.MustCompile(`^\s*●\s+[A-Z][A-Za-z0-9_]*\(`)
-	urlRegex            = regexp.MustCompile(`https://(?:claude\.ai|code\.claude\.com)/code/session_[A-Za-z0-9]+`)
+	assistantLineRegex       = regexp.MustCompile(`^\s*●\s+(.+)$`)
+	defaultStartTimeout      = 30 * time.Second
+	nameRegex                = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+	remoteControlMenuCommand = "/remote-control"
+	remoteControlReadyMarker = []byte("Remote Control active")
+	toolCallRegex            = regexp.MustCompile(`^\s*●\s+[A-Z][A-Za-z0-9_]*\(`)
+	urlRegex                 = regexp.MustCompile(`https://(?:claude\.ai|code\.claude\.com)/code/session_[A-Za-z0-9]+`)
 )
 
 type Manager struct {
@@ -270,24 +273,43 @@ func (m *Manager) StopAll() {
 	}
 }
 
+// waitForURL polls the session pane for the remote-control URL. Newer Claude
+// Code no longer prints the URL on startup; it only appears once the
+// /remote-control menu is opened, so reveal it as soon as remote control is
+// active and dismiss the menu after capturing the URL.
 func (m *Manager) waitForURL(tmuxName string) (string, error) {
 	timeout := m.StartTimeout
 	if timeout == 0 {
 		timeout = defaultStartTimeout
 	}
-	deadline := time.Now().Add(timeout)
+	start := time.Now()
+	deadline := start.Add(timeout)
+	revealFallback := start.Add(timeout / 2)
 	var lastOut []byte
+	revealed := false
 	for time.Now().Before(deadline) {
 		out, err := exec.Command(m.TmuxBin, "capture-pane", "-t", tmuxName, "-p", "-J", "-S", "-").Output()
 		if err == nil {
 			lastOut = out
 			if match := urlRegex.Find(out); match != nil {
+				if revealed {
+					m.sendKeys(tmuxName, "Escape")
+				}
 				return string(match), nil
+			}
+			if !revealed && (bytes.Contains(out, remoteControlReadyMarker) || time.Now().After(revealFallback)) {
+				m.sendKeys(tmuxName, "-l", remoteControlMenuCommand)
+				m.sendKeys(tmuxName, "Enter")
+				revealed = true
 			}
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
 	return "", errors.Newf("timed out waiting for remote-control URL; pane: %s", tail(string(lastOut), 400))
+}
+
+func (m *Manager) sendKeys(tmuxName string, keys ...string) {
+	_ = exec.Command(m.TmuxBin, append([]string{"send-keys", "-t", tmuxName}, keys...)...).Run()
 }
 
 func tail(s string, n int) string {

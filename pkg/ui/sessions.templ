@@ -32,15 +32,16 @@ templ SessionsPage(v SessionsProps) {
 }
 
 templ InstallCard(v SessionsProps) {
-	@stepCard("card-install", v.Oob, "1", installDone(v), "Install", installHint(v)) {
+	@stepCard("card-install", v.Oob, "1", v.Installed, true, "Install", installHint(v)) {
 		if !v.Installed {
 			@button.Button(button.Props{
 				Attributes: hxAction("post", "/install", "#card-install"),
 			}) {
 				Install
 			}
-		} else if v.UpdateAvailable {
+		} else {
 			@button.Button(button.Props{
+				Variant:    button.VariantOutline,
 				Attributes: hxAction("post", "/install", "#card-install"),
 			}) {
 				Update
@@ -55,21 +56,14 @@ templ InstallCard(v SessionsProps) {
 	}
 }
 
-func installDone(v SessionsProps) bool {
-	return v.Installed && !v.UpdateAvailable
-}
-
 func installHint(v SessionsProps) string {
-	switch {
-	case !v.Installed:
+	if !v.Installed {
 		return "Run claude.ai/install.sh"
-	case v.UpdateAvailable:
-		return "Update claude to the latest version"
 	}
 	return ""
 }
 
-templ stepCard(id string, oob bool, num string, done bool, title, hint string) {
+templ stepCard(id string, oob bool, num string, done, open bool, title, hint string) {
 	<li id={ id }
 		if oob {
 			hx-swap-oob="true"
@@ -89,7 +83,7 @@ templ stepCard(id string, oob bool, num string, done bool, title, hint string) {
 				</div>
 				@stepBadge(num, done)
 			}
-			if !done {
+			if open {
 				@card.Content(card.ContentProps{Class: "flex flex-wrap items-center gap-2"}) {
 					{ children... }
 				}
@@ -125,7 +119,7 @@ templ stepBadge(num string, done bool) {
 
 
 templ LoginCard(v SessionsProps) {
-	@stepCard("card-login", v.Oob, "2", v.Authenticated, "Pay", "Connect Anthropic subscription") {
+	@stepCard("card-login", v.Oob, "2", v.Authenticated, !v.Authenticated, "Pay", "Connect Anthropic subscription") {
 		if !v.Authenticated {
 			if v.LoginURL != "" {
 				@button.Button(button.Props{
@@ -166,7 +160,7 @@ templ LoginCard(v SessionsProps) {
 }
 
 templ ConfigureCard(v SessionsProps) {
-	@stepCard("card-configure", v.Oob, "3", configureDone(v), "Configure", configureHint(v)) {
+	@stepCard("card-configure", v.Oob, "3", configureDone(v), !configureDone(v), "Configure", configureHint(v)) {
 		if !v.Configured && v.Authenticated {
 			@button.Button(button.Props{Attributes: hxAction("post", "/configure", "#card-configure")}) {
 				Configure

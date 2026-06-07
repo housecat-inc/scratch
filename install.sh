@@ -2,7 +2,7 @@
 set -eu
 
 REPO="housecat-inc/scratch"
-BIN="${BIN:-${1:-claude-control}}"
+BIN="${BIN:-${1:-scratch}}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -34,3 +34,12 @@ case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
   *) echo "note: $INSTALL_DIR is not in PATH" ;;
 esac
+
+if [ "${EXEUNTU:-}" = "1" ]; then
+  VM=$(hostname -s 2>/dev/null || hostname)
+  echo
+  echo "detected exe.dev / Shelley"
+  echo "run as a systemd service on port 8888:"
+  echo "  systemd-run --user --unit=$BIN --collect $INSTALL_DIR/$BIN --port 8888"
+  echo "then continue at the private URL https://$VM.exe.xyz:8888/"
+fi
