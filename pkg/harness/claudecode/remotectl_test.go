@@ -323,13 +323,25 @@ case "$SUB" in
     echo "$DIR" > "$TMUX_PANES/$NAME.dir"
     date +%s > "$TMUX_PANES/$NAME.created"
     : > "$TMUX_PANES/$NAME.env"
+    : > "$TMUX_PANES/$NAME.keys"
     IFS='|'
     for pair in $ENV_PAIRS; do
       echo "$pair" >> "$TMUX_PANES/$NAME.env"
     done
     unset IFS
+    export RC_KEYS="$TMUX_PANES/$NAME.keys"
     ("$@" > "$TMUX_PANES/$NAME" 2>&1) &
     echo $! > "$TMUX_PANES/$NAME.pid"
+    ;;
+  send-keys)
+    NAME=
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -t) NAME=$2; shift 2;;
+        -l) shift;;
+        *) printf '%s' "$1" >> "$TMUX_PANES/$NAME.keys"; shift;;
+      esac
+    done
     ;;
   list-sessions)
     for f in "$TMUX_PANES"/*.dir; do
@@ -376,20 +388,32 @@ case "$SUB" in
       kill $(cat "$TMUX_PANES/$NAME.pid") 2>/dev/null || true
       rm -f "$TMUX_PANES/$NAME.pid"
     fi
-    rm -f "$TMUX_PANES/$NAME" "$TMUX_PANES/$NAME.dir" "$TMUX_PANES/$NAME.created" "$TMUX_PANES/$NAME.env"
+    rm -f "$TMUX_PANES/$NAME" "$TMUX_PANES/$NAME.dir" "$TMUX_PANES/$NAME.created" "$TMUX_PANES/$NAME.env" "$TMUX_PANES/$NAME.keys"
     ;;
 esac
 `), 0o755))
 	return path
 }
 
+// writeFakeClaudeRemoteCtl models Claude Code >= 2.1.168: it reports remote
+// control as active but only prints the session URL once the /remote-control
+// menu is opened (simulated via keys written to RC_KEYS).
 func writeFakeClaudeRemoteCtl(t *testing.T, url string) string {
 	t.Helper()
 	r := require.New(t)
 	path := filepath.Join(t.TempDir(), "claude")
 	body := "#!/bin/sh\n"
+	body += "echo 'Remote Control active'\n"
 	if url != "" {
-		body += "echo \"open " + url + " to connect\"\n"
+		body += "n=0\n"
+		body += "while [ $n -lt 100 ]; do\n"
+		body += "  if [ -n \"$RC_KEYS\" ] && grep -q 'remote-control' \"$RC_KEYS\" 2>/dev/null; then\n"
+		body += "    echo 'This session is available in the Claude mobile app and at " + url + ".'\n"
+		body += "    break\n"
+		body += "  fi\n"
+		body += "  sleep 0.1\n"
+		body += "  n=$((n+1))\n"
+		body += "done\n"
 	}
 	body += "sleep 5\n"
 	r.NoError(os.WriteFile(path, []byte(body), 0o755))
