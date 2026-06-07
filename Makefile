@@ -1,13 +1,13 @@
-BIN      := $(HOME)/go/bin/claude-control
-PKG      := ./cmd/claude-control
+BIN      := $(HOME)/go/bin/scratch
+PKG      := ./cmd/scratch
 PORT     ?= 8888
-SERVICE  := claude-control.service
+SERVICE  := scratch.service
 UNIT_DIR := $(HOME)/.config/systemd/user
 UNIT     := $(UNIT_DIR)/$(SERVICE)
 
 define UNIT_CONTENTS
 [Unit]
-Description=claude-control web UI
+Description=scratch web UI
 After=default.target
 
 [Service]

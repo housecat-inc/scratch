@@ -191,7 +191,7 @@ func InstallCard(v SessionsProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-			} else if v.UpdateAvailable {
+			} else {
 				templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -211,6 +211,7 @@ func InstallCard(v SessionsProps) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = button.Button(button.Props{
+					Variant:    button.VariantOutline,
 					Attributes: hxAction("post", "/install", "#card-install"),
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -228,7 +229,7 @@ func InstallCard(v SessionsProps) templ.Component {
 					var templ_7745c5c3_Var9 string
 					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(v.ClaudeVersion)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 49, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 50, Col: 76}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -252,7 +253,7 @@ func InstallCard(v SessionsProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = stepCard("card-install", v.Oob, "1", installDone(v), "Install", installHint(v)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = stepCard("card-install", v.Oob, "1", v.Installed, true, "Install", installHint(v)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -260,21 +261,14 @@ func InstallCard(v SessionsProps) templ.Component {
 	})
 }
 
-func installDone(v SessionsProps) bool {
-	return v.Installed && !v.UpdateAvailable
-}
-
 func installHint(v SessionsProps) string {
-	switch {
-	case !v.Installed:
+	if !v.Installed {
 		return "Run claude.ai/install.sh"
-	case v.UpdateAvailable:
-		return "Update claude to the latest version"
 	}
 	return ""
 }
 
-func stepCard(id string, oob bool, num string, done bool, title, hint string) templ.Component {
+func stepCard(id string, oob bool, num string, done, open bool, title, hint string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -302,7 +296,7 @@ func stepCard(id string, oob bool, num string, done bool, title, hint string) te
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 73, Col: 12}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 67, Col: 12}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
@@ -365,7 +359,7 @@ func stepCard(id string, oob bool, num string, done bool, title, hint string) te
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 82, Col: 13}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 76, Col: 13}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 					if templ_7745c5c3_Err != nil {
@@ -393,7 +387,7 @@ func stepCard(id string, oob bool, num string, done bool, title, hint string) te
 						var templ_7745c5c3_Var17 string
 						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(hint)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 86, Col: 13}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 80, Col: 13}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 						if templ_7745c5c3_Err != nil {
@@ -424,7 +418,7 @@ func stepCard(id string, oob bool, num string, done bool, title, hint string) te
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if !done {
+			if open {
 				templ_7745c5c3_Var18 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -490,7 +484,7 @@ func stepError(msg string) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 102, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 96, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -577,7 +571,7 @@ func stepBadge(num string, done bool) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(num)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 121, Col: 13}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 115, Col: 13}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -756,7 +750,7 @@ func LoginCard(v SessionsProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = stepCard("card-login", v.Oob, "2", v.Authenticated, "Pay", "Connect Anthropic subscription").Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = stepCard("card-login", v.Oob, "2", v.Authenticated, !v.Authenticated, "Pay", "Connect Anthropic subscription").Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -886,7 +880,7 @@ func ConfigureCard(v SessionsProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = stepCard("card-configure", v.Oob, "3", configureDone(v), "Configure", configureHint(v)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var32), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = stepCard("card-configure", v.Oob, "3", configureDone(v), !configureDone(v), "Configure", configureHint(v)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var32), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1094,7 +1088,7 @@ func SessionsCard(v SessionsProps) templ.Component {
 					var templ_7745c5c3_Var44 string
 					templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(v.SessionDir)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 250, Col: 152}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 244, Col: 152}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 					if templ_7745c5c3_Err != nil {
@@ -1141,7 +1135,7 @@ func SessionsCard(v SessionsProps) templ.Component {
 					var templ_7745c5c3_Var46 string
 					templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.SessionDir)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 263, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 257, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 					if templ_7745c5c3_Err != nil {
@@ -1223,7 +1217,7 @@ func SessionsCard(v SessionsProps) templ.Component {
 				var templ_7745c5c3_Var49 string
 				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(v.SessionError)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 289, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 283, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 				if templ_7745c5c3_Err != nil {
@@ -1296,7 +1290,7 @@ func sessionItem(s SessionProps) templ.Component {
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("session-%s", s.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 305, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 299, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 		if templ_7745c5c3_Err != nil {
@@ -1337,7 +1331,7 @@ func sessionItem(s SessionProps) templ.Component {
 				var templ_7745c5c3_Var54 string
 				templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/sessions/%s/qr", s.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 309, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 303, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
 				if templ_7745c5c3_Err != nil {
@@ -1350,7 +1344,7 @@ func sessionItem(s SessionProps) templ.Component {
 				var templ_7745c5c3_Var55 string
 				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("QR code for %s", s.Name))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 310, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 304, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 				if templ_7745c5c3_Err != nil {
@@ -1375,7 +1369,7 @@ func sessionItem(s SessionProps) templ.Component {
 					var templ_7745c5c3_Var57 string
 					templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(s.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 313, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 307, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 					if templ_7745c5c3_Err != nil {
@@ -1402,7 +1396,7 @@ func sessionItem(s SessionProps) templ.Component {
 					var templ_7745c5c3_Var59 string
 					templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(s.Dir)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 316, Col: 13}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 310, Col: 13}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 					if templ_7745c5c3_Err != nil {
@@ -1421,7 +1415,7 @@ func sessionItem(s SessionProps) templ.Component {
 				var templ_7745c5c3_Var60 templ.SafeURL
 				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(s.URL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 318, Col: 97}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 312, Col: 97}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 				if templ_7745c5c3_Err != nil {
@@ -1434,7 +1428,7 @@ func sessionItem(s SessionProps) templ.Component {
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(s.URL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 318, Col: 138}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 312, Col: 138}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
@@ -1541,7 +1535,7 @@ func sessionItem(s SessionProps) templ.Component {
 						var templ_7745c5c3_Var65 string
 						templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.Prompt)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 350, Col: 72}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 344, Col: 72}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var65)
 						if templ_7745c5c3_Err != nil {
@@ -1554,7 +1548,7 @@ func sessionItem(s SessionProps) templ.Component {
 						var templ_7745c5c3_Var66 string
 						templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(s.Prompt)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 350, Col: 89}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 344, Col: 89}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 						if templ_7745c5c3_Err != nil {
@@ -1577,7 +1571,7 @@ func sessionItem(s SessionProps) templ.Component {
 						var templ_7745c5c3_Var67 string
 						templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.LastMessage)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 353, Col: 134}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 347, Col: 134}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var67)
 						if templ_7745c5c3_Err != nil {
@@ -1590,7 +1584,7 @@ func sessionItem(s SessionProps) templ.Component {
 						var templ_7745c5c3_Var68 string
 						templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(s.LastMessage)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 353, Col: 152}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 347, Col: 152}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 						if templ_7745c5c3_Err != nil {
@@ -1687,7 +1681,7 @@ func SessionDirPicker(p PickerProps) templ.Component {
 		var templ_7745c5c3_Var71 string
 		templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(p.Dir)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 378, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 372, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 		if templ_7745c5c3_Err != nil {
@@ -1736,7 +1730,7 @@ func SessionDirPicker(p PickerProps) templ.Component {
 			var templ_7745c5c3_Var73 string
 			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(p.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 389, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 383, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 			if templ_7745c5c3_Err != nil {
@@ -1760,7 +1754,7 @@ func SessionDirPicker(p PickerProps) templ.Component {
 				var templ_7745c5c3_Var74 string
 				templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/sessions/picker?dir=%s/%s", p.Dir, name))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 396, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 390, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var74)
 				if templ_7745c5c3_Err != nil {
@@ -1773,7 +1767,7 @@ func SessionDirPicker(p PickerProps) templ.Component {
 				var templ_7745c5c3_Var75 string
 				templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 396, Col: 123}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 390, Col: 123}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 				if templ_7745c5c3_Err != nil {
@@ -1801,7 +1795,7 @@ func SessionDirPicker(p PickerProps) templ.Component {
 		var templ_7745c5c3_Var76 string
 		templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(p.Dir)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 404, Col: 156}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 398, Col: 156}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 		if templ_7745c5c3_Err != nil {
@@ -1814,7 +1808,7 @@ func SessionDirPicker(p PickerProps) templ.Component {
 		var templ_7745c5c3_Var77 string
 		templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Dir)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 405, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/sessions.templ`, Line: 399, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var77)
 		if templ_7745c5c3_Err != nil {

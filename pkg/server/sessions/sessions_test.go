@@ -31,12 +31,11 @@ func (f *fakeLogin) SubmitCode(code string) error {
 func (f *fakeLogin) URL() string { return f.url }
 
 type fakeDeps struct {
-	agents          agents.State
-	authenticated   bool
-	claudeVersion   string
-	configured      bool
-	installed       bool
-	updateAvailable bool
+	agents        agents.State
+	authenticated bool
+	claudeVersion string
+	configured    bool
+	installed     bool
 
 	configureErr error
 	installErr   error
@@ -79,7 +78,6 @@ func (f *fakeDeps) deps() Deps {
 				return f.installErr
 			}
 			f.installed = true
-			f.updateAvailable = false
 			return nil
 		},
 		Installed: func() bool { return f.installed },
@@ -133,7 +131,6 @@ func (f *fakeDeps) deps() Deps {
 			f.sessions = out
 			return nil
 		},
-		UpdateAvailable: func() bool { return f.updateAvailable },
 	}
 }
 
@@ -148,7 +145,7 @@ func TestSetupPage(t *testing.T) {
 			name: "fresh state shows install active, others pending",
 			fake: fakeDeps{},
 			mustHave: []string{
-				"claude-control",
+				"scratch",
 				">Install<", ">Pay<", ">Configure<",
 				`id="card-install"`,
 				`id="card-login"`,
@@ -158,22 +155,15 @@ func TestSetupPage(t *testing.T) {
 			mustMiss: []string{`hx-post="/configure"`, `hx-post="/login"`},
 		},
 		{
-			name: "installed checks step 1, activates step 2",
-			fake: fakeDeps{installed: true},
-			mustHave: []string{
-				`hx-post="/login"`,
-			},
-			mustMiss: []string{`hx-post="/install"`, `hx-post="/configure"`},
-		},
-		{
-			name: "update available re-opens step 1 with version label",
-			fake: fakeDeps{installed: true, updateAvailable: true, claudeVersion: "2.1.139"},
+			name: "installed shows update button and version, activates step 2",
+			fake: fakeDeps{installed: true, claudeVersion: "2.1.139"},
 			mustHave: []string{
 				`hx-post="/install"`,
 				">Update<",
 				"v2.1.139",
-				"Update claude to the latest version",
+				`hx-post="/login"`,
 			},
+			mustMiss: []string{`hx-post="/configure"`},
 		},
 		{
 			name: "authenticated checks step 2, activates step 3",
@@ -181,12 +171,13 @@ func TestSetupPage(t *testing.T) {
 			mustHave: []string{
 				`hx-post="/configure"`,
 			},
-			mustMiss: []string{`hx-post="/install"`, `hx-post="/login"`},
+			mustMiss: []string{`hx-post="/login"`},
 		},
 		{
-			name: "all done shows no buttons",
+			name: "all done still shows update button",
 			fake: fakeDeps{installed: true, configured: true, authenticated: true},
-			mustMiss: []string{`hx-post="/install"`, `hx-post="/login"`, `hx-post="/configure"`},
+			mustHave: []string{">Update<"},
+			mustMiss: []string{`hx-post="/login"`, `hx-post="/configure"`},
 		},
 	}
 
@@ -298,13 +289,13 @@ func TestInstall(t *testing.T) {
 		name     string
 	}{
 		{
-			name: "success checks install step and OOB-activates login step",
+			name: "success shows update button and OOB-activates login step",
 			mustHave: []string{
 				`id="card-install"`,
+				">Update<",
 				`id="card-login" hx-swap-oob="true"`,
 				`hx-post="/login"`,
 			},
-			mustMiss: []string{`hx-post="/install"`},
 		},
 		{
 			name:     "error renders error message",
