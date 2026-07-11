@@ -1,5 +1,13 @@
 # Setup for Agent Computers
 
+scratch is scaffolding for a new app built with agents. 
+
+First bootstrap Claude Code or OpenAI Codex tools and subscriptions if needed.
+
+Next build CRUD apps with "batteries included" for database, migrations, design system, UI / API / CLI, unit and headless browser integration tests.
+
+Finally iterate with in-app developer tools like a DOM and web inspector agent chat and code review.
+
 ## Features
 
 - Claude Code Remote Control setup

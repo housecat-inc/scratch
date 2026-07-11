@@ -2,45 +2,28 @@ package claudecode
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAuthenticatedAt(t *testing.T) {
-	future := time.Now().Add(time.Hour).UnixMilli()
-	past := time.Now().Add(-time.Hour).UnixMilli()
-
+func TestAuthenticated(t *testing.T) {
 	tests := []struct {
+		exit    int
 		name    string
-		write   *string
+		stdout  string
 		want    bool
 		wantErr bool
 	}{
-		{name: "missing file is not authenticated"},
-		{name: "empty file is not authenticated", write: ptr("")},
-		{
-			name:  "valid token in future is authenticated",
-			write: ptr(`{"claudeAiOauth": {"accessToken": "tok", "expiresAt": ` + itoa(future) + `}}`),
-			want:  true,
-		},
-		{
-			name:  "expired token is not authenticated",
-			write: ptr(`{"claudeAiOauth": {"accessToken": "tok", "expiresAt": ` + itoa(past) + `}}`),
-		},
-		{
-			name:  "missing access token is not authenticated",
-			write: ptr(`{"claudeAiOauth": {"expiresAt": ` + itoa(future) + `}}`),
-		},
-		{
-			name:    "malformed json errors",
-			write:   ptr(`{not json`),
-			wantErr: true,
-		},
+		{name: "logged in", stdout: `{"loggedIn": true, "email": "noah@housecat.com"}`, want: true},
+		{name: "logged out", stdout: `{"loggedIn": false}`},
+		{name: "cli error is not authenticated", exit: 1, stdout: `not logged in`},
+		{name: "malformed json errors", stdout: `{not json`, wantErr: true},
 	}
 
 	for _, tc := range tests {
@@ -48,12 +31,11 @@ func TestAuthenticatedAt(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
 
-			path := filepath.Join(t.TempDir(), ".credentials.json")
-			if tc.write != nil {
-				r.NoError(os.WriteFile(path, []byte(*tc.write), 0o600))
-			}
+			path := filepath.Join(t.TempDir(), "out")
+			r.NoError(os.WriteFile(path, []byte(tc.stdout), 0o644))
+			cmd := exec.Command("sh", "-c", fmt.Sprintf("cat %q; exit %d", path, tc.exit))
 
-			ok, err := AuthenticatedAt(path)
+			ok, err := authenticated(cmd)
 			if tc.wantErr {
 				a.Error(err)
 				return
@@ -63,8 +45,6 @@ func TestAuthenticatedAt(t *testing.T) {
 		})
 	}
 }
-
-func ptr(s string) *string { return &s }
 
 func TestConfiguredAt(t *testing.T) {
 	tests := []struct {
@@ -225,9 +205,4 @@ func TestHasDefaults(t *testing.T) {
 			a.Equal(tc.want, ok)
 		})
 	}
-}
-
-func itoa(n int64) string {
-	b, _ := json.Marshal(n)
-	return string(b)
 }

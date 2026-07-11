@@ -6,49 +6,27 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/agents"
 )
 
-type Credentials struct {
-	ClaudeAIOauth ClaudeAIOauth `json:"claudeAiOauth"`
-}
-
-type ClaudeAIOauth struct {
-	AccessToken  string `json:"accessToken"`
-	ExpiresAt    int64  `json:"expiresAt"`
-	RefreshToken string `json:"refreshToken"`
-}
-
 func Authenticated() (bool, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false, errors.Wrap(err, "user home dir")
-	}
-	return AuthenticatedAt(filepath.Join(home, ".claude", ".credentials.json"))
+	return authenticated(exec.Command("claude", "auth", "status", "--json"))
 }
 
-func AuthenticatedAt(path string) (bool, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
+func authenticated(cmd *exec.Cmd) (bool, error) {
+	out, err := cmd.Output()
 	if err != nil {
-		return false, errors.Wrapf(err, "read %s", path)
-	}
-	if len(data) == 0 {
 		return false, nil
 	}
-	var c Credentials
-	if err := json.Unmarshal(data, &c); err != nil {
-		return false, errors.Wrapf(err, "parse %s", path)
+	var status struct {
+		LoggedIn bool `json:"loggedIn"`
 	}
-	if c.ClaudeAIOauth.AccessToken == "" {
-		return false, nil
+	if err := json.Unmarshal(out, &status); err != nil {
+		return false, errors.Wrap(err, "parse auth status")
 	}
-	return time.Now().UnixMilli() < c.ClaudeAIOauth.ExpiresAt, nil
+	return status.LoggedIn, nil
 }
 
 func Configured() (bool, error) {

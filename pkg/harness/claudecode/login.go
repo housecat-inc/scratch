@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	loginCodeRe      = regexp.MustCompile(`Login successful|Invalid code`)
 	loginCodeTimeout = 30 * time.Second
+	loginInvalid     = "Invalid code"
+	loginSuccess     = "Login successful"
 	loginURLRe       = regexp.MustCompile(`https://claude\.com[^\s]+`)
 	loginURLTimeout  = 30 * time.Second
 )
@@ -72,16 +73,24 @@ func (l *Login) SubmitCode(code string) error {
 	from := l.buf.Len()
 	l.mu.Unlock()
 
-	if _, err := l.pty.Write([]byte(code + "\n")); err != nil {
-		return errors.Wrap(err, "write code")
-	}
+	writeErr := l.write(code)
 
-	match, err := l.waitFor(loginCodeRe, from, loginCodeTimeout)
+	success, err := l.waitForResult(from, loginCodeTimeout)
 	if err != nil {
+		if writeErr != nil {
+			return errors.Wrap(writeErr, "write code")
+		}
 		return errors.Wrap(err, "wait for login result")
 	}
-	if match == "Invalid code" {
+	if !success {
 		return errors.New("invalid code")
+	}
+	return nil
+}
+
+func (l *Login) write(code string) error {
+	if _, err := l.pty.Write([]byte(code + "\n")); err != nil {
+		return err
 	}
 	return nil
 }
@@ -119,4 +128,19 @@ func (l *Login) waitFor(re *regexp.Regexp, from int, timeout time.Duration) (str
 		time.Sleep(50 * time.Millisecond)
 	}
 	return "", errors.New("timeout")
+}
+
+func (l *Login) waitForResult(from int, timeout time.Duration) (bool, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		s := l.Output()
+		if strings.Contains(s, loginSuccess) {
+			return true, nil
+		}
+		if from < len(s) && strings.Contains(s[from:], loginInvalid) {
+			return false, nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false, errors.New("timeout")
 }

@@ -43,6 +43,23 @@ func TestLogin(t *testing.T) {
 	}
 }
 
+func TestSubmitCodeAfterBrowserSuccess(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	path := filepath.Join(t.TempDir(), "fake-claude-browser.sh")
+	r.NoError(os.WriteFile(path, []byte(`#!/bin/sh
+echo "Visit https://claude.com/auth?code=abc to log in"
+echo "Login successful"
+`), 0o755))
+
+	l, err := StartLoginCmd(exec.Command("sh", path))
+	r.NoError(err)
+	t.Cleanup(func() { _ = l.Close() })
+
+	a.NoError(l.SubmitCode("unused"))
+}
+
 func TestStartLoginNoURLTimesOut(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
