@@ -8,11 +8,14 @@ import (
 	"path/filepath"
 
 	"github.com/cockroachdb/errors"
+	"github.com/go-fuego/fuego"
+	"github.com/housecat-inc/scratch/pkg/api"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/server/code"
 	"github.com/housecat-inc/scratch/pkg/server/files"
 	"github.com/housecat-inc/scratch/pkg/server/sessions"
 	"github.com/housecat-inc/scratch/pkg/ui"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/spf13/cobra"
 )
 
@@ -45,11 +48,20 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "user home dir")
 			}
-			store, err := db.New(filepath.Join(home, ".config", "scratch", "scratch.db"))
+			dbPath := filepath.Join(home, ".config", "scratch", "scratch.db")
+			store, err := db.New(dbPath)
 			if err != nil {
 				return errors.Wrap(err, "open db")
 			}
 			defer store.Close()
+			workflows, err := workflow.New(dbPath)
+			if err != nil {
+				return errors.Wrap(err, "open workflows")
+			}
+			defer workflows.Close()
+			if err := workflows.Launch(); err != nil {
+				return errors.Wrap(err, "launch workflows")
+			}
 			codeDeps := code.DefaultDeps(home)
 			codeDeps.Comments = store
 			codeSrv, err := code.NewServer(codeDeps)
@@ -61,15 +73,21 @@ func newRootCmd() *cobra.Command {
 				return errors.Wrap(err, "new files server")
 			}
 
-			mux := http.NewServeMux()
-			mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
-			mux.Handle("/files/", http.StripPrefix("/files", filesSrv.Handler()))
-			mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			mux.Handle("/", sessionsSrv.Handler())
-
 			addr := fmt.Sprintf(":%d", port)
+			srv := fuego.NewServer(
+				fuego.WithAddr(addr),
+				fuego.WithEngineOptions(fuego.WithOpenAPIConfig(fuego.OpenAPIConfig{
+					DisableLocalSave: true,
+				})),
+			)
+			srv.Mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
+			srv.Mux.Handle("/files/", http.StripPrefix("/files", filesSrv.Handler()))
+			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
+			srv.Mux.Handle("/", sessionsSrv.Handler())
+			api.Register(srv, workflows)
+
 			slog.Info("listening", "addr", addr)
-			return http.ListenAndServe(addr, mux)
+			return srv.Run()
 		},
 	}
 	cmd.Flags().IntVarP(&port, "port", "p", 8888, "HTTP listen port")
