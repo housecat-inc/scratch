@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,22 @@ func TestAttachmentLifecycle(t *testing.T) {
 	a.True(db.IsAttachmentNotFound(err))
 }
 
+func TestSendRejectsInvalidAttachment(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{})
+	thread, err := svc.CreateThread("", "files")
+	r.NoError(err)
+
+	_, err = svc.Send(thread.ID, "look", 999)
+	a.True(db.IsAttachmentNotFound(err))
+
+	view, err := svc.View(thread.ID)
+	r.NoError(err)
+	a.Empty(view.Messages)
+}
+
 func TestDeleteDraftAttachmentRemovesFile(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
@@ -56,6 +73,19 @@ func TestDeleteDraftAttachmentRemovesFile(t *testing.T) {
 	r.NoError(svc.DeleteDraftAttachment(attachment.ID))
 	_, err = os.Stat(attachment.FilePath)
 	a.True(os.IsNotExist(err))
+}
+
+func TestAddAttachmentRejectsOversize(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{})
+	thread, err := svc.CreateThread("", "large")
+	r.NoError(err)
+
+	attachment, err := svc.AddAttachment(thread.ID, "large.bin", "application/octet-stream", strings.NewReader(strings.Repeat("x", attachmentMaxBytes+1)))
+	a.True(errors.Is(err, ErrAttachmentTooLarge))
+	a.Empty(attachment.FilePath)
 }
 
 func TestSanitizeFilename(t *testing.T) {

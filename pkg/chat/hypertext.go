@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -69,7 +70,7 @@ func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", attachment.MimeType)
-	w.Header().Set("Content-Disposition", `inline; filename="`+attachment.Name+`"`)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": attachment.Name}))
 	http.ServeFile(w, r, attachment.FilePath)
 }
 
@@ -117,13 +118,23 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, attachmentMaxBytes+(1<<20))
 	file, header, err := r.FormFile("file")
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, ErrAttachmentTooLarge.Error(), http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "missing file", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 	attachment, err := s.svc.AddAttachment(id, header.Filename, header.Header.Get("Content-Type"), file)
+	if errors.Is(err, ErrAttachmentTooLarge) {
+		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		return
+	}
 	if err != nil {
 		s.notFoundOr(w, err)
 		return
@@ -289,6 +300,10 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
 	if db.IsThreadNotFound(err) {
 		http.Error(w, "thread not found", http.StatusNotFound)
+		return
+	}
+	if db.IsAttachmentNotFound(err) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
 		return
 	}
 	s.fail(w, err)

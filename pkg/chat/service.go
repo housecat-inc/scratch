@@ -265,6 +265,9 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 			return db.Message{}, ErrThreadBusy
 		}
 	}
+	if err := s.validateDraftAttachments(threadID, attachmentIDs); err != nil {
+		return db.Message{}, err
+	}
 
 	user, err := s.store.AddMessage(db.NewMessage{
 		Author:   userAuthor,
@@ -278,7 +281,7 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 	if err := s.store.LinkAttachments(threadID, user.ID, attachmentIDs); err != nil {
 		return db.Message{}, err
 	}
-	files, err := s.attachmentPaths(user.ID, attachmentIDs)
+	files, err := s.messageAttachments(user.ID, attachmentIDs)
 	if err != nil {
 		return db.Message{}, err
 	}
@@ -314,7 +317,7 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 	return user, nil
 }
 
-func (s *Service) attachmentPaths(messageID int64, ids []int64) ([]Attachment, error) {
+func (s *Service) messageAttachments(messageID int64, ids []int64) ([]Attachment, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -327,6 +330,19 @@ func (s *Service) attachmentPaths(messageID int64, ids []int64) ([]Attachment, e
 		files = append(files, Attachment{MimeType: a.MimeType, Path: a.FilePath})
 	}
 	return files, nil
+}
+
+func (s *Service) validateDraftAttachments(threadID int64, ids []int64) error {
+	for _, id := range ids {
+		attachment, err := s.store.GetAttachment(id)
+		if err != nil {
+			return err
+		}
+		if attachment.MessageID != nil || attachment.ThreadID != threadID {
+			return db.ErrAttachmentNotFound
+		}
+	}
+	return nil
 }
 
 func (s *Service) SetThreadState(threadID int64, state string) error {
@@ -500,7 +516,7 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	if err := s.store.TouchThread(thread.ID); err != nil {
 		s.log.Error("chat.touch", "error", err.Error())
 	}
-	s.broker.Publish(thread.ID, turn.MessageID)
+	s.broker.Publish(thread.ID, StructuralUpdate)
 }
 
 type elicitationResult struct {

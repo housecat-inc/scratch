@@ -96,6 +96,16 @@ func TestWorktreeGitDir(t *testing.T) {
 	}
 }
 
+func TestWorktreeGitDirRelativePath(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	dir := t.TempDir()
+	r.NoError(os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: ../repo/.git/worktrees/colombo-v2\n"), 0o644))
+
+	a.Equal(filepath.Clean(filepath.Join(dir, "../repo/.git")), worktreeGitDir(dir))
+}
+
 func TestWorktreeGitDirRegularRepo(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)

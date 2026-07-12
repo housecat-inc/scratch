@@ -123,6 +123,10 @@ func worktreeGitDir(dir string) string {
 	if gitdir == "" {
 		return ""
 	}
+	if !filepath.IsAbs(gitdir) {
+		gitdir = filepath.Join(dir, gitdir)
+	}
+	gitdir = filepath.Clean(gitdir)
 	if i := strings.Index(gitdir, string(filepath.Separator)+".git"+string(filepath.Separator)); i >= 0 {
 		return gitdir[:i+len("/.git")]
 	}

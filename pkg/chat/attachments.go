@@ -20,6 +20,8 @@ const (
 	attachmentMaxBytes = 32 << 20
 )
 
+var ErrAttachmentTooLarge = errors.New("attachment exceeds 32 MiB")
+
 func (s *Service) AddAttachment(threadID int64, name, mimeType string, r io.Reader) (db.Attachment, error) {
 	thread, err := s.store.GetThread(threadID)
 	if err != nil {
@@ -39,11 +41,16 @@ func (s *Service) AddAttachment(threadID int64, name, mimeType string, r io.Read
 	if err != nil {
 		return db.Attachment{}, errors.Wrap(err, "create attachment file")
 	}
-	size, err := io.Copy(file, io.LimitReader(r, attachmentMaxBytes))
+	limited := io.LimitReader(r, attachmentMaxBytes+1)
+	size, err := io.Copy(file, limited)
 	file.Close()
 	if err != nil {
 		_ = os.Remove(path)
 		return db.Attachment{}, errors.Wrap(err, "write attachment file")
+	}
+	if size > attachmentMaxBytes {
+		_ = os.Remove(path)
+		return db.Attachment{}, ErrAttachmentTooLarge
 	}
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
