@@ -38,10 +38,21 @@ type ChatMessageProps struct {
 }
 
 type ChatPartProps struct {
-	Kind string
-	Plan []ChatPlanEntryProps
-	Text string
-	Tool *ChatToolCallProps
+	Kind    string
+	Plan    []ChatPlanEntryProps
+	Summary string
+	Text    string
+	Tool    *ChatToolCallProps
+}
+
+type chatRowProps struct {
+	Detail  string
+	Failed  bool
+	Key     string
+	Kind    string
+	Label   string
+	Live    bool
+	Summary string
 }
 
 type ChatPlanEntryProps struct {
@@ -50,10 +61,11 @@ type ChatPlanEntryProps struct {
 }
 
 type ChatToolCallProps struct {
-	Detail string
-	ID     string
-	Status string
-	Title  string
+	Detail  string
+	ID      string
+	Status  string
+	Summary string
+	Title   string
 }
 
 type ChatThreadProps struct {
@@ -68,16 +80,6 @@ func ChatCSS() templ.Component {
 }
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
-
-func toolStatusIcon(status string) string {
-	switch status {
-	case "completed":
-		return "✓"
-	case "failed":
-		return "✕"
-	}
-	return ""
-}
 
 func planStatusIcon(status string) string {
 	switch status {

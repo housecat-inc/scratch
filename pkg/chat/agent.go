@@ -17,6 +17,7 @@ const (
 	EventError             = "error"
 	EventPlan              = "plan"
 	EventResult            = "result"
+	EventRunner            = "runner"
 	EventThinking          = "thinking"
 	EventToolCall          = "tool_call"
 	EventToolCallUpdate    = "tool_call_update"
@@ -31,6 +32,7 @@ type Event struct {
 type Turn struct {
 	Anchor    string
 	MessageID int64
+	Meta      string
 	Prompt    string
 	ThreadID  int64
 }

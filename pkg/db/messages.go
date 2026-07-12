@@ -132,6 +132,40 @@ func (d *DB) FinishMessage(id int64, status string) (Message, error) {
 	return d.GetMessage(id)
 }
 
+func (d *DB) ResetMessageEvents(id int64) error {
+	return errors.Wrap(d.queries.ResetMessageEvents(context.Background(), id), "reset message events")
+}
+
+func (d *DB) SetMessageBody(id int64, body string) error {
+	n, err := d.queries.SetMessageBody(context.Background(), sqlite.SetMessageBodyParams{
+		Body:      body,
+		ID:        id,
+		UpdatedAt: ts.Now(),
+	})
+	if err != nil {
+		return errors.Wrap(err, "set message body")
+	}
+	if n == 0 {
+		return ErrMessageNotFound
+	}
+	return nil
+}
+
+func (d *DB) SetMessageMeta(id int64, meta string) error {
+	n, err := d.queries.SetMessageMeta(context.Background(), sqlite.SetMessageMetaParams{
+		ID:        id,
+		MetaJson:  meta,
+		UpdatedAt: ts.Now(),
+	})
+	if err != nil {
+		return errors.Wrap(err, "set message meta")
+	}
+	if n == 0 {
+		return ErrMessageNotFound
+	}
+	return nil
+}
+
 func (d *DB) GetMessage(id int64) (Message, error) {
 	row, err := d.queries.GetMessage(context.Background(), id)
 	if errors.Is(err, sql.ErrNoRows) {

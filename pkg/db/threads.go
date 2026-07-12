@@ -44,6 +44,9 @@ type ThreadStore interface {
 	ListThreadMessageEvents(threadID int64) ([]MessageEvent, error)
 	ListThreadMessages(threadID int64) ([]Message, error)
 	ListThreads(kind string) ([]Thread, error)
+	ResetMessageEvents(id int64) error
+	SetMessageBody(id int64, body string) error
+	SetMessageMeta(id int64, meta string) error
 	SetThreadAnchor(id int64, anchor string) error
 	SetThreadState(id int64, state string) error
 	SetThreadStarred(id int64, starred bool) error

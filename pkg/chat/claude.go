@@ -1,11 +1,8 @@
 package chat
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
-	"os/exec"
 
 	"github.com/cockroachdb/errors"
 )
@@ -71,47 +68,10 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 	if state.SessionID != "" {
 		args = append(args, "--resume", state.SessionID)
 	}
-	cmd := exec.CommandContext(ctx, "claude", args...)
-	cmd.Dir = a.Dir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", errors.Wrap(err, "stdout pipe")
-	}
-	if err := cmd.Start(); err != nil {
-		return "", errors.Wrap(err, "start claude")
-	}
 
-	textEmitted := false
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
-		var line claudeLine
-		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
-			continue
-		}
-		if line.SessionID != "" && line.SessionID != state.SessionID {
-			state.Agent = "claude"
-			state.SessionID = line.SessionID
-			if data, err := json.Marshal(state); err == nil {
-				emit(Event{Data: string(data), Type: EventAnchor})
-			}
-		}
-		for _, ev := range claudeLineEvents(line, scanner.Bytes(), &textEmitted) {
-			emit(ev)
-		}
-		if line.Type == "result" && line.IsError && line.Result != "" {
-			cmd.Wait()
-			return "", errors.Newf("claude: %s", line.Result)
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		cmd.Wait()
-		return "", errors.Wrap(err, "read claude output")
-	}
-	if err := cmd.Wait(); err != nil {
-		return "", errors.Wrapf(err, "claude: %s", bytes.TrimSpace(stderr.Bytes()))
+	parser := &claudeParser{state: &state}
+	if err := runTurn(ctx, turn, emit, "claude", args, a.Dir, parser); err != nil {
+		return "", err
 	}
 	state.Agent = "claude"
 	out, err := json.Marshal(state)
@@ -119,6 +79,39 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 		return "", errors.Wrap(err, "marshal anchor")
 	}
 	return string(out), nil
+}
+
+type claudeParser struct {
+	completed   bool
+	result      error
+	state       *claudeAnchor
+	textEmitted bool
+}
+
+func (p *claudeParser) Completed() bool { return p.completed }
+
+func (p *claudeParser) Result() error { return p.result }
+
+func (p *claudeParser) Parse(raw []byte) []Event {
+	var line claudeLine
+	if err := json.Unmarshal(raw, &line); err != nil {
+		return nil
+	}
+	events := []Event{}
+	if line.SessionID != "" && line.SessionID != p.state.SessionID {
+		p.state.Agent = "claude"
+		p.state.SessionID = line.SessionID
+		if data, err := json.Marshal(p.state); err == nil {
+			events = append(events, Event{Data: string(data), Type: EventAnchor})
+		}
+	}
+	if line.Type == "result" {
+		p.completed = true
+		if line.IsError && line.Result != "" {
+			p.result = errors.Newf("claude: %s", line.Result)
+		}
+	}
+	return append(events, claudeLineEvents(line, raw, &p.textEmitted)...)
 }
 
 func claudeLineEvents(line claudeLine, raw []byte, textEmitted *bool) []Event {

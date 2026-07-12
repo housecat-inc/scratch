@@ -122,7 +122,8 @@ func TestContactIntakeBrowser(t *testing.T) {
 				Click("#elicit-accept"),
 			},
 			Assert: []Step{
-				TextContains("#chat-messages", "Added todo #1: Follow up with Jane Doe <jane@example.com>"),
+				TextContains("#chat-messages", "Added todo #1: Follow up with Jane Doe"),
+				TextContains("#chat-messages", "jane@example.com"),
 				Tasks("Follow up with Jane Doe <jane@example.com>"),
 			},
 		},

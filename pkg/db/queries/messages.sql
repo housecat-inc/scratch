@@ -35,3 +35,12 @@ ORDER BY e.message_id ASC, e.seq ASC;
 
 -- name: ListThreadMessages :many
 SELECT * FROM messages WHERE thread_id = ? ORDER BY seq ASC;
+
+-- name: ResetMessageEvents :exec
+DELETE FROM message_events WHERE message_id = ?;
+
+-- name: SetMessageBody :execrows
+UPDATE messages SET body = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetMessageMeta :execrows
+UPDATE messages SET meta_json = ?, updated_at = ? WHERE id = ?;

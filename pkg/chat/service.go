@@ -147,8 +147,14 @@ func (s *Service) Recover() error {
 			continue
 		}
 		if agent, err := s.resolveAgent(thread); err == nil {
-			turn := Turn{Anchor: thread.Anchor, MessageID: m.ID, ThreadID: m.ThreadID}
+			turn := Turn{Anchor: thread.Anchor, MessageID: m.ID, Meta: m.Meta, ThreadID: m.ThreadID}
 			if recoverable, ok := agent.(Recoverable); ok && recoverable.Alive(turn) {
+				continue
+			}
+			if HasRunner(m.Meta) {
+				if err := s.reattach(agent, thread, turn); err != nil {
+					return err
+				}
 				continue
 			}
 		}
@@ -158,6 +164,19 @@ func (s *Service) Recover() error {
 		}
 		s.log.Info("chat.recovered", "message", m.ID, "thread", m.ThreadID)
 	}
+	return nil
+}
+
+func (s *Service) reattach(agent Agent, thread db.Thread, turn Turn) error {
+	if err := s.store.ResetMessageEvents(turn.MessageID); err != nil {
+		return err
+	}
+	if err := s.store.SetMessageBody(turn.MessageID, ""); err != nil {
+		return err
+	}
+	s.wg.Add(1)
+	go s.run(agent, thread, turn)
+	s.log.Info("chat.reattached", "message", turn.MessageID, "thread", thread.ID)
 	return nil
 }
 
@@ -274,7 +293,7 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	}
 	s.broker.Publish(threadID, StructuralUpdate)
 
-	turn := Turn{Anchor: thread.Anchor, MessageID: asst.ID, Prompt: prompt, ThreadID: threadID}
+	turn := Turn{Anchor: thread.Anchor, MessageID: asst.ID, Meta: asst.Meta, Prompt: prompt, ThreadID: threadID}
 	s.wg.Add(1)
 	go s.run(agent, thread, turn)
 	return user, nil
@@ -386,6 +405,10 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 		if err := s.store.SetThreadAnchor(threadID, ev.Data); err != nil {
 			s.log.Error("chat.anchor", "error", err.Error())
 		}
+	case EventRunner:
+		if err := s.store.SetMessageMeta(messageID, ev.Data); err != nil {
+			s.log.Error("chat.runner", "error", err.Error())
+		}
 	case EventDelta:
 		var delta struct {
 			Text string `json:"text"`
@@ -424,7 +447,6 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	if err != nil {
 		status = db.MessageStatusError
 		s.log.Error("chat.run", "error", err.Error(), "message", turn.MessageID, "thread", thread.ID)
-		s.emit(thread.ID, turn.MessageID, DeltaEvent(err.Error()))
 		s.emit(thread.ID, turn.MessageID, Event{Data: errorData(err), Type: EventError})
 	}
 	if _, err := s.store.FinishMessage(turn.MessageID, status); err != nil {

@@ -255,7 +255,11 @@ func MessageProps(v ThreadView, m db.Message) ui.ChatMessageProps {
 func toPartProps(parts []MessagePart) []ui.ChatPartProps {
 	props := make([]ui.ChatPartProps, 0, len(parts))
 	for _, part := range parts {
-		p := ui.ChatPartProps{Kind: part.Kind, Text: strings.TrimSpace(part.Text)}
+		p := ui.ChatPartProps{
+			Kind:    part.Kind,
+			Summary: summaryLine(part.Text),
+			Text:    strings.TrimSpace(part.Text),
+		}
 		if (part.Kind == PartText || part.Kind == PartThinking) && p.Text == "" {
 			continue
 		}
@@ -264,15 +268,21 @@ func toPartProps(parts []MessagePart) []ui.ChatPartProps {
 		}
 		if part.Tool != nil {
 			p.Tool = &ui.ChatToolCallProps{
-				Detail: part.Tool.Detail,
-				ID:     part.Tool.ID,
-				Status: part.Tool.Status,
-				Title:  part.Tool.Title,
+				Detail:  part.Tool.Detail,
+				ID:      part.Tool.ID,
+				Status:  part.Tool.Status,
+				Summary: summaryLine(part.Tool.Detail),
+				Title:   part.Tool.Title,
 			}
 		}
 		props = append(props, p)
 	}
 	return props
+}
+
+func summaryLine(text string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	return clip(strings.TrimSpace(line), 140)
 }
 
 func toFormProps(threadID, messageID int64, prompt elicit.Prompt) ui.ChatFormProps {

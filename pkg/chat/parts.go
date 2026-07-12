@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	PartError    = "error"
 	PartPlan     = "plan"
 	PartText     = "text"
 	PartThinking = "thinking"
@@ -75,6 +76,14 @@ func foldParts(events []db.MessageEvent, streaming bool) []MessagePart {
 
 	for _, ev := range events {
 		switch ev.Type {
+		case EventError:
+			var data struct {
+				Error string `json:"error"`
+			}
+			if json.Unmarshal([]byte(ev.Data), &data) != nil || data.Error == "" {
+				continue
+			}
+			parts = append(parts, MessagePart{Kind: PartError, Text: data.Error})
 		case EventDelta, EventThinking:
 			var data struct {
 				Text string `json:"text"`

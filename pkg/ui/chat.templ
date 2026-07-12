@@ -12,23 +12,22 @@ templ ChatMessages(p ChatThreadProps) {
 templ ChatMessage(m ChatMessageProps) {
 	<div
 		id={ "message-" + itoa64(m.ID) }
-		class={ "chat-message", "role-" + m.Role, "status-" + m.Status }
+		class={ "chat-turn", "role-" + m.Role, "status-" + m.Status }
 		sse-swap={ "message-" + itoa64(m.ID) }
 		hx-swap="outerHTML"
 	>
-		<div class="chat-author">{ m.Author }</div>
-		if m.Role == "assistant" && len(m.Parts) > 0 {
+		if m.Role == "assistant" {
 			for i, part := range m.Parts {
 				@chatPart(m, part, i == len(m.Parts)-1)
 			}
+			if m.Form != nil {
+				@chatForm(*m.Form)
+			}
+			if m.Status == "streaming" && m.Form == nil {
+				<span class="chat-cursor"></span>
+			}
 		} else {
-			<div class="chat-body">{ m.Body }</div>
-		}
-		if m.Form != nil {
-			@chatForm(*m.Form)
-		}
-		if m.Status == "streaming" && m.Form == nil {
-			<span class="chat-cursor"></span>
+			<div class="chat-bubble">{ m.Body }</div>
 		}
 	</div>
 }
@@ -36,24 +35,37 @@ templ ChatMessage(m ChatMessageProps) {
 templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
 	switch part.Kind {
 		case "text":
-			<div class="chat-body">{ part.Text }</div>
+			<div class="chat-md">
+				@Markdown(part.Text)
+			</div>
 		case "thinking":
-			<details
-				class="chat-thinking"
-				data-key={ "m" + itoa64(m.ID) + "-thinking" }
-				open?={ last && m.Status == "streaming" }
-			>
-				<summary>
-					if last && m.Status == "streaming" {
-						<span class="chat-shimmer">Thinking</span>
-					} else {
-						Thought for a moment
-					}
-				</summary>
-				<div class="chat-thinking-body">{ part.Text }</div>
-			</details>
+			@chatRow(chatRowProps{
+				Detail:  part.Text,
+				Key:     "m" + itoa64(m.ID) + "-thinking",
+				Label:   "Thinking",
+				Live:    last && m.Status == "streaming",
+				Summary: part.Summary,
+				Kind:    "thinking",
+			})
 		case "tool":
-			@chatToolCall(m, *part.Tool)
+			@chatRow(chatRowProps{
+				Detail:  part.Tool.Detail,
+				Key:     "m" + itoa64(m.ID) + "-tool-" + part.Tool.ID,
+				Label:   part.Tool.Title,
+				Live:    part.Tool.Status == "in_progress" || part.Tool.Status == "pending",
+				Failed:  part.Tool.Status == "failed",
+				Summary: part.Tool.Summary,
+				Kind:    "tool",
+			})
+		case "error":
+			@chatRow(chatRowProps{
+				Detail:  part.Text,
+				Failed:  true,
+				Key:     "m" + itoa64(m.ID) + "-error",
+				Label:   "Error",
+				Summary: part.Summary,
+				Kind:    "error",
+			})
 		case "plan":
 			<ul class="chat-plan">
 				for _, entry := range part.Plan {
@@ -66,23 +78,39 @@ templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
 	}
 }
 
-templ chatToolCall(m ChatMessageProps, tool ChatToolCallProps) {
-	<details
-		class={ "chat-tool-call", "tool-" + tool.Status }
-		data-key={ "m" + itoa64(m.ID) + "-tool-" + tool.ID }
-	>
+templ chatRow(r chatRowProps) {
+	<details class={ "chat-row", "row-" + r.Kind, templ.KV("row-failed", r.Failed) } data-key={ r.Key }>
 		<summary>
-			if tool.Status == "in_progress" || tool.Status == "pending" {
+			if r.Live {
 				<span class="chat-spinner"></span>
 			} else {
-				<span class={ "chat-tool-icon", "tool-icon-" + tool.Status }>{ toolStatusIcon(tool.Status) }</span>
+				<span class="chat-row-icon">
+					@rowIcon(r.Kind, r.Failed)
+				</span>
 			}
-			<span class="chat-tool-title">{ tool.Title }</span>
+			if r.Live && r.Kind == "thinking" {
+				<span class="chat-row-label chat-shimmer">{ r.Label }</span>
+			} else {
+				<span class="chat-row-label">{ r.Label }</span>
+			}
+			if r.Summary != "" {
+				<span class="chat-row-chip">{ r.Summary }</span>
+			}
 		</summary>
-		if tool.Detail != "" {
-			<pre class="chat-tool-detail">{ tool.Detail }</pre>
+		if r.Detail != "" {
+			<pre class="chat-row-detail">{ r.Detail }</pre>
 		}
 	</details>
+}
+
+templ rowIcon(kind string, failed bool) {
+	if failed {
+		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.2"></circle><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"></path></svg>
+	} else if kind == "thinking" {
+		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.2"></circle><path d="M8 1.8v12.4M1.8 8h12.4M3.6 3.6c2.6 2.6 6.2 2.6 8.8 0M3.6 12.4c2.6-2.6 6.2-2.6 8.8 0"></path></svg>
+	} else {
+		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 3.5l4 4-4 4M8.5 12h5"></path></svg>
+	}
 }
 
 templ chatForm(f ChatFormProps) {

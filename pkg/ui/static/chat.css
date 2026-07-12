@@ -21,79 +21,203 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.1rem;
   min-height: 0;
   overflow: auto;
   padding: 1rem 1.25rem 6rem;
 }
 
-.chat-message {
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  max-width: 46rem;
-  padding: 0.7rem 0.9rem;
+.chat-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
 }
 
-.chat-message.role-user {
-  align-self: flex-end;
+.chat-turn.role-user {
+  align-items: flex-end;
+}
+
+.chat-bubble {
   background: #0f172a;
-  border-color: #0f172a;
+  border-radius: 0.75rem;
   color: #f8fafc;
-}
-
-.chat-message.role-assistant {
-  align-self: flex-start;
-}
-
-.chat-message.status-error {
-  border-color: #d1495b;
-}
-
-.chat-author {
-  color: #64748b;
-  font-size: 0.72rem;
-  font-weight: 700;
-  margin-bottom: 0.2rem;
-  text-transform: uppercase;
-}
-
-.role-user .chat-author {
-  color: #cbd5e1;
-}
-
-.chat-body {
   line-height: 1.5;
+  max-width: 36rem;
   overflow-wrap: break-word;
+  padding: 0.7rem 1rem;
   white-space: pre-wrap;
 }
 
-.chat-thinking {
-  margin: 0.25rem 0;
+.chat-md {
+  color: #1e293b;
+  line-height: 1.65;
+  max-width: 52rem;
+  overflow-wrap: break-word;
 }
 
-.chat-thinking summary {
-  color: #94a3b8;
+.chat-md p {
+  margin: 0 0 0.75rem;
+}
+
+.chat-md > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-md code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.84em;
+  padding: 0.08rem 0.35rem;
+}
+
+.chat-md pre {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  overflow: auto;
+  padding: 0.7rem 0.85rem;
+}
+
+.chat-md pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.chat-md ul,
+.chat-md ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.4rem;
+}
+
+.chat-md h1,
+.chat-md h2,
+.chat-md h3,
+.chat-md h4 {
+  font-size: 1em;
+  font-weight: 700;
+  margin: 1rem 0 0.4rem;
+}
+
+.chat-md a {
+  color: #1a73e8;
+}
+
+.chat-md blockquote {
+  border-left: 3px solid #e2e8f0;
+  color: #64748b;
+  margin: 0 0 0.75rem;
+  padding-left: 0.8rem;
+}
+
+.chat-md table {
+  border-collapse: collapse;
+  margin: 0 0 0.75rem;
+}
+
+.chat-md th,
+.chat-md td {
+  border: 1px solid #e2e8f0;
+  font-size: 0.9em;
+  padding: 0.3rem 0.6rem;
+}
+
+.chat-row {
+  max-width: 52rem;
+}
+
+.chat-row summary {
+  align-items: center;
+  border-radius: 0.45rem;
+  color: #334155;
   cursor: pointer;
-  font-size: 0.78rem;
-  font-style: italic;
-  list-style-position: outside;
+  display: flex;
+  font-size: 0.88rem;
+  gap: 0.55rem;
+  list-style: none;
+  min-width: 0;
+  padding: 0.28rem 0.35rem;
 }
 
-.chat-thinking-body {
-  border-left: 2px solid #e5e7eb;
-  color: #94a3b8;
+.chat-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-row summary:hover {
+  background: #f8fafc;
+}
+
+.chat-row-icon {
+  color: #64748b;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 1rem;
+  width: 1rem;
+}
+
+.chat-row-icon svg {
+  height: 100%;
+  width: 100%;
+}
+
+.chat-row.row-failed .chat-row-icon,
+.chat-row.row-failed .chat-row-label {
+  color: #d1495b;
+}
+
+.chat-row-label {
+  flex-shrink: 0;
+  font-weight: 550;
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-tool .chat-row-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.82rem;
-  font-style: italic;
-  line-height: 1.45;
-  margin: 0.25rem 0 0.25rem 0.15rem;
-  padding-left: 0.6rem;
+}
+
+.chat-row-chip {
+  background: #f1f5f9;
+  border-radius: 0.4rem;
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.12rem 0.45rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-row.row-failed .chat-row-chip {
+  background: #fdf0f2;
+  color: #c2606e;
+}
+
+.chat-row-detail {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  margin: 0.25rem 0 0.35rem 1.55rem;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.55rem 0.7rem;
   white-space: pre-wrap;
 }
 
 .chat-shimmer {
   animation: chat-shimmer 1.6s linear infinite;
-  background: linear-gradient(90deg, #94a3b8 30%, #cbd5e1 50%, #94a3b8 70%);
+  background: linear-gradient(90deg, #64748b 30%, #cbd5e1 50%, #64748b 70%);
   background-clip: text;
   background-size: 200% 100%;
   color: transparent;
@@ -103,68 +227,6 @@
   to {
     background-position: -200% 0;
   }
-}
-
-.chat-tool-call {
-  border: 1px solid #e5e7eb;
-  border-radius: 0.45rem;
-  background: #fff;
-  margin: 0.25rem 0;
-}
-
-.chat-tool-call summary {
-  align-items: center;
-  color: #475569;
-  cursor: pointer;
-  display: flex;
-  font-size: 0.78rem;
-  gap: 0.4rem;
-  list-style: none;
-  padding: 0.35rem 0.55rem;
-}
-
-.chat-tool-call summary::-webkit-details-marker {
-  display: none;
-}
-
-.chat-tool-title {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-tool-icon {
-  flex-shrink: 0;
-  font-size: 0.72rem;
-}
-
-.tool-icon-completed {
-  color: #16a34a;
-}
-
-.tool-icon-failed {
-  color: #d1495b;
-}
-
-.chat-tool-call.tool-failed {
-  border-color: #f2c4cb;
-}
-
-.chat-tool-detail {
-  background: #f8fafc;
-  border-top: 1px solid #e5e7eb;
-  border-radius: 0 0 0.45rem 0.45rem;
-  color: #475569;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.74rem;
-  line-height: 1.45;
-  margin: 0;
-  max-height: 20rem;
-  overflow: auto;
-  padding: 0.5rem 0.65rem;
-  white-space: pre-wrap;
 }
 
 .chat-spinner {
@@ -184,17 +246,18 @@
 }
 
 .chat-plan {
-  border: 1px solid #e5e7eb;
-  border-radius: 0.45rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
   background: #fff;
   list-style: none;
-  margin: 0.25rem 0;
+  margin: 0.15rem 0;
+  max-width: 52rem;
   padding: 0.45rem 0.6rem;
 }
 
 .chat-plan-entry {
   color: #475569;
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   line-height: 1.6;
 }
 
@@ -214,7 +277,7 @@
   border-radius: 50%;
   display: inline-block;
   height: 0.5rem;
-  margin-top: 0.3rem;
+  margin-top: 0.15rem;
   width: 0.5rem;
 }
 
@@ -299,6 +362,7 @@
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.6rem;
+  max-width: 36rem;
   padding: 0.75rem;
 }
 

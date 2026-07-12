@@ -1,13 +1,10 @@
 package chat
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -56,6 +53,22 @@ type codexLine struct {
 
 func (CodexAgent) Author() string { return "agent:codex" }
 
+func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
+	var state codexAnchor
+	_ = json.Unmarshal([]byte(turn.Anchor), &state)
+
+	parser := &codexParser{state: &state}
+	if err := runTurn(ctx, turn, emit, "codex", codexArgs(state, turn.Prompt, a.Dir), a.Dir, parser); err != nil {
+		return "", err
+	}
+	state.Agent = "codex"
+	out, err := json.Marshal(state)
+	if err != nil {
+		return "", errors.Wrap(err, "marshal anchor")
+	}
+	return string(out), nil
+}
+
 func codexArgs(state codexAnchor, prompt, dir string) []string {
 	args := []string{"exec"}
 	if state.ThreadID != "" {
@@ -101,66 +114,45 @@ func worktreeGitDir(dir string) string {
 	return gitdir
 }
 
-func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
-	var state codexAnchor
-	_ = json.Unmarshal([]byte(turn.Anchor), &state)
+type codexParser struct {
+	completed   bool
+	result      error
+	state       *codexAnchor
+	textEmitted bool
+}
 
-	cmd := exec.CommandContext(ctx, "codex", codexArgs(state, turn.Prompt, a.Dir)...)
-	cmd.Dir = a.Dir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", errors.Wrap(err, "stdout pipe")
-	}
-	if err := cmd.Start(); err != nil {
-		return "", errors.Wrap(err, "start codex")
-	}
+func (p *codexParser) Completed() bool { return p.completed }
 
-	textEmitted := false
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
-		var line codexLine
-		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
-			continue
-		}
-		if line.ThreadID != "" && line.ThreadID != state.ThreadID {
-			state.Agent = "codex"
-			state.ThreadID = line.ThreadID
-			if data, err := json.Marshal(state); err == nil {
-				emit(Event{Data: string(data), Type: EventAnchor})
-			}
-		}
-		switch line.Type {
-		case "item.started", "item.updated", "item.completed":
-			for _, ev := range codexItemEvents(line.Type, line.Item, &textEmitted) {
-				emit(ev)
-			}
-		case "turn.completed":
-			emit(Event{Data: string(scanner.Bytes()), Type: EventResult})
-		case "turn.failed", "error":
-			message := line.Error.Message
-			if message == "" {
-				message = line.Message
-			}
-			cmd.Wait()
-			return "", errors.Newf("codex: %s", message)
+func (p *codexParser) Result() error { return p.result }
+
+func (p *codexParser) Parse(raw []byte) []Event {
+	var line codexLine
+	if err := json.Unmarshal(raw, &line); err != nil {
+		return nil
+	}
+	events := []Event{}
+	if line.ThreadID != "" && line.ThreadID != p.state.ThreadID {
+		p.state.Agent = "codex"
+		p.state.ThreadID = line.ThreadID
+		if data, err := json.Marshal(p.state); err == nil {
+			events = append(events, Event{Data: string(data), Type: EventAnchor})
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		cmd.Wait()
-		return "", errors.Wrap(err, "read codex output")
+	switch line.Type {
+	case "item.started", "item.updated", "item.completed":
+		return append(events, codexItemEvents(line.Type, line.Item, &p.textEmitted)...)
+	case "turn.completed":
+		p.completed = true
+		return append(events, Event{Data: string(raw), Type: EventResult})
+	case "turn.failed", "error":
+		message := line.Error.Message
+		if message == "" {
+			message = line.Message
+		}
+		p.completed = true
+		p.result = errors.Newf("codex: %s", message)
 	}
-	if err := cmd.Wait(); err != nil {
-		return "", errors.Wrapf(err, "codex: %s", bytes.TrimSpace(stderr.Bytes()))
-	}
-	state.Agent = "codex"
-	out, err := json.Marshal(state)
-	if err != nil {
-		return "", errors.Wrap(err, "marshal anchor")
-	}
-	return string(out), nil
+	return events
 }
 
 func codexItemEvents(lineType string, item codexItem, textEmitted *bool) []Event {
