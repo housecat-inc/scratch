@@ -158,6 +158,30 @@ func (d *DB) ListMessageEvents(messageID, afterSeq int64) ([]MessageEvent, error
 	return out, nil
 }
 
+func (d *DB) ListMessagesByStatus(status string) ([]Message, error) {
+	rows, err := d.queries.ListMessagesByStatus(context.Background(), status)
+	if err != nil {
+		return nil, errors.Wrap(err, "list messages by status")
+	}
+	out := make([]Message, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, fromSqliteMessage(r))
+	}
+	return out, nil
+}
+
+func (d *DB) ListThreadMessageEvents(threadID int64) ([]MessageEvent, error) {
+	rows, err := d.queries.ListThreadMessageEvents(context.Background(), threadID)
+	if err != nil {
+		return nil, errors.Wrap(err, "list thread message events")
+	}
+	out := make([]MessageEvent, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, fromSqliteMessageEvent(r))
+	}
+	return out, nil
+}
+
 func (d *DB) ListThreadMessages(threadID int64) ([]Message, error) {
 	rows, err := d.queries.ListThreadMessages(context.Background(), threadID)
 	if err != nil {

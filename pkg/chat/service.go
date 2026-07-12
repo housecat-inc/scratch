@@ -29,6 +29,10 @@ var (
 
 func IsThreadBusy(err error) bool { return errors.Is(err, ErrThreadBusy) }
 
+type Recoverable interface {
+	Alive(turn Turn) bool
+}
+
 type Resolver interface {
 	Deliver(workflowID, topic, idempotencyKey string, reply elicit.Reply) error
 }
@@ -114,6 +118,34 @@ func (s *Service) CreateThread(agent, title string) (db.Thread, error) {
 
 func (s *Service) Publish(threadID int64) {
 	s.broker.Publish(threadID)
+}
+
+func (s *Service) Recover() error {
+	msgs, err := s.store.ListMessagesByStatus(db.MessageStatusStreaming)
+	if err != nil {
+		return err
+	}
+	for _, m := range msgs {
+		thread, err := s.store.GetThread(m.ThreadID)
+		if err != nil {
+			return err
+		}
+		if thread.Kind != db.ThreadKindChat {
+			continue
+		}
+		if agent, err := s.resolveAgent(thread); err == nil {
+			turn := Turn{Anchor: thread.Anchor, MessageID: m.ID, ThreadID: m.ThreadID}
+			if recoverable, ok := agent.(Recoverable); ok && recoverable.Alive(turn) {
+				continue
+			}
+		}
+		s.emit(m.ThreadID, m.ID, DeltaEvent("\nThe turn was interrupted by a restart."))
+		if _, err := s.store.FinishMessage(m.ID, db.MessageStatusError); err != nil {
+			return err
+		}
+		s.log.Info("chat.recovered", "message", m.ID, "thread", m.ThreadID)
+	}
+	return nil
 }
 
 func (s *Service) RegisterAgent(name string, agent Agent) {

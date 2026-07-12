@@ -109,6 +109,68 @@ func TestSendAgentError(t *testing.T) {
 	a.Contains(view.Messages[1].Body, "agent exploded")
 }
 
+func TestRecoverFinishesOrphanedStreaming(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	svc := NewService(store, EchoAgent{Delay: time.Millisecond}, nil)
+	t.Cleanup(svc.Close)
+
+	thread, err := svc.CreateThread("", "orphaned")
+	r.NoError(err)
+	orphan, err := store.AddMessage(db.NewMessage{
+		Author:   "agent:echo",
+		Role:     db.MessageRoleAssistant,
+		Status:   db.MessageStatusStreaming,
+		ThreadID: thread.ID,
+	})
+	r.NoError(err)
+
+	_, err = svc.Send(thread.ID, "hi")
+	r.True(IsThreadBusy(err))
+
+	r.NoError(svc.Recover())
+
+	swept, err := store.GetMessage(orphan.ID)
+	r.NoError(err)
+	a.Equal(db.MessageStatusError, swept.Status)
+	a.Contains(swept.Body, "interrupted by a restart")
+
+	_, err = svc.Send(thread.ID, "hi again")
+	r.NoError(err)
+	waitComplete(t, svc, thread.ID)
+}
+
+func TestRecoverLeavesAliveTurns(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	svc := NewService(store, aliveAgent{}, nil)
+	t.Cleanup(svc.Close)
+
+	thread, err := svc.CreateThread("", "durable")
+	r.NoError(err)
+	pending, err := store.AddMessage(db.NewMessage{
+		Author:   "agent:alive",
+		Role:     db.MessageRoleAssistant,
+		Status:   db.MessageStatusStreaming,
+		ThreadID: thread.ID,
+	})
+	r.NoError(err)
+
+	r.NoError(svc.Recover())
+
+	kept, err := store.GetMessage(pending.ID)
+	r.NoError(err)
+	a.Equal(db.MessageStatusStreaming, kept.Status)
+}
+
 func TestSendMissingThread(t *testing.T) {
 	a := assert.New(t)
 
@@ -151,6 +213,17 @@ func (a blockingAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (st
 	}
 	emit(DeltaEvent("done"))
 	return "", nil
+}
+
+type aliveAgent struct{}
+
+func (aliveAgent) Alive(turn Turn) bool { return true }
+
+func (aliveAgent) Author() string { return "agent:alive" }
+
+func (aliveAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
+	<-ctx.Done()
+	return "", ErrTurnPending
 }
 
 type failingAgent struct{}

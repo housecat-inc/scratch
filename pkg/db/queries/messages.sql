@@ -24,5 +24,14 @@ SELECT * FROM messages WHERE id = ?;
 -- name: ListMessageEvents :many
 SELECT * FROM message_events WHERE message_id = ? AND seq > ? ORDER BY seq ASC;
 
+-- name: ListMessagesByStatus :many
+SELECT * FROM messages WHERE status = ? ORDER BY id ASC;
+
+-- name: ListThreadMessageEvents :many
+SELECT e.* FROM message_events e
+JOIN messages m ON m.id = e.message_id
+WHERE m.thread_id = ?
+ORDER BY e.message_id ASC, e.seq ASC;
+
 -- name: ListThreadMessages :many
 SELECT * FROM messages WHERE thread_id = ? ORDER BY seq ASC;

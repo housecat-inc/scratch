@@ -46,6 +46,7 @@ func newRestartStack(t *testing.T, path string) *restartStack {
 	svc.RegisterAgent("contact", flows.Agent())
 	svc.SetResolver(flows)
 	r.NoError(workflows.Launch())
+	r.NoError(svc.Recover())
 
 	s := &restartStack{Store: store, Svc: svc, workflows: workflows}
 	t.Cleanup(s.Close)

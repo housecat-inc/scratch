@@ -167,6 +167,22 @@ type flowAgent struct {
 	flows *Flows
 }
 
+func (a flowAgent) Alive(turn chat.Turn) bool {
+	handle, err := dbos.RetrieveWorkflow[string](a.flows.deps.DBOS, turnWorkflowID(turn.MessageID))
+	if err != nil {
+		return false
+	}
+	status, err := handle.GetStatus()
+	if err != nil {
+		return false
+	}
+	switch status.Status {
+	case dbos.WorkflowStatusEnqueued, dbos.WorkflowStatusPending:
+		return true
+	}
+	return false
+}
+
 func (flowAgent) Author() string { return "workflow:contact" }
 
 func (a flowAgent) Run(ctx context.Context, turn chat.Turn, emit func(chat.Event)) (string, error) {
@@ -174,7 +190,7 @@ func (a flowAgent) Run(ctx context.Context, turn chat.Turn, emit func(chat.Event
 		MessageID: turn.MessageID,
 		Prompt:    turn.Prompt,
 		ThreadID:  turn.ThreadID,
-	}, dbos.WithWorkflowID(fmt.Sprintf("chat-message-%d", turn.MessageID)))
+	}, dbos.WithWorkflowID(turnWorkflowID(turn.MessageID)))
 	if err != nil {
 		return "", errors.Wrap(err, "run contact intake")
 	}
@@ -246,4 +262,8 @@ func followUpTitle(c Contact) string {
 		return "Follow up with " + c.Email
 	}
 	return fmt.Sprintf("Follow up with %s <%s>", c.Name, c.Email)
+}
+
+func turnWorkflowID(messageID int64) string {
+	return fmt.Sprintf("chat-message-%d", messageID)
 }

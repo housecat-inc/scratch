@@ -38,6 +38,8 @@ type ThreadStore interface {
 	GetMessage(id int64) (Message, error)
 	GetThread(id int64) (Thread, error)
 	ListMessageEvents(messageID, afterSeq int64) ([]MessageEvent, error)
+	ListMessagesByStatus(status string) ([]Message, error)
+	ListThreadMessageEvents(threadID int64) ([]MessageEvent, error)
 	ListThreadMessages(threadID int64) ([]Message, error)
 	ListThreads(kind string) ([]Thread, error)
 	SetThreadAnchor(id int64, anchor string) error

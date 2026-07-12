@@ -69,6 +69,9 @@ func newRootCmd() *cobra.Command {
 			if err := workflows.Launch(); err != nil {
 				return errors.Wrap(err, "launch workflows")
 			}
+			if err := chatSvc.Recover(); err != nil {
+				return errors.Wrap(err, "recover chat turns")
+			}
 
 			svc := todo.NewService(store)
 			addr := fmt.Sprintf(":%d", port)
