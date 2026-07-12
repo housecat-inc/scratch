@@ -2,8 +2,6 @@ package chat
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,17 +24,27 @@ func TestCodexArgs(t *testing.T) {
 		{
 			name:  "new session",
 			state: codexAnchor{},
-			want:  []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "workspace-write", "hi"},
+			want:  []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "danger-full-access", "hi"},
 		},
 		{
 			name:  "new session with model",
 			state: codexAnchor{Model: "gpt-5.2-codex"},
-			want:  []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "workspace-write", "--model", "gpt-5.2-codex", "hi"},
+			want:  []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "danger-full-access", "--model", "gpt-5.2-codex", "hi"},
 		},
 		{
 			name:  "resume uses config override for sandbox",
 			state: codexAnchor{ThreadID: "t-1"},
-			want:  []string{"exec", "resume", "--json", "--skip-git-repo-check", "-c", `sandbox_mode="workspace-write"`, "t-1", "hi"},
+			want:  []string{"exec", "resume", "--json", "--skip-git-repo-check", "-c", `sandbox_mode="danger-full-access"`, "t-1", "hi"},
+		},
+		{
+			name:  "safe mode stays read-only",
+			state: codexAnchor{Access: AccessSafe},
+			want:  []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "hi"},
+		},
+		{
+			name:  "safe resume stays read-only",
+			state: codexAnchor{Access: AccessSafe, ThreadID: "t-1"},
+			want:  []string{"exec", "resume", "--json", "--skip-git-repo-check", "-c", `sandbox_mode="read-only"`, "t-1", "hi"},
 		},
 	}
 	for _, tc := range tests {
@@ -48,15 +56,14 @@ func TestCodexArgs(t *testing.T) {
 	}
 }
 
-func TestCodexArgsWorktreeWritableRoot(t *testing.T) {
+func TestCodexArgsDoesNotAddWorkspaceWriteRoots(t *testing.T) {
 	a := assert.New(t)
-	r := require.New(t)
 
 	dir := t.TempDir()
-	r.NoError(os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: /repos/scratch/.git/worktrees/colombo-v2\n"), 0o644))
 
 	args := codexArgs(codexAnchor{}, Turn{Prompt: "hi"}, dir)
-	a.Contains(args, `sandbox_workspace_write.writable_roots=["/repos/scratch/.git"]`)
+	a.Contains(args, "danger-full-access")
+	a.NotContains(args, `sandbox_workspace_write.writable_roots=["/repos/scratch/.git"]`)
 
 	safe := codexArgs(codexAnchor{Access: AccessSafe}, Turn{Prompt: "hi"}, dir)
 	a.Contains(safe, "read-only")
@@ -78,45 +85,6 @@ func TestCodexArgsAttachments(t *testing.T) {
 	a.Contains(args[len(args)-1], "Do not create, switch, rename, or reset git branches")
 	a.Contains(args[len(args)-1], "User request:\nlook")
 	a.Contains(args[len(args)-1], "Attached files:\n- /tmp/data.csv")
-}
-
-func TestWorktreeGitDir(t *testing.T) {
-	tests := []struct {
-		contents string
-		name     string
-		want     string
-	}{
-		{name: "worktree", contents: "gitdir: /repos/scratch/.git/worktrees/colombo-v2\n", want: "/repos/scratch/.git"},
-		{name: "plain gitdir", contents: "gitdir: /repos/scratch/.git\n", want: "/repos/scratch/.git"},
-		{name: "empty", contents: "", want: ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			r := require.New(t)
-			dir := t.TempDir()
-			r.NoError(os.WriteFile(filepath.Join(dir, ".git"), []byte(tc.contents), 0o644))
-			assert.New(t).Equal(tc.want, worktreeGitDir(dir))
-		})
-	}
-}
-
-func TestWorktreeGitDirRelativePath(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	dir := t.TempDir()
-	r.NoError(os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: ../repo/.git/worktrees/colombo-v2\n"), 0o644))
-
-	a.Equal(filepath.Clean(filepath.Join(dir, "../repo/.git")), worktreeGitDir(dir))
-}
-
-func TestWorktreeGitDirRegularRepo(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	dir := t.TempDir()
-	r.NoError(os.Mkdir(filepath.Join(dir, ".git"), 0o755))
-	a.Equal("", worktreeGitDir(dir))
 }
 
 func TestCodexItemEvents(t *testing.T) {

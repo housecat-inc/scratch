@@ -424,6 +424,7 @@ textarea {
   display: inline-flex;
   flex: 0 0 auto;
   height: 2.2rem;
+  margin-left: auto;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -479,6 +480,12 @@ textarea {
   position: relative;
 }
 
+.mail-model-select-wrap {
+  flex: 0 0 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+
 .mail-create-select {
   appearance: none;
   background: transparent;
@@ -491,6 +498,16 @@ textarea {
   max-width: 10.5rem;
   outline: none;
   padding: 0 1.65rem 0 0.7rem;
+}
+
+.mail-model-select-wrap .mail-create-select {
+  color: transparent;
+  inset: 0;
+  max-width: none;
+  opacity: 0;
+  padding: 0;
+  position: absolute;
+  width: 100%;
 }
 
 .mail-create-chevron {
@@ -1124,6 +1141,31 @@ textarea {
   display: inline-flex;
   gap: 0.45rem;
   min-width: min(28rem, 100%);
+}
+
+.todo-topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.todo-topbar-actions .mail-chat-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.todo-topbar-actions .todo-create-form {
+  flex: 0 1 28rem;
+  min-width: 0;
+  width: clamp(8rem, calc(100% - 9rem), 28rem);
+}
+
+.todo-topbar-actions .todo-new-input {
+  min-width: 0;
 }
 
 .todo-new-input {

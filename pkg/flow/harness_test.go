@@ -103,7 +103,7 @@ func Tasks(titles ...string) Step {
 				}
 			}
 			return true
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 

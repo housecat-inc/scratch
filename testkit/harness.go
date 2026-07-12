@@ -1,13 +1,22 @@
 package testkit
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
+)
+
+const (
+	BrowserOperationTimeout = 3 * time.Second
+	BrowserPollInterval     = 50 * time.Millisecond
+	BrowserSessionTimeout   = 10 * time.Second
+	BrowserWaitTimeout      = 3 * time.Second
 )
 
 type Harness struct {
@@ -32,17 +41,19 @@ func NewHarness(t *testing.T, handler http.Handler) *Harness {
 func NewHarnessWithT(t *testing.T, kit *T, handler http.Handler) *Harness {
 	t.Helper()
 	server := httptest.NewServer(handler)
+	ctx, cancel := context.WithTimeout(t.Context(), BrowserSessionTimeout)
 
 	controlURL := launcher.New().
 		Headless(true).
 		NoSandbox(true).
 		MustLaunch()
-	browser := rod.New().ControlURL(controlURL).MustConnect()
-	page := browser.MustPage()
+	browser := rod.New().Context(ctx).ControlURL(controlURL).Timeout(BrowserOperationTimeout).MustConnect()
+	page := browser.MustPage().Context(ctx).Timeout(BrowserOperationTimeout)
 
 	t.Cleanup(func() {
-		page.MustClose()
-		browser.MustClose()
+		_ = page.Close()
+		_ = browser.Close()
+		cancel()
 		server.Close()
 	})
 

@@ -10,6 +10,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-fuego/fuego"
+	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
@@ -43,7 +44,25 @@ func newRootCmd() *cobra.Command {
 			}
 			defer store.Close()
 
+			workdir, err := os.Getwd()
+			if err != nil {
+				return errors.Wrap(err, "working dir")
+			}
+			agent, err := chat.ResolveAgentInDir("auto", workdir)
+			if err != nil {
+				return err
+			}
+			chatSvc := chat.NewService(store, agent, logger)
+			for _, available := range chat.AvailableAgentsInDir(workdir) {
+				chatSvc.RegisterAgent(chat.AgentName(available), available)
+			}
+			defer chatSvc.Close()
+			if err := chatSvc.Recover(); err != nil {
+				return errors.Wrap(err, "recover chat turns")
+			}
+
 			svc := todo.NewService(store)
+			chatSrv := chat.NewServer(chatSvc, logger)
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(
 				fuego.WithAddr(addr),
@@ -57,8 +76,10 @@ func newRootCmd() *cobra.Command {
 				})),
 			)
 			todo.Register(srv, svc)
+			srv.Mux.HandleFunc("/chat", http.NotFound)
+			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			srv.Mux.Handle("/", todo.NewWebServer(svc, logger).Handler())
+			srv.Mux.Handle("/", todo.NewWebServerWithChat(svc, chatSvc, logger).Handler())
 
 			slog.Info("listening", "addr", addr)
 			return srv.Run()

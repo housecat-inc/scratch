@@ -36,7 +36,7 @@ templ InboxPage(p InboxProps) {
 }
 
 templ InboxActions(p InboxProps) {
-	@createChatButton(p.Agents)
+	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 	@createButton("task", "New task", taskIcon())
 	@createWorkflowButton()
 }
@@ -48,10 +48,7 @@ templ InboxHead(title string) {
 		<title>{ title } · scratch</title>
 		@InboxCSS()
 		@ChatCSS()
-		<script src="/static/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
-		<script src="/static/html2canvas.min.js" defer></script>
-		<script src="/static/chat.js" defer></script>
+		@uikit.ChatPluginScripts()
 		<script src="/static/inbox.js" defer></script>
 	</head>
 }
@@ -61,7 +58,7 @@ templ MailShell(p InboxProps) {
 		<header class="mail-topbar">
 			<a class="mail-brand" href="/">scratch</a>
 			<div class="mail-create-actions">
-				@createChatButton(p.Agents)
+				@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 				@createButton("task", "New task", taskIcon())
 				@createWorkflowButton()
 			</div>
@@ -196,7 +193,7 @@ templ InboxDraftReader(d InboxDraftDetail) {
 		Title: d.Title,
 	})
 	<div class="mail-reader-body mail-chat-body">
-		<div id="chat-messages" class="chat-messages mail-chat-messages">
+		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages">
 			<div class="mail-empty">No messages yet.</div>
 		</div>
 	</div>
@@ -205,13 +202,16 @@ templ InboxDraftReader(d InboxDraftDetail) {
 templ InboxThreadReader(d InboxThreadDetail) {
 	@ReaderHeader(ReaderHeaderProps{
 		BackHref: "/" + inboxBackPath(d.Kind),
-		Description: d.Agent,
+		Description: d.Description,
 		Title: d.Title,
 	}) {
 			if d.Kind == "chat" {
 				@ChatAccessToggle(d.ID, d.Access)
 			}
-			if d.Streaming {
+			<button type="button" class="gm-icon-btn" data-chat-popout-thread={ itoa64(d.ID) } title="Open chat popout" aria-label="Open chat popout">
+				@popoutIcon()
+			</button>
+			if d.Streaming && d.Kind != "chat" {
 				@readerStopButton(d.Kind, d.ID)
 			}
 			if d.Archived {
@@ -223,7 +223,7 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), starIcon(d.Starred))
 	}
 	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body mail-chat-body">
-		<div id="chat-messages" class="chat-messages mail-chat-messages" sse-swap="message">
+		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages" sse-swap="message">
 			@ChatMessages(ChatThreadProps{Agent: d.Agent, ID: d.ID, Messages: d.Messages, Title: d.Title})
 		</div>
 	</div>
@@ -271,34 +271,6 @@ templ createButton(mode, label string, icon templ.Component) {
 			@icon
 			<span>{ label }</span>
 		</button>
-	</form>
-}
-
-templ createChatButton(agents []string) {
-	<form class="mail-create-combo" method="get" action="/inbox/chats/new" data-agent-model-form="true">
-		<input type="hidden" name="mode" value="chat"/>
-		<button class="mail-create-btn" type="submit" data-new-chat>
-			@chatIcon()
-			<span>New chat</span>
-		</button>
-		if len(agents) > 0 {
-			<span class="mail-create-select-wrap">
-				<select class="mail-create-select" name="agent" aria-label="Provider and model">
-					for _, agent := range agents {
-						<option value={ agent }>{ providerModelLabel(agent) }</option>
-					}
-				</select>
-				<span class="mail-create-chevron">@chevronDownIcon()</span>
-			</span>
-			<span class="mail-create-select-wrap">
-				<select class="mail-create-select" name="model" aria-label="Model">
-					for _, model := range codexModelOptions() {
-						<option value={ model.Value }>{ model.Label }</option>
-					}
-				</select>
-				<span class="mail-create-chevron">@chevronDownIcon()</span>
-			</span>
-		}
 	</form>
 }
 
@@ -402,19 +374,6 @@ func agentLabel(agent string) string {
 		return "Agent"
 	}
 	return strings.ToUpper(agent[:1]) + agent[1:]
-}
-
-func codexModelOptions() []SelectOption {
-	return []SelectOption{
-		{Label: "Default", Value: "default"},
-		{Label: "GPT 5.5", Value: "gpt-5.5"},
-		{Label: "GPT 5.1", Value: "gpt-5.1"},
-		{Label: "GPT 5", Value: "gpt-5"},
-	}
-}
-
-func providerModelLabel(agent string) string {
-	return agentLabel(agent)
 }
 
 func rowKindLabel(kind string) string {
@@ -645,6 +604,10 @@ func inboxTitle(p InboxProps) string {
 
 func inboxIcon() templ.Component {
 	return lucideIcon(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
+}
+
+func popoutIcon() templ.Component {
+	return lucideIcon(`<path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>`)
 }
 
 func itemActionURL(item InboxItem, action string) string {

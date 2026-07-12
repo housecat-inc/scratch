@@ -3,7 +3,6 @@ package testkit
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
@@ -31,7 +30,7 @@ func (t *T) ElementAttributeContains(page *rod.Page, selector string, name strin
 
 		value, err := el.Attribute(name)
 		return err == nil && value != nil && strings.Contains(*value, expected)
-	}, 5*time.Second, 50*time.Millisecond)
+	}, BrowserWaitTimeout, BrowserPollInterval)
 }
 
 func (t *T) ElementAttributeEquals(page *rod.Page, selector string, name string, expected string) {
@@ -45,7 +44,7 @@ func (t *T) ElementAttributeEquals(page *rod.Page, selector string, name string,
 
 		value, err := el.Attribute(name)
 		return err == nil && value != nil && *value == expected
-	}, 5*time.Second, 50*time.Millisecond)
+	}, BrowserWaitTimeout, BrowserPollInterval)
 }
 
 func (t *T) ElementHidden(page *rod.Page, selector string) {
@@ -59,7 +58,7 @@ func (t *T) ElementHidden(page *rod.Page, selector string) {
 
 		visible, err := el.Visible()
 		return err == nil && !visible
-	}, 5*time.Second, 50*time.Millisecond)
+	}, BrowserWaitTimeout, BrowserPollInterval)
 }
 
 func (t *T) ElementVisible(page *rod.Page, selector string) {
@@ -73,7 +72,7 @@ func (t *T) ElementVisible(page *rod.Page, selector string) {
 
 		visible, err := el.Visible()
 		return err == nil && visible
-	}, 5*time.Second, 50*time.Millisecond)
+	}, BrowserWaitTimeout, BrowserPollInterval)
 }
 
 func (t *T) ElementTextContains(page *rod.Page, selector string, expected string) {
@@ -88,7 +87,7 @@ func (t *T) ElementTextContains(page *rod.Page, selector string, expected string
 			return false
 		}
 		return strings.Contains(value.Value.Str(), expected)
-	}, 5*time.Second, 50*time.Millisecond)
+	}, BrowserWaitTimeout, BrowserPollInterval)
 }
 
 func (t *T) Click(page *rod.Page, selector string) {
@@ -102,7 +101,7 @@ func (t *T) ElementAbsent(page *rod.Page, selector string) {
 	t.R.Eventually(func() bool {
 		has, _, err := page.Has(selector)
 		return err == nil && !has
-	}, 5*time.Second, 50*time.Millisecond)
+	}, BrowserWaitTimeout, BrowserPollInterval)
 }
 
 func (t *T) Press(page *rod.Page, selector string, chord string) {

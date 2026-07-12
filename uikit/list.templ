@@ -10,7 +10,7 @@ templ ListRow(p ListRowProps) {
 		if p.PrimaryMeta != nil {
 			@p.PrimaryMeta
 		}
-		<a class="gm-row-link" href={ templ.SafeURL(p.Href) }>
+		<a class="gm-row-link" href={ templ.SafeURL(p.Href) } { p.LinkAttrs... }>
 			<span class="gm-row-what">{ p.What }</span>
 			<span class="gm-row-subject">
 				if len(p.Labels) > 0 {

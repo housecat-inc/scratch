@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/housecat-inc/scratch/pkg/chat"
@@ -17,6 +16,14 @@ func SeedChatThread() Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
 		_, err := h.Chat.CreateThread("", "e2e chat")
+		h.R.NoError(err)
+	}
+}
+
+func SeedChatThreadTitle(title string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		_, err := h.Chat.CreateThread("", title)
 		h.R.NoError(err)
 	}
 }
@@ -74,7 +81,17 @@ func InputValueContains(selector, expected string) Step {
 		h.R.Eventuallyf(func() bool {
 			el, err := h.Page.Element(selector)
 			return err == nil && strings.Contains(el.MustProperty("value").Str(), expected)
-		}, 20*time.Second, 50*time.Millisecond, "%s value should contain %q", selector, expected)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s value should contain %q", selector, expected)
+	}
+}
+
+func PathEventuallyEquals(expected string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventuallyf(func() bool {
+			result, err := h.Page.Eval(`() => location.pathname`)
+			return err == nil && result.Value.Str() == expected
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "path should equal %q", expected)
 	}
 }
 
@@ -84,7 +101,36 @@ func ElementEventuallyPresent(selector string) Step {
 		h.R.Eventuallyf(func() bool {
 			_, err := h.Page.Element(selector)
 			return err == nil
-		}, 20*time.Second, 50*time.Millisecond, "%s should be present", selector)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s should be present", selector)
+	}
+}
+
+func FloatingChatControlsFit() Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			result, err := h.Page.Eval(`() => {
+				const panel = document.querySelector("#floating-chat");
+				const close = document.querySelector("#floating-chat [data-chat-close]");
+				const expand = document.querySelector("#floating-chat [data-chat-fullscreen]");
+				const minimize = document.querySelector("#floating-chat [data-chat-minimize]");
+				const restore = document.querySelector("#floating-chat [data-chat-restore]");
+				const access = document.querySelector("#floating-chat .chat-access-switch");
+				if (!panel || !close || !expand || !minimize || !restore || access) return false;
+				const panelRect = panel.getBoundingClientRect();
+				const visible = (el) => {
+					const style = getComputedStyle(el);
+					const rect = el.getBoundingClientRect();
+					return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+				};
+				const inside = (el) => {
+					const rect = el.getBoundingClientRect();
+					return rect.left >= panelRect.left && rect.right <= panelRect.right && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom;
+				};
+				return !visible(minimize) && visible(close) && visible(expand) && visible(restore) && inside(close) && inside(expand) && inside(restore);
+			}`)
+			return err == nil && result.Value.Bool()
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -98,7 +144,7 @@ func TextEventuallyContains(selector, expected string) Step {
 			}
 			text, err := el.Text()
 			return err == nil && strings.Contains(text, expected)
-		}, 20*time.Second, 50*time.Millisecond, "%s text should contain %q", selector, expected)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s text should contain %q", selector, expected)
 	}
 }
 
@@ -122,7 +168,7 @@ func WaitChatReady() Step {
 		h.R.Eventually(func() bool {
 			result, err := h.Page.Eval(`() => Boolean(window.htmx && document.querySelector("#chat-form"))`)
 			return err == nil && result.Value.Bool()
-		}, 20*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -182,6 +228,56 @@ func TestChatBrowser(t *testing.T) {
 					t.Helper()
 					h.A.Equal("", h.Page.MustElement("#chat-input").MustProperty("value").Str())
 				},
+			},
+		},
+		{
+			Name: "restores an unsent chat draft after navigation",
+			Path: "/inbox/chats/1",
+			Seed: []Step{SeedChatThread()},
+			Act: []Step{
+				WaitChatReady(),
+				Type("#chat-input", "unfinished draft"),
+				Load("/inbox/chats"),
+				Load("/inbox/chats/1"),
+			},
+			Assert: []Step{
+				InputValueContains("#chat-input", "unfinished draft"),
+			},
+		},
+		{
+			Name: "opens an existing thread in a floating chat",
+			Path: "/inbox/chats/1",
+			Seed: []Step{SeedChatThread()},
+			Act: []Step{
+				WaitChatReady(),
+				Click(`[data-chat-popout-thread="1"]`),
+				PathEventuallyEquals("/inbox/chats"),
+				ElementEventuallyPresent("#floating-chat"),
+				Type("#floating-chat [data-chat-input]", "from popout"),
+				Click("#floating-chat [data-chat-send]"),
+			},
+			Assert: []Step{
+				TextEventuallyContains("#floating-chat .role-user .chat-bubble", "from popout"),
+				TextEventuallyContains("#floating-chat .role-assistant", "You said: from popout"),
+			},
+		},
+		{
+			Name: "keeps minimized floating chat actions visible",
+			Path: "/inbox/chats/1",
+			Seed: []Step{
+				SeedChatThreadTitle(strings.Repeat("long thread title ", 20)),
+				SeedAssistantMessage(strings.Repeat("long thread content ", 120)),
+			},
+			Act: []Step{
+				WaitChatReady(),
+				Click(`[data-chat-popout-thread="1"]`),
+				ElementEventuallyPresent("#floating-chat"),
+				Click("#floating-chat [data-chat-minimize]"),
+				FloatingChatControlsFit(),
+				Click("#floating-chat [data-chat-restore]"),
+			},
+			Assert: []Step{
+				Visible("#floating-chat [data-chat-input]"),
 			},
 		},
 		{

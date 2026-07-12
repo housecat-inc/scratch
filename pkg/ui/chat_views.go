@@ -3,6 +3,7 @@ package ui
 import (
 	_ "embed"
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 )
@@ -40,6 +41,7 @@ type ChatComposerProps struct {
 	FileName    string
 	Hidden      []ChatComposerHiddenProps
 	HXPost      string
+	IDPrefix    string
 	Model       string
 	Placeholder string
 	StopAction  string
@@ -93,6 +95,15 @@ type ChatToolCallProps struct {
 	Title   string
 }
 
+type chatPartGroup struct {
+	Key     string
+	Kind    string
+	Last    bool
+	Part    ChatPartProps
+	Summary string
+	Tools   []ChatPartProps
+}
+
 type ChatThreadProps struct {
 	Agent    string
 	ID       int64
@@ -100,11 +111,28 @@ type ChatThreadProps struct {
 	Title    string
 }
 
+type FloatingChatProps struct {
+	Access      string
+	Agent       string
+	Description string
+	ID          int64
+	Messages    []ChatMessageProps
+	Streaming   bool
+	Title       string
+}
+
 func ChatCSS() templ.Component {
 	return templ.Raw(`<style>` + chatCSS + `</style>`)
 }
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
+
+func chatDOMID(p ChatComposerProps, id string) string {
+	if p.IDPrefix == "" {
+		return id
+	}
+	return p.IDPrefix + "-" + id
+}
 
 func accessLabel(access string) string {
 	if access == "full" {
@@ -117,6 +145,93 @@ func attachmentURL(a ChatAttachmentProps) string {
 	return "/chat/" + itoa64(a.ThreadID) + "/attachments/" + itoa64(a.ID)
 }
 
+func chatPartGroups(parts []ChatPartProps) []chatPartGroup {
+	groups := []chatPartGroup{}
+	for i := 0; i < len(parts); {
+		part := parts[i]
+		if part.Kind != "tool" {
+			groups = append(groups, chatPartGroup{Kind: part.Kind, Last: i == len(parts)-1, Part: part})
+			i++
+			continue
+		}
+
+		j := i
+		for j < len(parts) && parts[j].Kind == "tool" {
+			j++
+		}
+		tools := parts[i:j]
+		if len(tools) == 1 {
+			groups = append(groups, chatPartGroup{Kind: part.Kind, Last: j == len(parts), Part: part})
+		} else {
+			groups = append(groups, chatPartGroup{
+				Key:     "tool-group-" + strconv.Itoa(i),
+				Kind:    "tools",
+				Last:    j == len(parts),
+				Summary: chatToolGroupSummary(tools),
+				Tools:   tools,
+			})
+		}
+		i = j
+	}
+	return groups
+}
+
+func chatToolGroupFailed(tools []ChatPartProps) bool {
+	for _, part := range tools {
+		if part.Tool != nil && part.Tool.Status == "failed" {
+			return true
+		}
+	}
+	return false
+}
+
+func chatToolGroupLabel(tools []ChatPartProps) string {
+	return plural(len(tools), "tool call")
+}
+
+func chatToolGroupLive(tools []ChatPartProps) bool {
+	for _, part := range tools {
+		if part.Tool != nil && (part.Tool.Status == "in_progress" || part.Tool.Status == "pending") {
+			return true
+		}
+	}
+	return false
+}
+
+func chatToolGroupSummary(tools []ChatPartProps) string {
+	completed := 0
+	failed := 0
+	running := 0
+	for _, part := range tools {
+		if part.Tool == nil {
+			continue
+		}
+		switch part.Tool.Status {
+		case "failed":
+			failed++
+		case "in_progress", "pending":
+			running++
+		default:
+			completed++
+		}
+	}
+
+	parts := []string{}
+	if running > 0 {
+		parts = append(parts, pluralStatus(running, "running"))
+	}
+	if failed > 0 {
+		parts = append(parts, pluralStatus(failed, "failed"))
+	}
+	if completed > 0 {
+		parts = append(parts, pluralStatus(completed, "completed"))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ", ")
+}
+
 func planStatusIcon(status string) string {
 	switch status {
 	case "completed":
@@ -125,4 +240,15 @@ func planStatusIcon(status string) string {
 		return "◪"
 	}
 	return "☐"
+}
+
+func plural(n int, label string) string {
+	if n == 1 {
+		return "1 " + label
+	}
+	return strconv.Itoa(n) + " " + label + "s"
+}
+
+func pluralStatus(n int, label string) string {
+	return strconv.Itoa(n) + " " + label
 }

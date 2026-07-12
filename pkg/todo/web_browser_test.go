@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/housecat-inc/scratch/testkit"
@@ -13,6 +14,7 @@ import (
 
 type webHarness struct {
 	*testkit.Harness
+	Chat  *chat.Service
 	Tasks *Service
 }
 
@@ -33,12 +35,16 @@ func runWebBrowser(t *testing.T, cases []testkit.BrowserCase[*webHarness]) {
 			t.Cleanup(func() { store.Close() })
 
 			tasks := NewService(store)
+			chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.Default())
+			t.Cleanup(chatSvc.Close)
 			mux := http.NewServeMux()
+			mux.Handle("/chat/", chat.NewServer(chatSvc, slog.Default()).Handler())
 			mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			mux.Handle("/", NewWebServer(tasks, slog.Default()).Handler())
+			mux.Handle("/", NewWebServerWithChat(tasks, chatSvc, slog.Default()).Handler())
 
 			return &webHarness{
 				Harness: testkit.NewHarnessWithT(t, kit, mux),
+				Chat:    chatSvc,
 				Tasks:   tasks,
 			}
 		},
@@ -47,6 +53,65 @@ func runWebBrowser(t *testing.T, cases []testkit.BrowserCase[*webHarness]) {
 
 func TestTodoWebBrowser(t *testing.T) {
 	runWebBrowser(t, []testkit.BrowserCase[*webHarness]{
+		{
+			Act: []webStep{
+				testkit.ClickStep[*webHarness]("[data-new-chat]"),
+			},
+			Assert: []webStep{
+				webChatThreadCount(1),
+				webChatThreadLabel(1, chatLabelTodo),
+				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				testkit.TextContainsStep[*webHarness]("#floating-chat", "New chat"),
+			},
+			Name: "new chat action opens a floating chat",
+			Path: "/",
+		},
+		{
+			Act: []webStep{
+				testkit.ClickStep[*webHarness]("[data-new-chat]"),
+				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				testkit.ClickStep[*webHarness](`.gm-label[href="/tasks"]`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/tasks"),
+				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				testkit.TextContainsStep[*webHarness]("#floating-chat", "New chat"),
+			},
+			Name: "floating chat survives navigation",
+			Path: "/",
+		},
+		{
+			Act: []webStep{
+				testkit.ClickStep[*webHarness]("[data-new-chat]"),
+				webElementEventuallyPresent("#floating-chat"),
+				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/chats"),
+				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Chats"),
+				webElementAbsent("#floating-chat"),
+			},
+			Name: "chat history action opens chats",
+			Path: "/",
+			Seed: []webStep{
+				seedWebChat("old chat", chatLabelTodo),
+			},
+		},
+		{
+			Act: []webStep{
+				testkit.ClickStep[*webHarness]("[data-new-chat]"),
+				webElementEventuallyPresent("#floating-chat"),
+				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/chats"),
+				webChatThreadCount(1),
+				webElementEventuallyPresent(`[data-kind="chat"][data-id="1"]`),
+				webElementAbsent("#floating-chat"),
+			},
+			Name: "chat history action refreshes current chats page",
+			Path: "/chats",
+		},
 		{
 			Act: []webStep{
 				testkit.TypeStep[*webHarness](".todo-new-input", "buy milk"),
@@ -176,7 +241,63 @@ func TestTodoWebBrowser(t *testing.T) {
 				seedWebTask("draft"),
 			},
 		},
+		{
+			Assert: []webStep{
+				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Chats"),
+				testkit.TextContainsStep[*webHarness](`[data-kind="chat"][data-id="1"]`, "old chat"),
+				webElementAbsent(`[data-kind="chat"][data-id="2"]`),
+			},
+			Name: "lists todo chats without scratch chats",
+			Path: "/chats",
+			Seed: []webStep{
+				seedWebChat("old chat", chatLabelTodo),
+				seedWebChat("scratch chat", ""),
+			},
+		},
+		{
+			Act: []webStep{
+				testkit.ClickStep[*webHarness](`[data-kind="chat"][data-id="1"] .gm-row-link`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/chats"),
+				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				testkit.TextContainsStep[*webHarness]("#floating-chat", "old chat"),
+			},
+			Name: "clicking a todo chat row opens a floating chat",
+			Path: "/chats",
+			Seed: []webStep{
+				seedWebChat("old chat", chatLabelTodo),
+			},
+		},
 	})
+}
+
+func seedWebChat(title, label string) webStep {
+	return func(t *testing.T, h *webHarness) {
+		t.Helper()
+		_, err := h.Chat.CreateThreadWithLabel("", "", label, title)
+		h.R.NoError(err)
+	}
+}
+
+func webChatThreadLabel(id int64, want string) webStep {
+	return func(t *testing.T, h *webHarness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			thread, err := h.Chat.Thread(id)
+			return err == nil && h.Chat.ThreadLabel(thread) == want
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+	}
+}
+
+func webChatThreadCount(want int) webStep {
+	return func(t *testing.T, h *webHarness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			threads, err := h.Chat.Threads()
+			return err == nil && len(threads) == want
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+	}
 }
 
 type webTaskOption func(*Service, db.Task) (db.Task, error)
@@ -200,6 +321,16 @@ func webElementAbsent(selector string) webStep {
 	}
 }
 
+func webElementEventuallyPresent(selector string) webStep {
+	return func(t *testing.T, h *webHarness) {
+		t.Helper()
+		h.R.Eventuallyf(func() bool {
+			_, err := h.Page.Element(selector)
+			return err == nil
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s should be present", selector)
+	}
+}
+
 func webHover(selector string) webStep {
 	return func(t *testing.T, h *webHarness) {
 		t.Helper()
@@ -211,6 +342,16 @@ func webLoad(path string) webStep {
 	return func(t *testing.T, h *webHarness) {
 		t.Helper()
 		h.Load(path)
+	}
+}
+
+func webPathEventuallyEquals(expected string) webStep {
+	return func(t *testing.T, h *webHarness) {
+		t.Helper()
+		h.R.Eventuallyf(func() bool {
+			result, err := h.Page.Eval(`() => location.pathname`)
+			return err == nil && result.Value.Str() == expected
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "path should equal %q", expected)
 	}
 }
 
@@ -232,7 +373,7 @@ func webTaskArchivedState(id int64, want bool) webStep {
 		h.R.Eventually(func() bool {
 			task, err := h.Tasks.Get(id)
 			return err == nil && task.Archived == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -242,7 +383,7 @@ func webTaskCompletedState(id int64, want bool) webStep {
 		h.R.Eventually(func() bool {
 			task, err := h.Tasks.Get(id)
 			return err == nil && task.Completed == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -252,7 +393,7 @@ func webTaskDeleted(id int64) webStep {
 		h.R.Eventually(func() bool {
 			_, err := h.Tasks.Get(id)
 			return db.IsTaskNotFound(err)
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -262,7 +403,7 @@ func webTaskPresent(id int64) webStep {
 		h.R.Eventually(func() bool {
 			_, err := h.Tasks.Get(id)
 			return err == nil
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -272,6 +413,6 @@ func webTaskDescription(id int64, want string) webStep {
 		h.R.Eventually(func() bool {
 			task, err := h.Tasks.Get(id)
 			return err == nil && task.Description == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }

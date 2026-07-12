@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -71,7 +69,7 @@ func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (strin
 }
 
 func codexArgs(state codexAnchor, turn Turn, dir string) []string {
-	sandbox := "workspace-write"
+	sandbox := "danger-full-access"
 	if state.Access == AccessSafe {
 		sandbox = "read-only"
 	}
@@ -84,11 +82,6 @@ func codexArgs(state codexAnchor, turn Turn, dir string) []string {
 		args = append(args, "--sandbox", sandbox)
 	} else {
 		args = append(args, "-c", fmt.Sprintf("sandbox_mode=%q", sandbox))
-	}
-	if sandbox == "workspace-write" {
-		if gitDir := worktreeGitDir(dir); gitDir != "" {
-			args = append(args, "-c", fmt.Sprintf("sandbox_workspace_write.writable_roots=[%q]", gitDir))
-		}
 	}
 	if state.Model != "" {
 		args = append(args, "--model", state.Model)
@@ -105,32 +98,6 @@ func codexArgs(state codexAnchor, turn Turn, dir string) []string {
 		args = append(args, state.ThreadID)
 	}
 	return append(args, agentPrompt(turn, dir, docs))
-}
-
-func worktreeGitDir(dir string) string {
-	if dir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return ""
-		}
-		dir = cwd
-	}
-	data, err := os.ReadFile(filepath.Join(dir, ".git"))
-	if err != nil {
-		return ""
-	}
-	gitdir := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(data)), "gitdir:"))
-	if gitdir == "" {
-		return ""
-	}
-	if !filepath.IsAbs(gitdir) {
-		gitdir = filepath.Join(dir, gitdir)
-	}
-	gitdir = filepath.Clean(gitdir)
-	if i := strings.Index(gitdir, string(filepath.Separator)+".git"+string(filepath.Separator)); i >= 0 {
-		return gitdir[:i+len("/.git")]
-	}
-	return gitdir
 }
 
 type codexParser struct {
