@@ -571,6 +571,15 @@ textarea {
   white-space: nowrap;
 }
 
+.gm-label-name::after {
+  content: attr(data-label);
+  display: block;
+  font-weight: 700;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
 .gm-label-count {
   color: #64748b;
   font-size: 0.75rem;
@@ -594,6 +603,29 @@ textarea {
   grid-row: 2;
   min-height: 0;
   min-width: 0;
+}
+
+.mail-main.mail-main-no-footer {
+  grid-row: 2 / 4;
+}
+
+.mail-tool-main {
+  overflow: auto;
+}
+
+.mail-tool-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.mail-tool-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
 }
 
 .mail-mainbar,
@@ -665,16 +697,21 @@ textarea {
 }
 
 .gm-row {
-  align-items: center;
-  background: #fff;
-  border-bottom: 1px solid #eef2f7;
-  cursor: pointer;
-  display: flex;
-  font-size: 0.9rem;
-  gap: 0.45rem;
-  height: 2.75rem;
-  padding: 0 0.8rem 0 0.55rem;
-  position: relative;
+	align-items: center;
+	background: #fff;
+	border-bottom: 1px solid #eef2f7;
+	cursor: pointer;
+	display: grid;
+	font-size: 0.9rem;
+	gap: 0.45rem;
+	grid-template-columns: 2rem minmax(0, 1fr);
+	height: 2.75rem;
+	padding: 0 0.8rem 0 0.55rem;
+	position: relative;
+}
+
+.gm-row.has-primary-meta {
+	grid-template-columns: 2rem 1.55rem minmax(0, 1fr);
 }
 
 .gm-row:hover {
@@ -682,9 +719,10 @@ textarea {
   z-index: 1;
 }
 
-.gm-row.done .gm-row-subject {
-  color: #94a3b8;
-  text-decoration: line-through;
+.gm-row.done .gm-row-subject-text,
+.gm-row.done .gm-row-what {
+	color: #94a3b8;
+	text-decoration: line-through;
 }
 
 .gm-row.archived {
@@ -692,29 +730,53 @@ textarea {
 }
 
 .gm-row-link {
-  align-items: center;
-  color: inherit;
-  display: contents;
-  text-decoration: none;
+	align-items: center;
+	color: inherit;
+	display: grid;
+	gap: 0.45rem;
+	grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr) 4.7rem;
+	min-width: 0;
+	text-decoration: none;
 }
 
-.gm-row-main {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.gm-row-primary-spacer {
+	display: inline-flex;
+	height: 2rem;
+	width: 2rem;
+}
+
+.gm-row-kind-icon {
+	align-items: center;
+	color: #64748b;
+	display: inline-flex;
+	height: 2rem;
+	justify-content: center;
+	width: 1.55rem;
+}
+
+.gm-row-subject,
+.gm-row-what {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.gm-row-subject {
+	align-items: center;
+	display: inline-flex;
 }
 
 .gm-row-labels {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.3rem;
-  margin-right: 0.45rem;
-  vertical-align: middle;
+	align-items: center;
+	display: flex;
+	flex: 0 0 auto;
+	gap: 0.3rem;
+	margin-right: 0.45rem;
 }
 
-.gm-row-label {
+.gm-row-label,
+.mail-reader-label {
   background: #f8fafc;
   border: 1px solid #d8dee9;
   border-radius: 999px;
@@ -725,22 +787,29 @@ textarea {
   line-height: 1;
   padding: 0.18rem 0.42rem;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.gm-row-subject {
-  color: #111827;
-  font-weight: 650;
+.gm-row-what {
+	color: #111827;
+	font-weight: 650;
 }
 
-.gm-row-snippet,
+.gm-row-subject,
 .gm-row-date {
-  color: #64748b;
+	color: #64748b;
+}
+
+.gm-row-subject-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .gm-row-date {
-  flex: 0 0 4.7rem;
-  font-size: 0.78rem;
-  text-align: right;
+	font-size: 0.78rem;
+	text-align: right;
 }
 
 .gm-row-actions {
@@ -863,7 +932,8 @@ textarea {
 
 .gm-row-action svg,
 .gm-star svg,
-.gm-icon-btn svg {
+.gm-icon-btn svg,
+.gm-row-kind-icon svg {
   height: 1.2rem;
   width: 1.2rem;
 }
@@ -898,6 +968,13 @@ textarea {
 
 .mail-reader-title p {
   margin: 0.18rem 0 0;
+}
+
+.mail-reader-labels {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.45rem;
 }
 
 .mail-reader-actions {
@@ -1042,18 +1119,52 @@ textarea {
   padding: 0.65rem 0.9rem;
 }
 
-.mail-universal-compose {
+.todo-create-form {
   align-items: center;
-  display: flex;
-  gap: 0.65rem;
-  margin: 0;
-  min-width: 0;
+  display: inline-flex;
+  gap: 0.45rem;
+  min-width: min(28rem, 100%);
+}
+
+.todo-new-input {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 999px;
+  color: #111827;
+  height: 2.2rem;
+  min-width: 12rem;
+  outline: none;
+  padding: 0 0.85rem;
   width: 100%;
 }
 
+.todo-new-input:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgb(148 163 184 / 0.2);
+}
+
+.todo-reader-head {
+  border-top: 1px solid #e5e7eb;
+}
+
+.mail-universal-compose {
+	align-items: center;
+	display: flex;
+	gap: 0.65rem;
+  margin: 0;
+  min-width: 0;
+	width: 100%;
+}
+
+.mail-universal-compose.chat-compose {
+	align-items: stretch;
+	margin: 0;
+	width: 100%;
+}
+
 .mail-compose-modes {
-  align-items: center;
-  background: #eef2f7;
+	align-items: center;
+	background: #eef2f7;
   border: 1px solid #d8dee9;
   border-radius: 999px;
   display: inline-flex;
@@ -1219,6 +1330,14 @@ textarea {
 
   .gm-row {
     height: 4.2rem;
+  }
+
+  .gm-row-link {
+    grid-template-columns: minmax(5rem, 40%) minmax(0, 1fr);
+  }
+
+  .gm-row-date {
+    display: none;
   }
 
   .gm-row-actions-right {

@@ -22,12 +22,13 @@ type State struct {
 }
 
 func Installed(dir string) (bool, error) {
-	_, err := os.Stat(filepath.Join(dir, ".git"))
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		return true, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return false, errors.Wrapf(err, "stat %s", dir)
+	}
+	if _, err := outputIn(dir, "git", "rev-parse", "--is-inside-work-tree"); err != nil {
+		return false, nil
 	}
 	return true, nil
 }

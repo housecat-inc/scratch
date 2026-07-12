@@ -10,12 +10,9 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-fuego/fuego"
-	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
-	"github.com/housecat-inc/scratch/pkg/flow"
-	"github.com/housecat-inc/scratch/pkg/inbox"
 	"github.com/housecat-inc/scratch/pkg/todo"
-	"github.com/housecat-inc/scratch/pkg/workflow"
+	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -27,11 +24,10 @@ func main() {
 }
 
 func newRootCmd() *cobra.Command {
-	var agentName string
 	var port int
 	cmd := &cobra.Command{
 		Use:   "app",
-		Short: "TodoMVC CRUD app",
+		Short: "Todo list demo app",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 			slog.SetDefault(logger)
@@ -47,37 +43,6 @@ func newRootCmd() *cobra.Command {
 			}
 			defer store.Close()
 
-			agent, err := chat.ResolveAgent(agentName)
-			if err != nil {
-				return err
-			}
-			chatSvc := chat.NewService(store, agent, logger)
-			for _, available := range chat.AvailableAgents() {
-				chatSvc.RegisterAgent(chat.AgentName(available), available)
-			}
-			defer chatSvc.Close()
-
-			workflows, err := workflow.New(dbPath)
-			if err != nil {
-				return errors.Wrap(err, "open workflows")
-			}
-			defer workflows.Close()
-			flows := flow.New(flow.Deps{
-				DBOS:    workflows.Ctx(),
-				Log:     logger,
-				Publish: chatSvc.Publish,
-				Store:   store,
-				Tasks:   store,
-			})
-			chatSvc.RegisterAgent("contact", flows.Agent())
-			chatSvc.SetResolver(flows)
-			if err := workflows.Launch(); err != nil {
-				return errors.Wrap(err, "launch workflows")
-			}
-			if err := chatSvc.Recover(); err != nil {
-				return errors.Wrap(err, "recover chat turns")
-			}
-
 			svc := todo.NewService(store)
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(
@@ -92,18 +57,13 @@ func newRootCmd() *cobra.Command {
 				})),
 			)
 			todo.Register(srv, svc)
-			chatSrv := chat.NewServer(chatSvc, logger)
-			inboxSrv := inbox.NewServer(svc, chatSvc, logger)
-			inboxHandler := inboxSrv.Handler()
-			srv.Mux.HandleFunc("/chat", http.NotFound)
-			srv.Mux.Handle("/chat/", chatSrv.Handler())
-			srv.Mux.Handle("/", inboxHandler)
+			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
+			srv.Mux.Handle("/", todo.NewWebServer(svc, logger).Handler())
 
-			slog.Info("listening", "addr", addr, "agent", agent.Author())
+			slog.Info("listening", "addr", addr)
 			return srv.Run()
 		},
 	}
-	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, codex, echo)")
 	cmd.Flags().IntVarP(&port, "port", "p", 8000, "HTTP listen port")
 	return cmd
 }

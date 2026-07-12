@@ -46,6 +46,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /chat/{id}/elicitations", s.handleElicitation)
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
+	mux.HandleFunc("POST /chat/{id}/stop", s.handleStop)
 	return logging.Middleware(s.log, mux)
 }
 
@@ -286,6 +287,18 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "agent is still responding", http.StatusConflict)
 			return
 		}
+		s.notFoundOr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.svc.StopThread(id); err != nil && !IsThreadNotBusy(err) {
 		s.notFoundOr(w, err)
 		return
 	}

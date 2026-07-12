@@ -80,13 +80,14 @@ func (t *T) ElementTextContains(page *rod.Page, selector string, expected string
 	t.t.Helper()
 
 	t.R.Eventually(func() bool {
-		el, err := page.Element(selector)
+		value, err := page.Eval(`(selector) => {
+			const el = document.querySelector(selector);
+			return el ? el.textContent : "";
+		}`, selector)
 		if err != nil {
 			return false
 		}
-
-		text, err := el.Text()
-		return err == nil && strings.Contains(text, expected)
+		return strings.Contains(value.Value.Str(), expected)
 	}, 5*time.Second, 50*time.Millisecond)
 }
 

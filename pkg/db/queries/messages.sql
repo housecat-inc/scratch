@@ -18,6 +18,9 @@ UPDATE messages SET body = body || ?, updated_at = ? WHERE id = ?;
 -- name: FinishMessage :execrows
 UPDATE messages SET completed_at = ?, status = ?, updated_at = ? WHERE id = ?;
 
+-- name: GetFirstThreadUserMessage :one
+SELECT * FROM messages WHERE thread_id = ? AND role = 'user' AND body != '' ORDER BY seq ASC LIMIT 1;
+
 -- name: GetMessage :one
 SELECT * FROM messages WHERE id = ?;
 

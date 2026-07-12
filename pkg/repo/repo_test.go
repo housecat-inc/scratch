@@ -55,6 +55,30 @@ func TestScanSkipsReposWithoutOrigin(t *testing.T) {
 	a.Empty(repos)
 }
 
+func TestScanIncludingPrefersExplicitWorktree(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	a := assert.New(t)
+	r := require.New(t)
+
+	home := t.TempDir()
+	main := filepath.Join(home, "scratch")
+	makeRepo(t, main, "https://github.com/housecat-inc/scratch.git")
+	worktree := filepath.Join(t.TempDir(), "conductor", "workspaces", "scratch", "newport-beach")
+	runGit(t, main, "worktree", "add", "-b", "feature", worktree)
+
+	repos, err := ScanIncluding(home, worktree)
+	r.NoError(err)
+	r.Len(repos, 1)
+	a.Equal("housecat-inc/scratch", repos[0].Slug())
+	a.Equal(worktree, repos[0].Path)
+
+	got, ok := FindIncluding(home, "housecat-inc/scratch", worktree)
+	r.True(ok)
+	a.Equal(worktree, got.Path)
+}
+
 func TestFind(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

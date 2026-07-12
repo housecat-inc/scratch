@@ -24,11 +24,19 @@ var (
 	ErrElicitationResolved = errors.New("elicitation already resolved")
 	ErrNoResolver          = errors.New("no elicitation resolver configured")
 	ErrThreadBusy          = errors.New("thread busy")
+	ErrThreadNotBusy       = errors.New("thread not busy")
 	ErrThreadStateUnknown  = errors.New("thread state unknown")
 	ErrTurnPending         = errors.New("turn pending durable recovery")
 )
 
 func IsThreadBusy(err error) bool { return errors.Is(err, ErrThreadBusy) }
+
+func IsThreadNotBusy(err error) bool { return errors.Is(err, ErrThreadNotBusy) }
+
+type activeTurn struct {
+	cancel    context.CancelFunc
+	messageID int64
+}
 
 type Recoverable interface {
 	Alive(turn Turn) bool
@@ -48,6 +56,8 @@ type ThreadView struct {
 }
 
 type Service struct {
+	active      map[int64]activeTurn
+	activeMu    sync.Mutex
 	agents      map[string]Agent
 	broker      *Broker
 	cancel      context.CancelFunc
@@ -66,6 +76,7 @@ func NewService(store db.ThreadStore, agent Agent, log *slog.Logger) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 	name := AgentName(agent)
 	return &Service{
+		active:      map[int64]activeTurn{},
 		agents:      map[string]Agent{name: agent},
 		broker:      NewBroker(),
 		cancel:      cancel,
@@ -163,6 +174,7 @@ func (s *Service) Recover() error {
 		if _, err := s.store.FinishMessage(m.ID, db.MessageStatusError); err != nil {
 			return err
 		}
+		s.startNextTurn(thread.ID)
 		s.log.Info("chat.recovered", "message", m.ID, "thread", m.ThreadID)
 	}
 	return nil
@@ -260,11 +272,6 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 	if err != nil {
 		return db.Message{}, err
 	}
-	for _, m := range msgs {
-		if m.Status == db.MessageStatusStreaming {
-			return db.Message{}, ErrThreadBusy
-		}
-	}
 	if err := s.validateDraftAttachments(threadID, attachmentIDs); err != nil {
 		return db.Message{}, err
 	}
@@ -281,7 +288,25 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 	if err := s.store.LinkAttachments(threadID, user.ID, attachmentIDs); err != nil {
 		return db.Message{}, err
 	}
-	files, err := s.messageAttachments(user.ID, attachmentIDs)
+	if thread.Title == "" {
+		if err := s.store.SetThreadTitle(threadID, truncate(prompt, titleMaxLen)); err != nil {
+			return db.Message{}, err
+		}
+	} else if err := s.store.TouchThread(threadID); err != nil {
+		return db.Message{}, err
+	}
+	if threadStreaming(msgs) {
+		s.broker.Publish(threadID, StructuralUpdate)
+		return user, nil
+	}
+	if _, err := s.startTurn(thread, agent, user); err != nil {
+		return db.Message{}, err
+	}
+	return user, nil
+}
+
+func (s *Service) startTurn(thread db.Thread, agent Agent, user db.Message) (db.Message, error) {
+	files, err := s.messageAttachments(user.ID)
 	if err != nil {
 		return db.Message{}, err
 	}
@@ -290,37 +315,27 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 		ParentID: &user.ID,
 		Role:     db.MessageRoleAssistant,
 		Status:   db.MessageStatusStreaming,
-		ThreadID: threadID,
+		ThreadID: thread.ID,
 	})
 	if err != nil {
 		return db.Message{}, err
 	}
-	if thread.Title == "" {
-		if err := s.store.SetThreadTitle(threadID, truncate(prompt, titleMaxLen)); err != nil {
-			return db.Message{}, err
-		}
-	} else if err := s.store.TouchThread(threadID); err != nil {
-		return db.Message{}, err
-	}
-	s.broker.Publish(threadID, StructuralUpdate)
+	s.broker.Publish(thread.ID, StructuralUpdate)
 
 	turn := Turn{
 		Anchor:      thread.Anchor,
 		Attachments: files,
 		MessageID:   asst.ID,
 		Meta:        asst.Meta,
-		Prompt:      prompt,
-		ThreadID:    threadID,
+		Prompt:      user.Body,
+		ThreadID:    thread.ID,
 	}
 	s.wg.Add(1)
 	go s.run(agent, thread, turn)
-	return user, nil
+	return asst, nil
 }
 
-func (s *Service) messageAttachments(messageID int64, ids []int64) ([]Attachment, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
+func (s *Service) messageAttachments(messageID int64) ([]Attachment, error) {
 	rows, err := s.store.ListMessageAttachments(messageID)
 	if err != nil {
 		return nil, err
@@ -345,6 +360,15 @@ func (s *Service) validateDraftAttachments(threadID int64, ids []int64) error {
 	return nil
 }
 
+func threadStreaming(msgs []db.Message) bool {
+	for _, m := range msgs {
+		if m.Status == db.MessageStatusStreaming {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Service) SetThreadState(threadID int64, state string) error {
 	switch state {
 	case db.ThreadStateArchived, db.ThreadStateOpen, db.ThreadStateResolved:
@@ -358,6 +382,50 @@ func (s *Service) SetThreadStarred(threadID int64, starred bool) error {
 	return s.store.SetThreadStarred(threadID, starred)
 }
 
+func (s *Service) StopThread(threadID int64) error {
+	thread, err := s.store.GetThread(threadID)
+	if err != nil {
+		return err
+	}
+	msgs, err := s.store.ListThreadMessages(threadID)
+	if err != nil {
+		return err
+	}
+	var msg *db.Message
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == db.MessageRoleAssistant && msgs[i].Status == db.MessageStatusStreaming {
+			msg = &msgs[i]
+			break
+		}
+	}
+	if msg == nil {
+		return ErrThreadNotBusy
+	}
+
+	s.emit(thread.ID, msg.ID, DeltaEvent("\nThe turn was stopped."))
+	if _, err := s.store.FinishMessage(msg.ID, db.MessageStatusError); err != nil {
+		return err
+	}
+	if err := s.store.TouchThread(threadID); err != nil {
+		return err
+	}
+
+	s.activeMu.Lock()
+	active, ok := s.active[threadID]
+	if ok && active.messageID == msg.ID {
+		active.cancel()
+		delete(s.active, threadID)
+	}
+	s.activeMu.Unlock()
+
+	if err := stopRunner(runnerFromMeta(msg.Meta)); err != nil {
+		return err
+	}
+	s.broker.Publish(threadID, StructuralUpdate)
+	s.startNextTurn(threadID)
+	return nil
+}
+
 func (s *Service) SetResolver(r Resolver) {
 	s.resolver = r
 }
@@ -368,6 +436,17 @@ func (s *Service) Subscribe(threadID int64) (<-chan struct{}, func() []int64, fu
 
 func (s *Service) Thread(id int64) (db.Thread, error) {
 	return s.store.GetThread(id)
+}
+
+func (s *Service) ThreadPrompt(id int64) (string, error) {
+	message, err := s.store.GetFirstThreadUserMessage(id)
+	if db.IsMessageNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return message.Body, nil
 }
 
 func (s *Service) Threads() ([]db.Thread, error) {
@@ -453,6 +532,9 @@ func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
 }
 
 func (s *Service) emit(threadID, messageID int64, ev Event) {
+	if !s.messageStreaming(messageID) {
+		return
+	}
 	if _, err := s.store.AddMessageEvent(messageID, ev.Type, ev.Data); err != nil {
 		s.log.Error("chat.event", "error", err.Error())
 	}
@@ -490,12 +572,28 @@ func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {
 func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	defer s.wg.Done()
 
-	anchor, err := agent.Run(s.ctx, turn, func(ev Event) {
+	ctx, cancel := context.WithCancel(s.ctx)
+	s.activeMu.Lock()
+	s.active[thread.ID] = activeTurn{cancel: cancel, messageID: turn.MessageID}
+	s.activeMu.Unlock()
+	defer func() {
+		cancel()
+		s.activeMu.Lock()
+		if active, ok := s.active[thread.ID]; ok && active.messageID == turn.MessageID {
+			delete(s.active, thread.ID)
+		}
+		s.activeMu.Unlock()
+	}()
+
+	anchor, err := agent.Run(ctx, turn, func(ev Event) {
 		s.emit(thread.ID, turn.MessageID, ev)
 	})
 
 	if errors.Is(err, ErrTurnPending) {
 		s.log.Info("chat.pending", "message", turn.MessageID, "thread", thread.ID)
+		return
+	}
+	if !s.messageStreaming(turn.MessageID) {
 		return
 	}
 
@@ -517,6 +615,55 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 		s.log.Error("chat.touch", "error", err.Error())
 	}
 	s.broker.Publish(thread.ID, StructuralUpdate)
+	s.startNextTurn(thread.ID)
+}
+
+func (s *Service) startNextTurn(threadID int64) {
+	thread, err := s.store.GetThread(threadID)
+	if err != nil {
+		s.log.Error("chat.queue.thread", "error", err.Error(), "thread", threadID)
+		return
+	}
+	agent, err := s.resolveAgent(thread)
+	if err != nil {
+		s.log.Error("chat.queue.agent", "error", err.Error(), "thread", threadID)
+		return
+	}
+	msgs, err := s.store.ListThreadMessages(threadID)
+	if err != nil {
+		s.log.Error("chat.queue.messages", "error", err.Error(), "thread", threadID)
+		return
+	}
+	if threadStreaming(msgs) {
+		return
+	}
+	user, ok := nextQueuedUser(msgs)
+	if !ok {
+		return
+	}
+	if _, err := s.startTurn(thread, agent, user); err != nil {
+		s.log.Error("chat.queue.start", "error", err.Error(), "thread", threadID, "user", user.ID)
+	}
+}
+
+func nextQueuedUser(msgs []db.Message) (db.Message, bool) {
+	parentIDs := map[int64]bool{}
+	for _, m := range msgs {
+		if m.ParentID != nil {
+			parentIDs[*m.ParentID] = true
+		}
+	}
+	for _, m := range msgs {
+		if m.Role == db.MessageRoleUser && !parentIDs[m.ID] {
+			return m, true
+		}
+	}
+	return db.Message{}, false
+}
+
+func (s *Service) messageStreaming(messageID int64) bool {
+	msg, err := s.store.GetMessage(messageID)
+	return err == nil && msg.Status == db.MessageStatusStreaming
 }
 
 type elicitationResult struct {

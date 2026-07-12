@@ -1,0 +1,217 @@
+package ui
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/uikit"
+)
+
+templ TodoPage(p TodoProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Todos · scratch</title>
+			@InboxCSS()
+			<script src="/static/inbox.js" defer></script>
+		</head>
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: TodoActions(),
+				AppName: "todos",
+				BrandHref: "/",
+				Nav: todoNavItems(p),
+			}) {
+				if p.Detail != nil {
+					@TodoReader(*p.Detail, p.View)
+				} else {
+					@TodoListView(p)
+				}
+			}
+		</body>
+	</html>
+}
+
+templ TodoActions() {
+	<form class="todo-create-form" method="post" action="/tasks">
+		<input class="todo-new-input" name="title" placeholder="New task" autocomplete="off" required/>
+		<button class="mail-create-btn" type="submit">
+			@uikit.Icon("task")
+			<span>Add</span>
+		</button>
+	</form>
+}
+
+templ TodoListView(p TodoProps) {
+	<header class="mail-mainbar">
+		<div class="mail-mainbar-title">
+			<h1>{ p.Title }</h1>
+		</div>
+		<span>{ strconv.Itoa(len(p.Tasks)) }</span>
+	</header>
+	if len(p.Tasks) == 0 {
+		<div class="mail-empty">Nothing here.</div>
+	} else {
+		<div class="mail-list">
+			for _, task := range p.Tasks {
+				@TodoRow(task, p.View)
+			}
+		</div>
+	}
+}
+
+templ TodoReader(d TodoTaskDetail, view string) {
+	@ReaderHeader(ReaderHeaderProps{
+		BackHref: todoBack(view),
+		Description: d.Task.Description,
+		Labels: []string{todoStatus(d.Task)},
+		Title: d.Task.Title,
+	}) {
+			<form method="post" action={ "/tasks/" + strconv.FormatInt(d.Task.ID, 10) + "/done" }>
+				<button type="submit" class="gm-icon-btn" aria-label="Toggle done">
+					@doneIcon(d.Task.Completed)
+				</button>
+			</form>
+			@todoArchiveReaderForm(d.Task, view)
+			if d.Task.Archived {
+				@todoDeleteReaderForm(d.Task.ID, view)
+			}
+	}
+	<div class="mail-reader-body">
+		<form class="mail-card mail-task-editor" method="post" action={ "/tasks/" + strconv.FormatInt(d.Task.ID, 10) }>
+			<label>
+				<span>Title</span>
+				<input name="title" value={ d.Task.Title } autocomplete="off"/>
+			</label>
+			<label>
+				<span>Description</span>
+				<textarea name="description" rows="6" placeholder="Add task details...">{ d.Task.Description }</textarea>
+			</label>
+			<button class="mail-save-btn" type="submit">Save</button>
+		</form>
+	</div>
+}
+
+templ TodoRow(task db.Task, view string) {
+	@uikit.ListRow(uikit.ListRowProps{
+		Actions: TodoRowActions(task, view),
+		Archived: task.Archived,
+		Done: task.Completed,
+		Href: "/tasks/" + strconv.FormatInt(task.ID, 10),
+		ID: strconv.FormatInt(task.ID, 10),
+		Kind: "task",
+		Labels: []string{todoStatus(task)},
+		Primary: TodoRowPrimary(task, view),
+		Subject: task.Description,
+		What: task.Title,
+	})
+}
+
+templ TodoRowActions(task db.Task, view string) {
+	@todoArchiveRowForm(task, view)
+	if task.Archived {
+		@todoDeleteRowForm(task.ID, view)
+	}
+}
+
+templ TodoRowPrimary(task db.Task, view string) {
+	<form method="post" action={ "/tasks/" + strconv.FormatInt(task.ID, 10) + "/done" }>
+		<input type="hidden" name="back" value={ todoBack(view) }/>
+		<button type="submit" class="gm-row-action" aria-label="Mark done">
+			@doneIcon(task.Completed)
+		</button>
+	</form>
+}
+
+templ todoArchiveReaderForm(task db.Task, view string) {
+	<form method="post" action={ "/tasks/" + strconv.FormatInt(task.ID, 10) + "/archive" }>
+		<input type="hidden" name="back" value={ todoBack(view) }/>
+		<button type="submit" class="gm-icon-btn" aria-label={ todoArchiveLabel(task) }>
+			if task.Archived {
+				@unarchiveIcon()
+			} else {
+				@archiveIcon()
+			}
+		</button>
+	</form>
+}
+
+templ todoArchiveRowForm(task db.Task, view string) {
+	<form method="post" action={ "/tasks/" + strconv.FormatInt(task.ID, 10) + "/archive" }>
+		<input type="hidden" name="back" value={ todoBack(view) }/>
+		<button type="submit" class="gm-row-action" aria-label={ todoArchiveLabel(task) }>
+			if task.Archived {
+				@unarchiveIcon()
+			} else {
+				@archiveIcon()
+			}
+		</button>
+	</form>
+}
+
+templ todoDeleteReaderForm(id int64, view string) {
+	<form class="mail-trash-form" method="post" action={ "/tasks/" + strconv.FormatInt(id, 10) + "/delete" } data-trash-form>
+		<input type="hidden" name="back" value={ todoBack(view) }/>
+		<button type="button" class="gm-icon-btn danger mail-trash-trigger" title="Delete" aria-label="Delete" data-trash-trigger>
+			@trashIcon()
+		</button>
+		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
+			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
+				Cancel
+			</button>
+			<button type="submit" class="mail-trash-text-btn danger" data-trash-submit>
+				Delete
+			</button>
+		</span>
+	</form>
+}
+
+templ todoDeleteRowForm(id int64, view string) {
+	<form class="mail-trash-form" method="post" action={ "/tasks/" + strconv.FormatInt(id, 10) + "/delete" } data-trash-form>
+		<input type="hidden" name="back" value={ todoBack(view) }/>
+		<button type="button" class="gm-row-action danger mail-trash-trigger" title="Delete" aria-label="Delete" data-trash-trigger>
+			@trashIcon()
+		</button>
+		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
+			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
+				Cancel
+			</button>
+			<button type="submit" class="mail-trash-text-btn danger" data-trash-submit>
+				Delete
+			</button>
+		</span>
+	</form>
+}
+
+func todoArchiveLabel(task db.Task) string {
+	if task.Archived {
+		return "Unarchive"
+	}
+	return "Archive"
+}
+
+func todoBack(view string) string {
+	if view == "tasks" {
+		return "/tasks"
+	}
+	return "/"
+}
+
+func todoNavItems(p TodoProps) []uikit.NavItem {
+	return []uikit.NavItem{
+		{Active: p.View == "inbox", Count: p.ActiveCount, Href: "/", Icon: "inbox", Label: "Inbox"},
+		{Group: "More", Active: p.View == "tasks", Count: p.TaskCount, Href: "/tasks", Icon: "task", Label: "Tasks"},
+	}
+}
+
+func todoStatus(task db.Task) string {
+	if task.Archived {
+		return "Archived"
+	}
+	if task.Completed {
+		return "Done"
+	}
+	return "Active"
+}

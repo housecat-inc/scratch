@@ -41,7 +41,9 @@ func TestCodexArgs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.New(t).Equal(tc.want, codexArgs(tc.state, Turn{Prompt: "hi"}, t.TempDir()))
+			dir := t.TempDir()
+			tc.want[len(tc.want)-1] = agentPrompt(Turn{Prompt: "hi"}, dir, nil)
+			assert.New(t).Equal(tc.want, codexArgs(tc.state, Turn{Prompt: "hi"}, dir))
 		})
 	}
 }
@@ -73,6 +75,8 @@ func TestCodexArgsAttachments(t *testing.T) {
 	}
 	args := codexArgs(codexAnchor{}, turn, t.TempDir())
 	a.Contains(args, "--image=/tmp/shot.png")
+	a.Contains(args[len(args)-1], "Do not create, switch, rename, or reset git branches")
+	a.Contains(args[len(args)-1], "User request:\nlook")
 	a.Contains(args[len(args)-1], "Attached files:\n- /tmp/data.csv")
 }
 

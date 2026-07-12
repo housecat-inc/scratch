@@ -1,0 +1,35 @@
+package uikit
+
+templ ListRow(p ListRowProps) {
+	<div class={ listRowClass(p) } data-kind={ p.Kind } data-id={ p.ID }>
+		if p.Primary != nil {
+			@p.Primary
+		} else {
+			<span class="gm-row-primary-spacer" aria-hidden="true"></span>
+		}
+		if p.PrimaryMeta != nil {
+			@p.PrimaryMeta
+		}
+		<a class="gm-row-link" href={ templ.SafeURL(p.Href) }>
+			<span class="gm-row-what">{ p.What }</span>
+			<span class="gm-row-subject">
+				if len(p.Labels) > 0 {
+					<span class="gm-row-labels">
+						for _, label := range p.Labels {
+							<span class="gm-row-label">{ label }</span>
+						}
+					</span>
+				}
+				<span class="gm-row-subject-text">{ p.Subject }</span>
+			</span>
+			if p.When != "" {
+				<span class="gm-row-date">{ p.When }</span>
+			}
+		</a>
+		if p.Actions != nil {
+			<div class="gm-row-actions gm-row-actions-right">
+				@p.Actions
+			</div>
+		}
+	</div>
+}

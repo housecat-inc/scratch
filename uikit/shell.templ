@@ -1,0 +1,71 @@
+package uikit
+
+templ Shell(p ShellProps) {
+	<div class={ shellClass(p.Class) }>
+		<header class="mail-topbar">
+			<a class="mail-brand" href={ templ.SafeURL(p.BrandHref) }>{ p.AppName }</a>
+			<div class="mail-create-actions">
+				if p.Actions != nil {
+					@p.Actions
+				}
+			</div>
+		</header>
+		<div class="mail-body">
+			<aside class="mail-sidebar">
+				<nav class="mail-labels" aria-label="Primary">
+					for _, item := range p.Nav {
+						if item.Group != "" {
+							<div class="mail-label-group">{ item.Group }</div>
+						}
+						<a href={ templ.SafeURL(item.Href) } class={ "gm-label", templ.KV("active", item.Active) }>
+							<span class="gm-label-icon">
+								@Icon(item.Icon)
+							</span>
+							<span class="gm-label-name" data-label={ item.Label }>{ item.Label }</span>
+							if item.Count > 0 {
+								<span class="gm-label-count">{ countLabel(item.Count) }</span>
+							}
+						</a>
+					}
+				</nav>
+			</aside>
+			<main class={ mainClass(p.MainClass, p.Footer) }>
+				{ children... }
+			</main>
+		</div>
+		if p.Footer != nil {
+			<footer class="mail-footer">
+				@p.Footer
+			</footer>
+		}
+	</div>
+}
+
+templ Icon(name string) {
+	switch name {
+		case "archive":
+			@lucide(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path>`)
+		case "chat":
+			@lucide(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>`)
+		case "code":
+			@lucide(`<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>`)
+		case "file":
+			@lucide(`<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path>`)
+		case "inbox":
+			@lucide(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
+		case "play":
+			@lucide(`<polygon points="6 3 20 12 6 21 6 3"></polygon>`)
+		case "settings":
+			@lucide(`<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.52a2 2 0 0 1-1 1.72l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.72v-.52a2 2 0 0 1 1-1.72l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle>`)
+		case "star":
+			@lucide(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>`)
+		case "task":
+			@lucide(`<path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>`)
+		default:
+			@lucide(`<circle cx="12" cy="12" r="10"></circle>`)
+	}
+}
+
+templ lucide(paths string) {
+	@templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + paths + `</svg>`)
+}

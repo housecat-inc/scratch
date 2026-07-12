@@ -117,7 +117,14 @@ func NewServer(deps Deps) (*Server, error) {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", s.handleSessions)
+	s.Register(mux, true)
+	return logging(mux)
+}
+
+func (s *Server) Register(mux *http.ServeMux, includeRoot bool) {
+	if includeRoot {
+		mux.HandleFunc("GET /{$}", s.handleSessions)
+	}
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /sw.js", s.handleServiceWorker)
 	mux.HandleFunc("GET /setup", s.handleSetup)
@@ -129,7 +136,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sessions/picker", s.handlePicker)
 	mux.HandleFunc("GET /sessions/{id}/qr", s.handleSessionQR)
 	mux.HandleFunc("POST /sessions", s.handleSessionStart)
-	return logging(mux)
 }
 
 const webManifestJSON = `{

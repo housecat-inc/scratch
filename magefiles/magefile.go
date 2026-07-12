@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -25,6 +26,11 @@ const (
 	pkg        = "./cmd/scratch"
 	service    = "scratch.service"
 )
+
+var devPorts = []devPort{
+	{Name: "app", Path: filepath.Join("tmp", "app", "app"), Port: appDevPort},
+	{Name: "scratch", Path: filepath.Join("tmp", "scratch"), Port: "8888"},
+}
 
 func bin() string { return filepath.Join(os.Getenv("HOME"), "go", "bin", "scratch") }
 
@@ -46,46 +52,70 @@ func Build() error {
 	return sh.RunV("go", "build", "-o", bin(), pkg)
 }
 
-func Dev() {
-	mg.SerialDeps(cleanDevAppPort)
-	mg.Deps(devApp, devScratch)
-}
-
-func cleanDevAppPort() error {
-	pids, err := listenPIDs(appDevPort)
-	if err != nil {
+func Dev() error {
+	if err := cleanDevPorts(); err != nil {
 		return err
 	}
-	if len(pids) == 0 {
-		return nil
-	}
+	return runDevCommands([]devCommand{
+		{Args: []string{"go", "tool", "air", "-c", "cmd/app/.air.toml"}, Name: "app"},
+		{Args: []string{"go", "tool", "air", "-c", "cmd/scratch/.air.toml"}, Name: "scratch"},
+	})
+}
+
+type devCommand struct {
+	Args []string
+	Name string
+}
+
+type devPort struct {
+	Name string
+	Path string
+	Port string
+}
+
+type devProcess struct {
+	Cmd  *exec.Cmd
+	Name string
+}
+
+type devResult struct {
+	Err  error
+	Name string
+}
+
+func cleanDevPorts() error {
 	root, err := os.Getwd()
 	if err != nil {
 		return errors.Wrap(err, "get working directory")
 	}
-	expected := filepath.Join(root, "tmp", "app", "app")
-	for _, pid := range pids {
-		ppid, command, err := processInfo(pid)
-		if err != nil {
-			return err
-		}
-		if ppid != 1 || !strings.Contains(command, expected) {
-			return errors.Errorf("port %s is in use by pid %d (%s); not killing because it is not an orphaned %s", appDevPort, pid, command, expected)
-		}
-		fmt.Printf("killing orphaned app dev server pid %d on port %s\n", pid, appDevPort)
-		if err := killProcess(pid); err != nil {
+	for _, devPort := range devPorts {
+		if err := cleanDevPort(root, devPort); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func devApp() error {
-	return sh.RunV("go", "tool", "air", "-c", "cmd/app/.air.toml")
-}
-
-func devScratch() error {
-	return sh.RunV("go", "tool", "air", "-c", "cmd/scratch/.air.toml")
+func cleanDevPort(root string, devPort devPort) error {
+	pids, err := listenPIDs(devPort.Port)
+	if err != nil {
+		return err
+	}
+	expected := filepath.Join(root, devPort.Path)
+	for _, pid := range pids {
+		ppid, command, err := processInfo(pid)
+		if err != nil {
+			return err
+		}
+		if ppid != 1 || !strings.Contains(command, expected) {
+			return errors.Errorf("port %s is in use by pid %d (%s); not killing because it is not an orphaned %s", devPort.Port, pid, command, expected)
+		}
+		fmt.Printf("killing orphaned %s dev server pid %d on port %s\n", devPort.Name, pid, devPort.Port)
+		if err := killProcess(pid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func killProcess(pid int) error {
@@ -107,6 +137,99 @@ func killProcess(pid int) error {
 		return errors.Wrapf(err, "kill process %d", pid)
 	}
 	return nil
+}
+
+func runDevCommands(commands []devCommand) error {
+	done := make(chan devResult, len(commands))
+	processes := make([]devProcess, 0, len(commands))
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+
+	for _, command := range commands {
+		process, err := startDevProcess(command, done)
+		if err != nil {
+			return errors.WithSecondaryError(err, stopDevProcesses(processes))
+		}
+		processes = append(processes, process)
+	}
+
+	var err error
+	remaining := len(processes)
+	stopping := false
+	for remaining > 0 {
+		select {
+		case result := <-done:
+			remaining--
+			if result.Err != nil && !stopping {
+				err = errors.CombineErrors(err, errors.Wrapf(result.Err, "%s dev server", result.Name))
+			}
+			if !stopping {
+				stopping = true
+				err = errors.CombineErrors(err, stopDevProcesses(processes))
+			}
+		case sig := <-signals:
+			if !stopping {
+				fmt.Printf("stopping dev servers after %s\n", sig)
+				stopping = true
+				err = errors.CombineErrors(err, stopDevProcesses(processes))
+			}
+		}
+	}
+	return errors.CombineErrors(err, cleanDevPorts())
+}
+
+func signalProcessGroup(process devProcess, sig syscall.Signal) error {
+	if process.Cmd.Process == nil {
+		return nil
+	}
+	pgid, err := syscall.Getpgid(process.Cmd.Process.Pid)
+	if err != nil {
+		if err == syscall.ESRCH {
+			return nil
+		}
+		return errors.Wrapf(err, "inspect %s dev server process group", process.Name)
+	}
+	if err := syscall.Kill(-pgid, sig); err != nil {
+		if err == syscall.ESRCH {
+			return nil
+		}
+		return errors.Wrapf(err, "signal %s dev server process group", process.Name)
+	}
+	return nil
+}
+
+func startDevProcess(command devCommand, done chan<- devResult) (devProcess, error) {
+	cmd := exec.Command(command.Args[0], command.Args[1:]...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return devProcess{}, errors.Wrapf(err, "start %s dev server", command.Name)
+	}
+	process := devProcess{Cmd: cmd, Name: command.Name}
+	go func() {
+		done <- devResult{Err: cmd.Wait(), Name: command.Name}
+	}()
+	return process, nil
+}
+
+func stopDevProcesses(processes []devProcess) error {
+	var err error
+	for _, process := range processes {
+		if signalErr := signalProcessGroup(process, syscall.SIGTERM); signalErr != nil {
+			err = errors.CombineErrors(err, signalErr)
+			continue
+		}
+		go func(process devProcess) {
+			time.Sleep(2 * time.Second)
+			if processExists(process.Cmd.Process.Pid) {
+				_ = signalProcessGroup(process, syscall.SIGKILL)
+			}
+		}(process)
+	}
+	return err
 }
 
 func listenPIDs(port string) ([]int, error) {
@@ -152,7 +275,7 @@ func processInfo(pid int) (int, string, error) {
 }
 
 func Generate() error {
-	if err := sh.RunV("go", "generate", "./pkg/db/...", "./pkg/ui/..."); err != nil {
+	if err := sh.RunV("go", "generate", "./pkg/db/...", "./pkg/ui/...", "./uikit/..."); err != nil {
 		return err
 	}
 	return sh.RunV("go", "generate", "./pkg/api/...")

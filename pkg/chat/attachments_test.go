@@ -131,14 +131,17 @@ func TestToggleThreadAccess(t *testing.T) {
 
 func TestClaudeArgsAccessAndAttachments(t *testing.T) {
 	a := assert.New(t)
+	dir := t.TempDir()
 
-	full := claudeArgs(claudeAnchor{}, Turn{Prompt: "hi"})
+	full := claudeArgs(claudeAnchor{}, Turn{Prompt: "hi"}, dir)
 	a.Contains(full, "bypassPermissions")
+	a.Contains(full, "--append-system-prompt")
+	a.Contains(full, agentInstructions(dir))
 
 	safe := claudeArgs(claudeAnchor{Access: AccessSafe}, Turn{
 		Attachments: []Attachment{{MimeType: "image/png", Path: "/tmp/shot.png"}},
 		Prompt:      "hi",
-	})
+	}, dir)
 	a.Contains(safe, "default")
 	a.NotContains(safe, "bypassPermissions")
 	a.Contains(safe[1], "Attached files:\n- /tmp/shot.png")

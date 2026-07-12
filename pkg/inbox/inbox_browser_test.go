@@ -2,6 +2,7 @@ package inbox
 
 import (
 	"testing"
+	"time"
 
 	"github.com/housecat-inc/scratch/testkit"
 )
@@ -10,12 +11,36 @@ func TestInboxTasksBrowser(t *testing.T) {
 	runBrowser(t, []testkit.BrowserCase[*Harness]{
 		{
 			Act: []Step{
-				Type(".mail-compose-input", "buy milk"),
-				Press(".mail-compose-input", "Enter"),
+				Click("[data-new-chat]"),
+			},
+			Assert: []Step{
+				ChatThreadCount(0),
+				ElementEventuallyPresent("#chat-input"),
+				TextContains(".mail-reader-title", "New chat"),
+			},
+			Name: "new chat action opens a draft chat without creating a thread",
+			Path: "/",
+		},
+		{
+			Act: []Step{
+				Type("#chat-input", "hello from draft"),
+				Click("#chat-send"),
+			},
+			Assert: []Step{
+				ChatThreadCount(1),
+				TextContains(".mail-reader-title", "hello from draft"),
+			},
+			Name: "sending from a draft chat creates the thread",
+			Path: "/inbox/chats/new",
+		},
+		{
+			Act: []Step{
+				Type("#chat-input", "buy milk"),
+				Click("#chat-send"),
 			},
 			Assert: []Step{
 				TextContains(".mail-reader-title", "buy milk"),
-				TextContains(".mail-reader-title", "Active"),
+				TextContains(".mail-reader-labels", "Active"),
 			},
 			Name: "creates a task from the footer",
 			Path: "/inbox/tasks",
@@ -50,4 +75,24 @@ func TestInboxTasksBrowser(t *testing.T) {
 			},
 		},
 	})
+}
+
+func ChatThreadCount(want int) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			threads, err := h.Chat.Threads()
+			return err == nil && len(threads) == want
+		}, 5*time.Second, 50*time.Millisecond)
+	}
+}
+
+func TaskCount(want int) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			tasks, err := h.Tasks.All()
+			return err == nil && len(tasks) == want
+		}, 5*time.Second, 50*time.Millisecond)
+	}
 }

@@ -104,7 +104,7 @@ func codexArgs(state codexAnchor, turn Turn, dir string) []string {
 	if state.ThreadID != "" {
 		args = append(args, state.ThreadID)
 	}
-	return append(args, turn.Prompt+attachmentAppendix(docs))
+	return append(args, agentPrompt(turn, dir, docs))
 }
 
 func worktreeGitDir(dir string) string {

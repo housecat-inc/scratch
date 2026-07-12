@@ -37,6 +37,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleInbox)
 	mux.HandleFunc("GET /inbox", s.handleInbox)
 	mux.HandleFunc("GET /inbox/chats", s.handleChats)
+	mux.HandleFunc("GET /inbox/chats/new", s.handleNewChat)
 	mux.HandleFunc("GET /inbox/tasks", s.handleTasks)
 	mux.HandleFunc("GET /inbox/workflows", s.handleWorkflows)
 	mux.HandleFunc("GET /starred", s.handleStarred)
@@ -46,6 +47,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
+	mux.HandleFunc("POST /inbox/chats/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/trash", s.handleTrashThread)
 	mux.HandleFunc("POST /inbox/tasks/{id}/archive", s.handleArchiveTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/done", s.handleDoneTask)
@@ -54,6 +56,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
 	return logging.Middleware(s.log, mux)
 }
@@ -108,14 +111,31 @@ func (s *Server) handleChats(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "chats", ui.InboxSelection{})
 }
 
+func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request) {
+	agent := chatAgent(r.URL.Query().Get("agent"), s.chat.AgentNames())
+	model := chatModel(agent, r.URL.Query().Get("model"))
+	props, err := s.props("chats", archiveFilter("chats", r.URL.Query().Get("archived")), ui.InboxSelection{})
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	props.Draft = &ui.InboxDraftDetail{
+		Agent: agent,
+		Model: model,
+		Title: "New chat",
+	}
+	s.render(w, r, ui.InboxPage(props))
+}
+
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 	agent := chatAgent(r.FormValue("agent"), s.chat.AgentNames())
 	model := chatModel(agent, r.FormValue("model"))
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	mode := strings.TrimSpace(r.FormValue("mode"))
-	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"))
 	createOnly := r.FormValue("create_only") == "true"
-	if prompt == "" && !createOnly {
+	hasFiles := composeHasFiles(r)
+	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"), hasFiles)
+	if prompt == "" && !createOnly && !hasFiles {
 		s.redirectBack(w, r)
 		return
 	}
@@ -136,8 +156,16 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		if prompt != "" && !createOnly {
-			if _, err := s.chat.Send(thread.ID, prompt); err != nil {
+		attachmentIDs, err := s.composeAttachments(r, thread.ID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if (prompt != "" || len(attachmentIDs) > 0) && !createOnly {
+			if prompt == "" {
+				prompt = "See attached files."
+			}
+			if _, err := s.chat.Send(thread.ID, prompt, attachmentIDs...); err != nil {
 				s.fail(w, err)
 				return
 			}
@@ -149,8 +177,16 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		if prompt != "" && !createOnly {
-			if _, err := s.chat.Send(thread.ID, prompt); err != nil {
+		attachmentIDs, err := s.composeAttachments(r, thread.ID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if (prompt != "" || len(attachmentIDs) > 0) && !createOnly {
+			if prompt == "" {
+				prompt = "See attached files."
+			}
+			if _, err := s.chat.Send(thread.ID, prompt, attachmentIDs...); err != nil {
 				s.fail(w, err)
 				return
 			}
@@ -216,6 +252,18 @@ func (s *Server) handleStarThread(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "starred", ui.InboxSelection{})
+}
+
+func (s *Server) handleStopThread(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.chat.StopThread(id); err != nil && !chat.IsThreadNotBusy(err) {
+		s.notFoundOr(w, err)
+		return
+	}
+	s.redirectBack(w, r)
 }
 
 func (s *Server) handleTask(w http.ResponseWriter, r *http.Request) {
@@ -291,6 +339,42 @@ func (s *Server) handleWorkflow(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{})
+}
+
+func composeHasFiles(r *http.Request) bool {
+	if r.MultipartForm == nil {
+		return false
+	}
+	for _, files := range r.MultipartForm.File {
+		if len(files) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) composeAttachments(r *http.Request, threadID int64) ([]int64, error) {
+	if r.MultipartForm == nil {
+		return nil, nil
+	}
+	headers := r.MultipartForm.File["file"]
+	ids := make([]int64, 0, len(headers))
+	for _, header := range headers {
+		file, err := header.Open()
+		if err != nil {
+			return nil, errors.Wrap(err, "open compose attachment")
+		}
+		attachment, err := s.chat.AddAttachment(threadID, header.Filename, header.Header.Get("Content-Type"), file)
+		closeErr := file.Close()
+		if err != nil {
+			return nil, err
+		}
+		if closeErr != nil {
+			return nil, errors.Wrap(closeErr, "close compose attachment")
+		}
+		ids = append(ids, attachment.ID)
+	}
+	return ids, nil
 }
 
 func (s *Server) fail(w http.ResponseWriter, err error) {
@@ -390,7 +474,11 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 		if isWorkflowAgent(agent) {
 			kind = "workflow"
 		}
-		item := threadItem(thread, kind, agent)
+		prompt, err := s.threadPrompt(thread.ID)
+		if err != nil {
+			return nil, ui.InboxCounts{}, errors.Wrap(err, "first thread prompt")
+		}
+		item := threadItem(thread, kind, agent, prompt)
 		addCounts(&counts, item)
 		if includeItem(view, filter, item) {
 			all = append(all, item)
@@ -417,29 +505,25 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 	}
 	agent := s.chat.AgentName(view.Thread)
 	return ui.InboxThreadDetail{
-		Access:   s.chat.ThreadAccess(view.Thread),
-		Agent:    agent,
-		Archived: view.Thread.State == db.ThreadStateArchived,
-		ID:       id,
-		Kind:     kind,
-		Messages: messages,
-		Starred:  view.Thread.Starred,
-		Title:    title,
+		Access:    s.chat.ThreadAccess(view.Thread),
+		Agent:     agent,
+		Archived:  view.Thread.State == db.ThreadStateArchived,
+		ID:        id,
+		Kind:      kind,
+		Messages:  messages,
+		Starred:   view.Thread.Starred,
+		Streaming: view.Streaming,
+		Title:     title,
 	}, nil
 }
 
 func (s *Server) taskDetail(id int64) (ui.InboxTaskDetail, error) {
-	view, err := s.tasks.ViewTask(todo.FilterAll, id)
+	task, err := s.tasks.Get(id)
 	if err != nil {
 		return ui.InboxTaskDetail{}, err
 	}
-	if view.Detail == nil {
-		return ui.InboxTaskDetail{}, db.ErrTaskNotFound
-	}
 	return ui.InboxTaskDetail{
-		Notes:    view.Detail.Notes,
-		Subitems: view.Detail.Subitems,
-		Task:     view.Detail.Task,
+		Task: task,
 	}, nil
 }
 
@@ -582,12 +666,15 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
-func resolveComposeMode(mode, prompt, view string) (string, string) {
+func resolveComposeMode(mode, prompt, view string, hasFiles bool) (string, string) {
 	if mode == "auto" || mode == "" {
 		for _, prefix := range []string{"chat", "task", "workflow"} {
 			if rest, ok := strings.CutPrefix(strings.ToLower(prompt), prefix+":"); ok {
 				return prefix, strings.TrimSpace(prompt[len(prompt)-len(rest):])
 			}
+		}
+		if hasFiles {
+			return "chat", prompt
 		}
 		switch view {
 		case "tasks":
@@ -602,10 +689,6 @@ func resolveComposeMode(mode, prompt, view string) (string, string) {
 }
 
 func taskItem(task db.Task) ui.InboxItem {
-	status := "Active"
-	if task.Completed {
-		status = "Done"
-	}
 	return ui.InboxItem{
 		Archived:  task.Archived,
 		Done:      task.Completed,
@@ -613,7 +696,7 @@ func taskItem(task db.Task) ui.InboxItem {
 		Href:      "/inbox/tasks/" + strconv.FormatInt(task.ID, 10),
 		ID:        task.ID,
 		Kind:      "task",
-		Snippet:   status,
+		Snippet:   task.Description,
 		Starred:   task.Starred,
 		Title:     task.Title,
 		UpdatedAt: task.UpdatedAt.Time,
@@ -622,7 +705,7 @@ func taskItem(task db.Task) ui.InboxItem {
 	}
 }
 
-func threadItem(thread db.Thread, kind, agent string) ui.InboxItem {
+func threadItem(thread db.Thread, kind, agent, prompt string) ui.InboxItem {
 	title := thread.Title
 	if title == "" {
 		title = "New chat"
@@ -634,13 +717,17 @@ func threadItem(thread db.Thread, kind, agent string) ui.InboxItem {
 		Href:      "/inbox/" + titleKindPath(kind) + "/" + strconv.FormatInt(thread.ID, 10),
 		ID:        thread.ID,
 		Kind:      kind,
-		Snippet:   agent,
+		Snippet:   prompt,
 		Starred:   thread.Starred,
 		Title:     title,
 		UpdatedAt: thread.UpdatedAt.Time,
 		When:      when(thread.UpdatedAt.Time),
 		Workflow:  kind == "workflow",
 	}
+}
+
+func (s *Server) threadPrompt(id int64) (string, error) {
+	return s.chat.ThreadPrompt(id)
 }
 
 func titleKind(kind, agent string) string {

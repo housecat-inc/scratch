@@ -34,6 +34,23 @@ type ChatAttachmentProps struct {
 	ThreadID int64
 }
 
+type ChatComposerProps struct {
+	Action      string
+	Agent       string
+	FileName    string
+	Hidden      []ChatComposerHiddenProps
+	HXPost      string
+	Model       string
+	Placeholder string
+	StopAction  string
+	UploadURL   string
+}
+
+type ChatComposerHiddenProps struct {
+	Name  string
+	Value string
+}
+
 type ChatMessageProps struct {
 	Attachments []ChatAttachmentProps
 	Author      string

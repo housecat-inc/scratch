@@ -33,6 +33,7 @@ type InboxProps struct {
 	ArchiveFilter string
 	Agents        []string
 	Counts        InboxCounts
+	Draft         *InboxDraftDetail
 	Items         []InboxItem
 	Selected      InboxSelection
 	Task          *InboxTaskDetail
@@ -45,21 +46,33 @@ type InboxSelection struct {
 	Kind string
 }
 
+type InboxDraftDetail struct {
+	Agent string
+	Model string
+	Title string
+}
+
 type InboxTaskDetail struct {
-	Notes    []db.TaskNote
-	Subitems []db.TaskSubitem
-	Task     db.Task
+	Task db.Task
 }
 
 type InboxThreadDetail struct {
-	Access   string
-	Agent    string
-	Archived bool
-	ID       int64
-	Kind     string
-	Messages []ChatMessageProps
-	Starred  bool
-	Title    string
+	Access    string
+	Agent     string
+	Archived  bool
+	ID        int64
+	Kind      string
+	Messages  []ChatMessageProps
+	Starred   bool
+	Streaming bool
+	Title     string
+}
+
+type ReaderHeaderProps struct {
+	BackHref    string
+	Description string
+	Labels      []string
+	Title       string
 }
 
 type SelectOption struct {
