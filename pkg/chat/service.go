@@ -200,15 +200,15 @@ func (s *Service) ResolveElicitation(messageID int64, elicitationID, action stri
 		return errors.Wrapf(elicit.ErrInvalid, "unknown action %q", action)
 	}
 
-	if err := s.resolver.Deliver(prompt.WorkflowID, prompt.Topic, prompt.ElicitationID, reply); err != nil {
-		return errors.Wrap(err, "deliver reply")
-	}
 	result, err := json.Marshal(elicitationResult{Action: action, Content: reply.Content, ElicitationID: elicitationID})
 	if err != nil {
 		return errors.Wrap(err, "marshal result")
 	}
 	if _, err := s.store.AddMessageEvent(messageID, EventElicitationResult, string(result)); err != nil {
 		return errors.Wrap(err, "record result")
+	}
+	if err := s.resolver.Deliver(prompt.WorkflowID, prompt.Topic, prompt.ElicitationID, reply); err != nil {
+		return errors.Wrap(err, "deliver reply")
 	}
 	s.broker.Publish(msg.ThreadID)
 	return nil

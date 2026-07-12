@@ -3,7 +3,6 @@ package flow
 import (
 	"log/slog"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -21,24 +20,21 @@ type Harness struct {
 	Svc   *chat.Service
 }
 
-type Step func(t *testing.T, h *Harness)
+type Case = testkit.BrowserCase[*Harness]
 
-type Case struct {
-	Act     []Step
-	Assert  []Step
-	Console []string
-	Name    string
-	Path    string
-	Seed    []Step
-}
+type Step = testkit.BrowserStep[*Harness]
 
 func run(t *testing.T, cases []Case) {
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
+	testkit.RunBrowserCases(t, cases, testkit.BrowserCaseRunner[*Harness]{
+		ConsoleErrors: func(h *Harness) []string {
+			return h.Console.Errors()
+		},
+		Load: func(h *Harness, path string) {
+			h.Load(path)
+		},
+		Setup: func(t *testing.T, kit *testkit.T, _ testkit.BrowserCase[*Harness]) *Harness {
 			clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
-			defer restore()
-
-			kit := testkit.New(t)
+			t.Cleanup(restore)
 			logs := testkit.NewLogRecorder(t, kit.Artifacts)
 
 			path := filepath.Join(t.TempDir(), "scratch.db")
@@ -61,42 +57,21 @@ func run(t *testing.T, cases []Case) {
 
 			handler := chat.NewServer(svc, slog.New(logs)).Handler()
 
-			h := &Harness{
+			return &Harness{
 				Harness: testkit.NewHarnessWithT(t, kit, handler),
 				Clock:   clock,
 				Store:   store,
 				Svc:     svc,
 			}
-
-			for _, step := range tc.Seed {
-				step(t, h)
-			}
-
-			h.Load(tc.Path)
-
-			for _, step := range tc.Act {
-				step(t, h)
-			}
-			for _, step := range tc.Assert {
-				step(t, h)
-			}
-
-			for _, msg := range h.Console.Errors() {
-				if !slices.Contains(tc.Console, msg) {
-					t.Errorf("unexpected console error: %s", msg)
-				}
-			}
-		})
-	}
+		},
+	})
 }
 
-func Click(selector string) Step {
-	return func(t *testing.T, h *Harness) { h.Click(selector) }
-}
-
-func Press(selector, key string) Step {
-	return func(t *testing.T, h *Harness) { h.Press(selector, key) }
-}
+var Click = testkit.ClickStep[*Harness]
+var Press = testkit.PressStep[*Harness]
+var TextContains = testkit.TextContainsStep[*Harness]
+var Type = testkit.TypeStep[*Harness]
+var Visible = testkit.VisibleStep[*Harness]
 
 func SeedPendingForm(prompt string) Step {
 	return func(t *testing.T, h *Harness) {
@@ -126,18 +101,6 @@ func Tasks(titles ...string) Step {
 			return true
 		}, 5*time.Second, 50*time.Millisecond)
 	}
-}
-
-func TextContains(selector, expected string) Step {
-	return func(t *testing.T, h *Harness) { h.ElementTextContains(selector, expected) }
-}
-
-func Type(selector, text string) Step {
-	return func(t *testing.T, h *Harness) { h.Type(selector, text) }
-}
-
-func Visible(selector string) Step {
-	return func(t *testing.T, h *Harness) { h.ElementVisible(selector) }
 }
 
 func TestContactIntakeBrowser(t *testing.T) {

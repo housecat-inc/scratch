@@ -2,7 +2,6 @@ package chat
 
 import (
 	"log/slog"
-	"slices"
 	"testing"
 	"time"
 
@@ -18,8 +17,6 @@ type Harness struct {
 	Svc   *Service
 }
 
-type Step func(t *testing.T, h *Harness)
-
 type Case struct {
 	Act     []Step
 	Agent   Agent
@@ -30,20 +27,42 @@ type Case struct {
 	Seed    []Step
 }
 
-func run(t *testing.T, cases []Case) {
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
-			defer restore()
+type Step = testkit.BrowserStep[*Harness]
 
-			kit := testkit.New(t)
+func run(t *testing.T, cases []Case) {
+	agents := map[string]Agent{}
+	baseCases := make([]testkit.BrowserCase[*Harness], 0, len(cases))
+	for _, tc := range cases {
+		agents[tc.Name] = tc.Agent
+		baseCases = append(baseCases, testkit.BrowserCase[*Harness]{
+			Act:     tc.Act,
+			Assert:  tc.Assert,
+			Console: tc.Console,
+			Name:    tc.Name,
+			Path:    tc.Path,
+			Seed:    tc.Seed,
+		})
+	}
+	testkit.RunBrowserCases(t, baseCases, testkit.BrowserCaseRunner[*Harness]{
+		BeforeAct: func(h *Harness) {
+			h.Logs.Reset()
+		},
+		ConsoleErrors: func(h *Harness) []string {
+			return h.Console.Errors()
+		},
+		Load: func(h *Harness, path string) {
+			h.Load(path)
+		},
+		Setup: func(t *testing.T, kit *testkit.T, tc testkit.BrowserCase[*Harness]) *Harness {
+			clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
+			t.Cleanup(restore)
 			logs := testkit.NewLogRecorder(t, kit.Artifacts)
 
 			store, err := db.New(":memory:")
 			kit.R.NoError(err)
 			t.Cleanup(func() { store.Close() })
 
-			agent := tc.Agent
+			agent := agents[tc.Name]
 			if agent == nil {
 				agent = EchoAgent{Delay: 10 * time.Millisecond}
 			}
@@ -51,51 +70,25 @@ func run(t *testing.T, cases []Case) {
 			t.Cleanup(svc.Close)
 			handler := NewServer(svc, slog.New(logs)).Handler()
 
-			h := &Harness{
+			return &Harness{
 				Harness: testkit.NewHarnessWithT(t, kit, handler),
 				Clock:   clock,
 				Logs:    logs,
 				Svc:     svc,
 			}
-
-			for _, step := range tc.Seed {
-				step(t, h)
-			}
-
-			h.Load(tc.Path)
-
-			logs.Reset()
-
-			for _, step := range tc.Act {
-				step(t, h)
-			}
-			for _, step := range tc.Assert {
-				step(t, h)
-			}
-
-			for _, msg := range h.Console.Errors() {
-				if !slices.Contains(tc.Console, msg) {
-					t.Errorf("unexpected console error: %s", msg)
-				}
-			}
-		})
-	}
+		},
+	})
 }
 
-func ClassContains(selector, expected string) Step {
-	return func(t *testing.T, h *Harness) { h.ElementAttributeContains(selector, "class", expected) }
-}
-
-func Click(selector string) Step {
-	return func(t *testing.T, h *Harness) { h.Click(selector) }
-}
+var ClassContains = testkit.ClassContainsStep[*Harness]
+var Click = testkit.ClickStep[*Harness]
+var Press = testkit.PressStep[*Harness]
+var TextContains = testkit.TextContainsStep[*Harness]
+var Type = testkit.TypeStep[*Harness]
+var Visible = testkit.VisibleStep[*Harness]
 
 func Log(line string) Step {
 	return func(t *testing.T, h *Harness) { h.R.Contains(h.Logs.Lines(), line) }
-}
-
-func Press(selector, key string) Step {
-	return func(t *testing.T, h *Harness) { h.Press(selector, key) }
 }
 
 func SeedExchange(threadID int64, prompt string) Step {
@@ -116,16 +109,4 @@ func SeedThread(title string) Step {
 		h.R.NoError(err)
 		h.Clock.Advance(time.Minute)
 	}
-}
-
-func TextContains(selector, expected string) Step {
-	return func(t *testing.T, h *Harness) { h.ElementTextContains(selector, expected) }
-}
-
-func Type(selector, text string) Step {
-	return func(t *testing.T, h *Harness) { h.Type(selector, text) }
-}
-
-func Visible(selector string) Step {
-	return func(t *testing.T, h *Harness) { h.ElementVisible(selector) }
 }

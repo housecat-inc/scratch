@@ -8,6 +8,7 @@ import (
 	"github.com/cockroachdb/errors"
 
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/elicit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -171,6 +172,36 @@ func TestRecoverLeavesAliveTurns(t *testing.T) {
 	a.Equal(db.MessageStatusStreaming, kept.Status)
 }
 
+func TestResolveElicitationRecordsResultBeforeDeliver(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	svc := NewService(store, EchoAgent{}, nil)
+	t.Cleanup(svc.Close)
+	resolver := &spyResolver{}
+	svc.SetResolver(resolver)
+
+	thread, err := svc.CreateThread("", "review")
+	r.NoError(err)
+	msg, err := store.AddMessage(db.NewMessage{
+		Author:   "workflow:test",
+		Role:     db.MessageRoleAssistant,
+		Status:   db.MessageStatusStreaming,
+		ThreadID: thread.ID,
+	})
+	r.NoError(err)
+	_, err = store.AddMessageEvent(msg.ID, EventElicitation, `{"elicitationId":"review-1","message":"Review","topic":"elicit/review","workflowId":"workflow-1"}`)
+	r.NoError(err)
+
+	svc.store = eventFailStore{ThreadStore: store}
+	err = svc.ResolveElicitation(msg.ID, "review-1", elicit.ActionDecline, nil)
+	a.ErrorContains(err, "record result")
+	a.False(resolver.delivered)
+}
+
 func TestSendMissingThread(t *testing.T) {
 	a := assert.New(t)
 
@@ -232,4 +263,24 @@ func (failingAgent) Author() string { return "agent:fail" }
 
 func (failingAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
 	return "", errors.New("agent exploded")
+}
+
+type eventFailStore struct {
+	db.ThreadStore
+}
+
+func (s eventFailStore) AddMessageEvent(messageID int64, eventType, data string) (db.MessageEvent, error) {
+	if eventType == EventElicitationResult {
+		return db.MessageEvent{}, errors.New("insert result")
+	}
+	return s.ThreadStore.AddMessageEvent(messageID, eventType, data)
+}
+
+type spyResolver struct {
+	delivered bool
+}
+
+func (r *spyResolver) Deliver(workflowID, topic, idempotencyKey string, reply elicit.Reply) error {
+	r.delivered = true
+	return nil
 }
