@@ -1,2 +1,7 @@
 /dist/
 /tmp/
+.context/
+
+# generated code (regenerate with `mage generate`); docs/openapi.json is committed as the API contract
+*_templ.go
+/pkg/db/internal/sqlite/

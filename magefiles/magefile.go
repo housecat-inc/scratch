@@ -34,15 +34,27 @@ func unitDir() string {
 func unitPath() string { return filepath.Join(unitDir(), service) }
 
 func Build() error {
+	mg.Deps(Generate)
 	return sh.RunV("go", "build", "-o", bin(), pkg)
 }
 
-func Dev() error {
-	return sh.RunV("go", "tool", "air")
+func Dev() {
+	mg.Deps(devApp, devScratch)
+}
+
+func devApp() error {
+	return sh.RunV("go", "tool", "air", "-c", "cmd/app/.air.toml")
+}
+
+func devScratch() error {
+	return sh.RunV("go", "tool", "air", "-c", "cmd/scratch/.air.toml")
 }
 
 func Generate() error {
-	return sh.RunV("go", "generate", "./...")
+	if err := sh.RunV("go", "generate", "./pkg/db/...", "./pkg/ui/..."); err != nil {
+		return err
+	}
+	return sh.RunV("go", "generate", "./pkg/api/...")
 }
 
 func Install() error {

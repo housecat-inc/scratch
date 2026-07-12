@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go generate ./... && go build -o ./tmp/scratch ./cmd/scratch"
+  cmd = "go generate ./pkg/db/... ./pkg/ui/... && go generate ./pkg/api/... && go build -o ./tmp/scratch ./cmd/scratch"
   entrypoint = ["./tmp/scratch"]
   delay = 200
   exclude_dir = ["pkg/db/internal", "tmp"]

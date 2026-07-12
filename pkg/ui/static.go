@@ -8,6 +8,8 @@ import (
 	"github.com/cockroachdb/errors"
 )
 
+//go:generate go tool templ generate
+
 //go:embed static
 var staticFS embed.FS
 

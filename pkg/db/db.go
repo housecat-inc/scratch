@@ -15,6 +15,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+//go:generate go tool sqlc generate
+
 //go:embed schema/*.sql
 var schemaFS embed.FS
 

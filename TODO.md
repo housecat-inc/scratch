@@ -1,3 +1,6 @@
-Main web app w/ in-app agent
-Gmail inspired threads / messages CRUD
-Codex subscription support
+# TODO
+
+- TODO web app
+- in-app agent w/ inspector
+- Gmail inspired threads / messages CRUD
+- Codex subscription support

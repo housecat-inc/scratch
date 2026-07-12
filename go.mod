@@ -9,6 +9,7 @@ require (
 	github.com/dbos-inc/dbos-transact-golang v0.19.0
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/go-fuego/fuego v0.19.0
+	github.com/go-rod/rod v0.116.2
 	github.com/magefile/mage v1.17.2
 	github.com/pressly/goose/v3 v3.27.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
@@ -104,6 +105,11 @@ require (
 	github.com/wasilibs/go-pgquery v0.0.0-20250409022910-10ac41983c07 // indirect
 	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
 	github.com/woodsbury/decimal128 v1.4.0 // indirect
+	github.com/ysmood/fetchup v0.2.3 // indirect
+	github.com/ysmood/goob v0.4.0 // indirect
+	github.com/ysmood/got v0.40.0 // indirect
+	github.com/ysmood/gson v0.7.3 // indirect
+	github.com/ysmood/leakless v0.9.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect

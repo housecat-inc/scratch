@@ -1,0 +1,26 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "schema"
+    queries: "queries"
+    gen:
+      go:
+        package: "sqlite"
+        out: "internal/sqlite"
+        sql_package: "database/sql"
+        emit_empty_slices: true
+        emit_exact_table_names: false
+        emit_interface: false
+        emit_json_tags: false
+        emit_prepared_queries: false
+        overrides:
+          - db_type: "TIMESTAMP"
+            go_type:
+              import: "github.com/housecat-inc/scratch/pkg/ts"
+              type: "Timestamp"
+          - db_type: "TIMESTAMP"
+            go_type:
+              import: "github.com/housecat-inc/scratch/pkg/ts"
+              type: "Timestamp"
+              pointer: true
+            nullable: true

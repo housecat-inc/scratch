@@ -11,6 +11,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db/internal/sqlite"
+	"github.com/housecat-inc/scratch/pkg/ts"
 )
 
 type Comment struct {
@@ -65,14 +66,17 @@ func (NopCommentStore) UpdateCommentBody(string, string, string) (Comment, error
 }
 
 func (d *DB) AddComment(slug, branch, path, side string, line int, body string) (Comment, error) {
+	now := ts.Now()
 	row, err := d.queries.AddComment(context.Background(), sqlite.AddCommentParams{
-		Body:   body,
-		Branch: branch,
-		ID:     newCommentID(),
-		Line:   int64(line),
-		Path:   path,
-		Side:   side,
-		Slug:   slug,
+		Body:      body,
+		Branch:    branch,
+		CreatedAt: now,
+		ID:        newCommentID(),
+		Line:      int64(line),
+		Path:      path,
+		Side:      side,
+		Slug:      slug,
+		UpdatedAt: now,
 	})
 	if err != nil {
 		return Comment{}, errors.Wrap(err, "insert comment")
@@ -124,6 +128,7 @@ func (d *DB) SetCommentResolved(slug, id string, resolved bool, body string) (Co
 		Resolved:     flag,
 		ResolvedBody: body,
 		Slug:         slug,
+		UpdatedAt:    ts.Now(),
 	})
 	if err != nil {
 		return Comment{}, errors.Wrap(err, "set resolved")
@@ -136,9 +141,10 @@ func (d *DB) SetCommentResolved(slug, id string, resolved bool, body string) (Co
 
 func (d *DB) UpdateCommentBody(slug, id, body string) (Comment, error) {
 	n, err := d.queries.UpdateCommentBody(context.Background(), sqlite.UpdateCommentBodyParams{
-		Body: body,
-		ID:   id,
-		Slug: slug,
+		Body:      body,
+		ID:        id,
+		Slug:      slug,
+		UpdatedAt: ts.Now(),
 	})
 	if err != nil {
 		return Comment{}, errors.Wrap(err, "update body")
@@ -153,7 +159,7 @@ func fromSqliteComment(c sqlite.Comment) Comment {
 	return Comment{
 		Body:         c.Body,
 		Branch:       c.Branch,
-		CreatedAt:    c.CreatedAt,
+		CreatedAt:    c.CreatedAt.Time,
 		ID:           c.ID,
 		Line:         int(c.Line),
 		Path:         c.Path,
@@ -161,7 +167,7 @@ func fromSqliteComment(c sqlite.Comment) Comment {
 		ResolvedBody: c.ResolvedBody,
 		Side:         c.Side,
 		Slug:         c.Slug,
-		UpdatedAt:    c.UpdatedAt,
+		UpdatedAt:    c.UpdatedAt.Time,
 	}
 }
 

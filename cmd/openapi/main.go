@@ -8,6 +8,10 @@ import (
 )
 
 func main() {
-	api.Spec("docs/openapi.json")
-	fmt.Fprintln(os.Stderr, "wrote docs/openapi.json")
+	path := "docs/openapi.json"
+	if len(os.Args) > 1 {
+		path = os.Args[1]
+	}
+	api.Spec(path)
+	fmt.Fprintf(os.Stderr, "wrote %s\n", path)
 }
