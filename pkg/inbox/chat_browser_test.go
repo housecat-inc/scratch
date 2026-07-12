@@ -112,11 +112,12 @@ func FloatingChatControlsFit() Step {
 		h.R.Eventually(func() bool {
 			result, err := h.Page.Eval(`() => {
 				const panel = document.querySelector("#floating-chat");
-				const expand = document.querySelector("#floating-chat [data-chat-fullscreen]");
 				const close = document.querySelector("#floating-chat [data-chat-close]");
+				const expand = document.querySelector("#floating-chat [data-chat-fullscreen]");
 				const minimize = document.querySelector("#floating-chat [data-chat-minimize]");
+				const restore = document.querySelector("#floating-chat [data-chat-restore]");
 				const access = document.querySelector("#floating-chat .chat-access-switch");
-				if (!panel || !expand || !close || !minimize || !access) return false;
+				if (!panel || !close || !expand || !minimize || !restore || !access) return false;
 				const panelRect = panel.getBoundingClientRect();
 				const visible = (el) => {
 					const style = getComputedStyle(el);
@@ -127,7 +128,7 @@ func FloatingChatControlsFit() Step {
 					const rect = el.getBoundingClientRect();
 					return rect.left >= panelRect.left && rect.right <= panelRect.right && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom;
 				};
-				return !visible(access) && !visible(minimize) && visible(expand) && visible(close) && inside(expand) && inside(close);
+				return !visible(access) && !visible(minimize) && visible(close) && visible(expand) && visible(restore) && inside(close) && inside(expand) && inside(restore);
 			}`)
 			return err == nil && result.Value.Bool()
 		}, 5*time.Second, 50*time.Millisecond)
@@ -259,9 +260,11 @@ func TestChatBrowser(t *testing.T) {
 				Click(`[data-chat-popout-thread="1"]`),
 				ElementEventuallyPresent("#floating-chat"),
 				Click("#floating-chat [data-chat-minimize]"),
+				FloatingChatControlsFit(),
+				Click("#floating-chat [data-chat-restore]"),
 			},
 			Assert: []Step{
-				FloatingChatControlsFit(),
+				Visible("#floating-chat [data-chat-input]"),
 			},
 		},
 		{

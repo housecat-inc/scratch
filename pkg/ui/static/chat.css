@@ -637,11 +637,19 @@ body.chat-selecting * {
   width: min(22rem, calc(100vw - 2.5rem));
 }
 
+.floating-chat [data-chat-restore] {
+  display: none;
+}
+
 .floating-chat.minimized .floating-chat-body,
 .floating-chat.minimized .floating-chat-compose,
 .floating-chat.minimized .chat-access-switch,
 .floating-chat.minimized [data-chat-minimize] {
   display: none;
+}
+
+.floating-chat.minimized [data-chat-restore] {
+  display: inline-flex;
 }
 
 .floating-chat-head {

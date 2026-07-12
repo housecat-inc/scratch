@@ -438,6 +438,11 @@
         applyPanelMode(panel, panel.classList.contains("minimized") ? "open" : "minimized");
         return;
       }
+      const restore = e.target.closest("[data-chat-restore]");
+      if (restore) {
+        applyPanelMode(panel, "open");
+        return;
+      }
       const fullscreen = e.target.closest("[data-chat-fullscreen]");
       if (fullscreen) {
         applyPanelMode(panel, panel.classList.contains("fullscreen") ? "open" : "fullscreen");

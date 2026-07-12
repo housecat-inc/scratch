@@ -100,6 +100,9 @@ templ FloatingChatPanel(p FloatingChatProps) {
 				<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
 					@minusIcon()
 				</button>
+				<button type="button" class="floating-chat-icon" data-chat-restore title="Restore floating chat" aria-label="Restore floating chat">
+					@restoreIcon()
+				</button>
 				<button type="button" class="floating-chat-icon" data-chat-fullscreen title="Fullscreen" aria-label="Fullscreen chat">
 					@fullscreenIcon()
 				</button>
@@ -229,6 +232,10 @@ templ fullscreenIcon() {
 
 templ minusIcon() {
 	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg>
+}
+
+templ restoreIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>
 }
 
 templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
