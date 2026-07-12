@@ -12,8 +12,15 @@ var templuiThemesCSS string
 //go:embed static/templui-tailwind.css
 var templuiTailwindCSS string
 
+//go:embed static/inbox.css
+var inboxCSS string
+
 //go:embed static/sw.js
 var serviceWorkerJS []byte
+
+func InboxCSS() templ.Component {
+	return templ.Raw(`<style>` + inboxCSS + `</style>`)
+}
 
 func TempluiCSS() templ.Component {
 	return templ.Raw(`<style>` + templuiThemesCSS + `</style>` +

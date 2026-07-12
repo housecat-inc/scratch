@@ -24,6 +24,7 @@ var (
 	ErrElicitationResolved = errors.New("elicitation already resolved")
 	ErrNoResolver          = errors.New("no elicitation resolver configured")
 	ErrThreadBusy          = errors.New("thread busy")
+	ErrThreadStateUnknown  = errors.New("thread state unknown")
 	ErrTurnPending         = errors.New("turn pending durable recovery")
 )
 
@@ -265,6 +266,15 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	s.wg.Add(1)
 	go s.run(agent, thread, turn)
 	return user, nil
+}
+
+func (s *Service) SetThreadState(threadID int64, state string) error {
+	switch state {
+	case db.ThreadStateArchived, db.ThreadStateOpen, db.ThreadStateResolved:
+	default:
+		return errors.Wrapf(ErrThreadStateUnknown, "%q", state)
+	}
+	return s.store.SetThreadState(threadID, state)
 }
 
 func (s *Service) SetResolver(r Resolver) {

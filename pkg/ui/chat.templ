@@ -5,6 +5,7 @@ templ chatHead(title string) {
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1"/>
 		<title>{ title }</title>
+		@InboxCSS()
 		@ChatCSS()
 		<script src="/static/htmx.min.js"></script>
 		<script src="/static/htmx-ext-sse.min.js"></script>
@@ -17,41 +18,58 @@ templ ChatIndexPage(p ChatIndexProps) {
 	<html lang="en">
 		@chatHead("chat")
 		<body>
-			<section class="chatapp">
-				<header class="chat-header">
-					<a class="chat-back" href="/">←</a>
-					<h1>chat</h1>
-				</header>
-				<div class="chat-new-row">
-					for i, agent := range p.Agents {
-						<form action="/chat" method="post">
-							<input type="hidden" name="agent" value={ agent }/>
-							if i == 0 {
-								<button id="new-thread" class="chat-new" type="submit">New chat</button>
-							} else {
-								<button id={ "new-thread-" + agent } class="chat-new chat-new-alt" type="submit">New { agent } chat</button>
-							}
-						</form>
-					}
-				</div>
-				if len(p.Threads) == 0 {
-					<p class="chat-empty">No chats yet</p>
-				} else {
-					<ul id="thread-list" class="thread-list">
-						for _, t := range p.Threads {
-							<li>
-								<a href={ templ.SafeURL(chatPath(t.ID)) }>
-									<span class="thread-agent">{ t.Agent }</span>
-									<span class="thread-title">{ t.Title }</span>
-									<span class="thread-when">{ t.When }</span>
-								</a>
-							</li>
-						}
-					</ul>
+			<div class="chatapp">
+				@InboxLayout("chat", 0, p.Chats) {
+					@ChatListPane(p)
+					<section class="inbox-detail-pane">
+						<div class="inbox-empty">Select a thread or start a new chat.</div>
+					</section>
 				}
-			</section>
+			</div>
 		</body>
 	</html>
+}
+
+templ ChatListPane(p ChatIndexProps) {
+	<section class="inbox-list-pane">
+		<header class="inbox-list-header">
+			<h1>Chat</h1>
+			<div class="chat-new-row">
+				for i, agent := range p.Agents {
+					<form action="/chat" method="post">
+						<input type="hidden" name="agent" value={ agent }/>
+						if i == 0 {
+							<button id="new-thread" class="chat-new" type="submit">New chat</button>
+						} else {
+							<button id={ "new-thread-" + agent } class="chat-new chat-new-alt" type="submit">New { agent }</button>
+						}
+					</form>
+				}
+			</div>
+		</header>
+		@ChatThreadList(p.Threads, p.ActiveID)
+	</section>
+}
+
+templ ChatThreadList(threads []ChatThreadItemProps, activeID int64) {
+	if len(threads) == 0 {
+		<p class="chat-empty">No chats yet</p>
+	} else {
+		<ul id="thread-list" class="inbox-list thread-list">
+			for _, t := range threads {
+				<li>
+					<a href={ templ.SafeURL(chatPath(t.ID)) } class={ "inbox-row", templ.KV("active", t.ID == activeID) }>
+						<span class="inbox-pill">{ t.Agent }</span>
+						<span class="inbox-row-main">
+							<span class="inbox-row-title">{ t.Title }</span>
+							<span class="inbox-row-subtitle">Agent thread</span>
+						</span>
+						<span class="inbox-row-meta">{ t.When }</span>
+					</a>
+				</li>
+			}
+		</ul>
+	}
 }
 
 templ ChatThreadPage(p ChatThreadProps) {
@@ -59,34 +77,45 @@ templ ChatThreadPage(p ChatThreadProps) {
 	<html lang="en">
 		@chatHead(p.Title)
 		<body>
-			<section class="chatapp">
-				<header class="chat-header">
-					<a class="chat-back" href="/chat">←</a>
-					<h1 id="thread-heading">{ p.Title }</h1>
-					<span id="thread-agent" class="thread-agent">{ p.Agent }</span>
-				</header>
-				<div hx-ext="sse" sse-connect={ chatPath(p.ID) + "/events" }>
-					<div id="chat-messages" class="chat-messages" sse-swap="message">
-						@ChatMessages(p)
-					</div>
-				</div>
-				<form
-					id="chat-form"
-					class="chat-form"
-					hx-post={ chatPath(p.ID) + "/messages" }
-					hx-swap="none"
-					hx-on::after-request="this.reset()"
-				>
-					<input
-						id="chat-input"
-						name="prompt"
-						placeholder="Message the agent…"
-						autocomplete="off"
-						autofocus
-					/>
-					<button id="chat-send" type="submit">Send</button>
-				</form>
-			</section>
+			<div class="chatapp">
+				@InboxLayout("chat", 0, p.Chats) {
+					@ChatListPane(ChatIndexProps{ActiveID: p.ID, Agents: p.Agents, Chats: p.Chats, Threads: p.Threads})
+					<section class="inbox-detail-pane">
+						<header class="inbox-detail-header">
+							<a class="inbox-pill" href="/chat">Chat</a>
+							<div class="inbox-detail-title">
+								<h2 id="thread-heading">{ p.Title }</h2>
+								<p><span id="thread-agent">{ p.Agent }</span></p>
+							</div>
+							<div class="chat-thread-actions">
+								<button type="button" hx-patch={ chatPath(p.ID) } hx-vals='{"state":"resolved"}' hx-disabled-elt="this">Done</button>
+								<button type="button" hx-patch={ chatPath(p.ID) } hx-vals='{"state":"archived"}' hx-disabled-elt="this">Archive</button>
+							</div>
+						</header>
+						<div hx-ext="sse" sse-connect={ chatPath(p.ID) + "/events" } class="inbox-detail-pane">
+							<div id="chat-messages" class="chat-messages" sse-swap="message">
+								@ChatMessages(p)
+							</div>
+						</div>
+						<form
+							id="chat-form"
+							class="chat-form"
+							hx-post={ chatPath(p.ID) + "/messages" }
+							hx-swap="none"
+							hx-on::after-request="this.reset()"
+						>
+							<input
+								id="chat-input"
+								name="prompt"
+								placeholder="Message the agent..."
+								autocomplete="off"
+								autofocus
+							/>
+							<button id="chat-send" type="submit">Send</button>
+						</form>
+					</section>
+				}
+			</div>
 		</body>
 	</html>
 }

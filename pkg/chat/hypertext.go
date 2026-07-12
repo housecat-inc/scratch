@@ -15,6 +15,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/elicit"
+	"github.com/housecat-inc/scratch/pkg/server/httperr"
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/ui"
 )
@@ -40,6 +41,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /chat/{$}", s.handleIndex)
 	mux.HandleFunc("POST /chat", s.handleCreate)
 	mux.HandleFunc("GET /chat/{id}", s.handleThread)
+	mux.HandleFunc("PATCH /chat/{id}", s.handleUpdateThread)
 	mux.HandleFunc("POST /chat/{id}/elicitations", s.handleElicitation)
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
@@ -149,20 +151,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	items := make([]ui.ChatThreadItemProps, 0, len(threads))
-	for _, t := range threads {
-		title := t.Title
-		if title == "" {
-			title = "Untitled"
-		}
-		items = append(items, ui.ChatThreadItemProps{
-			Agent: s.svc.AgentName(t),
-			ID:    t.ID,
-			Title: title,
-			When:  t.UpdatedAt.Format("Jan 2 15:04"),
-		})
-	}
-	s.render(w, r, ui.ChatIndexPage(ui.ChatIndexProps{Agents: s.svc.AgentNames(), Threads: items}))
+	items := s.threadItems(threads)
+	s.render(w, r, ui.ChatIndexPage(ui.ChatIndexProps{Agents: s.svc.AgentNames(), Chats: len(items), Threads: items}))
 }
 
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
@@ -199,9 +189,29 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, ui.ChatThreadPage(s.toThreadProps(view)))
 }
 
+func (s *Server) handleUpdateThread(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	state := r.FormValue("state")
+	if state == "done" {
+		state = db.ThreadStateResolved
+	}
+	if err := s.svc.SetThreadState(id, state); err != nil {
+		if errors.Is(err, ErrThreadStateUnknown) {
+			http.Error(w, "unknown thread state", http.StatusBadRequest)
+			return
+		}
+		s.notFoundOr(w, err)
+		return
+	}
+	http.Redirect(w, r, "/chat", http.StatusSeeOther)
+}
+
 func (s *Server) fail(w http.ResponseWriter, err error) {
-	s.log.Error("chat error", "error", err.Error())
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	httperr.Log(s.log, "chat error", err)
+	httperr.Error(w, err, http.StatusInternalServerError)
 }
 
 func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
@@ -215,7 +225,7 @@ func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
 func (s *Server) render(w http.ResponseWriter, r *http.Request, comp templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := comp.Render(r.Context(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httperr.Error(w, err, http.StatusInternalServerError)
 	}
 }
 
@@ -246,11 +256,33 @@ func threadID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
+func (s *Server) threadItems(threads []db.Thread) []ui.ChatThreadItemProps {
+	items := make([]ui.ChatThreadItemProps, 0, len(threads))
+	for _, t := range threads {
+		title := t.Title
+		if title == "" {
+			title = "Untitled"
+		}
+		items = append(items, ui.ChatThreadItemProps{
+			Agent: s.svc.AgentName(t),
+			ID:    t.ID,
+			Title: title,
+			When:  t.UpdatedAt.Format("Jan 2 15:04"),
+		})
+	}
+	return items
+}
+
 func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
+	threads, _ := s.svc.Threads()
+	items := s.threadItems(threads)
 	props := ui.ChatThreadProps{
 		Agent:    s.svc.AgentName(v.Thread),
+		Agents:   s.svc.AgentNames(),
+		Chats:    len(items),
 		ID:       v.Thread.ID,
 		Messages: make([]ui.ChatMessageProps, 0, len(v.Messages)),
+		Threads:  items,
 		Title:    v.Thread.Title,
 	}
 	if props.Title == "" {

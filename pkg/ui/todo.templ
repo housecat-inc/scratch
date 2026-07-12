@@ -9,42 +9,55 @@ templ TodoPage(p TodoProps) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>todos</title>
+			@InboxCSS()
 			@TodoCSS()
 			<script src="/static/htmx.min.js"></script>
 		</head>
 		<body>
-			<section class="todoapp">
-				<h1>todos</h1>
-				<form hx-post="/tasks" hx-target="#todo-main" hx-swap="outerHTML" hx-on::after-request="this.reset()">
-					<input
-						id="new-todo"
-						class="new-todo"
-						name="title"
-						placeholder="What needs to be done?"
-						autocomplete="off"
-						autofocus
-					/>
-				</form>
-				@TodoMain(p)
-			</section>
-			<footer class="info">
-				<a id="chat-link" href="/chat">Agent chat →</a>
-			</footer>
+			@TodoShell(p)
 		</body>
 	</html>
+}
+
+templ TodoShell(p TodoProps) {
+	<div id="todo-shell">
+			@InboxLayout("todo", p.ActiveCount, p.CompletedCount) {
+				@TodoListPane(p)
+				@TodoDetailPane(p)
+			}
+	</div>
+}
+
+templ TodoListPane(p TodoProps) {
+	<section class="inbox-list-pane">
+		<header class="inbox-list-header">
+			<h1>Tasks</h1>
+			<form hx-post="/tasks" hx-target="#todo-main" hx-swap="outerHTML" hx-on::after-request="this.reset()">
+				<input
+					id="new-todo"
+					class="new-todo"
+					name="title"
+					placeholder="Add a task"
+					autocomplete="off"
+					autofocus
+				/>
+			</form>
+		</header>
+		@TodoMain(p)
+	</section>
 }
 
 templ TodoMain(p TodoProps) {
 	<div id="todo-main">
 		if len(p.Tasks) == 0 {
-			<p class="empty">Nothing to do</p>
+			<p class="todo-empty empty">Nothing to do</p>
 		} else {
-			<ul id="todo-list" class="todo-list">
+			<ul id="todo-list" class="inbox-list todo-list">
 				for _, t := range p.Tasks {
 					if t.ID == p.EditingID {
 						@todoEditItem(t)
 					} else {
-						@todoItem(t)
+						@todoItem(t, p)
 					}
 				}
 			</ul>
@@ -53,43 +66,155 @@ templ TodoMain(p TodoProps) {
 	</div>
 }
 
-templ todoItem(t db.Task) {
+templ todoItem(t db.Task, p TodoProps) {
 	<li id={ "task-" + taskID(t) } class={ "todo-item", templ.KV("completed", t.Completed) }>
-		<input
-			class="toggle"
-			type="checkbox"
-			checked?={ t.Completed }
-			hx-patch={ taskPath(t) }
-			hx-vals={ toggleVals(t) }
-			hx-target="#todo-main"
-			hx-swap="outerHTML"
-		/>
-		<span class="title">{ t.Title }</span>
-		<button class="edit" hx-get={ taskPath(t) + "/edit" } hx-target="#todo-main" hx-swap="outerHTML">Edit</button>
-		<button class="destroy" hx-delete={ taskPath(t) } hx-target="#todo-main" hx-swap="outerHTML">Delete</button>
+		<div class={ "inbox-row", templ.KV("active", p.Detail != nil && p.Detail.Task.ID == t.ID) }>
+			<input
+				class="toggle todo-row-check"
+				type="checkbox"
+				checked?={ t.Completed }
+				hx-patch={ taskPath(t) }
+				hx-vals={ toggleVals(t) }
+				hx-target="#todo-main"
+				hx-swap="outerHTML"
+			/>
+			<a href={ templ.SafeURL(taskPath(t) + "?filter=" + p.Filter) } class="inbox-row-main">
+				<span class="title inbox-row-title">{ t.Title }</span>
+				<span class="inbox-row-subtitle">
+					if t.Completed {
+						Done
+					} else {
+						Active
+					}
+				</span>
+			</a>
+			<span class="todo-row-actions">
+				<button class="edit" hx-get={ taskPath(t) + "/edit" } hx-target="#todo-main" hx-swap="outerHTML">Edit</button>
+				<button class="destroy" hx-delete={ taskPath(t) } hx-target="#todo-main" hx-swap="outerHTML">Delete</button>
+			</span>
+		</div>
 	</li>
 }
 
 templ todoEditItem(t db.Task) {
 	<li id={ "task-" + taskID(t) } class="todo-item editing">
-		<form hx-patch={ taskPath(t) } hx-target="#todo-main" hx-swap="outerHTML" style="flex:1;display:flex">
-			<input id={ "edit-" + taskID(t) } class="edit-input" name="title" value={ t.Title } autofocus/>
-		</form>
+		<div class="inbox-row">
+			<form class="todo-edit-form" hx-patch={ taskPath(t) } hx-target="#todo-main" hx-swap="outerHTML">
+				<input id={ "edit-" + taskID(t) } class="edit-input" name="title" value={ t.Title } autofocus/>
+			</form>
+		</div>
 	</li>
 }
 
 templ todoFooter(p TodoProps) {
 	<div class="footer" id="footer">
 		<span id="todo-count"><strong>{ itoa(p.ActiveCount) }</strong> { plural(p.ActiveCount, "item", "items") } left</span>
-		<ul class="filters">
-			<li><a id="filter-all" href="/?filter=all" class={ templ.KV("selected", p.Filter == "all") }>All</a></li>
-			<li><a id="filter-active" href="/?filter=active" class={ templ.KV("selected", p.Filter == "active") }>Active</a></li>
-			<li><a id="filter-completed" href="/?filter=completed" class={ templ.KV("selected", p.Filter == "completed") }>Completed</a></li>
-		</ul>
+		<nav class="todo-filters" aria-label="Task filters">
+			<a id="filter-all" href="/?filter=all" class={ templ.KV("selected", p.Filter == "all") }>Inbox</a>
+			<a id="filter-active" href="/?filter=active" class={ templ.KV("selected", p.Filter == "active") }>Active</a>
+			<a id="filter-completed" href="/?filter=completed" class={ templ.KV("selected", p.Filter == "completed") }>Done</a>
+			<a id="filter-archived" href="/?filter=archived" class={ templ.KV("selected", p.Filter == "archived") }>Archived</a>
+		</nav>
 		if p.CompletedCount > 0 {
 			<button id="clear-completed" class="clear-completed" hx-delete="/tasks/completed" hx-target="#todo-main" hx-swap="outerHTML">
 				Clear completed
 			</button>
 		}
 	</div>
+}
+
+templ TodoDetailPane(p TodoProps) {
+	<section class="inbox-detail-pane">
+		if p.Detail == nil {
+			<div class="inbox-empty">Select a task to see notes and subitems.</div>
+		} else {
+			@todoDetail(*p.Detail, p.Filter)
+		}
+	</section>
+}
+
+templ todoDetail(d TodoDetailProps, filter string) {
+	<header class="inbox-detail-header">
+		<span class="inbox-pill">Task</span>
+		<div class="inbox-detail-title">
+			<h2>{ d.Task.Title }</h2>
+			<p>
+				if d.Task.Archived {
+					Archived
+				} else if d.Task.Completed {
+					Done
+				} else {
+					Active
+				}
+			</p>
+		</div>
+		<div class="todo-detail-actions">
+			if d.Task.Completed {
+				<button hx-patch={ taskPath(d.Task) } hx-vals='{"completed":false}' hx-target="#todo-shell" hx-swap="outerHTML">Reopen</button>
+			} else {
+				<button hx-patch={ taskPath(d.Task) } hx-vals='{"completed":true}' hx-target="#todo-shell" hx-swap="outerHTML">Done</button>
+			}
+			if d.Task.Archived {
+				<button hx-patch={ taskPath(d.Task) } hx-vals='{"archived":false}' hx-target="#todo-shell" hx-swap="outerHTML">Unarchive</button>
+			} else {
+				<button hx-patch={ taskPath(d.Task) } hx-vals='{"archived":true}' hx-target="#todo-shell" hx-swap="outerHTML">Archive</button>
+			}
+		</div>
+	</header>
+	<div class="todo-detail-body">
+		<section class="todo-panel">
+			<div class="todo-panel-header">
+				<h3>Subitems</h3>
+				<span class="inbox-pill">{ itoa(len(d.Subitems)) }</span>
+			</div>
+			if len(d.Subitems) == 0 {
+				<p class="todo-empty">No subitems yet</p>
+			} else {
+				<ul class="todo-subitem-list">
+					for _, s := range d.Subitems {
+						<li class={ "todo-subitem", templ.KV("completed", s.Completed) }>
+							<input
+								class="todo-subitem-check"
+								type="checkbox"
+								checked?={ s.Completed }
+								hx-patch={ subitemPath(d.Task, s) }
+								hx-vals={ subitemToggleVals(s) }
+								hx-target="#todo-shell"
+								hx-swap="outerHTML"
+							/>
+							<span class="todo-subitem-title">{ s.Title }</span>
+							<button hx-delete={ subitemPath(d.Task, s) } hx-target="#todo-shell" hx-swap="outerHTML">Delete</button>
+						</li>
+					}
+				</ul>
+			}
+			<form class="todo-inline-form" hx-post={ taskPath(d.Task) + "/subitems" } hx-target="#todo-shell" hx-swap="outerHTML" hx-on::after-request="this.reset()">
+				<input name="title" placeholder="Add subitem" autocomplete="off"/>
+				<button type="submit">Add</button>
+			</form>
+		</section>
+		<section class="todo-panel">
+			<div class="todo-panel-header">
+				<h3>Notes</h3>
+				<span class="inbox-pill">{ itoa(len(d.Notes)) }</span>
+			</div>
+			if len(d.Notes) == 0 {
+				<p class="todo-empty">No notes yet</p>
+			} else {
+				<ul class="todo-note-list">
+					for _, n := range d.Notes {
+						<li class="todo-note">
+							{ n.Body }
+							<span class="todo-note-meta">{ n.CreatedAt.Format("Jan 2 15:04") }</span>
+						</li>
+					}
+				</ul>
+			}
+			<form class="todo-inline-form" hx-post={ taskPath(d.Task) + "/notes" } hx-target="#todo-shell" hx-swap="outerHTML" hx-on::after-request="this.reset()">
+				<input name="body" placeholder="Add note" autocomplete="off"/>
+				<button type="submit">Add</button>
+			</form>
+		</section>
+	</div>
+	<input type="hidden" name="filter" value={ filter }/>
 }

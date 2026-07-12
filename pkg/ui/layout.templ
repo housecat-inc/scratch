@@ -18,6 +18,35 @@ templ AppTitle(extra ...string) {
 	}
 }
 
+templ InboxBrand() {
+	<div class="inbox-brand">
+		<span class="inbox-brand-mark">s</span>
+		<span>scratch</span>
+	</div>
+}
+
+templ InboxNav(active string, tasks, chats int) {
+	<nav class="inbox-nav" aria-label="Primary">
+		@inboxNavLink("/", "todo", active, "Tasks", tasks)
+		@inboxNavLink("/chat", "chat", active, "Chat", chats)
+		@inboxNavLink("/code/", "code", active, "Code", 0)
+		@inboxNavLink("/files/", "files", active, "Files", 0)
+		@inboxNavLink("/setup", "setup", active, "Setup", 0)
+	</nav>
+}
+
+templ InboxLayout(active string, tasks, chats int) {
+	<div class="inbox-shell">
+		<aside class="inbox-sidebar">
+			@InboxBrand()
+			@InboxNav(active, tasks, chats)
+		</aside>
+		<main class="inbox-main">
+			{ children... }
+		</main>
+	</div>
+}
+
 templ Head(title string) {
 	<head>
 		<meta charset="utf-8"/>
@@ -33,6 +62,7 @@ templ Head(title string) {
 		<meta name="theme-color" content="#0f172a"/>
 		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
 		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
+		@InboxCSS()
 		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
@@ -71,4 +101,13 @@ templ Layout(title, nav string) {
 			</main>
 		</body>
 	</html>
+}
+
+templ inboxNavLink(href, name, active, label string, count int) {
+	<a href={ templ.SafeURL(href) } class={ "inbox-nav-item", templ.KV("active", name == active) }>
+		<span>{ label }</span>
+		if count > 0 {
+			<span class="inbox-nav-count">{ itoa(count) }</span>
+		}
+	</a>
 }

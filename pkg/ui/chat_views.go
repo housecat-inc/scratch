@@ -28,8 +28,10 @@ type ChatFormProps struct {
 }
 
 type ChatIndexProps struct {
-	Agents  []string
-	Threads []ChatThreadItemProps
+	ActiveID int64
+	Agents   []string
+	Chats    int
+	Threads  []ChatThreadItemProps
 }
 
 type ChatThreadItemProps struct {
@@ -51,8 +53,11 @@ type ChatMessageProps struct {
 
 type ChatThreadProps struct {
 	Agent    string
+	Agents   []string
+	Chats    int
 	ID       int64
 	Messages []ChatMessageProps
+	Threads  []ChatThreadItemProps
 	Title    string
 }
 
