@@ -2,6 +2,66 @@ package ui
 
 import "strconv"
 
+templ ChatComposer(p ChatComposerProps) {
+	if p.UploadURL != "" {
+		<form
+			id="chat-form"
+			class="chat-compose"
+			action={ p.Action }
+			method="post"
+			hx-post={ p.HXPost }
+			hx-swap="none"
+			hx-on::after-request="this.reset()"
+			data-upload-url={ p.UploadURL }
+		>
+			@chatComposerBody(p)
+		</form>
+	} else {
+		<form
+			id="chat-form"
+			class="chat-compose mail-universal-compose"
+			action={ p.Action }
+			method="post"
+			enctype="multipart/form-data"
+		>
+			@chatComposerBody(p)
+		</form>
+	}
+}
+
+templ chatComposerBody(p ChatComposerProps) {
+	for _, hidden := range p.Hidden {
+		<input type="hidden" name={ hidden.Name } value={ hidden.Value }/>
+	}
+	<textarea
+		id="chat-input"
+		name="prompt"
+		rows="1"
+		placeholder={ p.Placeholder }
+		autocomplete="off"
+		autofocus
+	></textarea>
+	<div class="chat-compose-row">
+		<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
+			@paperclipIcon()
+			<input id="chat-file" name={ p.FileName } type="file" multiple hidden/>
+		</label>
+		<button type="button" id="chat-snap" class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
+			@crosshairIcon()
+		</button>
+		if p.StopAction != "" {
+			<button type="button" class="chat-icon-circle" title="Stop chat" aria-label="Stop chat" hx-post={ p.StopAction } hx-swap="none">
+				@stopIcon()
+			</button>
+		}
+		<div id="chat-attachments" class="chat-attachments"></div>
+		<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
+			@sendIcon()
+			<span>Send</span>
+		</button>
+	</div>
+}
+
 templ ChatMessages(p ChatThreadProps) {
 	if len(p.Messages) == 0 {
 		<p class="chat-empty">Say something to get started</p>

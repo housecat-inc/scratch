@@ -12,6 +12,7 @@ import (
 func TestResolveComposeMode(t *testing.T) {
 	tests := []struct {
 		name       string
+		hasFiles   bool
 		mode       string
 		prompt     string
 		view       string
@@ -24,11 +25,13 @@ func TestResolveComposeMode(t *testing.T) {
 		{name: "tasks view", mode: "auto", prompt: "follow up", view: "tasks", wantMode: "task", wantPrompt: "follow up"},
 		{name: "workflows view", mode: "auto", prompt: "add contact", view: "workflows", wantMode: "workflow", wantPrompt: "add contact"},
 		{name: "inbox defaults chat", mode: "auto", prompt: "hello", view: "inbox", wantMode: "chat", wantPrompt: "hello"},
+		{name: "attachments default chat", mode: "auto", prompt: "fix this", view: "tasks", wantMode: "chat", wantPrompt: "fix this", hasFiles: true},
+		{name: "attachment prefix task", mode: "auto", prompt: "task: follow up", view: "tasks", wantMode: "task", wantPrompt: "follow up", hasFiles: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
-			mode, prompt := resolveComposeMode(tt.mode, tt.prompt, tt.view)
+			mode, prompt := resolveComposeMode(tt.mode, tt.prompt, tt.view, tt.hasFiles)
 			a.Equal(tt.wantMode, mode)
 			a.Equal(tt.wantPrompt, prompt)
 		})

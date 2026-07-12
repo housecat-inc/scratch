@@ -16,9 +16,22 @@ func TestInboxTasksBrowser(t *testing.T) {
 			Assert: []Step{
 				ChatThreadCount(0),
 				ElementEventuallyPresent("#chat-input"),
+				TextContains(".mail-reader-title", "New chat"),
 			},
-			Name: "new chat action opens the composer without creating a thread",
+			Name: "new chat action opens a draft chat without creating a thread",
 			Path: "/",
+		},
+		{
+			Act: []Step{
+				Type("#chat-input", "hello from draft"),
+				Click("#chat-send"),
+			},
+			Assert: []Step{
+				ChatThreadCount(1),
+				TextContains(".mail-reader-title", "hello from draft"),
+			},
+			Name: "sending from a draft chat creates the thread",
+			Path: "/inbox/chats/new",
 		},
 		{
 			Act: []Step{

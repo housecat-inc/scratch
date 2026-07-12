@@ -23,6 +23,8 @@ templ InboxPage(p InboxProps) {
 			}) {
 				if p.Task != nil {
 					@InboxTaskReader(*p.Task)
+				} else if p.Draft != nil {
+					@InboxDraftReader(*p.Draft)
 				} else if p.Thread != nil {
 					@InboxThreadReader(*p.Thread)
 				} else {
@@ -87,74 +89,9 @@ templ MailShell(p InboxProps) {
 
 templ MailComposer(p InboxProps) {
 	if p.Thread != nil {
-		<form
-			id="chat-form"
-			class="chat-compose"
-			action={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
-			method="post"
-			hx-post={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
-			hx-swap="none"
-			hx-on::after-request="this.reset()"
-			data-upload-url={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/attachments" }
-		>
-			<textarea
-				id="chat-input"
-				name="prompt"
-				rows="1"
-				placeholder={ threadComposePlaceholder(*p.Thread) }
-				autocomplete="off"
-				autofocus
-			></textarea>
-			<div class="chat-compose-row">
-				<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
-					@paperclipIcon()
-					<input id="chat-file" type="file" multiple hidden/>
-				</label>
-				<button type="button" id="chat-snap" class="chat-icon-circle" title="Screenshot a section of the page" aria-label="Screenshot a section of the page">
-					@crosshairIcon()
-				</button>
-				<button type="button" class="chat-icon-circle" title="Stop chat" aria-label="Stop chat" hx-post={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/stop" } hx-swap="none">
-					@stopIcon()
-				</button>
-				<div id="chat-attachments" class="chat-attachments"></div>
-				<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
-					@sendIcon()
-					<span>Send</span>
-				</button>
-			</div>
-		</form>
+		@ChatComposer(threadComposerProps(*p.Thread))
 	} else {
-		<form
-			id="chat-form"
-			class="chat-compose mail-universal-compose"
-			action="/compose"
-			method="post"
-		>
-			<input type="hidden" name="view" value={ p.View }/>
-			<input type="hidden" name="mode" value={ composeMode(p) }/>
-			<textarea
-				id="chat-input"
-				name="prompt"
-				rows="1"
-				placeholder={ composePlaceholder(p) }
-				autocomplete="off"
-				autofocus
-			></textarea>
-			<div class="chat-compose-row">
-				<label class="chat-icon-circle disabled" title="Open a chat to attach files" aria-label="Attach files" aria-disabled="true">
-					@paperclipIcon()
-					<input id="chat-file" type="file" multiple disabled hidden/>
-				</label>
-				<button type="button" id="chat-snap" class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
-					@crosshairIcon()
-				</button>
-				<div id="chat-attachments" class="chat-attachments"></div>
-				<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
-					@sendIcon()
-					<span>Send</span>
-				</button>
-			</div>
-		</form>
+		@ChatComposer(composeComposerProps(p))
 	}
 }
 
@@ -263,6 +200,23 @@ templ InboxTaskReader(d InboxTaskDetail) {
 	</div>
 }
 
+templ InboxDraftReader(d InboxDraftDetail) {
+	<header class="mail-reader-head">
+		<a class="gm-icon-btn" href="/inbox/chats" aria-label="Back">
+			@backIcon()
+		</a>
+		<div class="mail-reader-title">
+			<h1>{ d.Title }</h1>
+			<p>{ draftAgentLabel(d) }</p>
+		</div>
+	</header>
+	<div class="mail-reader-body mail-chat-body">
+		<div id="chat-messages" class="chat-messages mail-chat-messages">
+			<div class="mail-empty">No messages yet.</div>
+		</div>
+	</div>
+}
+
 templ InboxThreadReader(d InboxThreadDetail) {
 	<header class="mail-reader-head">
 		<a class="gm-icon-btn" href={ templ.SafeURL("/" + inboxBackPath(d.Kind)) } aria-label="Back">
@@ -317,7 +271,7 @@ templ createButton(mode, label string, icon templ.Component) {
 }
 
 templ createChatButton(agents []string) {
-	<form class="mail-create-combo" method="get" action="/" data-agent-model-form="true">
+	<form class="mail-create-combo" method="get" action="/inbox/chats/new" data-agent-model-form="true">
 		<input type="hidden" name="mode" value="chat"/>
 		<button class="mail-create-btn" type="submit" data-new-chat>
 			@chatIcon()
@@ -527,6 +481,9 @@ func currentBackFallback(action string) string {
 }
 
 func composeMode(p InboxProps) string {
+	if p.Draft != nil {
+		return "chat"
+	}
 	switch p.View {
 	case "chats":
 		return "chat"
@@ -552,6 +509,44 @@ func composePlaceholder(p InboxProps) string {
 	}
 }
 
+func composeComposerProps(p InboxProps) ChatComposerProps {
+	hidden := []ChatComposerHiddenProps{
+		{Name: "view", Value: p.View},
+		{Name: "mode", Value: composeMode(p)},
+	}
+	if p.Draft != nil {
+		hidden = append(hidden,
+			ChatComposerHiddenProps{Name: "agent", Value: p.Draft.Agent},
+			ChatComposerHiddenProps{Name: "model", Value: p.Draft.Model},
+		)
+	}
+	return ChatComposerProps{
+		Action:      "/compose",
+		FileName:   "file",
+		Hidden:     hidden,
+		Placeholder: composePlaceholder(p),
+	}
+}
+
+func draftAgentLabel(d InboxDraftDetail) string {
+	if d.Model != "" {
+		return agentLabel(d.Agent) + " " + d.Model
+	}
+	return agentLabel(d.Agent)
+}
+
+func threadComposerProps(d InboxThreadDetail) ChatComposerProps {
+	action := "/chat/" + strconv.FormatInt(d.ID, 10) + "/messages"
+	return ChatComposerProps{
+		Action:      action,
+		FileName:   "",
+		HXPost:     action,
+		Placeholder: threadComposePlaceholder(d),
+		StopAction:  "/chat/" + strconv.FormatInt(d.ID, 10) + "/stop",
+		UploadURL:   "/chat/" + strconv.FormatInt(d.ID, 10) + "/attachments",
+	}
+}
+
 func doneActionLabel(item InboxItem) string {
 	if item.Done {
 		return "Mark not done"
@@ -561,9 +556,9 @@ func doneActionLabel(item InboxItem) string {
 
 func doneIcon(done bool) templ.Component {
 	if done {
-		return lucideIcon(`<circle cx="12" cy="12" r="10"></circle>`)
+		return lucideIcon(`<path d="M21.8 10A10 10 0 1 1 17 3.3"></path><path d="m9 11 3 3L22 4"></path>`)
 	}
-	return lucideIcon(`<path d="M21.8 10A10 10 0 1 1 17 3.3"></path><path d="m9 11 3 3L22 4"></path>`)
+	return lucideIcon(`<circle cx="12" cy="12" r="10"></circle>`)
 }
 
 func inboxBackPath(kind string) string {
@@ -601,6 +596,9 @@ func inboxViewHref(view string) string {
 }
 
 func inboxTitle(p InboxProps) string {
+	if p.Draft != nil {
+		return p.Draft.Title
+	}
 	switch p.View {
 	case "chats":
 		return "Chats"

@@ -23,11 +23,15 @@ type Repo struct {
 func (r Repo) Slug() string { return r.Org + "/" + r.Name }
 
 func Scan(home string) ([]Repo, error) {
+	return ScanIncluding(home)
+}
+
+func ScanIncluding(home string, include ...string) ([]Repo, error) {
 	entries, err := os.ReadDir(home)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read dir %s", home)
 	}
-	var repos []Repo
+	bySlug := map[string]Repo{}
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -41,6 +45,17 @@ func Scan(home string) ([]Repo, error) {
 		if !ok {
 			continue
 		}
+		bySlug[r.Slug()] = r
+	}
+	for _, path := range include {
+		r, ok := Inspect(path)
+		if !ok {
+			continue
+		}
+		bySlug[r.Slug()] = r
+	}
+	repos := make([]Repo, 0, len(bySlug))
+	for _, r := range bySlug {
 		repos = append(repos, r)
 	}
 	sort.Slice(repos, func(i, j int) bool { return repos[i].Slug() < repos[j].Slug() })
@@ -70,7 +85,11 @@ func Inspect(path string) (Repo, bool) {
 }
 
 func Find(home, slug string) (Repo, bool) {
-	repos, err := Scan(home)
+	return FindIncluding(home, slug)
+}
+
+func FindIncluding(home, slug string, include ...string) (Repo, bool) {
+	repos, err := ScanIncluding(home, include...)
 	if err != nil {
 		return Repo{}, false
 	}

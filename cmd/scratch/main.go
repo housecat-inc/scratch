@@ -15,6 +15,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/inbox"
+	"github.com/housecat-inc/scratch/pkg/repo"
 	"github.com/housecat-inc/scratch/pkg/server/code"
 	"github.com/housecat-inc/scratch/pkg/server/files"
 	"github.com/housecat-inc/scratch/pkg/server/sessions"
@@ -100,6 +101,8 @@ func newRootCmd() *cobra.Command {
 
 			codeDeps := code.DefaultDeps(home)
 			codeDeps.Comments = store
+			codeDeps.ListRepos = func() ([]repo.Repo, error) { return repo.ScanIncluding(home, workdir) }
+			codeDeps.LookupRepo = func(slug string) (repo.Repo, bool) { return repo.FindIncluding(home, slug, workdir) }
 			codeSrv, err := code.NewServer(codeDeps)
 			if err != nil {
 				return errors.Wrap(err, "new code server")

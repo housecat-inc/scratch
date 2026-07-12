@@ -33,6 +33,7 @@ type InboxProps struct {
 	ArchiveFilter string
 	Agents        []string
 	Counts        InboxCounts
+	Draft         *InboxDraftDetail
 	Items         []InboxItem
 	Selected      InboxSelection
 	Task          *InboxTaskDetail
@@ -43,6 +44,12 @@ type InboxProps struct {
 type InboxSelection struct {
 	ID   int64
 	Kind string
+}
+
+type InboxDraftDetail struct {
+	Agent string
+	Model string
+	Title string
 }
 
 type InboxTaskDetail struct {

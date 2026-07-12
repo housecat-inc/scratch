@@ -12,6 +12,12 @@
     alert.hideTimer = setTimeout(() => alert.classList.remove("visible"), 5000);
   };
 
+  const imageIconHTML = () =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-4.6-4.6a2 2 0 00-2.8 0L5 19"></path></svg>`;
+
+  const paperclipIconHTML = () =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path></svg>`;
+
   document.body.addEventListener("htmx:responseError", (e) => {
     showAlert(e.detail.xhr.responseText);
   });
@@ -21,6 +27,55 @@
   const input = document.getElementById("chat-input");
   if (form && strip && input) {
     const uploadURL = form.dataset.uploadUrl;
+    const fileInput = document.getElementById("chat-file");
+    const draftFiles = [];
+
+    const syncDraftInput = () => {
+      if (!fileInput || uploadURL || !window.DataTransfer) return;
+      const transfer = new DataTransfer();
+      for (const file of draftFiles) transfer.items.add(file);
+      fileInput.files = transfer.files;
+    };
+
+    const draftChip = (file, index) => {
+      const chip = document.createElement("span");
+      chip.className = "chat-attachment-chip";
+      chip.dataset.draftIndex = String(index);
+      if (file.type.startsWith("image/")) {
+        chip.insertAdjacentHTML("beforeend", imageIconHTML());
+        const img = document.createElement("img");
+        img.className = "chat-chip-preview";
+        img.alt = file.name;
+        img.loading = "lazy";
+        img.src = URL.createObjectURL(file);
+        chip.appendChild(img);
+      } else {
+        chip.insertAdjacentHTML("beforeend", paperclipIconHTML());
+      }
+      const name = document.createElement("span");
+      name.className = "chat-chip-name";
+      name.textContent = file.name;
+      chip.appendChild(name);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "chat-attachment-remove";
+      remove.dataset.draftIndex = String(index);
+      remove.ariaLabel = "Remove " + file.name;
+      remove.textContent = "×";
+      chip.appendChild(remove);
+      return chip;
+    };
+
+    const renderDraftFiles = () => {
+      if (uploadURL) return;
+      strip.replaceChildren(...draftFiles.map((file, index) => draftChip(file, index)));
+      syncDraftInput();
+    };
+
+    const addDraftFiles = (files) => {
+      draftFiles.push(...files);
+      renderDraftFiles();
+    };
 
     const resize = () => {
       input.style.height = "auto";
@@ -37,7 +92,7 @@
 
     const upload = async (file) => {
       if (!uploadURL) {
-        showAlert("Open a chat to attach files.");
+        addDraftFiles([file]);
         return;
       }
       const body = new FormData();
@@ -53,9 +108,9 @@
       for (const file of files) upload(file);
     };
 
-    document.getElementById("chat-file")?.addEventListener("change", (e) => {
+    fileInput?.addEventListener("change", (e) => {
       uploadAll(e.target.files);
-      e.target.value = "";
+      if (uploadURL) e.target.value = "";
     });
     input.addEventListener("paste", (e) => {
       if (e.clipboardData?.files?.length) {
@@ -76,6 +131,14 @@
     strip.addEventListener("click", async (e) => {
       const remove = e.target.closest(".chat-attachment-remove");
       if (!remove) return;
+      if (!uploadURL) {
+        const index = Number(remove.dataset.draftIndex);
+        if (Number.isInteger(index)) {
+          draftFiles.splice(index, 1);
+          renderDraftFiles();
+        }
+        return;
+      }
       await fetch(uploadURL + "/" + remove.dataset.id, { method: "DELETE" });
       remove.closest(".chat-attachment-chip")?.remove();
     });
@@ -196,29 +259,28 @@
             showAlert("screenshot failed: " + err.message);
           }
           await upload(new File([html], "selection.html", { type: "text/html" }));
+        } else {
+          const files = [];
+          try {
+            const canvas = await html2canvas(el, { logging: false, useCORS: true });
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+            if (blob) {
+              files.push(new File([blob], "selection.png", { type: "image/png" }));
+            }
+          } catch (err) {
+            showAlert("screenshot failed: " + err.message);
+          }
+          files.push(new File([html], "selection.html", { type: "text/html" }));
+          addDraftFiles(files);
         }
         const note = uploadURL
           ? "Selected " + selector + " on " + location.href
-          : inspectionPrompt(selector, el, html);
+          : "Selected " + selector + " on " + location.href;
         input.value = input.value ? input.value + "\n" + note : note;
         input.dispatchEvent(new Event("input"));
         input.focus();
       };
 
-      const inspectionPrompt = (selector, el, html) => {
-        const text = el.innerText?.trim();
-        const parts = ["Selected " + selector + " on " + location.href];
-        if (text) {
-          parts.push("Text:\n" + truncate(text, 4000));
-        }
-        parts.push("HTML:\n" + truncate(html, 8000));
-        return parts.join("\n\n");
-      };
-
-      const truncate = (value, max) => {
-        if (value.length <= max) return value;
-        return value.slice(0, max) + "\n[truncated]";
-      };
     }
   }
 

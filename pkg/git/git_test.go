@@ -47,6 +47,22 @@ func TestInstalled(t *testing.T) {
 	}
 }
 
+func TestInstalledRecognizesWorktreeFile(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	a := assert.New(t)
+	r := require.New(t)
+
+	clone, _ := setupRepo(t)
+	worktree := filepath.Join(t.TempDir(), "feature")
+	runGit(t, clone, "worktree", "add", "-b", "feature", worktree)
+
+	ok, err := Installed(worktree)
+	r.NoError(err)
+	a.True(ok)
+}
+
 func TestComputeStatus(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

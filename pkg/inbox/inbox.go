@@ -37,6 +37,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleInbox)
 	mux.HandleFunc("GET /inbox", s.handleInbox)
 	mux.HandleFunc("GET /inbox/chats", s.handleChats)
+	mux.HandleFunc("GET /inbox/chats/new", s.handleNewChat)
 	mux.HandleFunc("GET /inbox/tasks", s.handleTasks)
 	mux.HandleFunc("GET /inbox/workflows", s.handleWorkflows)
 	mux.HandleFunc("GET /starred", s.handleStarred)
@@ -110,14 +111,31 @@ func (s *Server) handleChats(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "chats", ui.InboxSelection{})
 }
 
+func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request) {
+	agent := chatAgent(r.URL.Query().Get("agent"), s.chat.AgentNames())
+	model := chatModel(agent, r.URL.Query().Get("model"))
+	props, err := s.props("chats", archiveFilter("chats", r.URL.Query().Get("archived")), ui.InboxSelection{})
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	props.Draft = &ui.InboxDraftDetail{
+		Agent: agent,
+		Model: model,
+		Title: "New chat",
+	}
+	s.render(w, r, ui.InboxPage(props))
+}
+
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 	agent := chatAgent(r.FormValue("agent"), s.chat.AgentNames())
 	model := chatModel(agent, r.FormValue("model"))
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	mode := strings.TrimSpace(r.FormValue("mode"))
-	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"))
 	createOnly := r.FormValue("create_only") == "true"
-	if prompt == "" && !createOnly {
+	hasFiles := composeHasFiles(r)
+	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"), hasFiles)
+	if prompt == "" && !createOnly && !hasFiles {
 		s.redirectBack(w, r)
 		return
 	}
@@ -138,8 +156,16 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		if prompt != "" && !createOnly {
-			if _, err := s.chat.Send(thread.ID, prompt); err != nil {
+		attachmentIDs, err := s.composeAttachments(r, thread.ID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if (prompt != "" || len(attachmentIDs) > 0) && !createOnly {
+			if prompt == "" {
+				prompt = "See attached files."
+			}
+			if _, err := s.chat.Send(thread.ID, prompt, attachmentIDs...); err != nil {
 				s.fail(w, err)
 				return
 			}
@@ -151,8 +177,16 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		if prompt != "" && !createOnly {
-			if _, err := s.chat.Send(thread.ID, prompt); err != nil {
+		attachmentIDs, err := s.composeAttachments(r, thread.ID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if (prompt != "" || len(attachmentIDs) > 0) && !createOnly {
+			if prompt == "" {
+				prompt = "See attached files."
+			}
+			if _, err := s.chat.Send(thread.ID, prompt, attachmentIDs...); err != nil {
 				s.fail(w, err)
 				return
 			}
@@ -305,6 +339,42 @@ func (s *Server) handleWorkflow(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{})
+}
+
+func composeHasFiles(r *http.Request) bool {
+	if r.MultipartForm == nil {
+		return false
+	}
+	for _, files := range r.MultipartForm.File {
+		if len(files) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) composeAttachments(r *http.Request, threadID int64) ([]int64, error) {
+	if r.MultipartForm == nil {
+		return nil, nil
+	}
+	headers := r.MultipartForm.File["file"]
+	ids := make([]int64, 0, len(headers))
+	for _, header := range headers {
+		file, err := header.Open()
+		if err != nil {
+			return nil, errors.Wrap(err, "open compose attachment")
+		}
+		attachment, err := s.chat.AddAttachment(threadID, header.Filename, header.Header.Get("Content-Type"), file)
+		closeErr := file.Close()
+		if err != nil {
+			return nil, err
+		}
+		if closeErr != nil {
+			return nil, errors.Wrap(closeErr, "close compose attachment")
+		}
+		ids = append(ids, attachment.ID)
+	}
+	return ids, nil
 }
 
 func (s *Server) fail(w http.ResponseWriter, err error) {
@@ -596,12 +666,15 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
-func resolveComposeMode(mode, prompt, view string) (string, string) {
+func resolveComposeMode(mode, prompt, view string, hasFiles bool) (string, string) {
 	if mode == "auto" || mode == "" {
 		for _, prefix := range []string{"chat", "task", "workflow"} {
 			if rest, ok := strings.CutPrefix(strings.ToLower(prompt), prefix+":"); ok {
 				return prefix, strings.TrimSpace(prompt[len(prompt)-len(rest):])
 			}
+		}
+		if hasFiles {
+			return "chat", prompt
 		}
 		switch view {
 		case "tasks":

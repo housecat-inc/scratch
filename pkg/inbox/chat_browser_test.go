@@ -134,12 +134,15 @@ func TestChatBrowser(t *testing.T) {
 			Act: []Step{
 				WaitChatReady(),
 				CaptureElement(".mail-mainbar"),
+				TextEventuallyContains("#chat-attachments", "selection.png"),
+				TextEventuallyContains("#chat-attachments", "selection.html"),
+				Click("#chat-send"),
 			},
 			Assert: []Step{
-				InputValueContains("#chat-input", "Selected"),
-				InputValueContains("#chat-input", "Inbox"),
-				InputValueContains("#chat-input", "HTML:"),
-				ElementAbsent("#chat-attachments .chat-attachment-chip"),
+				ChatThreadCount(1),
+				TextEventuallyContains("#chat-messages .chat-bubble-attachments", "selection.png"),
+				TextEventuallyContains("#chat-messages .chat-bubble-attachments", "selection.html"),
+				TextEventuallyContains("#chat-messages .role-user .chat-bubble", "Selected"),
 			},
 		},
 		{
