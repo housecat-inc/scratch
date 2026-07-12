@@ -159,18 +159,42 @@ func codexInstallHint(v SessionsProps) string {
 
 templ CodexLoginRow(v SessionsProps) {
 	@setupRow("card-codex-login", false, v.CodexAuthenticated, "Sign in", codexLoginHint(v)) {
-		if v.CodexInstalled && !v.CodexAuthenticated {
-			<code class="setup-cmd">codex login</code>
+		if !v.CodexAuthenticated {
+			if v.CodexLoginURL != "" {
+				@button.Button(button.Props{
+					Size:       button.SizeSm,
+					Variant:    button.VariantSecondary,
+					Href:       v.CodexLoginURL,
+					Target:     "_blank",
+					Attributes: templ.Attributes{"rel": "noopener"},
+				}) {
+					Open auth.openai.com →
+				}
+				<code class="setup-cmd">{ v.CodexLoginCode }</code>
+				<span class="setup-hint basis-full inline-flex items-center gap-1"
+					hx-get="/codex/login" hx-trigger="every 3s" hx-target="#card-codex-login" hx-swap="outerHTML">
+					Waiting for authorization…
+				</span>
+			} else if v.CodexInstalled {
+				@button.Button(button.Props{Size: button.SizeSm, Attributes: hxAction("post", "/codex/login", "#card-codex-login")}) {
+					Connect
+				}
+			}
+		}
+		if v.CodexLoginError != "" {
+			@stepError(v.CodexLoginError)
 		}
 	}
 }
 
 func codexLoginHint(v SessionsProps) string {
 	switch {
+	case v.CodexAuthenticated:
+		return "OpenAI subscription"
+	case v.CodexLoginURL != "":
+		return "Enter this code at auth.openai.com"
 	case !v.CodexInstalled:
 		return "Install Codex first"
-	case !v.CodexAuthenticated:
-		return "OpenAI subscription · run codex login"
 	}
 	return "OpenAI subscription"
 }

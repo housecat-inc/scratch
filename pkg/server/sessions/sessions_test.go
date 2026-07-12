@@ -30,6 +30,20 @@ func (f *fakeLogin) SubmitCode(code string) error {
 }
 func (f *fakeLogin) URL() string { return f.url }
 
+type fakeCodexLogin struct {
+	closed bool
+	code   string
+	done   bool
+	err    error
+	url    string
+}
+
+func (f *fakeCodexLogin) Close() error { f.closed = true; return nil }
+func (f *fakeCodexLogin) Code() string { return f.code }
+func (f *fakeCodexLogin) Done() bool   { return f.done }
+func (f *fakeCodexLogin) Err() error   { return f.err }
+func (f *fakeCodexLogin) URL() string  { return f.url }
+
 type fakeDeps struct {
 	agents             agents.State
 	authenticated      bool
@@ -40,10 +54,12 @@ type fakeDeps struct {
 	configured         bool
 	installed          bool
 
-	configureErr error
-	installErr   error
-	loginErr     error
-	login        *fakeLogin
+	configureErr  error
+	installErr    error
+	loginErr      error
+	login         *fakeLogin
+	codexLogin    *fakeCodexLogin
+	codexLoginErr error
 
 	configureCalls int
 	installCalls   int
@@ -106,6 +122,12 @@ func (f *fakeDeps) deps() Deps {
 				return f.slugForPrompt(prompt)
 			}
 			return ""
+		},
+		StartCodexLogin: func() (CodexLogin, error) {
+			if f.codexLoginErr != nil {
+				return nil, f.codexLoginErr
+			}
+			return f.codexLogin, nil
 		},
 		StartLogin: func() (Login, error) {
 			f.loginCalls++
@@ -434,6 +456,38 @@ func TestLoginFlow(t *testing.T) {
 	a.True(fl.closed)
 	a.Contains(rec.Body.String(), `id="card-login"`)
 	a.Contains(rec.Body.String(), `id="card-configure" hx-swap-oob="true"`)
+}
+
+func TestCodexLoginFlow(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	fl := &fakeCodexLogin{url: "https://auth.openai.com/codex/device", code: "32LO-RHYUX"}
+	fd := fakeDeps{installed: true, codexInstalled: true, codexLogin: fl}
+	s, err := NewServer(fd.deps())
+	r.NoError(err)
+
+	req := httptest.NewRequest(http.MethodPost, "/codex/login", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	a.Contains(body, "32LO-RHYUX")
+	a.Contains(body, "auth.openai.com/codex/device")
+	a.Contains(body, `hx-get="/codex/login"`, "polls while waiting")
+
+	fl.done = true
+
+	req = httptest.NewRequest(http.MethodGet, "/codex/login", nil)
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	poll := rec.Body.String()
+	a.True(fl.closed, "completed login is closed")
+	a.NotContains(poll, `hx-get="/codex/login"`, "stops polling once signed in")
+	a.Contains(poll, `id="card-codex-login"`)
 }
 
 func TestLoginCodeInvalid(t *testing.T) {

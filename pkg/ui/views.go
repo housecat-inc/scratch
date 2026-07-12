@@ -173,6 +173,9 @@ type SessionsProps struct {
 	ClaudeVersion      string
 	CodexAuthenticated bool
 	CodexInstalled     bool
+	CodexLoginCode     string
+	CodexLoginError    string
+	CodexLoginURL      string
 	CodexVersion       string
 	ConfigureError     string
 	Configured         bool
