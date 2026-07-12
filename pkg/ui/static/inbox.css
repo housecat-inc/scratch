@@ -406,7 +406,6 @@ textarea {
   display: flex;
   flex: 1;
   gap: 0.45rem;
-  justify-content: flex-end;
   min-width: 0;
   overflow-x: auto;
   white-space: nowrap;
@@ -425,6 +424,7 @@ textarea {
   display: inline-flex;
   flex: 0 0 auto;
   height: 2.2rem;
+  margin-left: auto;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -1141,6 +1141,32 @@ textarea {
   display: inline-flex;
   gap: 0.45rem;
   min-width: min(28rem, 100%);
+}
+
+.todo-topbar-actions {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  position: relative;
+  width: 100%;
+}
+
+.todo-topbar-actions .mail-chat-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  position: absolute;
+  right: 0;
+}
+
+.todo-topbar-actions .todo-create-form {
+  min-width: 0;
+  width: clamp(8rem, calc(100% - 9rem), 28rem);
+}
+
+.todo-topbar-actions .todo-new-input {
+  min-width: 0;
 }
 
 .todo-new-input {
