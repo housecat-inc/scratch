@@ -104,13 +104,21 @@ func (s *Service) Close() {
 }
 
 func (s *Service) CreateThread(agent, title string) (db.Thread, error) {
+	return s.CreateThreadWithModel(agent, "", title)
+}
+
+func (s *Service) CreateThreadWithModel(agent, model, title string) (db.Thread, error) {
 	if agent == "" {
 		agent = s.defaultName
 	}
 	if _, ok := s.agents[agent]; !ok {
 		return db.Thread{}, errors.Wrapf(ErrAgentUnknown, "%q", agent)
 	}
-	anchor, err := json.Marshal(map[string]string{"agent": agent})
+	anchorData := map[string]string{"agent": agent}
+	if strings.TrimSpace(model) != "" {
+		anchorData["model"] = strings.TrimSpace(model)
+	}
+	anchor, err := json.Marshal(anchorData)
 	if err != nil {
 		return db.Thread{}, errors.Wrap(err, "marshal anchor")
 	}

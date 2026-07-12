@@ -10,13 +10,14 @@ import (
 )
 
 type Task struct {
-	Archived  bool
-	Completed bool
-	CreatedAt ts.Timestamp
-	ID        int64
-	Starred   bool
-	Title     string
-	UpdatedAt ts.Timestamp
+	Archived    bool
+	Completed   bool
+	CreatedAt   ts.Timestamp
+	Description string
+	ID          int64
+	Starred     bool
+	Title       string
+	UpdatedAt   ts.Timestamp
 }
 
 type TaskNote struct {
@@ -43,6 +44,7 @@ type TaskStore interface {
 	SetTaskCompleted(id int64, completed bool) (Task, error)
 	SetTaskStarred(id int64, starred bool) (Task, error)
 	SetTaskSubitemCompleted(id int64, completed bool) (TaskSubitem, error)
+	UpdateTaskDescription(id int64, description string) (Task, error)
 	UpdateTaskTitle(id int64, title string) (Task, error)
 }
 
@@ -293,15 +295,31 @@ func (d *DB) UpdateTaskTitle(id int64, title string) (Task, error) {
 	return d.GetTask(id)
 }
 
+func (d *DB) UpdateTaskDescription(id int64, description string) (Task, error) {
+	n, err := d.queries.UpdateTaskDescription(context.Background(), sqlite.UpdateTaskDescriptionParams{
+		Description: description,
+		ID:          id,
+		UpdatedAt:   ts.Now(),
+	})
+	if err != nil {
+		return Task{}, errors.Wrap(err, "update description")
+	}
+	if n == 0 {
+		return Task{}, ErrTaskNotFound
+	}
+	return d.GetTask(id)
+}
+
 func fromSqliteTask(t sqlite.Task) Task {
 	return Task{
-		Archived:  t.Archived != 0,
-		Completed: t.Completed != 0,
-		CreatedAt: t.CreatedAt,
-		ID:        t.ID,
-		Starred:   t.Starred != 0,
-		Title:     t.Title,
-		UpdatedAt: t.UpdatedAt,
+		Archived:    t.Archived != 0,
+		Completed:   t.Completed != 0,
+		CreatedAt:   t.CreatedAt,
+		Description: t.Description,
+		ID:          t.ID,
+		Starred:     t.Starred != 0,
+		Title:       t.Title,
+		UpdatedAt:   t.UpdatedAt,
 	}
 }
 

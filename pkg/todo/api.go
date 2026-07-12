@@ -11,20 +11,23 @@ import (
 )
 
 type Task struct {
-	Completed bool      `json:"completed"`
-	CreatedAt time.Time `json:"createdAt"`
-	ID        int64     `json:"id"`
-	Title     string    `json:"title"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Completed   bool      `json:"completed"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Description string    `json:"description"`
+	ID          int64     `json:"id"`
+	Title       string    `json:"title"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type TaskCreateIn struct {
-	Title string `json:"title"`
+	Description string `json:"description"`
+	Title       string `json:"title"`
 }
 
 type TaskUpdateIn struct {
-	Completed *bool   `json:"completed"`
-	Title     *string `json:"title"`
+	Completed   *bool   `json:"completed"`
+	Description *string `json:"description"`
+	Title       *string `json:"title"`
 }
 
 type handlers struct {
@@ -54,6 +57,12 @@ func (h handlers) createTask(c fuego.ContextWithBody[TaskCreateIn]) (Task, error
 	task, err := h.svc.Create(body.Title)
 	if err != nil {
 		return Task{}, errors.Wrap(err, "create task")
+	}
+	if body.Description != "" {
+		task, err = h.svc.EditDescription(task.ID, body.Description)
+		if err != nil {
+			return Task{}, errors.Wrap(err, "set description")
+		}
 	}
 	return toResponse(task), nil
 }
@@ -107,6 +116,11 @@ func (h handlers) updateTask(c fuego.ContextWithBody[TaskUpdateIn]) (Task, error
 			return Task{}, notFoundOr(err, "update title")
 		}
 	}
+	if body.Description != nil {
+		if _, err := h.svc.EditDescription(id, *body.Description); err != nil {
+			return Task{}, notFoundOr(err, "update description")
+		}
+	}
 	if body.Completed != nil {
 		if _, err := h.svc.SetCompleted(id, *body.Completed); err != nil {
 			return Task{}, notFoundOr(err, "set completed")
@@ -136,10 +150,11 @@ func pathID(c fuego.ContextWithPathParam) (int64, error) {
 
 func toResponse(t db.Task) Task {
 	return Task{
-		Completed: t.Completed,
-		CreatedAt: t.CreatedAt.Time,
-		ID:        t.ID,
-		Title:     t.Title,
-		UpdatedAt: t.UpdatedAt.Time,
+		Completed:   t.Completed,
+		CreatedAt:   t.CreatedAt.Time,
+		Description: t.Description,
+		ID:          t.ID,
+		Title:       t.Title,
+		UpdatedAt:   t.UpdatedAt.Time,
 	}
 }

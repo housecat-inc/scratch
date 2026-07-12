@@ -90,6 +90,10 @@ func (s *Service) Edit(id int64, title string) (db.Task, error) {
 	return s.tasks.UpdateTaskTitle(id, title)
 }
 
+func (s *Service) EditDescription(id int64, description string) (db.Task, error) {
+	return s.tasks.UpdateTaskDescription(id, description)
+}
+
 func (s *Service) Get(id int64) (db.Task, error) {
 	return s.tasks.GetTask(id)
 }

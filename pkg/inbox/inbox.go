@@ -49,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/tasks/{id}/archive", s.handleArchiveTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/done", s.handleDoneTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/star", s.handleStarTask)
+	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
 	mux.HandleFunc("POST /tasks", s.handleCreateTask)
@@ -118,6 +119,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 	agent := chatAgent(r.FormValue("agent"), s.chat.AgentNames())
+	model := chatModel(agent, r.FormValue("model"))
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	mode := strings.TrimSpace(r.FormValue("mode"))
 	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"))
@@ -138,7 +140,7 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, "/inbox/tasks/"+strconv.FormatInt(task.ID, 10), http.StatusSeeOther)
 	case "workflow":
-		thread, err := s.chat.CreateThread("contact", createTitle(prompt, "New workflow", createOnly))
+		thread, err := s.chat.CreateThread(workflowAgent(r.FormValue("workflow_type")), createTitle(prompt, "New workflow", createOnly))
 		if err != nil {
 			s.fail(w, err)
 			return
@@ -151,7 +153,7 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
 	default:
-		thread, err := s.chat.CreateThread(agent, createTitle(prompt, "New chat", createOnly))
+		thread, err := s.chat.CreateThreadWithModel(agent, model, createTitle(prompt, "New chat", createOnly))
 		if err != nil {
 			s.fail(w, err)
 			return
@@ -235,6 +237,33 @@ func (s *Server) handleTask(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "tasks", ui.InboxSelection{})
+}
+
+func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.fail(w, err)
+		return
+	}
+	if _, ok := r.Form["title"]; ok {
+		title := strings.TrimSpace(r.FormValue("title"))
+		if title != "" {
+			if _, err := s.tasks.Edit(id, title); err != nil {
+				s.notFoundOr(w, err)
+				return
+			}
+		}
+	}
+	if _, ok := r.Form["description"]; ok {
+		if _, err := s.tasks.EditDescription(id, strings.TrimSpace(r.FormValue("description"))); err != nil {
+			s.notFoundOr(w, err)
+			return
+		}
+	}
+	http.Redirect(w, r, "/inbox/tasks/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
 
 func (s *Server) handleWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -462,6 +491,35 @@ func chatAgentOptions(agents []string) []string {
 		out = append(out, agent)
 	}
 	return out
+}
+
+func chatModel(agent, model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" || model == "default" {
+		return ""
+	}
+	switch agent {
+	case "claude":
+		switch model {
+		case "haiku", "opus", "sonnet":
+			return model
+		}
+	case "codex":
+		switch model {
+		case "gpt-5", "gpt-5.1", "gpt-5.5":
+			return model
+		}
+	}
+	return ""
+}
+
+func workflowAgent(typ string) string {
+	switch strings.TrimSpace(typ) {
+	case "", "contact":
+		return "contact"
+	default:
+		return "contact"
+	}
 }
 
 func createTitle(prompt, fallback string, createOnly bool) string {

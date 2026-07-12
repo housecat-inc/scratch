@@ -155,6 +155,12 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if _, ok := r.Form["description"]; ok {
+		if _, err := s.svc.EditDescription(id, strings.TrimSpace(r.FormValue("description"))); err != nil && !db.IsTaskNotFound(err) {
+			s.fail(w, err)
+			return
+		}
+	}
 	if completed := r.FormValue("completed"); completed != "" {
 		if _, err := s.svc.SetCompleted(id, completed == "true"); err != nil && !db.IsTaskNotFound(err) {
 			s.fail(w, err)

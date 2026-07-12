@@ -25,6 +25,7 @@ func TestTaskCRUD(t *testing.T) {
 	r.NoError(err)
 	a.NotEmpty(first.ID)
 	a.Equal("write tests", first.Title)
+	a.Empty(first.Description)
 	a.False(first.Completed)
 	a.Equal("2026-07-11T12:00:00Z", first.CreatedAt.Format(time.RFC3339))
 
@@ -44,6 +45,10 @@ func TestTaskCRUD(t *testing.T) {
 	r.NoError(err)
 	a.Equal("write more tests", edited.Title)
 
+	described, err := d.UpdateTaskDescription(first.ID, "cover inbox details")
+	r.NoError(err)
+	a.Equal("cover inbox details", described.Description)
+
 	n, err := d.ClearCompletedTasks()
 	r.NoError(err)
 	a.Equal(1, n)
@@ -60,6 +65,7 @@ func TestTaskErrors(t *testing.T) {
 		name string
 	}{
 		{act: func(d *DB) error { return d.DeleteTask(404) }, name: "delete missing"},
+		{act: func(d *DB) error { _, err := d.UpdateTaskDescription(404, "x"); return err }, name: "describe missing"},
 		{act: func(d *DB) error { _, err := d.SetTaskCompleted(404, true); return err }, name: "toggle missing"},
 		{act: func(d *DB) error { _, err := d.UpdateTaskTitle(404, "x"); return err }, name: "update missing"},
 		{act: func(d *DB) error { _, err := d.GetTask(404); return err }, name: "get missing"},

@@ -57,3 +57,42 @@ func TestChatAgentOptions(t *testing.T) {
 
 	a.Equal([]string{"claude", "codex", "echo"}, chatAgentOptions([]string{"claude", "codex", "contact", "echo"}))
 }
+
+func TestChatModel(t *testing.T) {
+	tests := []struct {
+		agent string
+		model string
+		name  string
+		want  string
+	}{
+		{agent: "codex", model: "gpt-5.5", name: "codex model", want: "gpt-5.5"},
+		{agent: "claude", model: "opus", name: "claude model", want: "opus"},
+		{agent: "claude", model: "gpt-5.5", name: "wrong provider"},
+		{agent: "codex", model: "default", name: "default"},
+		{agent: "echo", model: "opus", name: "unsupported"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tt.want, chatModel(tt.agent, tt.model))
+		})
+	}
+}
+
+func TestWorkflowAgent(t *testing.T) {
+	tests := []struct {
+		name string
+		typ  string
+		want string
+	}{
+		{name: "default", want: "contact"},
+		{name: "contact", typ: "contact", want: "contact"},
+		{name: "unknown", typ: "other", want: "contact"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tt.want, workflowAgent(tt.typ))
+		})
+	}
+}

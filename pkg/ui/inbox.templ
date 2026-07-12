@@ -45,9 +45,9 @@ templ MailShell(p InboxProps) {
 		<header class="mail-topbar">
 			<a class="mail-brand" href="/">scratch</a>
 			<div class="mail-create-actions">
-				@createButton("chat", "New chat", chatIcon())
+				@createChatButton(p.Agents)
 				@createButton("task", "New task", taskIcon())
-				@createButton("workflow", "New workflow", workflowIcon())
+				@createWorkflowButton()
 			</div>
 		</header>
 		<div class="mail-body">
@@ -93,25 +93,9 @@ templ MailComposer(p InboxProps) {
 			class="mail-universal-compose"
 			action="/compose"
 			method="post"
-			data-placeholder-auto="Message, task, or workflow..."
-			data-placeholder-chat="Start a chat..."
-			data-placeholder-task="Add a task..."
-			data-placeholder-workflow="Start a workflow..."
 		>
 			<input type="hidden" name="view" value={ p.View }/>
-			<div class="mail-compose-modes" role="radiogroup" aria-label="Compose mode">
-				@composeModeOption("auto", "Auto", composeMode(p) == "auto")
-				@composeModeOption("chat", "Chat", composeMode(p) == "chat")
-				@composeModeOption("task", "Task", composeMode(p) == "task")
-				@composeModeOption("workflow", "Workflow", composeMode(p) == "workflow")
-			</div>
-			if len(p.Agents) > 0 {
-				<select class="mail-agent-select" name="agent" aria-label="Agent">
-					for _, agent := range p.Agents {
-						<option value={ agent }>{ agentLabel(agent) }</option>
-					}
-				</select>
-			}
+			<input type="hidden" name="mode" value={ composeMode(p) }/>
 			<input class="mail-compose-input" name="prompt" placeholder={ composePlaceholder(p) } autocomplete="off"/>
 			<button class="mail-send-btn" type="submit" aria-label="Send">
 				@sendIcon()
@@ -180,13 +164,23 @@ templ InboxTaskReader(d InboxTaskDetail) {
 			</p>
 		</div>
 		<div class="mail-reader-actions">
-			<a class="gm-foot-btn" href={ templ.SafeURL("/tasks/" + strconv.FormatInt(d.Task.ID, 10)) }>Open task</a>
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "done"), doneActionLabel(taskInboxItem(d.Task)), doneIcon(d.Task.Completed))
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), starIcon(d.Task.Starred))
 		</div>
 	</header>
 	<div class="mail-reader-body">
+		<form class="mail-card mail-task-editor" method="post" action={ taskInboxActionURL(d.Task.ID, "") }>
+			<label>
+				<span>Title</span>
+				<input name="title" value={ d.Task.Title } autocomplete="off"/>
+			</label>
+			<label>
+				<span>Description</span>
+				<textarea name="description" rows="6" placeholder="Add task details...">{ d.Task.Description }</textarea>
+			</label>
+			<button class="mail-save-btn" type="submit">Save</button>
+		</form>
 		<section class="mail-card">
 			<h2>Subitems</h2>
 			if len(d.Subitems) == 0 {
@@ -252,13 +246,6 @@ templ mailLabel(href, name, active, label string, count int, icon templ.Componen
 	</a>
 }
 
-templ composeModeOption(value, label string, checked bool) {
-	<label class={ "mail-compose-mode", templ.KV("active", checked) }>
-		<input type="radio" name="mode" value={ value } checked?={ checked }/>
-		<span>{ label }</span>
-	</label>
-}
-
 templ createButton(mode, label string, icon templ.Component) {
 	<form method="post" action="/compose">
 		<input type="hidden" name="mode" value={ mode }/>
@@ -267,6 +254,54 @@ templ createButton(mode, label string, icon templ.Component) {
 			@icon
 			<span>{ label }</span>
 		</button>
+	</form>
+}
+
+templ createChatButton(agents []string) {
+	<form class="mail-create-combo" method="post" action="/compose" data-agent-model-form="true">
+		<input type="hidden" name="mode" value="chat"/>
+		<input type="hidden" name="create_only" value="true"/>
+		<button class="mail-create-btn" type="submit">
+			@chatIcon()
+			<span>New chat</span>
+		</button>
+		if len(agents) > 0 {
+			<span class="mail-create-select-wrap">
+				<select class="mail-create-select" name="agent" aria-label="Provider and model">
+					for _, agent := range agents {
+						<option value={ agent }>{ providerModelLabel(agent) }</option>
+					}
+				</select>
+				<span class="mail-create-chevron">@chevronDownIcon()</span>
+			</span>
+			<span class="mail-create-select-wrap">
+				<select class="mail-create-select" name="model" aria-label="Model">
+					for _, model := range codexModelOptions() {
+						<option value={ model.Value }>{ model.Label }</option>
+					}
+				</select>
+				<span class="mail-create-chevron">@chevronDownIcon()</span>
+			</span>
+		}
+	</form>
+}
+
+templ createWorkflowButton() {
+	<form class="mail-create-combo" method="post" action="/compose">
+		<input type="hidden" name="mode" value="workflow"/>
+		<input type="hidden" name="create_only" value="true"/>
+		<button class="mail-create-btn" type="submit">
+			@workflowIcon()
+			<span>New workflow</span>
+		</button>
+		<span class="mail-create-select-wrap">
+			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type">
+				for _, typ := range workflowTypeOptions() {
+					<option value={ typ }>{ workflowTypeLabel(typ) }</option>
+				}
+			</select>
+			<span class="mail-create-chevron">@chevronDownIcon()</span>
+		</span>
 	</form>
 }
 
@@ -302,8 +337,38 @@ func agentLabel(agent string) string {
 	return strings.ToUpper(agent[:1]) + agent[1:]
 }
 
+func codexModelOptions() []SelectOption {
+	return []SelectOption{
+		{Label: "Default", Value: "default"},
+		{Label: "GPT 5.5", Value: "gpt-5.5"},
+		{Label: "GPT 5.1", Value: "gpt-5.1"},
+		{Label: "GPT 5", Value: "gpt-5"},
+	}
+}
+
+func providerModelLabel(agent string) string {
+	return agentLabel(agent)
+}
+
+func workflowTypeLabel(typ string) string {
+	switch typ {
+	case "contact":
+		return "Contact chat"
+	default:
+		return agentLabel(typ)
+	}
+}
+
+func workflowTypeOptions() []string {
+	return []string{"contact"}
+}
+
 func chatIcon() templ.Component {
 	return lucideIcon(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>`)
+}
+
+func chevronDownIcon() templ.Component {
+	return lucideIcon(`<path d="m6 9 6 6 6-6"></path>`)
 }
 
 func archiveIcon() templ.Component {
@@ -431,6 +496,9 @@ func taskIcon() templ.Component {
 }
 
 func taskInboxActionURL(id int64, action string) string {
+	if action == "" {
+		return fmt.Sprintf("/inbox/tasks/%d", id)
+	}
 	return fmt.Sprintf("/inbox/tasks/%d/%s", id, action)
 }
 

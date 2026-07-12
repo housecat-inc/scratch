@@ -59,3 +59,8 @@ type InboxThreadDetail struct {
 	Starred  bool
 	Title    string
 }
+
+type SelectOption struct {
+	Label string
+	Value string
+}

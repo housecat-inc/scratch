@@ -1,6 +1,6 @@
 -- name: AddTask :one
-INSERT INTO tasks (created_at, title, updated_at)
-VALUES (?, ?, ?)
+INSERT INTO tasks (created_at, description, title, updated_at)
+VALUES (?, '', ?, ?)
 RETURNING *;
 
 -- name: AddTaskNote :one
@@ -54,3 +54,6 @@ UPDATE task_subitems SET completed = ?, updated_at = ? WHERE id = ?;
 
 -- name: UpdateTaskTitle :execrows
 UPDATE tasks SET title = ?, updated_at = ? WHERE id = ?;
+
+-- name: UpdateTaskDescription :execrows
+UPDATE tasks SET description = ?, updated_at = ? WHERE id = ?;

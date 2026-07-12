@@ -16,6 +16,7 @@ type CodexAgent struct {
 
 type codexAnchor struct {
 	Agent    string `json:"agent"`
+	Model    string `json:"model,omitempty"`
 	ThreadID string `json:"thread_id,omitempty"`
 }
 
@@ -38,9 +39,17 @@ func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (strin
 	var state codexAnchor
 	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
-	args := []string{"exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check", turn.Prompt}
+	args := []string{"exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"}
+	if state.Model != "" {
+		args = append(args, "--model", state.Model)
+	}
+	args = append(args, turn.Prompt)
 	if state.ThreadID != "" {
-		args = []string{"exec", "resume", "--json", "--skip-git-repo-check", state.ThreadID, turn.Prompt}
+		args = []string{"exec", "resume", "--json", "--skip-git-repo-check"}
+		if state.Model != "" {
+			args = append(args, "--model", state.Model)
+		}
+		args = append(args, state.ThreadID, turn.Prompt)
 	}
 	cmd := exec.CommandContext(ctx, "codex", args...)
 	cmd.Dir = a.Dir
