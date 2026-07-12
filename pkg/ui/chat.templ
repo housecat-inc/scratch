@@ -32,13 +32,15 @@ templ ChatMessage(m ChatMessageProps) {
 			if len(m.Attachments) > 0 {
 				<div class="chat-bubble-attachments">
 					for _, a := range m.Attachments {
-						if a.IsImage {
-							<a href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
-								<img class="chat-attachment-image" src={ attachmentURL(a) } alt={ a.Name }/>
-							</a>
-						} else {
-							<a class="chat-attachment-file" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">{ a.Name }</a>
-						}
+						<a class="chat-attachment-chip" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
+							if a.IsImage {
+								@imageIcon()
+								<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
+							} else {
+								@paperclipIcon()
+							}
+							<span class="chat-chip-name">{ a.Name }</span>
+						</a>
 					}
 				</div>
 			}

@@ -72,8 +72,7 @@ func TestCodexArgsAttachments(t *testing.T) {
 		Prompt: "look",
 	}
 	args := codexArgs(codexAnchor{}, turn, t.TempDir())
-	a.Contains(args, "--image")
-	a.Contains(args, "/tmp/shot.png")
+	a.Contains(args, "--image=/tmp/shot.png")
 	a.Contains(args[len(args)-1], "Attached files:\n- /tmp/data.csv")
 }
 

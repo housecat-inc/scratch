@@ -96,7 +96,7 @@ func codexArgs(state codexAnchor, turn Turn, dir string) []string {
 	docs := []Attachment{}
 	for _, f := range turn.Attachments {
 		if strings.HasPrefix(f.MimeType, "image/") {
-			args = append(args, "--image", f.Path)
+			args = append(args, "--image="+f.Path)
 		} else {
 			docs = append(docs, f)
 		}
