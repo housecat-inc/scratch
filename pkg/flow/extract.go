@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 const extractPrompt = `Extract contact details from the message below.
-Reply with only a JSON object — no prose, no code fences — with exactly these string keys:
-company, email, name, notes. Use "" for anything not present. Capitalize names properly.
+Use "" for any field not present in the message — never invent values. Capitalize names properly.
 
 Message: `
 
@@ -51,7 +51,16 @@ func (e ClaudeExtractor) Extract(ctx context.Context, message string) (Contact, 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "-p", extractPrompt+message, "--model", "haiku", "--output-format", "json")
+	schema, err := contactSchema()
+	if err != nil {
+		return Contact{}, err
+	}
+	cmd := exec.CommandContext(ctx, "claude",
+		"-p", extractPrompt+message,
+		"--model", "haiku",
+		"--output-format", "json",
+		"--json-schema", schema,
+	)
 	out, err := cmd.Output()
 	if err != nil {
 		return Contact{}, errors.Wrap(err, "run claude extract")
@@ -66,7 +75,24 @@ func (e ClaudeExtractor) Extract(ctx context.Context, message string) (Contact, 
 	if result.IsError {
 		return Contact{}, errors.Newf("claude extract: %s", result.Result)
 	}
+	var contact Contact
+	if err := json.Unmarshal([]byte(result.Result), &contact); err == nil {
+		return contact, nil
+	}
 	return parseContactJSON(result.Result)
+}
+
+func contactSchema() (string, error) {
+	schema, err := jsonschema.For[Contact](nil)
+	if err != nil {
+		return "", errors.Wrap(err, "derive contact schema")
+	}
+	schema.Required = nil
+	data, err := json.Marshal(schema)
+	if err != nil {
+		return "", errors.Wrap(err, "marshal contact schema")
+	}
+	return string(data), nil
 }
 
 func parseContactJSON(s string) (Contact, error) {
