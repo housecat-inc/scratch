@@ -78,6 +78,12 @@
     openPopout(`/chat/${saved.threadID}/popout`, saved.mode || "open");
   };
 
+  const showInboxBehindPopout = (threadID) => {
+    if (location.pathname === `/inbox/chats/${threadID}`) {
+      location.assign("/inbox/chats");
+    }
+  };
+
   const initComposer = (form) => {
     if (form.dataset.chatInitialized === "true") return;
     form.dataset.chatInitialized = "true";
@@ -473,11 +479,13 @@
     openPopout(`/chat/popout/new?${params.toString()}`);
   });
 
-  document.addEventListener("click", (e) => {
+  document.addEventListener("click", async (e) => {
     const trigger = e.target.closest("[data-chat-popout-thread]");
     if (!trigger) return;
     e.preventDefault();
-    openPopout(`/chat/${trigger.dataset.chatPopoutThread}/popout`);
+    const threadID = trigger.dataset.chatPopoutThread;
+    const panel = await openPopout(`/chat/${threadID}/popout`);
+    if (panel) showInboxBehindPopout(threadID);
   });
 
   new MutationObserver((mutations) => {

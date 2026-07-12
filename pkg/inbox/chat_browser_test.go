@@ -86,6 +86,16 @@ func InputValueContains(selector, expected string) Step {
 	}
 }
 
+func PathEventuallyEquals(expected string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventuallyf(func() bool {
+			result, err := h.Page.Eval(`() => location.pathname`)
+			return err == nil && result.Value.Str() == expected
+		}, 20*time.Second, 50*time.Millisecond, "path should equal %q", expected)
+	}
+}
+
 func ElementEventuallyPresent(selector string) Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
@@ -227,6 +237,7 @@ func TestChatBrowser(t *testing.T) {
 			Act: []Step{
 				WaitChatReady(),
 				Click(`[data-chat-popout-thread="1"]`),
+				PathEventuallyEquals("/inbox/chats"),
 				ElementEventuallyPresent("#floating-chat"),
 				Type("#floating-chat [data-chat-input]", "from popout"),
 				Click("#floating-chat [data-chat-send]"),

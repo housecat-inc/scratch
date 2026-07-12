@@ -135,8 +135,12 @@ templ ChatMessage(m ChatMessageProps) {
 		hx-swap="outerHTML"
 	>
 		if m.Role == "assistant" {
-			for i, part := range m.Parts {
-				@chatPart(m, part, i == len(m.Parts)-1)
+			for _, group := range chatPartGroups(m.Parts) {
+				if group.Kind == "tools" {
+					@chatToolGroup(m, group)
+				} else {
+					@chatPart(m, group.Part, group.Last)
+				}
 			}
 			if m.Form != nil {
 				@chatForm(*m.Form)
@@ -245,12 +249,12 @@ templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
 		case "tool":
 			@chatRow(chatRowProps{
 				Detail:  part.Tool.Detail,
+				Failed:  part.Tool.Status == "failed",
 				Key:     "m" + itoa64(m.ID) + "-tool-" + part.Tool.ID,
+				Kind:    "tool",
 				Label:   part.Tool.Title,
 				Live:    part.Tool.Status == "in_progress" || part.Tool.Status == "pending",
-				Failed:  part.Tool.Status == "failed",
 				Summary: part.Tool.Summary,
-				Kind:    "tool",
 			})
 		case "error":
 			@chatRow(chatRowProps{
@@ -295,6 +299,39 @@ templ chatRow(r chatRowProps) {
 		if r.Detail != "" {
 			<pre class="chat-row-detail">{ r.Detail }</pre>
 		}
+	</details>
+}
+
+templ chatToolGroup(m ChatMessageProps, g chatPartGroup) {
+	<details class={ "chat-row", "chat-tool-group", "row-tool", templ.KV("row-failed", chatToolGroupFailed(g.Tools)) } data-key={ "m" + itoa64(m.ID) + "-" + g.Key }>
+		<summary>
+			if chatToolGroupLive(g.Tools) {
+				<span class="chat-spinner"></span>
+			} else {
+				<span class="chat-row-icon">
+					@rowIcon("tool", chatToolGroupFailed(g.Tools))
+				</span>
+			}
+			<span class="chat-row-label">{ chatToolGroupLabel(g.Tools) }</span>
+			if g.Summary != "" {
+				<span class="chat-row-chip">{ g.Summary }</span>
+			}
+		</summary>
+		<div class="chat-tool-list">
+			for _, part := range g.Tools {
+				if part.Tool != nil {
+					@chatRow(chatRowProps{
+						Detail:  part.Tool.Detail,
+						Failed:  part.Tool.Status == "failed",
+						Key:     "m" + itoa64(m.ID) + "-tool-" + part.Tool.ID,
+						Kind:    "tool",
+						Label:   part.Tool.Title,
+						Live:    part.Tool.Status == "in_progress" || part.Tool.Status == "pending",
+						Summary: part.Tool.Summary,
+					})
+				}
+			}
+		</div>
 	</details>
 }
 
