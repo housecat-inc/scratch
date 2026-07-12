@@ -11,7 +11,9 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/todo"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +51,24 @@ func newRootCmd() *cobra.Command {
 			}
 			chatSvc := chat.NewService(store, agent, logger)
 			defer chatSvc.Close()
+
+			workflows, err := workflow.New(dbPath)
+			if err != nil {
+				return errors.Wrap(err, "open workflows")
+			}
+			defer workflows.Close()
+			flows := flow.New(flow.Deps{
+				DBOS:    workflows.Ctx(),
+				Log:     logger,
+				Publish: chatSvc.Publish,
+				Store:   store,
+				Tasks:   store,
+			})
+			chatSvc.RegisterAgent("contact", flows.Agent())
+			chatSvc.SetResolver(flows)
+			if err := workflows.Launch(); err != nil {
+				return errors.Wrap(err, "launch workflows")
+			}
 
 			svc := todo.NewService(store)
 			addr := fmt.Sprintf(":%d", port)

@@ -19,11 +19,12 @@ const (
 )
 
 var (
-	ErrAgentUnknown         = errors.New("agent unknown")
-	ErrElicitationNotFound  = errors.New("elicitation not found")
-	ErrElicitationResolved  = errors.New("elicitation already resolved")
-	ErrNoResolver           = errors.New("no elicitation resolver configured")
-	ErrThreadBusy           = errors.New("thread busy")
+	ErrAgentUnknown        = errors.New("agent unknown")
+	ErrElicitationNotFound = errors.New("elicitation not found")
+	ErrElicitationResolved = errors.New("elicitation already resolved")
+	ErrNoResolver          = errors.New("no elicitation resolver configured")
+	ErrThreadBusy          = errors.New("thread busy")
+	ErrTurnPending         = errors.New("turn pending durable recovery")
 )
 
 func IsThreadBusy(err error) bool { return errors.Is(err, ErrThreadBusy) }
@@ -345,6 +346,11 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	anchor, err := agent.Run(s.ctx, turn, func(ev Event) {
 		s.emit(thread.ID, turn.MessageID, ev)
 	})
+
+	if errors.Is(err, ErrTurnPending) {
+		s.log.Info("chat.pending", "message", turn.MessageID, "thread", thread.ID)
+		return
+	}
 
 	status := db.MessageStatusComplete
 	if err != nil {
