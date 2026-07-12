@@ -571,6 +571,15 @@ textarea {
   white-space: nowrap;
 }
 
+.gm-label-name::after {
+  content: attr(data-label);
+  display: block;
+  font-weight: 700;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
 .gm-label-count {
   color: #64748b;
   font-size: 0.75rem;

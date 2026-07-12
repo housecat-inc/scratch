@@ -21,7 +21,7 @@ templ Shell(p ShellProps) {
 							<span class="gm-label-icon">
 								@Icon(item.Icon)
 							</span>
-							<span class="gm-label-name">{ item.Label }</span>
+							<span class="gm-label-name" data-label={ item.Label }>{ item.Label }</span>
 							if item.Count > 0 {
 								<span class="gm-label-count">{ countLabel(item.Count) }</span>
 							}
