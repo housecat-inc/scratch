@@ -15,6 +15,7 @@ type ListRowProps struct {
 	ID          string
 	Kind        string
 	Labels      []string
+	LinkAttrs   templ.Attributes
 	Primary     templ.Component
 	PrimaryMeta templ.Component
 	Subject     string

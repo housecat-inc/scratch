@@ -76,6 +76,9 @@ templ TodoChatRow(item TodoChatItem) {
 		ID: strconv.FormatInt(item.ID, 10),
 		Kind: "chat",
 		Labels: []string{"Chat"},
+		LinkAttrs: templ.Attributes{
+			"data-chat-popout-thread": strconv.FormatInt(item.ID, 10),
+		},
 		Primary: TodoChatRowPrimary(item),
 		Subject: item.Description,
 		What: item.Title,

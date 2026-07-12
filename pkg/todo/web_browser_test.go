@@ -254,6 +254,21 @@ func TestTodoWebBrowser(t *testing.T) {
 				seedWebChat("scratch chat", ""),
 			},
 		},
+		{
+			Act: []webStep{
+				testkit.ClickStep[*webHarness](`[data-kind="chat"][data-id="1"] .gm-row-link`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/chats"),
+				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				testkit.TextContainsStep[*webHarness]("#floating-chat", "old chat"),
+			},
+			Name: "clicking a todo chat row opens a floating chat",
+			Path: "/chats",
+			Seed: []webStep{
+				seedWebChat("old chat", chatLabelTodo),
+			},
+		},
 	})
 }
 
