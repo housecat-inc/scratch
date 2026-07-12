@@ -1,0 +1,14 @@
+package uikit
+
+templ Tabs(p TabsProps) {
+	<nav class={ tabsClass(p.Class) } aria-label="Section tabs">
+		for _, t := range p.Tabs {
+			<a href={ templ.SafeURL(t.Href) } class={ "gm-tab", templ.KV("active", t.Active) }>
+				<span class="gm-tab-label">{ t.Label }</span>
+				if t.Count > 0 {
+					<span class="gm-tab-count">{ countLabel(t.Count) }</span>
+				}
+			</a>
+		}
+	</nav>
+}

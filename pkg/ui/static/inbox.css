@@ -645,6 +645,53 @@ textarea {
   padding: 1rem;
 }
 
+.gm-tabs {
+  align-items: stretch;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  padding: 0 0.9rem;
+}
+
+.gm-tab {
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 600;
+  gap: 0.35rem;
+  line-height: 1;
+  padding: 0.75rem 0.4rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.gm-tab:hover {
+  color: #111827;
+}
+
+.gm-tab.active {
+  border-bottom-color: #111827;
+  color: #111827;
+}
+
+.gm-tab-count {
+  background: #f1f5f9;
+  border-radius: 999px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.05rem 0.4rem;
+}
+
+.gm-tab.active .gm-tab-count {
+  background: #e2e8f0;
+  color: #111827;
+}
+
 .mail-mainbar,
 .mail-reader-head {
   align-items: center;

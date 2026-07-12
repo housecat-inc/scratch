@@ -16,31 +16,11 @@ import (
 )
 
 templ CodeSubnav(p CodeSubnavProps) {
-	<div class="bg-white border-b border-slate-200">
-		<div class="max-w-2xl mx-auto flex">
-			@subnavLink(fmt.Sprintf("/code/%s/commits", p.Repo.Slug()), "commits", p.Active, "Commits", 0)
-			@subnavLink(fmt.Sprintf("/code/%s", p.Repo.Slug()), "diffs", p.Active, "Diffs", 0)
-			@subnavLink(fmt.Sprintf("/code/%s/comments", p.Repo.Slug()), "comments", p.Active, "Comments", p.Comments)
-		</div>
-	</div>
-}
-
-templ subnavLink(href, name, active, label string, badge int) {
-	if name == active {
-		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-2 text-xs font-medium text-slate-900 border-b-2 border-slate-900">
-			{ label }
-			if badge > 0 {
-				<span class="text-slate-400 tabular-nums">{ strconv.Itoa(badge) }</span>
-			}
-		</a>
-	} else {
-		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-2 text-xs font-medium text-slate-500 hover:text-slate-900">
-			{ label }
-			if badge > 0 {
-				<span class="text-slate-400 tabular-nums">{ strconv.Itoa(badge) }</span>
-			}
-		</a>
-	}
+	@uikit.Tabs(uikit.TabsProps{Tabs: []uikit.Tab{
+		{Active: p.Active == "commits", Href: fmt.Sprintf("/code/%s/commits", p.Repo.Slug()), Label: "Commits"},
+		{Active: p.Active == "diffs", Href: fmt.Sprintf("/code/%s", p.Repo.Slug()), Label: "Diffs"},
+		{Active: p.Active == "comments", Count: p.Comments, Href: fmt.Sprintf("/code/%s/comments", p.Repo.Slug()), Label: "Comments"},
+	}})
 }
 
 templ OverviewPage(p OverviewProps) {
