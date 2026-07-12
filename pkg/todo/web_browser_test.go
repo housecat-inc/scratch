@@ -68,6 +68,23 @@ func TestTodoWebBrowser(t *testing.T) {
 		},
 		{
 			Act: []webStep{
+				testkit.ClickStep[*webHarness]("[data-new-chat]"),
+				webElementEventuallyPresent("#floating-chat"),
+				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/chats"),
+				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Chats"),
+				webElementAbsent("#floating-chat"),
+			},
+			Name: "chat history action opens chats",
+			Path: "/",
+			Seed: []webStep{
+				seedWebChat("old chat", chatLabelTodo),
+			},
+		},
+		{
+			Act: []webStep{
 				testkit.TypeStep[*webHarness](".todo-new-input", "buy milk"),
 				testkit.ClickStep[*webHarness](".todo-create-form button"),
 			},
@@ -281,6 +298,16 @@ func webLoad(path string) webStep {
 	return func(t *testing.T, h *webHarness) {
 		t.Helper()
 		h.Load(path)
+	}
+}
+
+func webPathEventuallyEquals(expected string) webStep {
+	return func(t *testing.T, h *webHarness) {
+		t.Helper()
+		h.R.Eventuallyf(func() bool {
+			result, err := h.Page.Eval(`() => location.pathname`)
+			return err == nil && result.Value.Str() == expected
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "path should equal %q", expected)
 	}
 }
 

@@ -39,7 +39,7 @@ templ NewChatAction(p NewChatActionProps) {
 }
 
 templ ChatHistoryAction(href string) {
-	<a class="mail-create-btn" href={ templ.SafeURL(historyHref(href)) } title="Chat history" aria-label="Chat history">
+	<a aria-label="Chat history" class="mail-create-btn" data-chat-history href={ templ.SafeURL(historyHref(href)) } title="Chat history">
 		@Icon("history")
 	</a>
 }

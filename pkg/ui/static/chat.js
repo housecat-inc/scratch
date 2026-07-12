@@ -557,6 +557,13 @@
   });
 
   document.addEventListener("click", async (e) => {
+    const historyLink = e.target.closest("[data-chat-history]");
+    if (historyLink) {
+      clearState();
+      document.getElementById("floating-chat")?.remove();
+      return;
+    }
+
     const trigger = e.target.closest("[data-chat-popout-thread]");
     if (!trigger) return;
     e.preventDefault();
