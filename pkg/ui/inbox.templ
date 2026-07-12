@@ -134,6 +134,7 @@ templ InboxRow(item InboxItem, view, filter string) {
 		Kind: item.Kind,
 		Labels: rowLabels(item, view),
 		Primary: InboxRowPrimary(item, view, filter),
+		PrimaryMeta: rowPrimaryMeta(item, view),
 		Subject: item.Snippet,
 		What: item.Title,
 		When: item.When,
@@ -429,9 +430,29 @@ func rowKindLabel(kind string) string {
 	}
 }
 
+func rowKindIcon(kind string) templ.Component {
+	switch kind {
+	case "chat":
+		return chatIcon()
+	case "task":
+		return taskIcon()
+	case "workflow":
+		return workflowIcon()
+	default:
+		return inboxIcon()
+	}
+}
+
+func rowPrimaryMeta(item InboxItem, view string) templ.Component {
+	if view != "inbox" {
+		return nil
+	}
+	return inboxRowKindIcon(item)
+}
+
 func rowLabels(item InboxItem, view string) []string {
 	labels := []string{}
-	if showRowKindLabel(view) {
+	if view != "inbox" && showRowKindLabel(view) {
 		labels = append(labels, rowKindLabel(item.Kind))
 	}
 	if item.Kind == "task" {
@@ -583,6 +604,12 @@ func inboxNavItems(p InboxProps) []uikit.NavItem {
 		{Href: "/code/", Icon: "code", Label: "Code review"},
 		{Href: "/files/", Icon: "file", Label: "Files"},
 	}
+}
+
+templ inboxRowKindIcon(item InboxItem) {
+	<span class="gm-row-kind-icon" title={ rowKindLabel(item.Kind) } aria-label={ rowKindLabel(item.Kind) } role="img">
+		@rowKindIcon(item.Kind)
+	</span>
 }
 
 func inboxViewHref(view string) string {

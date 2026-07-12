@@ -7,18 +7,19 @@ import (
 )
 
 type ListRowProps struct {
-	Actions  templ.Component
-	Archived bool
-	Class    string
-	Done     bool
-	Href     string
-	ID       string
-	Kind     string
-	Labels   []string
-	Primary  templ.Component
-	Subject  string
-	What     string
-	When     string
+	Actions     templ.Component
+	Archived    bool
+	Class       string
+	Done        bool
+	Href        string
+	ID          string
+	Kind        string
+	Labels      []string
+	Primary     templ.Component
+	PrimaryMeta templ.Component
+	Subject     string
+	What        string
+	When        string
 }
 
 func listRowClass(p ListRowProps) string {
@@ -31,6 +32,9 @@ func listRowClass(p ListRowProps) string {
 	}
 	if p.Done {
 		classes = append(classes, "done")
+	}
+	if p.PrimaryMeta != nil {
+		classes = append(classes, "has-primary-meta")
 	}
 	return strings.Join(classes, " ")
 }

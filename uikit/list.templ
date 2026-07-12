@@ -7,6 +7,9 @@ templ ListRow(p ListRowProps) {
 		} else {
 			<span class="gm-row-primary-spacer" aria-hidden="true"></span>
 		}
+		if p.PrimaryMeta != nil {
+			@p.PrimaryMeta
+		}
 		<a class="gm-row-link" href={ templ.SafeURL(p.Href) }>
 			<span class="gm-row-what">{ p.What }</span>
 			<span class="gm-row-subject">

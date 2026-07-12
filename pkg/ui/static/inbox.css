@@ -710,6 +710,10 @@ textarea {
 	position: relative;
 }
 
+.gm-row.has-primary-meta {
+	grid-template-columns: 2rem 1.55rem minmax(0, 1fr);
+}
+
 .gm-row:hover {
   box-shadow: inset 0 0 0 1px #e5e7eb, 0 1px 2px rgb(15 23 42 / 0.08);
   z-index: 1;
@@ -739,6 +743,15 @@ textarea {
 	display: inline-flex;
 	height: 2rem;
 	width: 2rem;
+}
+
+.gm-row-kind-icon {
+	align-items: center;
+	color: #64748b;
+	display: inline-flex;
+	height: 2rem;
+	justify-content: center;
+	width: 1.55rem;
 }
 
 .gm-row-subject,
@@ -919,7 +932,8 @@ textarea {
 
 .gm-row-action svg,
 .gm-star svg,
-.gm-icon-btn svg {
+.gm-icon-btn svg,
+.gm-row-kind-icon svg {
   height: 1.2rem;
   width: 1.2rem;
 }
