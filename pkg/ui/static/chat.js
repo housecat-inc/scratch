@@ -183,22 +183,41 @@
 
       const capture = async (el) => {
         const selector = cssPath(el);
-        try {
-          const canvas = await html2canvas(el, { logging: false, useCORS: true });
-          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-          if (blob) {
-            await upload(new File([blob], "selection.png", { type: "image/png" }));
-          }
-        } catch (err) {
-          showAlert("screenshot failed: " + err.message);
-        }
         const html =
           "<!-- url: " + location.href + " -->\n<!-- selector: " + selector + " -->\n" + el.outerHTML;
-        await upload(new File([html], "selection.html", { type: "text/html" }));
-        const note = "Selected " + selector + " on " + location.href;
+        if (uploadURL) {
+          try {
+            const canvas = await html2canvas(el, { logging: false, useCORS: true });
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+            if (blob) {
+              await upload(new File([blob], "selection.png", { type: "image/png" }));
+            }
+          } catch (err) {
+            showAlert("screenshot failed: " + err.message);
+          }
+          await upload(new File([html], "selection.html", { type: "text/html" }));
+        }
+        const note = uploadURL
+          ? "Selected " + selector + " on " + location.href
+          : inspectionPrompt(selector, el, html);
         input.value = input.value ? input.value + "\n" + note : note;
         input.dispatchEvent(new Event("input"));
         input.focus();
+      };
+
+      const inspectionPrompt = (selector, el, html) => {
+        const text = el.innerText?.trim();
+        const parts = ["Selected " + selector + " on " + location.href];
+        if (text) {
+          parts.push("Text:\n" + truncate(text, 4000));
+        }
+        parts.push("HTML:\n" + truncate(html, 8000));
+        return parts.join("\n\n");
+      };
+
+      const truncate = (value, max) => {
+        if (value.length <= max) return value;
+        return value.slice(0, max) + "\n[truncated]";
       };
     }
   }

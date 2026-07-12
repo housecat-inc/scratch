@@ -129,6 +129,20 @@ func WaitChatReady() Step {
 func TestChatBrowser(t *testing.T) {
 	runBrowser(t, []testkit.BrowserCase[*Harness]{
 		{
+			Name: "inspects a page section before creating a chat",
+			Path: "/",
+			Act: []Step{
+				WaitChatReady(),
+				CaptureElement(".mail-mainbar"),
+			},
+			Assert: []Step{
+				InputValueContains("#chat-input", "Selected"),
+				InputValueContains("#chat-input", "Inbox"),
+				InputValueContains("#chat-input", "HTML:"),
+				ElementAbsent("#chat-attachments .chat-attachment-chip"),
+			},
+		},
+		{
 			Name: "sends a message and streams the echoed reply",
 			Path: "/inbox/chats/1",
 			Seed: []Step{SeedChatThread()},

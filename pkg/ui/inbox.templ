@@ -145,7 +145,7 @@ templ MailComposer(p InboxProps) {
 					@paperclipIcon()
 					<input id="chat-file" type="file" multiple disabled hidden/>
 				</label>
-				<button type="button" id="chat-snap" class="chat-icon-circle disabled" title="Open a chat to attach a screenshot" aria-label="Screenshot a section of the page" disabled>
+				<button type="button" id="chat-snap" class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
 					@crosshairIcon()
 				</button>
 				<div id="chat-attachments" class="chat-attachments"></div>
@@ -317,10 +317,9 @@ templ createButton(mode, label string, icon templ.Component) {
 }
 
 templ createChatButton(agents []string) {
-	<form class="mail-create-combo" method="post" action="/compose" data-agent-model-form="true">
+	<form class="mail-create-combo" method="get" action="/" data-agent-model-form="true">
 		<input type="hidden" name="mode" value="chat"/>
-		<input type="hidden" name="create_only" value="true"/>
-		<button class="mail-create-btn" type="submit">
+		<button class="mail-create-btn" type="submit" data-new-chat>
 			@chatIcon()
 			<span>New chat</span>
 		</button>
