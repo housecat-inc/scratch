@@ -3,7 +3,10 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"os/exec"
 	"time"
+
+	"github.com/cockroachdb/errors"
 )
 
 const (
@@ -26,6 +29,21 @@ type Agent interface {
 func DeltaEvent(text string) Event {
 	data, _ := json.Marshal(map[string]string{"text": text})
 	return Event{Data: string(data), Type: EventDelta}
+}
+
+func ResolveAgent(name string) (Agent, error) {
+	switch name {
+	case "", "auto":
+		if _, err := exec.LookPath("claude"); err == nil {
+			return ClaudeAgent{}, nil
+		}
+		return EchoAgent{Delay: 200 * time.Millisecond}, nil
+	case "claude":
+		return ClaudeAgent{}, nil
+	case "echo":
+		return EchoAgent{Delay: 200 * time.Millisecond}, nil
+	}
+	return nil, errors.Newf("unknown agent %q", name)
 }
 
 type EchoAgent struct {

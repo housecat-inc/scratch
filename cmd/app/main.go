@@ -9,6 +9,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-fuego/fuego"
+	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/spf13/cobra"
@@ -22,6 +23,7 @@ func main() {
 }
 
 func newRootCmd() *cobra.Command {
+	var agentName string
 	var port int
 	cmd := &cobra.Command{
 		Use:   "app",
@@ -41,6 +43,13 @@ func newRootCmd() *cobra.Command {
 			}
 			defer store.Close()
 
+			agent, err := chat.ResolveAgent(agentName)
+			if err != nil {
+				return err
+			}
+			chatSvc := chat.NewService(store, agent, logger)
+			defer chatSvc.Close()
+
 			svc := todo.NewService(store)
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(
@@ -55,12 +64,16 @@ func newRootCmd() *cobra.Command {
 				})),
 			)
 			todo.Register(srv, svc)
+			chatSrv := chat.NewServer(chatSvc, logger)
+			srv.Mux.Handle("/chat", chatSrv.Handler())
+			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			srv.Mux.Handle("/", todo.NewServer(svc, logger).Handler())
 
-			slog.Info("listening", "addr", addr)
+			slog.Info("listening", "addr", addr, "agent", agent.Author())
 			return srv.Run()
 		},
 	}
+	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, echo)")
 	cmd.Flags().IntVarP(&port, "port", "p", 8000, "HTTP listen port")
 	return cmd
 }
