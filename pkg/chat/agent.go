@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -24,17 +25,23 @@ const (
 	EventUsage             = "usage"
 )
 
+type Attachment struct {
+	MimeType string
+	Path     string
+}
+
 type Event struct {
 	Data string
 	Type string
 }
 
 type Turn struct {
-	Anchor    string
-	MessageID int64
-	Meta      string
-	Prompt    string
-	ThreadID  int64
+	Anchor      string
+	Attachments []Attachment
+	MessageID   int64
+	Meta        string
+	Prompt      string
+	ThreadID    int64
 }
 
 type Agent interface {
@@ -50,6 +57,17 @@ func DeltaEvent(text string) Event {
 func thinkingEvent(text string) Event {
 	data, _ := json.Marshal(map[string]string{"text": text})
 	return Event{Data: string(data), Type: EventThinking}
+}
+
+func attachmentAppendix(files []Attachment) string {
+	if len(files) == 0 {
+		return ""
+	}
+	paths := make([]string, 0, len(files))
+	for _, f := range files {
+		paths = append(paths, "- "+f.Path)
+	}
+	return "\n\nAttached files:\n" + strings.Join(paths, "\n")
 }
 
 func clip(s string, n int) string {

@@ -16,6 +16,7 @@ type CodexAgent struct {
 }
 
 type codexAnchor struct {
+	Access   string `json:"access,omitempty"`
 	Agent    string `json:"agent"`
 	Model    string `json:"model,omitempty"`
 	ThreadID string `json:"thread_id,omitempty"`
@@ -58,7 +59,7 @@ func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (strin
 	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
 	parser := &codexParser{state: &state}
-	if err := runTurn(ctx, turn, emit, "codex", codexArgs(state, turn.Prompt, a.Dir), a.Dir, parser); err != nil {
+	if err := runTurn(ctx, turn, emit, "codex", codexArgs(state, turn, a.Dir), a.Dir, parser); err != nil {
 		return "", err
 	}
 	state.Agent = "codex"
@@ -69,27 +70,41 @@ func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (strin
 	return string(out), nil
 }
 
-func codexArgs(state codexAnchor, prompt, dir string) []string {
+func codexArgs(state codexAnchor, turn Turn, dir string) []string {
+	sandbox := "workspace-write"
+	if state.Access == AccessSafe {
+		sandbox = "read-only"
+	}
 	args := []string{"exec"}
 	if state.ThreadID != "" {
 		args = append(args, "resume")
 	}
 	args = append(args, "--json", "--skip-git-repo-check")
 	if state.ThreadID == "" {
-		args = append(args, "--sandbox", "workspace-write")
+		args = append(args, "--sandbox", sandbox)
 	} else {
-		args = append(args, "-c", `sandbox_mode="workspace-write"`)
+		args = append(args, "-c", fmt.Sprintf("sandbox_mode=%q", sandbox))
 	}
-	if gitDir := worktreeGitDir(dir); gitDir != "" {
-		args = append(args, "-c", fmt.Sprintf("sandbox_workspace_write.writable_roots=[%q]", gitDir))
+	if sandbox == "workspace-write" {
+		if gitDir := worktreeGitDir(dir); gitDir != "" {
+			args = append(args, "-c", fmt.Sprintf("sandbox_workspace_write.writable_roots=[%q]", gitDir))
+		}
 	}
 	if state.Model != "" {
 		args = append(args, "--model", state.Model)
 	}
+	docs := []Attachment{}
+	for _, f := range turn.Attachments {
+		if strings.HasPrefix(f.MimeType, "image/") {
+			args = append(args, "--image", f.Path)
+		} else {
+			docs = append(docs, f)
+		}
+	}
 	if state.ThreadID != "" {
 		args = append(args, state.ThreadID)
 	}
-	return append(args, prompt)
+	return append(args, turn.Prompt+attachmentAppendix(docs))
 }
 
 func worktreeGitDir(dir string) string {

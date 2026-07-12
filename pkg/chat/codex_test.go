@@ -41,7 +41,7 @@ func TestCodexArgs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.New(t).Equal(tc.want, codexArgs(tc.state, "hi", t.TempDir()))
+			assert.New(t).Equal(tc.want, codexArgs(tc.state, Turn{Prompt: "hi"}, t.TempDir()))
 		})
 	}
 }
@@ -53,8 +53,28 @@ func TestCodexArgsWorktreeWritableRoot(t *testing.T) {
 	dir := t.TempDir()
 	r.NoError(os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: /repos/scratch/.git/worktrees/colombo-v2\n"), 0o644))
 
-	args := codexArgs(codexAnchor{}, "hi", dir)
+	args := codexArgs(codexAnchor{}, Turn{Prompt: "hi"}, dir)
 	a.Contains(args, `sandbox_workspace_write.writable_roots=["/repos/scratch/.git"]`)
+
+	safe := codexArgs(codexAnchor{Access: AccessSafe}, Turn{Prompt: "hi"}, dir)
+	a.Contains(safe, "read-only")
+	a.NotContains(safe, `sandbox_workspace_write.writable_roots=["/repos/scratch/.git"]`)
+}
+
+func TestCodexArgsAttachments(t *testing.T) {
+	a := assert.New(t)
+
+	turn := Turn{
+		Attachments: []Attachment{
+			{MimeType: "image/png", Path: "/tmp/shot.png"},
+			{MimeType: "text/csv", Path: "/tmp/data.csv"},
+		},
+		Prompt: "look",
+	}
+	args := codexArgs(codexAnchor{}, turn, t.TempDir())
+	a.Contains(args, "--image")
+	a.Contains(args, "/tmp/shot.png")
+	a.Contains(args[len(args)-1], "Attached files:\n- /tmp/data.csv")
 }
 
 func TestWorktreeGitDir(t *testing.T) {

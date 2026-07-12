@@ -12,6 +12,7 @@ type ClaudeAgent struct {
 }
 
 type claudeAnchor struct {
+	Access    string `json:"access,omitempty"`
 	Agent     string `json:"agent"`
 	Model     string `json:"model,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
@@ -55,22 +56,8 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 	var state claudeAnchor
 	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
-	args := []string{
-		"-p", turn.Prompt,
-		"--include-partial-messages",
-		"--output-format", "stream-json",
-		"--permission-mode", "bypassPermissions",
-		"--verbose",
-	}
-	if state.Model != "" {
-		args = append(args, "--model", state.Model)
-	}
-	if state.SessionID != "" {
-		args = append(args, "--resume", state.SessionID)
-	}
-
 	parser := &claudeParser{state: &state}
-	if err := runTurn(ctx, turn, emit, "claude", args, a.Dir, parser); err != nil {
+	if err := runTurn(ctx, turn, emit, "claude", claudeArgs(state, turn), a.Dir, parser); err != nil {
 		return "", err
 	}
 	state.Agent = "claude"
@@ -79,6 +66,27 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 		return "", errors.Wrap(err, "marshal anchor")
 	}
 	return string(out), nil
+}
+
+func claudeArgs(state claudeAnchor, turn Turn) []string {
+	mode := "bypassPermissions"
+	if state.Access == AccessSafe {
+		mode = "default"
+	}
+	args := []string{
+		"-p", turn.Prompt + attachmentAppendix(turn.Attachments),
+		"--include-partial-messages",
+		"--output-format", "stream-json",
+		"--permission-mode", mode,
+		"--verbose",
+	}
+	if state.Model != "" {
+		args = append(args, "--model", state.Model)
+	}
+	if state.SessionID != "" {
+		args = append(args, "--resume", state.SessionID)
+	}
+	return args
 }
 
 type claudeParser struct {

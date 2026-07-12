@@ -52,6 +52,7 @@ type InboxTaskDetail struct {
 }
 
 type InboxThreadDetail struct {
+	Access   string
 	Agent    string
 	Archived bool
 	ID       int64

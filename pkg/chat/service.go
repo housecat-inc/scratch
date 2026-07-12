@@ -39,11 +39,12 @@ type Resolver interface {
 }
 
 type ThreadView struct {
-	Forms     map[int64]elicit.Prompt
-	Messages  []db.Message
-	Parts     map[int64][]MessagePart
-	Streaming bool
-	Thread    db.Thread
+	Attachments map[int64][]db.Attachment
+	Forms       map[int64]elicit.Prompt
+	Messages    []db.Message
+	Parts       map[int64][]MessagePart
+	Streaming   bool
+	Thread      db.Thread
 }
 
 type Service struct {
@@ -246,7 +247,7 @@ func (s *Service) ResolveElicitation(messageID int64, elicitationID, action stri
 	return nil
 }
 
-func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
+func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (db.Message, error) {
 	thread, err := s.store.GetThread(threadID)
 	if err != nil {
 		return db.Message{}, err
@@ -274,6 +275,13 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	if err != nil {
 		return db.Message{}, err
 	}
+	if err := s.store.LinkAttachments(threadID, user.ID, attachmentIDs); err != nil {
+		return db.Message{}, err
+	}
+	files, err := s.attachmentPaths(user.ID, attachmentIDs)
+	if err != nil {
+		return db.Message{}, err
+	}
 	asst, err := s.store.AddMessage(db.NewMessage{
 		Author:   agent.Author(),
 		ParentID: &user.ID,
@@ -293,10 +301,32 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	}
 	s.broker.Publish(threadID, StructuralUpdate)
 
-	turn := Turn{Anchor: thread.Anchor, MessageID: asst.ID, Meta: asst.Meta, Prompt: prompt, ThreadID: threadID}
+	turn := Turn{
+		Anchor:      thread.Anchor,
+		Attachments: files,
+		MessageID:   asst.ID,
+		Meta:        asst.Meta,
+		Prompt:      prompt,
+		ThreadID:    threadID,
+	}
 	s.wg.Add(1)
 	go s.run(agent, thread, turn)
 	return user, nil
+}
+
+func (s *Service) attachmentPaths(messageID int64, ids []int64) ([]Attachment, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := s.store.ListMessageAttachments(messageID)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]Attachment, 0, len(rows))
+	for _, a := range rows {
+		files = append(files, Attachment{MimeType: a.MimeType, Path: a.FilePath})
+	}
+	return files, nil
 }
 
 func (s *Service) SetThreadState(threadID int64, state string) error {
@@ -341,11 +371,21 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 	if err != nil {
 		return ThreadView{}, err
 	}
+	attachments, err := s.store.ListThreadAttachments(threadID)
+	if err != nil {
+		return ThreadView{}, err
+	}
 	view := ThreadView{
-		Forms:    map[int64]elicit.Prompt{},
-		Messages: msgs,
-		Parts:    map[int64][]MessagePart{},
-		Thread:   thread,
+		Attachments: map[int64][]db.Attachment{},
+		Forms:       map[int64]elicit.Prompt{},
+		Messages:    msgs,
+		Parts:       map[int64][]MessagePart{},
+		Thread:      thread,
+	}
+	for _, a := range attachments {
+		if a.MessageID != nil {
+			view.Attachments[*a.MessageID] = append(view.Attachments[*a.MessageID], a)
+		}
 	}
 	byMessage := map[int64][]db.MessageEvent{}
 	for _, ev := range events {

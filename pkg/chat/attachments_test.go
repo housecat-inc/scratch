@@ -1,0 +1,115 @@
+package chat
+
+import (
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestAttachmentLifecycle(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{Delay: time.Millisecond})
+	thread, err := svc.CreateThread("", "files")
+	r.NoError(err)
+
+	attachment, err := svc.AddAttachment(thread.ID, "shot.png", "image/png", strings.NewReader("png-bytes"))
+	r.NoError(err)
+	t.Cleanup(func() { os.Remove(attachment.FilePath) })
+	a.Equal("shot.png", attachment.Name)
+	a.Equal(int64(len("png-bytes")), attachment.Size)
+	a.Nil(attachment.MessageID)
+	data, err := os.ReadFile(attachment.FilePath)
+	r.NoError(err)
+	a.Equal("png-bytes", string(data))
+
+	user, err := svc.Send(thread.ID, "look at this", attachment.ID)
+	r.NoError(err)
+	waitComplete(t, svc, thread.ID)
+
+	view, err := svc.View(thread.ID)
+	r.NoError(err)
+	r.Len(view.Attachments[user.ID], 1)
+	a.Equal(attachment.ID, view.Attachments[user.ID][0].ID)
+
+	err = svc.DeleteDraftAttachment(attachment.ID)
+	a.True(db.IsAttachmentNotFound(err))
+}
+
+func TestDeleteDraftAttachmentRemovesFile(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{})
+	thread, err := svc.CreateThread("", "drafts")
+	r.NoError(err)
+
+	attachment, err := svc.AddAttachment(thread.ID, "notes.txt", "text/plain", strings.NewReader("draft"))
+	r.NoError(err)
+
+	r.NoError(svc.DeleteDraftAttachment(attachment.ID))
+	_, err = os.Stat(attachment.FilePath)
+	a.True(os.IsNotExist(err))
+}
+
+func TestSanitizeFilename(t *testing.T) {
+	tests := []struct {
+		in   string
+		name string
+		want string
+	}{
+		{in: "shot.png", name: "plain", want: "shot.png"},
+		{in: "../../etc/passwd", name: "traversal", want: "passwd"},
+		{in: "  ", name: "blank", want: "attachment"},
+		{in: "/tmp/x.txt", name: "absolute", want: "x.txt"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.New(t).Equal(tc.want, sanitizeFilename(tc.in))
+		})
+	}
+}
+
+func TestToggleThreadAccess(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{})
+	thread, err := svc.CreateThread("", "access")
+	r.NoError(err)
+	a.Equal(AccessFull, svc.ThreadAccess(thread))
+
+	access, err := svc.ToggleThreadAccess(thread.ID)
+	r.NoError(err)
+	a.Equal(AccessSafe, access)
+
+	thread, err = svc.Thread(thread.ID)
+	r.NoError(err)
+	a.Equal(AccessSafe, svc.ThreadAccess(thread))
+	a.Contains(thread.Anchor, `"agent"`)
+
+	access, err = svc.ToggleThreadAccess(thread.ID)
+	r.NoError(err)
+	a.Equal(AccessFull, access)
+}
+
+func TestClaudeArgsAccessAndAttachments(t *testing.T) {
+	a := assert.New(t)
+
+	full := claudeArgs(claudeAnchor{}, Turn{Prompt: "hi"})
+	a.Contains(full, "bypassPermissions")
+
+	safe := claudeArgs(claudeAnchor{Access: AccessSafe}, Turn{
+		Attachments: []Attachment{{MimeType: "image/png", Path: "/tmp/shot.png"}},
+		Prompt:      "hi",
+	})
+	a.Contains(safe, "default")
+	a.NotContains(safe, "bypassPermissions")
+	a.Contains(safe[1], "Attached files:\n- /tmp/shot.png")
+}

@@ -417,6 +417,7 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 	}
 	agent := s.chat.AgentName(view.Thread)
 	return ui.InboxThreadDetail{
+		Access:   s.chat.ThreadAccess(view.Thread),
 		Agent:    agent,
 		Archived: view.Thread.State == db.ThreadStateArchived,
 		ID:       id,

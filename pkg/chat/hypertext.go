@@ -38,10 +38,99 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
+	mux.HandleFunc("POST /chat/{id}/access", s.handleAccess)
+	mux.HandleFunc("POST /chat/{id}/attachments", s.handleUpload)
+	mux.HandleFunc("GET /chat/{id}/attachments/{attachment}", s.handleAttachment)
+	mux.HandleFunc("DELETE /chat/{id}/attachments/{attachment}", s.handleDeleteAttachment)
 	mux.HandleFunc("POST /chat/{id}/elicitations", s.handleElicitation)
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
 	return logging.Middleware(s.log, mux)
+}
+
+func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	access, err := s.svc.ToggleThreadAccess(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if err := ui.ChatAccessToggle(id, access).Render(r.Context(), w); err != nil {
+		s.fail(w, err)
+	}
+}
+
+func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, ok := s.threadAttachment(w, r)
+	if !ok {
+		return
+	}
+	w.Header().Set("Content-Type", attachment.MimeType)
+	w.Header().Set("Content-Disposition", `inline; filename="`+attachment.Name+`"`)
+	http.ServeFile(w, r, attachment.FilePath)
+}
+
+func (s *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, ok := s.threadAttachment(w, r)
+	if !ok {
+		return
+	}
+	err := s.svc.DeleteDraftAttachment(attachment.ID)
+	if db.IsAttachmentNotFound(err) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) threadAttachment(w http.ResponseWriter, r *http.Request) (db.Attachment, bool) {
+	threadID, ok := threadID(w, r)
+	if !ok {
+		return db.Attachment{}, false
+	}
+	id, err := strconv.ParseInt(r.PathValue("attachment"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid attachment id", http.StatusBadRequest)
+		return db.Attachment{}, false
+	}
+	attachment, err := s.svc.Attachment(id)
+	if db.IsAttachmentNotFound(err) || (err == nil && attachment.ThreadID != threadID) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
+		return db.Attachment{}, false
+	}
+	if err != nil {
+		s.fail(w, err)
+		return db.Attachment{}, false
+	}
+	return attachment, true
+}
+
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "missing file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	attachment, err := s.svc.AddAttachment(id, header.Filename, header.Header.Get("Content-Type"), file)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if err := ui.ChatAttachmentChip(toAttachmentProps(attachment)).Render(r.Context(), w); err != nil {
+		s.fail(w, err)
+	}
 }
 
 func (s *Server) handleElicitation(w http.ResponseWriter, r *http.Request) {
@@ -160,12 +249,28 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	prompt := strings.TrimSpace(r.FormValue("prompt"))
-	if prompt == "" {
-		w.WriteHeader(http.StatusNoContent)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-	if _, err := s.svc.Send(id, prompt); err != nil {
+	attachmentIDs := []int64{}
+	for _, raw := range r.Form["attachment_id"] {
+		aid, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			http.Error(w, "invalid attachment id", http.StatusBadRequest)
+			return
+		}
+		attachmentIDs = append(attachmentIDs, aid)
+	}
+	prompt := strings.TrimSpace(r.FormValue("prompt"))
+	if prompt == "" {
+		if len(attachmentIDs) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		prompt = "See attached files."
+	}
+	if _, err := s.svc.Send(id, prompt, attachmentIDs...); err != nil {
 		if IsThreadBusy(err) {
 			http.Error(w, "agent is still responding", http.StatusConflict)
 			return
@@ -245,11 +350,23 @@ func MessageProps(v ThreadView, m db.Message) ui.ChatMessageProps {
 		Role:   m.Role,
 		Status: m.Status,
 	}
+	for _, a := range v.Attachments[m.ID] {
+		msg.Attachments = append(msg.Attachments, toAttachmentProps(a))
+	}
 	if prompt, ok := v.Forms[m.ID]; ok {
 		form := toFormProps(v.Thread.ID, m.ID, prompt)
 		msg.Form = &form
 	}
 	return msg
+}
+
+func toAttachmentProps(a db.Attachment) ui.ChatAttachmentProps {
+	return ui.ChatAttachmentProps{
+		ID:       a.ID,
+		IsImage:  strings.HasPrefix(a.MimeType, "image/"),
+		Name:     a.Name,
+		ThreadID: a.ThreadID,
+	}
 }
 
 func toPartProps(parts []MessagePart) []ui.ChatPartProps {

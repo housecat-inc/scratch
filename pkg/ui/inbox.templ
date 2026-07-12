@@ -75,13 +75,19 @@ templ MailComposer(p InboxProps) {
 	if p.Thread != nil {
 		<form
 			id="chat-form"
-			class="mail-universal-compose"
+			class="mail-universal-compose chat-compose"
 			action={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
 			method="post"
 			hx-post={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
 			hx-swap="none"
 			hx-on::after-request="this.reset()"
+			data-upload-url={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/attachments" }
 		>
+			<div id="chat-attachments" class="chat-attachments"></div>
+			<label class="chat-attach-btn" title="Attach files" aria-label="Attach files">
+				@paperclipIcon()
+				<input id="chat-file" type="file" multiple hidden/>
+			</label>
 			<input id="chat-input" class="mail-compose-input" name="prompt" placeholder={ threadComposePlaceholder(*p.Thread) } autocomplete="off" autofocus/>
 			<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
 				@sendIcon()
@@ -249,6 +255,9 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			<p>{ d.Agent }</p>
 		</div>
 		<div class="mail-reader-actions">
+			if d.Kind == "chat" {
+				@ChatAccessToggle(d.ID, d.Access)
+			}
 			if d.Archived {
 				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), unarchiveIcon())
 				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))
