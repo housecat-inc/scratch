@@ -84,7 +84,6 @@ templ MailComposer(p InboxProps) {
 			hx-on::after-request="this.reset()"
 			data-upload-url={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/attachments" }
 		>
-			<div id="chat-attachments" class="chat-attachments"></div>
 			<textarea
 				id="chat-input"
 				name="prompt"
@@ -101,6 +100,7 @@ templ MailComposer(p InboxProps) {
 				<button type="button" id="chat-snap" class="chat-icon-circle" title="Screenshot a section of the page" aria-label="Screenshot a section of the page">
 					@crosshairIcon()
 				</button>
+				<div id="chat-attachments" class="chat-attachments"></div>
 				<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
 					@sendIcon()
 					<span>Send</span>

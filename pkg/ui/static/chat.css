@@ -324,6 +324,7 @@
 .chat-compose-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.45rem;
 }
 
@@ -335,10 +336,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-}
-
-.chat-attachments:not(:empty) {
-  padding: 0.1rem 0.25rem 0.45rem;
+  min-width: 0;
 }
 
 .chat-attachment-chip {
@@ -378,13 +376,6 @@
   flex-shrink: 0;
   height: 0.85rem;
   width: 0.85rem;
-}
-
-.chat-chip-thumb {
-  border-radius: 999px;
-  height: 1.5rem;
-  object-fit: cover;
-  width: 1.5rem;
 }
 
 .chat-chip-name {
