@@ -29,6 +29,22 @@
     const uploadURL = form.dataset.uploadUrl;
     const fileInput = document.getElementById("chat-file");
     const draftFiles = [];
+    const previewURLKey = Symbol("previewURL");
+
+    const draftPreviewURL = (file) => {
+      if (!file[previewURLKey]) file[previewURLKey] = URL.createObjectURL(file);
+      return file[previewURLKey];
+    };
+
+    const revokeDraftPreview = (file) => {
+      if (!file?.[previewURLKey]) return;
+      URL.revokeObjectURL(file[previewURLKey]);
+      delete file[previewURLKey];
+    };
+
+    const revokeDraftPreviews = () => {
+      for (const file of draftFiles) revokeDraftPreview(file);
+    };
 
     const syncDraftInput = () => {
       if (!fileInput || uploadURL || !window.DataTransfer) return;
@@ -47,7 +63,7 @@
         img.className = "chat-chip-preview";
         img.alt = file.name;
         img.loading = "lazy";
-        img.src = URL.createObjectURL(file);
+        img.src = draftPreviewURL(file);
         chip.appendChild(img);
       } else {
         chip.insertAdjacentHTML("beforeend", paperclipIconHTML());
@@ -139,7 +155,8 @@
       if (!uploadURL) {
         const index = Number(remove.dataset.draftIndex);
         if (Number.isInteger(index)) {
-          draftFiles.splice(index, 1);
+          const removed = draftFiles.splice(index, 1);
+          for (const file of removed) revokeDraftPreview(file);
           renderDraftFiles();
         }
         return;
@@ -149,9 +166,13 @@
     });
     form.addEventListener("htmx:afterRequest", (e) => {
       if (e.detail.successful && e.detail.xhr?.status === 204) {
+        revokeDraftPreviews();
         strip.replaceChildren();
         resize();
       }
+    });
+    form.addEventListener("submit", () => {
+      if (!uploadURL) revokeDraftPreviews();
     });
 
     const snap = document.getElementById("chat-snap");

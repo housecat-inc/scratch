@@ -727,16 +727,7 @@ func threadItem(thread db.Thread, kind, agent, prompt string) ui.InboxItem {
 }
 
 func (s *Server) threadPrompt(id int64) (string, error) {
-	view, err := s.chat.View(id)
-	if err != nil {
-		return "", err
-	}
-	for _, message := range view.Messages {
-		if message.Role == db.MessageRoleUser && message.Body != "" {
-			return message.Body, nil
-		}
-	}
-	return "", nil
+	return s.chat.ThreadPrompt(id)
 }
 
 func titleKind(kind, agent string) string {

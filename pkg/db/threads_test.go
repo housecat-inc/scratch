@@ -179,6 +179,11 @@ func TestMessageLifecycle(t *testing.T) {
 	a.Equal(MessageRoleUser, msgs[0].Role)
 	a.Equal(MessageRoleAssistant, msgs[1].Role)
 
+	firstUser, err := d.GetFirstThreadUserMessage(thread.ID)
+	r.NoError(err)
+	a.Equal(user.ID, firstUser.ID)
+	a.Equal("hello agent", firstUser.Body)
+
 	events, err := d.ListMessageEvents(asst.ID, 0)
 	r.NoError(err)
 	r.Len(events, 2)
@@ -191,6 +196,9 @@ func TestMessageLifecycle(t *testing.T) {
 
 	other, err := d.AddThread(ThreadKindChat, "other", "")
 	r.NoError(err)
+	_, err = d.GetFirstThreadUserMessage(other.ID)
+	a.True(IsMessageNotFound(err))
+
 	otherMsg, err := d.AddMessage(NewMessage{Author: "noah", Body: "x", Role: MessageRoleUser, ThreadID: other.ID})
 	r.NoError(err)
 	a.Equal(int64(1), otherMsg.Seq)

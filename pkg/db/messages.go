@@ -166,6 +166,17 @@ func (d *DB) SetMessageMeta(id int64, meta string) error {
 	return nil
 }
 
+func (d *DB) GetFirstThreadUserMessage(threadID int64) (Message, error) {
+	row, err := d.queries.GetFirstThreadUserMessage(context.Background(), threadID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Message{}, ErrMessageNotFound
+	}
+	if err != nil {
+		return Message{}, errors.Wrap(err, "get first thread user message")
+	}
+	return fromSqliteMessage(row), nil
+}
+
 func (d *DB) GetMessage(id int64) (Message, error) {
 	row, err := d.queries.GetMessage(context.Background(), id)
 	if errors.Is(err, sql.ErrNoRows) {

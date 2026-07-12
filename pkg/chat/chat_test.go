@@ -67,6 +67,23 @@ func TestSendEcho(t *testing.T) {
 	got, err := svc.Thread(thread.ID)
 	r.NoError(err)
 	a.Equal("hello there", got.Title)
+
+	prompt, err := svc.ThreadPrompt(thread.ID)
+	r.NoError(err)
+	a.Equal("hello there", prompt)
+}
+
+func TestThreadPromptEmptyThread(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{Delay: time.Millisecond})
+	thread, err := svc.CreateThread("", "empty")
+	r.NoError(err)
+
+	prompt, err := svc.ThreadPrompt(thread.ID)
+	r.NoError(err)
+	a.Empty(prompt)
 }
 
 func TestAgentName(t *testing.T) {

@@ -40,6 +40,7 @@ type ThreadStore interface {
 	DeleteThread(id int64) error
 	FinishMessage(id int64, status string) (Message, error)
 	GetAttachment(id int64) (Attachment, error)
+	GetFirstThreadUserMessage(threadID int64) (Message, error)
 	GetMessage(id int64) (Message, error)
 	GetThread(id int64) (Thread, error)
 	LinkAttachments(threadID, messageID int64, ids []int64) error

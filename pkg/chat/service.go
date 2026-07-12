@@ -438,6 +438,17 @@ func (s *Service) Thread(id int64) (db.Thread, error) {
 	return s.store.GetThread(id)
 }
 
+func (s *Service) ThreadPrompt(id int64) (string, error) {
+	message, err := s.store.GetFirstThreadUserMessage(id)
+	if db.IsMessageNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return message.Body, nil
+}
+
 func (s *Service) Threads() ([]db.Thread, error) {
 	return s.store.ListThreads(db.ThreadKindChat)
 }
