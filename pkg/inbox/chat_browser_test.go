@@ -146,6 +146,27 @@ func TestChatBrowser(t *testing.T) {
 			},
 		},
 		{
+			Name: "inspector on a task page starts a chat",
+			Path: "/inbox/tasks/1",
+			Seed: []Step{
+				SeedTask("broken task"),
+			},
+			Act: []Step{
+				WaitChatReady(),
+				CaptureElement(".mail-reader-title"),
+				TextEventuallyContains("#chat-attachments", "selection.png"),
+				TextEventuallyContains("#chat-attachments", "selection.html"),
+				Click("#chat-send"),
+			},
+			Assert: []Step{
+				ChatThreadCount(1),
+				TaskCount(1),
+				TextEventuallyContains("#chat-messages .chat-bubble-attachments", "selection.png"),
+				TextEventuallyContains("#chat-messages .chat-bubble-attachments", "selection.html"),
+				TextEventuallyContains("#chat-messages .role-user .chat-bubble", "Selected"),
+			},
+		},
+		{
 			Name: "sends a message and streams the echoed reply",
 			Path: "/inbox/chats/1",
 			Seed: []Step{SeedChatThread()},

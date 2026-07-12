@@ -86,3 +86,13 @@ func ChatThreadCount(want int) Step {
 		}, 5*time.Second, 50*time.Millisecond)
 	}
 }
+
+func TaskCount(want int) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			tasks, err := h.Tasks.All()
+			return err == nil && len(tasks) == want
+		}, 5*time.Second, 50*time.Millisecond)
+	}
+}

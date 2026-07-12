@@ -77,6 +77,11 @@
       renderDraftFiles();
     };
 
+    const setComposeMode = (mode) => {
+      const modeInput = form.querySelector('input[name="mode"]');
+      if (modeInput) modeInput.value = mode;
+    };
+
     const resize = () => {
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 200) + "px";
@@ -245,6 +250,7 @@
       };
 
       const capture = async (el) => {
+        setComposeMode("chat");
         const selector = cssPath(el);
         const html =
           "<!-- url: " + location.href + " -->\n<!-- selector: " + selector + " -->\n" + el.outerHTML;
