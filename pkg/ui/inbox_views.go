@@ -68,6 +68,13 @@ type InboxThreadDetail struct {
 	Title     string
 }
 
+type ReaderHeaderProps struct {
+	BackHref    string
+	Description string
+	Labels      []string
+	Title       string
+}
+
 type SelectOption struct {
 	Label string
 	Value string

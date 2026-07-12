@@ -954,6 +954,20 @@ textarea {
   margin: 0.18rem 0 0;
 }
 
+.mail-reader-label {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.mail-reader-labels {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.45rem;
+}
+
 .mail-reader-actions {
   align-items: center;
   display: inline-flex;

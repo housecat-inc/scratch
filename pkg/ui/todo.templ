@@ -63,23 +63,12 @@ templ TodoListView(p TodoProps) {
 }
 
 templ TodoReader(d TodoTaskDetail, view string) {
-	<header class="mail-reader-head">
-		<a class="gm-icon-btn" href={ templ.SafeURL(todoBack(view)) } aria-label="Back">
-			@backIcon()
-		</a>
-		<div class="mail-reader-title">
-			<h1>{ d.Task.Title }</h1>
-			<p>
-				if d.Task.Archived {
-					Archived
-				} else if d.Task.Completed {
-					Done
-				} else {
-					Active
-				}
-			</p>
-		</div>
-		<div class="mail-reader-actions">
+	@ReaderHeader(ReaderHeaderProps{
+		BackHref: todoBack(view),
+		Description: d.Task.Description,
+		Labels: []string{todoStatus(d.Task)},
+		Title: d.Task.Title,
+	}) {
 			<form method="post" action={ "/tasks/" + strconv.FormatInt(d.Task.ID, 10) + "/done" }>
 				<button type="submit" class="gm-icon-btn" aria-label="Toggle done">
 					@doneIcon(d.Task.Completed)
@@ -89,8 +78,7 @@ templ TodoReader(d TodoTaskDetail, view string) {
 			if d.Task.Archived {
 				@todoDeleteReaderForm(d.Task.ID, view)
 			}
-		</div>
-	</header>
+	}
 	<div class="mail-reader-body">
 		<form class="mail-card mail-task-editor" method="post" action={ "/tasks/" + strconv.FormatInt(d.Task.ID, 10) }>
 			<label>

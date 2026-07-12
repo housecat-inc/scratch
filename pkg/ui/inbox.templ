@@ -158,23 +158,12 @@ templ InboxRowPrimary(item InboxItem, view, filter string) {
 }
 
 templ InboxTaskReader(d InboxTaskDetail) {
-	<header class="mail-reader-head">
-		<a class="gm-icon-btn" href="/inbox/tasks" aria-label="Back">
-			@backIcon()
-		</a>
-		<div class="mail-reader-title">
-			<h1>{ d.Task.Title }</h1>
-			<p>
-				if d.Task.Archived {
-					Archived
-				} else if d.Task.Completed {
-					Done
-				} else {
-					Active
-				}
-			</p>
-		</div>
-		<div class="mail-reader-actions">
+	@ReaderHeader(ReaderHeaderProps{
+		BackHref: "/inbox/tasks",
+		Description: d.Task.Description,
+		Labels: []string{taskStatusLabel(taskInboxItem(d.Task))},
+		Title: d.Task.Title,
+	}) {
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "done"), doneActionLabel(taskInboxItem(d.Task)), doneIcon(d.Task.Completed))
 			if d.Task.Archived {
 				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), unarchiveIcon())
@@ -183,8 +172,7 @@ templ InboxTaskReader(d InboxTaskDetail) {
 				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
 			}
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), starIcon(d.Task.Starred))
-		</div>
-	</header>
+	}
 	<div class="mail-reader-body">
 		<form class="mail-card mail-task-editor" method="post" action={ taskInboxActionURL(d.Task.ID, "") }>
 			<label>
@@ -201,15 +189,11 @@ templ InboxTaskReader(d InboxTaskDetail) {
 }
 
 templ InboxDraftReader(d InboxDraftDetail) {
-	<header class="mail-reader-head">
-		<a class="gm-icon-btn" href="/inbox/chats" aria-label="Back">
-			@backIcon()
-		</a>
-		<div class="mail-reader-title">
-			<h1>{ d.Title }</h1>
-			<p>{ draftAgentLabel(d) }</p>
-		</div>
-	</header>
+	@ReaderHeader(ReaderHeaderProps{
+		BackHref: "/inbox/chats",
+		Description: draftAgentLabel(d),
+		Title: d.Title,
+	})
 	<div class="mail-reader-body mail-chat-body">
 		<div id="chat-messages" class="chat-messages mail-chat-messages">
 			<div class="mail-empty">No messages yet.</div>
@@ -218,15 +202,11 @@ templ InboxDraftReader(d InboxDraftDetail) {
 }
 
 templ InboxThreadReader(d InboxThreadDetail) {
-	<header class="mail-reader-head">
-		<a class="gm-icon-btn" href={ templ.SafeURL("/" + inboxBackPath(d.Kind)) } aria-label="Back">
-			@backIcon()
-		</a>
-		<div class="mail-reader-title">
-			<h1>{ d.Title }</h1>
-			<p>{ d.Agent }</p>
-		</div>
-		<div class="mail-reader-actions">
+	@ReaderHeader(ReaderHeaderProps{
+		BackHref: "/" + inboxBackPath(d.Kind),
+		Description: d.Agent,
+		Title: d.Title,
+	}) {
 			if d.Kind == "chat" {
 				@ChatAccessToggle(d.ID, d.Access)
 			}
@@ -240,13 +220,36 @@ templ InboxThreadReader(d InboxThreadDetail) {
 				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), archiveIcon())
 			}
 			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), starIcon(d.Starred))
-		</div>
-	</header>
+	}
 	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body mail-chat-body">
 		<div id="chat-messages" class="chat-messages mail-chat-messages" sse-swap="message">
 			@ChatMessages(ChatThreadProps{Agent: d.Agent, ID: d.ID, Messages: d.Messages, Title: d.Title})
 		</div>
 	</div>
+}
+
+templ ReaderHeader(p ReaderHeaderProps) {
+	<header class="mail-reader-head">
+		<a class="gm-icon-btn" href={ templ.SafeURL(p.BackHref) } aria-label="Back">
+			@backIcon()
+		</a>
+		<div class="mail-reader-title">
+			<h1>{ p.Title }</h1>
+			if p.Description != "" {
+				<p>{ p.Description }</p>
+			}
+		</div>
+		if len(p.Labels) > 0 {
+			<div class="mail-reader-labels">
+				for _, label := range p.Labels {
+					<span class="mail-reader-label">{ label }</span>
+				}
+			</div>
+		}
+		<div class="mail-reader-actions">
+			{ children... }
+		</div>
+	</header>
 }
 
 templ mailLabel(href, name, active, label string, count int, icon templ.Component) {
