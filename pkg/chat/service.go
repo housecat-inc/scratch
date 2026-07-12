@@ -70,6 +70,17 @@ func NewService(store db.ThreadStore, agent Agent, log *slog.Logger) *Service {
 	}
 }
 
+func (s *Service) AgentName(thread db.Thread) string {
+	var anchor struct {
+		Agent string `json:"agent"`
+	}
+	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
+	if anchor.Agent == "" {
+		return s.defaultName
+	}
+	return anchor.Agent
+}
+
 func (s *Service) AgentNames() []string {
 	names := make([]string, 0, len(s.agents))
 	names = append(names, s.defaultName)
@@ -326,16 +337,10 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 }
 
 func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {
-	var anchor struct {
-		Agent string `json:"agent"`
-	}
-	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
-	if anchor.Agent == "" {
-		anchor.Agent = s.defaultName
-	}
-	agent, ok := s.agents[anchor.Agent]
+	name := s.AgentName(thread)
+	agent, ok := s.agents[name]
 	if !ok {
-		return nil, errors.Wrapf(ErrAgentUnknown, "%q", anchor.Agent)
+		return nil, errors.Wrapf(ErrAgentUnknown, "%q", name)
 	}
 	return agent, nil
 }

@@ -156,6 +156,7 @@ func TestContactIntakeBrowser(t *testing.T) {
 			Path: "/chat",
 			Act: []Step{
 				Click("#new-thread-contact"),
+				TextContains("#thread-agent", "contact"),
 				Type("#chat-input", "Add Jane Doe jane@example.com from ACME"),
 				Press("#chat-input", "Enter"),
 				Visible("#elicit-form"),

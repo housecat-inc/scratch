@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/a-h/templ"
-	"github.com/housecat-inc/scratch/pkg/db"
 )
 
 //go:embed static/chat.css
@@ -30,7 +29,14 @@ type ChatFormProps struct {
 
 type ChatIndexProps struct {
 	Agents  []string
-	Threads []db.Thread
+	Threads []ChatThreadItemProps
+}
+
+type ChatThreadItemProps struct {
+	Agent string
+	ID    int64
+	Title string
+	When  string
 }
 
 type ChatMessageProps struct {
@@ -44,6 +50,7 @@ type ChatMessageProps struct {
 }
 
 type ChatThreadProps struct {
+	Agent    string
 	ID       int64
 	Messages []ChatMessageProps
 	Title    string
@@ -56,10 +63,3 @@ func ChatCSS() templ.Component {
 func chatPath(id int64) string { return "/chat/" + itoa64(id) }
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
-
-func threadTitle(t db.Thread) string {
-	if t.Title == "" {
-		return "Untitled"
-	}
-	return t.Title
-}

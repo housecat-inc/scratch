@@ -41,8 +41,9 @@ templ ChatIndexPage(p ChatIndexProps) {
 						for _, t := range p.Threads {
 							<li>
 								<a href={ templ.SafeURL(chatPath(t.ID)) }>
-									<span class="thread-title">{ threadTitle(t) }</span>
-									<span class="thread-when">{ t.UpdatedAt.Format("Jan 2 15:04") }</span>
+									<span class="thread-agent">{ t.Agent }</span>
+									<span class="thread-title">{ t.Title }</span>
+									<span class="thread-when">{ t.When }</span>
 								</a>
 							</li>
 						}
@@ -62,6 +63,7 @@ templ ChatThreadPage(p ChatThreadProps) {
 				<header class="chat-header">
 					<a class="chat-back" href="/chat">←</a>
 					<h1 id="thread-heading">{ p.Title }</h1>
+					<span id="thread-agent" class="thread-agent">{ p.Agent }</span>
 				</header>
 				<div hx-ext="sse" sse-connect={ chatPath(p.ID) + "/events" }>
 					<div id="chat-messages" class="chat-messages" sse-swap="message">

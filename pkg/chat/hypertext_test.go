@@ -29,6 +29,7 @@ func TestChat(t *testing.T) {
 				Press("#chat-input", "Enter"),
 			},
 			Assert: []Step{
+				TextContains("#thread-agent", "echo"),
 				TextContains("#chat-messages", "hi agent"),
 				TextContains("#chat-messages", "You said: hi agent"),
 				ClassContains("#chat-messages .role-assistant", "status-complete"),
@@ -48,6 +49,7 @@ func TestChat(t *testing.T) {
 			},
 			Assert: []Step{
 				TextContains("#thread-heading", "what is on my list today?"),
+				TextContains("#thread-agent", "echo"),
 				TextContains("#chat-messages", "You said: what is on my list today?"),
 			},
 		},

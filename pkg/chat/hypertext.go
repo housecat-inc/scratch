@@ -145,7 +145,20 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	s.render(w, r, ui.ChatIndexPage(ui.ChatIndexProps{Agents: s.svc.AgentNames(), Threads: threads}))
+	items := make([]ui.ChatThreadItemProps, 0, len(threads))
+	for _, t := range threads {
+		title := t.Title
+		if title == "" {
+			title = "Untitled"
+		}
+		items = append(items, ui.ChatThreadItemProps{
+			Agent: s.svc.AgentName(t),
+			ID:    t.ID,
+			Title: title,
+			When:  t.UpdatedAt.Format("Jan 2 15:04"),
+		})
+	}
+	s.render(w, r, ui.ChatIndexPage(ui.ChatIndexProps{Agents: s.svc.AgentNames(), Threads: items}))
 }
 
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
@@ -179,7 +192,7 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		s.notFoundOr(w, err)
 		return
 	}
-	s.render(w, r, ui.ChatThreadPage(toThreadProps(view)))
+	s.render(w, r, ui.ChatThreadPage(s.toThreadProps(view)))
 }
 
 func (s *Server) fail(w http.ResponseWriter, err error) {
@@ -208,7 +221,7 @@ func (s *Server) writeMessagesEvent(w http.ResponseWriter, r *http.Request, thre
 		return err
 	}
 	var buf bytes.Buffer
-	if err := ui.ChatMessages(toThreadProps(view)).Render(r.Context(), &buf); err != nil {
+	if err := ui.ChatMessages(s.toThreadProps(view)).Render(r.Context(), &buf); err != nil {
 		return err
 	}
 	fmt.Fprint(w, "event: message\n")
@@ -228,8 +241,9 @@ func threadID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
-func toThreadProps(v ThreadView) ui.ChatThreadProps {
+func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
 	props := ui.ChatThreadProps{
+		Agent:    s.svc.AgentName(v.Thread),
 		ID:       v.Thread.ID,
 		Messages: make([]ui.ChatMessageProps, 0, len(v.Messages)),
 		Title:    v.Thread.Title,
