@@ -232,6 +232,20 @@ func TestChatBrowser(t *testing.T) {
 			},
 		},
 		{
+			Name: "restores an unsent chat draft after navigation",
+			Path: "/inbox/chats/1",
+			Seed: []Step{SeedChatThread()},
+			Act: []Step{
+				WaitChatReady(),
+				Type("#chat-input", "unfinished draft"),
+				Load("/inbox/chats"),
+				Load("/inbox/chats/1"),
+			},
+			Assert: []Step{
+				InputValueContains("#chat-input", "unfinished draft"),
+			},
+		},
+		{
 			Name: "opens an existing thread in a floating chat",
 			Path: "/inbox/chats/1",
 			Seed: []Step{SeedChatThread()},

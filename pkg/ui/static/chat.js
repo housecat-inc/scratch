@@ -1,4 +1,5 @@
 (() => {
+  const draftKeyPrefix = "scratch.chat.draft:";
   const popoutKey = "scratch.chat.popout";
 
   const showAlert = (text) => {
@@ -84,6 +85,38 @@
     }
   };
 
+  const storageGet = (key) => {
+    try {
+      return sessionStorage.getItem(key) || "";
+    } catch {
+      return "";
+    }
+  };
+
+  const storageRemove = (key) => {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {}
+  };
+
+  const storageSet = (key, value) => {
+    try {
+      if (value) sessionStorage.setItem(key, value);
+      else sessionStorage.removeItem(key);
+    } catch {}
+  };
+
+  const composerDraftKey = (form) => {
+    const action = form.getAttribute("action") || form.getAttribute("hx-post") || location.pathname;
+    const agent = form.querySelector('[name="agent"]')?.value || "";
+    const mode = form.querySelector('[name="mode"]')?.value || "";
+    const model = form.querySelector('[name="model"]')?.value || "";
+    const popoutThreadID = form.closest("[data-chat-popout]")?.dataset.threadId || "";
+    const threadMatch = action.match(/^\/chat\/(\d+)\/messages$/);
+    if (popoutThreadID || threadMatch) return draftKeyPrefix + "thread:" + (popoutThreadID || threadMatch[1]);
+    return draftKeyPrefix + ["compose", action, mode, agent, model].join(":");
+  };
+
   const initComposer = (form) => {
     if (form.dataset.chatInitialized === "true") return;
     form.dataset.chatInitialized = "true";
@@ -92,6 +125,7 @@
     const input = form.querySelector("[data-chat-input]");
     if (!strip || !input) return;
 
+    const draftKey = composerDraftKey(form);
     const uploadURL = form.dataset.uploadUrl;
     const fileInput = form.querySelector("[data-chat-file]");
     const draftFiles = [];
@@ -164,10 +198,20 @@
       if (modeInput) modeInput.value = mode;
     };
 
+    const clearTextDraft = () => storageRemove(draftKey);
+
     const resize = () => {
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 200) + "px";
     };
+
+    const restoreTextDraft = () => {
+      const draft = storageGet(draftKey);
+      if (draft && !input.value) input.value = draft;
+      resize();
+    };
+
+    const saveTextDraft = () => storageSet(draftKey, input.value);
 
     const upload = async (file) => {
       if (!uploadURL) {
@@ -188,14 +232,17 @@
       for (const file of files) await upload(file);
     };
 
-    input.addEventListener("input", resize);
+    input.addEventListener("input", () => {
+      resize();
+      saveTextDraft();
+    });
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         form.requestSubmit();
       }
     });
-    resize();
+    restoreTextDraft();
 
     fileInput?.addEventListener("change", (e) => {
       uploadAll(e.target.files);
@@ -234,6 +281,7 @@
     });
     form.addEventListener("htmx:afterRequest", (e) => {
       if (e.detail.successful && e.detail.xhr?.status === 204) {
+        clearTextDraft();
         revokeDraftPreviews();
         strip.replaceChildren();
         resize();
@@ -241,7 +289,10 @@
       }
     });
     form.addEventListener("submit", () => {
-      if (!uploadURL) revokeDraftPreviews();
+      if (!uploadURL) {
+        clearTextDraft();
+        revokeDraftPreviews();
+      }
     });
 
     initCapture(form, input, upload, addDraftFiles, setComposeMode);
