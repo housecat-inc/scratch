@@ -15,16 +15,20 @@ templ TodoPage(p TodoProps) {
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>Todos · scratch</title>
 			@InboxCSS()
+			@ChatCSS()
+			@uikit.ChatPluginScripts()
 			<script src="/static/inbox.js" defer></script>
 		</head>
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				Actions: TodoActions(),
+				Actions: TodoActions(p),
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: todoNavItems(p),
 			}) {
-				if p.Detail != nil {
+				if p.View == "chats" {
+					@TodoChatListView(p)
+				} else if p.Detail != nil {
 					@TodoReader(*p.Detail, p.View)
 				} else {
 					@TodoListView(p)
@@ -34,7 +38,7 @@ templ TodoPage(p TodoProps) {
 	</html>
 }
 
-templ TodoActions() {
+templ TodoActions(p TodoProps) {
 	<form class="todo-create-form" method="post" action="/tasks">
 		<input class="todo-new-input" name="title" placeholder="New task" autocomplete="off" required/>
 		<button class="mail-create-btn" type="submit">
@@ -42,6 +46,46 @@ templ TodoActions() {
 			<span>Add</span>
 		</button>
 	</form>
+	if len(p.ChatOptions) > 0 {
+		@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
+	}
+}
+
+templ TodoChatListView(p TodoProps) {
+	<header class="mail-mainbar">
+		<div class="mail-mainbar-title">
+			<h1>Chats</h1>
+		</div>
+		<span>{ strconv.Itoa(len(p.ChatItems)) }</span>
+	</header>
+	if len(p.ChatItems) == 0 {
+		<div class="mail-empty">Nothing here.</div>
+	} else {
+		<div class="mail-list">
+			for _, item := range p.ChatItems {
+				@TodoChatRow(item)
+			}
+		</div>
+	}
+}
+
+templ TodoChatRow(item TodoChatItem) {
+	@uikit.ListRow(uikit.ListRowProps{
+		Href: "/chats",
+		ID: strconv.FormatInt(item.ID, 10),
+		Kind: "chat",
+		Labels: []string{"Chat"},
+		Primary: TodoChatRowPrimary(item),
+		Subject: item.Description,
+		What: item.Title,
+		When: item.When,
+	})
+}
+
+templ TodoChatRowPrimary(item TodoChatItem) {
+	<button type="button" class="gm-row-action" data-chat-popout-thread={ strconv.FormatInt(item.ID, 10) } aria-label="Open chat">
+		@uikit.Icon("chat")
+	</button>
 }
 
 templ TodoListView(p TodoProps) {
@@ -202,7 +246,8 @@ func todoBack(view string) string {
 func todoNavItems(p TodoProps) []uikit.NavItem {
 	return []uikit.NavItem{
 		{Active: p.View == "inbox", Count: p.ActiveCount, Href: "/", Icon: "inbox", Label: "Inbox"},
-		{Group: "More", Active: p.View == "tasks", Count: p.TaskCount, Href: "/tasks", Icon: "task", Label: "Tasks"},
+		{Group: "More", Active: p.View == "chats", Count: p.ChatCount, Href: "/chats", Icon: "chat", Label: "Chats"},
+		{Active: p.View == "tasks", Count: p.TaskCount, Href: "/tasks", Icon: "task", Label: "Tasks"},
 	}
 }
 

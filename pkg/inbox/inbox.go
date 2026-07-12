@@ -16,6 +16,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 type Server struct {
@@ -114,6 +115,11 @@ func (s *Server) handleChats(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request) {
 	agent := chatAgent(r.URL.Query().Get("agent"), s.chat.AgentNames())
 	model := chatModel(agent, r.URL.Query().Get("model"))
+	if providerModel := r.URL.Query().Get("provider_model"); providerModel != "" {
+		agent, model = chat.ParseProviderModel(providerModel)
+		agent = chatAgent(agent, s.chat.AgentNames())
+		model = chatModel(agent, model)
+	}
 	props, err := s.props("chats", archiveFilter("chats", r.URL.Query().Get("archived")), ui.InboxSelection{})
 	if err != nil {
 		s.notFoundOr(w, err)
@@ -130,6 +136,11 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 	agent := chatAgent(r.FormValue("agent"), s.chat.AgentNames())
 	model := chatModel(agent, r.FormValue("model"))
+	if providerModel := r.FormValue("provider_model"); providerModel != "" {
+		agent, model = chat.ParseProviderModel(providerModel)
+		agent = chatAgent(agent, s.chat.AgentNames())
+		model = chatModel(agent, model)
+	}
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	mode := strings.TrimSpace(r.FormValue("mode"))
 	createOnly := r.FormValue("create_only") == "true"
@@ -424,7 +435,7 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 	}
 	props := ui.InboxProps{
 		ArchiveFilter: filter,
-		Agents:        chatAgentOptions(s.chat.AgentNames()),
+		ChatOptions:   chatOptions(s.chat.AgentNames()),
 		Counts:        counts,
 		Items:         items,
 		View:          view,
@@ -626,24 +637,17 @@ func chatAgentOptions(agents []string) []string {
 	return out
 }
 
+func chatOptions(agents []string) []uikit.SelectOption {
+	options := chat.ProviderModelOptions(agents)
+	out := make([]uikit.SelectOption, 0, len(options))
+	for _, option := range options {
+		out = append(out, uikit.SelectOption{Label: option.Label, Value: option.Value})
+	}
+	return out
+}
+
 func chatModel(agent, model string) string {
-	model = strings.TrimSpace(model)
-	if model == "" || model == "default" {
-		return ""
-	}
-	switch agent {
-	case "claude":
-		switch model {
-		case "haiku", "opus", "sonnet":
-			return model
-		}
-	case "codex":
-		switch model {
-		case "gpt-5", "gpt-5.1", "gpt-5.5":
-			return model
-		}
-	}
-	return ""
+	return chat.NormalizeModel(agent, model)
 }
 
 func workflowAgent(typ string) string {

@@ -57,6 +57,9 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
 	agent := strings.TrimSpace(r.URL.Query().Get("agent"))
 	model := strings.TrimSpace(r.URL.Query().Get("model"))
+	if providerModel := r.URL.Query().Get("provider_model"); providerModel != "" {
+		agent, model = ParseProviderModel(providerModel)
+	}
 	if model == "default" {
 		model = ""
 	}
@@ -423,13 +426,23 @@ func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
 func (s *Server) toFloatingProps(v ThreadView) ui.FloatingChatProps {
 	thread := s.toThreadProps(v)
 	return ui.FloatingChatProps{
-		Access:    s.svc.ThreadAccess(v.Thread),
-		Agent:     thread.Agent,
-		ID:        thread.ID,
-		Messages:  thread.Messages,
-		Streaming: v.Streaming,
-		Title:     thread.Title,
+		Access:      s.svc.ThreadAccess(v.Thread),
+		Agent:       thread.Agent,
+		Description: FriendlyDescription(threadPromptFromMessages(v.Messages)),
+		ID:          thread.ID,
+		Messages:    thread.Messages,
+		Streaming:   v.Streaming,
+		Title:       thread.Title,
 	}
+}
+
+func threadPromptFromMessages(messages []db.Message) string {
+	for _, m := range messages {
+		if m.Role == db.MessageRoleUser {
+			return m.Body
+		}
+	}
+	return ""
 }
 
 func MessageProps(v ThreadView, m db.Message) ui.ChatMessageProps {

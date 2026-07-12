@@ -5,29 +5,38 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
+	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/server/httperr"
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/ui"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 type WebServer struct {
+	chat  *chat.Service
 	log   *slog.Logger
 	tasks *Service
 }
 
 func NewWebServer(tasks *Service, log *slog.Logger) *WebServer {
+	return NewWebServerWithChat(tasks, nil, log)
+}
+
+func NewWebServerWithChat(tasks *Service, chat *chat.Service, log *slog.Logger) *WebServer {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &WebServer{log: log, tasks: tasks}
+	return &WebServer{chat: chat, log: log, tasks: tasks}
 }
 
 func (s *WebServer) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleList)
+	mux.HandleFunc("GET /chats", s.handleChats)
 	mux.HandleFunc("GET /tasks", s.handleTasks)
 	mux.HandleFunc("GET /tasks/{id}", s.handleShow)
 	mux.HandleFunc("POST /tasks", s.handleCreate)
@@ -36,6 +45,18 @@ func (s *WebServer) Handler() http.Handler {
 	mux.HandleFunc("POST /tasks/{id}/delete", s.handleDelete)
 	mux.HandleFunc("POST /tasks/{id}/done", s.handleDone)
 	return logging.Middleware(s.log, mux)
+}
+
+func (s *WebServer) handleChats(w http.ResponseWriter, r *http.Request) {
+	props, err := s.props(FilterAll, 0)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	props.Tasks = nil
+	props.Title = "Chats"
+	props.View = "chats"
+	s.render(w, r, ui.TodoPage(props))
 }
 
 func (s *WebServer) handleArchive(w http.ResponseWriter, r *http.Request) {
@@ -171,6 +192,15 @@ func (s *WebServer) props(filter Filter, selectedID int64) (ui.TodoProps, error)
 		TaskCount:   len(all),
 		View:        todoView(filter),
 	}
+	if s.chat != nil {
+		chatItems, err := s.chatItems()
+		if err != nil {
+			return ui.TodoProps{}, err
+		}
+		props.ChatCount = len(chatItems)
+		props.ChatItems = chatItems
+		props.ChatOptions = chatOptions(s.chat.AgentNames())
+	}
 	if selectedID != 0 {
 		task, err := s.tasks.Get(selectedID)
 		if err != nil {
@@ -179,6 +209,40 @@ func (s *WebServer) props(filter Filter, selectedID int64) (ui.TodoProps, error)
 		props.Detail = &ui.TodoTaskDetail{Task: task}
 	}
 	return props, nil
+}
+
+func (s *WebServer) chatItems() ([]ui.TodoChatItem, error) {
+	threads, err := s.chat.Threads()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]ui.TodoChatItem, 0, len(threads))
+	for _, thread := range threads {
+		prompt, err := s.chat.ThreadPrompt(thread.ID)
+		if err != nil {
+			return nil, err
+		}
+		title := thread.Title
+		if title == "" {
+			title = "New chat"
+		}
+		items = append(items, ui.TodoChatItem{
+			Description: chat.FriendlyDescription(prompt),
+			ID:          thread.ID,
+			Title:       title,
+			When:        todoWhen(thread.UpdatedAt.Time),
+		})
+	}
+	return items, nil
+}
+
+func chatOptions(agents []string) []uikit.SelectOption {
+	options := chat.ProviderModelOptions(agents)
+	out := make([]uikit.SelectOption, 0, len(options))
+	for _, option := range options {
+		out = append(out, uikit.SelectOption{Label: option.Label, Value: option.Value})
+	}
+	return out
 }
 
 func (s *WebServer) redirectBack(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +277,13 @@ func todoTitle(filter Filter) string {
 		return "Inbox"
 	}
 	return "Tasks"
+}
+
+func todoWhen(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("Jan 2")
 }
 
 func todoView(filter Filter) string {

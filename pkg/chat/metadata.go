@@ -8,6 +8,7 @@ import (
 const (
 	attachmentPrompt = "See attached files."
 	pageSelection    = "Page selection"
+	titleMaxWords    = 5
 )
 
 func FriendlyDescription(prompt string) string {
@@ -15,8 +16,8 @@ func FriendlyDescription(prompt string) string {
 	if prompt == "" {
 		return ""
 	}
-	if line := firstMeaningfulPromptLine(prompt); line != "" {
-		return truncate(line, titleMaxLen)
+	if sentence := firstMeaningfulPromptSentence(prompt); sentence != "" {
+		return truncate(sentence, titleMaxLen)
 	}
 	if _, rawURL, ok := selectionNote(prompt); ok {
 		if path := displayPath(rawURL); path != "" {
@@ -36,7 +37,7 @@ func FriendlyTitle(prompt string) string {
 		return ""
 	}
 	if line := firstMeaningfulPromptLine(prompt); line != "" {
-		return truncate(line, titleMaxLen)
+		return maxWords(line, titleMaxWords)
 	}
 	if _, _, ok := selectionNote(prompt); ok {
 		return pageSelection
@@ -76,6 +77,27 @@ func firstMeaningfulPromptLine(prompt string) string {
 		return line
 	}
 	return ""
+}
+
+func firstMeaningfulPromptSentence(prompt string) string {
+	line := firstMeaningfulPromptLine(prompt)
+	if line == "" {
+		return ""
+	}
+	for _, sep := range []string{". ", "! ", "? "} {
+		if idx := strings.Index(line, sep); idx >= 0 {
+			return strings.TrimSpace(line[:idx+1])
+		}
+	}
+	return line
+}
+
+func maxWords(value string, limit int) string {
+	words := strings.Fields(value)
+	if len(words) <= limit {
+		return strings.TrimSpace(value)
+	}
+	return strings.Join(words[:limit], " ")
 }
 
 func selectionNote(prompt string) (string, string, bool) {

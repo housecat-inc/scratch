@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 type InboxCounts struct {
@@ -31,7 +32,7 @@ type InboxItem struct {
 
 type InboxProps struct {
 	ArchiveFilter string
-	Agents        []string
+	ChatOptions   []uikit.SelectOption
 	Counts        InboxCounts
 	Draft         *InboxDraftDetail
 	Items         []InboxItem
@@ -74,9 +75,4 @@ type ReaderHeaderProps struct {
 	Description string
 	Labels      []string
 	Title       string
-}
-
-type SelectOption struct {
-	Label string
-	Value string
 }

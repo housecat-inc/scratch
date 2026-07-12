@@ -14,7 +14,7 @@ func TestFriendlyTitle(t *testing.T) {
 		prompt string
 		want   string
 	}{
-		{name: "plain prompt", prompt: "fix the mobile spacing", want: "fix the mobile spacing"},
+		{name: "plain prompt", prompt: "fix the mobile spacing around the composer", want: "fix the mobile spacing around"},
 		{name: "selection only", prompt: "Selected html > body > div.mail-shell on http://localhost:8888/inbox", want: "Page selection"},
 		{name: "selection with instruction", prompt: "Selected html > body on http://localhost:8888/inbox\nfix the spacing", want: "fix the spacing"},
 		{name: "attachment only", prompt: "See attached files.", want: "Attachment review"},
@@ -37,7 +37,7 @@ func TestFriendlyDescription(t *testing.T) {
 		prompt string
 		want   string
 	}{
-		{name: "plain prompt", prompt: "fix the mobile spacing", want: "fix the mobile spacing"},
+		{name: "plain prompt", prompt: "fix the mobile spacing. keep the header compact", want: "fix the mobile spacing."},
 		{name: "selection only", prompt: "Selected html > body > div.mail-shell on http://localhost:8888/inbox/chats/71?x=1", want: "Selected page section on /inbox/chats/71?x=1"},
 		{name: "selection without url", prompt: "Selected html > body", want: "Selected html > body"},
 		{name: "attachment only", prompt: "See attached files.", want: "Reviewing attached files"},

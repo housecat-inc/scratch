@@ -36,7 +36,7 @@ templ InboxPage(p InboxProps) {
 }
 
 templ InboxActions(p InboxProps) {
-	@createChatButton(p.Agents)
+	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 	@createButton("task", "New task", taskIcon())
 	@createWorkflowButton()
 }
@@ -48,10 +48,7 @@ templ InboxHead(title string) {
 		<title>{ title } · scratch</title>
 		@InboxCSS()
 		@ChatCSS()
-		<script src="/static/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
-		<script src="/static/html2canvas.min.js" defer></script>
-		<script src="/static/chat.js" defer></script>
+		@uikit.ChatPluginScripts()
 		<script src="/static/inbox.js" defer></script>
 	</head>
 }
@@ -61,7 +58,7 @@ templ MailShell(p InboxProps) {
 		<header class="mail-topbar">
 			<a class="mail-brand" href="/">scratch</a>
 			<div class="mail-create-actions">
-				@createChatButton(p.Agents)
+				@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 				@createButton("task", "New task", taskIcon())
 				@createWorkflowButton()
 			</div>
@@ -277,34 +274,6 @@ templ createButton(mode, label string, icon templ.Component) {
 	</form>
 }
 
-templ createChatButton(agents []string) {
-	<form class="mail-create-combo" method="get" action="/inbox/chats/new" data-agent-model-form="true" data-chat-popout-new>
-		<input type="hidden" name="mode" value="chat"/>
-		<button class="mail-create-btn" type="submit" data-new-chat>
-			@chatIcon()
-			<span>New chat</span>
-		</button>
-		if len(agents) > 0 {
-			<span class="mail-create-select-wrap">
-				<select class="mail-create-select" name="agent" aria-label="Provider and model">
-					for _, agent := range agents {
-						<option value={ agent }>{ providerModelLabel(agent) }</option>
-					}
-				</select>
-				<span class="mail-create-chevron">@chevronDownIcon()</span>
-			</span>
-			<span class="mail-create-select-wrap">
-				<select class="mail-create-select" name="model" aria-label="Model">
-					for _, model := range codexModelOptions() {
-						<option value={ model.Value }>{ model.Label }</option>
-					}
-				</select>
-				<span class="mail-create-chevron">@chevronDownIcon()</span>
-			</span>
-		}
-	</form>
-}
-
 templ createWorkflowButton() {
 	<form class="mail-create-combo" method="post" action="/compose">
 		<input type="hidden" name="mode" value="workflow"/>
@@ -405,19 +374,6 @@ func agentLabel(agent string) string {
 		return "Agent"
 	}
 	return strings.ToUpper(agent[:1]) + agent[1:]
-}
-
-func codexModelOptions() []SelectOption {
-	return []SelectOption{
-		{Label: "Default", Value: "default"},
-		{Label: "GPT 5.5", Value: "gpt-5.5"},
-		{Label: "GPT 5.1", Value: "gpt-5.1"},
-		{Label: "GPT 5", Value: "gpt-5"},
-	}
-}
-
-func providerModelLabel(agent string) string {
-	return agentLabel(agent)
 }
 
 func rowKindLabel(kind string) string {

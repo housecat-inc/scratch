@@ -620,6 +620,8 @@ body.chat-selecting * {
   overflow: hidden;
   position: fixed;
   right: 1.25rem;
+  transform-origin: bottom right;
+  transition: height 180ms ease, width 180ms ease, grid-template-rows 180ms ease, inset 180ms ease, border-radius 180ms ease, box-shadow 180ms ease, transform 180ms ease;
   width: min(46rem, calc(100vw - 2.5rem));
   z-index: 90;
 }
@@ -633,7 +635,8 @@ body.chat-selecting * {
 
 .floating-chat.minimized {
   cursor: pointer;
-  height: auto;
+  grid-template-rows: auto 0fr 0fr;
+  height: 3.05rem;
   width: min(22rem, calc(100vw - 2.5rem));
 }
 
@@ -641,10 +644,15 @@ body.chat-selecting * {
   display: none;
 }
 
-.floating-chat.minimized .floating-chat-body,
-.floating-chat.minimized .floating-chat-compose,
 .floating-chat.minimized [data-chat-minimize] {
   display: none;
+}
+
+.floating-chat.minimized .floating-chat-body,
+.floating-chat.minimized .floating-chat-compose {
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .floating-chat.minimized [data-chat-restore] {
@@ -726,6 +734,7 @@ body.chat-selecting * {
   background: #fff;
   min-height: 0;
   overflow: auto;
+  transition: opacity 140ms ease;
 }
 
 .floating-chat-messages {
@@ -737,6 +746,7 @@ body.chat-selecting * {
   background: #f8fafc;
   border-top: 1px solid #e5e7eb;
   padding: 0.65rem;
+  transition: opacity 140ms ease;
 }
 
 .floating-chat-compose .chat-compose {

@@ -1,5 +1,6 @@
 (() => {
   const draftKeyPrefix = "scratch.chat.draft:";
+  const providerModelKey = "scratch.chat.provider_model";
   const popoutKey = "scratch.chat.popout";
 
   const showAlert = (text) => {
@@ -514,17 +515,36 @@
     });
   };
 
+  const initNewChatAction = (form) => {
+    if (form.dataset.chatNewInitialized === "true") return;
+    form.dataset.chatNewInitialized = "true";
+    const select = form.querySelector('[name="provider_model"]');
+    if (!select) return;
+    const stored = storageGet(providerModelKey);
+    if (stored && Array.from(select.options).some((option) => option.value === stored)) {
+      select.value = stored;
+    }
+    select.addEventListener("change", () => storageSet(providerModelKey, select.value));
+    form.addEventListener("submit", () => storageSet(providerModelKey, select.value));
+  };
+
   const initAll = (root = document) => {
     if (root.matches?.("[data-chat-form]")) initComposer(root);
     if (root.matches?.("[data-chat-messages]")) initMessages(root);
+    if (root.matches?.("[data-chat-popout-new]")) initNewChatAction(root);
     if (root.matches?.("[data-chat-popout]")) initPopout(root);
     root.querySelectorAll("[data-chat-form]").forEach(initComposer);
     root.querySelectorAll("[data-chat-messages]").forEach(initMessages);
+    root.querySelectorAll("[data-chat-popout-new]").forEach(initNewChatAction);
     root.querySelectorAll("[data-chat-popout]").forEach(initPopout);
   };
 
   document.body.addEventListener("htmx:responseError", (e) => {
     showAlert(e.detail.xhr.responseText);
+  });
+
+  document.body.addEventListener("htmx:sseError", (e) => {
+    e.preventDefault();
   });
 
   document.addEventListener("submit", (e) => {

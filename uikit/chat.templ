@@ -1,0 +1,36 @@
+package uikit
+
+templ ChatPluginScripts() {
+	<script>
+		(() => {
+			const consoleError = console.error.bind(console);
+			console.error = (...args) => {
+				if (args.length === 1 && String(args[0]) === "[object Event]") return;
+				consoleError(...args);
+			};
+		})();
+	</script>
+	<script src="/static/htmx.min.js"></script>
+	<script src="/static/htmx-ext-sse.min.js"></script>
+	<script src="/static/html2canvas.min.js" defer></script>
+	<script src="/static/chat.js" defer></script>
+}
+
+templ NewChatAction(p NewChatActionProps) {
+	<form class="mail-create-combo" method="get" action={ newChatAction(p.Action) } data-chat-popout-new>
+		<button class="mail-create-btn" type="submit" data-new-chat>
+			@Icon("chat")
+			<span>New chat</span>
+		</button>
+		if len(p.Options) > 0 {
+			<span class="mail-create-select-wrap">
+				<select class="mail-create-select" name="provider_model" aria-label="Provider and model">
+					for _, option := range p.Options {
+						<option value={ option.Value }>{ option.Label }</option>
+					}
+				</select>
+				<span class="mail-create-chevron">@Icon("chevron-down")</span>
+			</span>
+		}
+	</form>
+}

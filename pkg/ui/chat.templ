@@ -84,10 +84,12 @@ templ FloatingChatPanel(p FloatingChatProps) {
 		aria-label="Chat popout"
 	>
 		<header class="floating-chat-head">
-			<a class="floating-chat-title" href={ templ.SafeURL("/inbox/chats/" + itoa64(p.ID)) }>
+			<div class="floating-chat-title">
 				<span>{ p.Title }</span>
-				<small>{ p.Agent }</small>
-			</a>
+				if p.Description != "" {
+					<small>{ p.Description }</small>
+				}
+			</div>
 			<div class="floating-chat-actions">
 				<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
 					@minusIcon()

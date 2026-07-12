@@ -52,3 +52,10 @@ func shellClass(extra string) string {
 	}
 	return "mail-shell " + extra
 }
+
+func newChatAction(action string) string {
+	if action == "" {
+		return "/chat/popout/new"
+	}
+	return action
+}

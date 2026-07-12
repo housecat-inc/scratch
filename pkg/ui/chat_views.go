@@ -112,12 +112,13 @@ type ChatThreadProps struct {
 }
 
 type FloatingChatProps struct {
-	Access    string
-	Agent     string
-	ID        int64
-	Messages  []ChatMessageProps
-	Streaming bool
-	Title     string
+	Access      string
+	Agent       string
+	Description string
+	ID          int64
+	Messages    []ChatMessageProps
+	Streaming   bool
+	Title       string
 }
 
 func ChatCSS() templ.Component {
