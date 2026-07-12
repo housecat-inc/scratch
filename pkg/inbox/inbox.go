@@ -35,11 +35,11 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
 	mux.HandleFunc("GET /{$}", s.handleInbox)
-	mux.HandleFunc("GET /chats", s.handleChats)
 	mux.HandleFunc("GET /inbox", s.handleInbox)
+	mux.HandleFunc("GET /inbox/chats", s.handleChats)
+	mux.HandleFunc("GET /inbox/tasks", s.handleTasks)
+	mux.HandleFunc("GET /inbox/workflows", s.handleWorkflows)
 	mux.HandleFunc("GET /starred", s.handleStarred)
-	mux.HandleFunc("GET /tasks", s.handleTasks)
-	mux.HandleFunc("GET /workflows", s.handleWorkflows)
 	mux.HandleFunc("GET /inbox/chats/{id}", s.handleChat)
 	mux.HandleFunc("GET /inbox/tasks/{id}", s.handleTask)
 	mux.HandleFunc("GET /inbox/workflows/{id}", s.handleWorkflow)
@@ -55,7 +55,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
-	mux.HandleFunc("POST /tasks", s.handleCreateTask)
 	return logging.Middleware(s.log, mux)
 }
 
@@ -107,17 +106,6 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleChats(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "chats", ui.InboxSelection{})
-}
-
-func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
-	title := strings.TrimSpace(r.FormValue("title"))
-	if title != "" {
-		if _, err := s.tasks.Create(title); err != nil {
-			s.fail(w, err)
-			return
-		}
-	}
-	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
 }
 
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
@@ -497,7 +485,7 @@ func includeItem(view, filter string, item ui.InboxItem) bool {
 	case "starred":
 		return item.Starred && !item.Archived
 	case "tasks":
-		return item.Kind == "task" && includeArchiveFilter(filter, item)
+		return item.Kind == "task" && includeTaskFilter(filter, item)
 	case "workflows":
 		return item.Kind == "workflow" && includeArchiveFilter(filter, item)
 	default:
@@ -509,6 +497,17 @@ func includeArchiveFilter(filter string, item ui.InboxItem) bool {
 	switch filter {
 	case "active":
 		return !item.Archived
+	case "archived":
+		return item.Archived
+	default:
+		return true
+	}
+}
+
+func includeTaskFilter(filter string, item ui.InboxItem) bool {
+	switch filter {
+	case "active":
+		return !item.Archived && !item.Done
 	case "archived":
 		return item.Archived
 	default:

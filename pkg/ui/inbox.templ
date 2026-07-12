@@ -56,9 +56,9 @@ templ MailShell(p InboxProps) {
 					@mailLabel("/", "inbox", p.View, "Inbox", p.Counts.Inbox, inboxIcon())
 					@mailLabel("/starred", "starred", p.View, "Starred", p.Counts.Starred, starIcon(false))
 					<div class="mail-label-group">More</div>
-					@mailLabel("/chats", "chats", p.View, "Chats", p.Counts.Chats, chatIcon())
-					@mailLabel("/tasks", "tasks", p.View, "Tasks", p.Counts.Tasks, taskIcon())
-					@mailLabel("/workflows", "workflows", p.View, "Workflows", p.Counts.Workflows, workflowIcon())
+					@mailLabel("/inbox/chats", "chats", p.View, "Chats", p.Counts.Chats, chatIcon())
+					@mailLabel("/inbox/tasks", "tasks", p.View, "Tasks", p.Counts.Tasks, taskIcon())
+					@mailLabel("/inbox/workflows", "workflows", p.View, "Workflows", p.Counts.Workflows, workflowIcon())
 				</nav>
 			</aside>
 			<main class="mail-main">
@@ -169,7 +169,7 @@ templ InboxRow(item InboxItem, view, filter string) {
 
 templ InboxTaskReader(d InboxTaskDetail) {
 	<header class="mail-reader-head">
-		<a class="gm-icon-btn" href="/tasks" aria-label="Back">
+		<a class="gm-icon-btn" href="/inbox/tasks" aria-label="Back">
 			@backIcon()
 		</a>
 		<div class="mail-reader-title">
@@ -394,10 +394,11 @@ func archiveActionLabel(item InboxItem) string {
 }
 
 func archiveFilterHref(view, filter string) string {
+	base := inboxViewHref(view)
 	if filter == "all" {
-		return "/" + view
+		return base
 	}
-	return "/" + view + "?archived=" + filter
+	return base + "?archived=" + filter
 }
 
 func agentLabel(agent string) string {
@@ -472,12 +473,12 @@ func backIcon() templ.Component {
 
 func currentBackFallback(action string) string {
 	if strings.Contains(action, "/workflows/") {
-		return "/workflows"
+		return "/inbox/workflows"
 	}
 	if strings.Contains(action, "/chats/") {
-		return "/chats"
+		return "/inbox/chats"
 	}
-	return "/tasks"
+	return "/inbox/tasks"
 }
 
 func composeMode(p InboxProps) string {
@@ -522,9 +523,22 @@ func doneIcon(done bool) templ.Component {
 
 func inboxBackPath(kind string) string {
 	if kind == "workflow" {
-		return "workflows"
+		return "inbox/workflows"
 	}
-	return "chats"
+	return "inbox/chats"
+}
+
+func inboxViewHref(view string) string {
+	switch view {
+	case "chats":
+		return "/inbox/chats"
+	case "tasks":
+		return "/inbox/tasks"
+	case "workflows":
+		return "/inbox/workflows"
+	default:
+		return "/" + view
+	}
 }
 
 func inboxTitle(p InboxProps) string {

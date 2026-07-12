@@ -1,77 +1,65 @@
 package chat
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestChat(t *testing.T) {
-	run(t, []Case{
-		{
-			Name: "empty index offers a new chat",
-			Path: "/chat",
-			Assert: []Step{
-				TextContains(".chatapp", "No chats yet"),
-				Visible("#new-thread"),
-			},
-		},
-		{
-			Name: "starts a chat and streams a reply over sse",
-			Path: "/chat",
-			Act: []Step{
-				Click("#new-thread"),
-				Type("#chat-input", "hi agent"),
-				Press("#chat-input", "Enter"),
-			},
-			Assert: []Step{
-				TextContains("#thread-agent", "echo"),
-				TextContains("#chat-messages", "hi agent"),
-				TextContains("#chat-messages", "You said: hi agent"),
-				ClassContains("#chat-messages .role-assistant", "status-complete"),
-				Log(`{"level":"INFO","method":"POST","msg":"http.request","path":"/chat/1/messages","status":204}`),
-			},
-		},
-		{
-			Name: "lists threads and opens a conversation",
-			Path: "/chat",
-			Seed: []Step{
-				SeedThread(""),
-				SeedExchange(1, "what is on my list today?"),
-			},
-			Act: []Step{
-				Click(".thread-list a"),
-			},
-			Assert: []Step{
-				TextContains("#thread-heading", "what is on my list today?"),
-				TextContains("#thread-agent", "echo"),
-				TextContains("#chat-messages", "You said: what is on my list today?"),
-			},
-		},
-		{
-			Name: "renders a conversation",
-			Path: "/chat/1",
-			Seed: []Step{
-				SeedThread(""),
-				SeedExchange(1, "hello"),
-			},
-			Assert: []Step{
-				TextContains("#chat-messages", "You said: hello"),
-			},
-		},
-		{
-			Name:  "agent failure renders an error bubble",
-			Agent: failingAgent{},
-			Path:  "/chat",
-			Seed:  []Step{SeedThread("doomed")},
-			Act: []Step{
-				Click(".thread-list a"),
-				Type("#chat-input", "boom"),
-				Press("#chat-input", "Enter"),
-			},
-			Assert: []Step{
-				ClassContains("#chat-messages .role-assistant", "status-error"),
-				TextContains("#chat-messages", "agent exploded"),
-				Log(`{"error":"agent exploded","level":"ERROR","message":2,"msg":"chat.run","thread":1}`),
-			},
-		},
-	})
+func TestLegacyChatPagesAreNotMounted(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	svc := NewService(store, EchoAgent{}, nil)
+	t.Cleanup(svc.Close)
+	srv := NewServer(svc, nil).Handler()
+
+	for _, path := range []string{"/chat", "/chat/1"} {
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		a.Equal(http.StatusNotFound, rec.Code, path)
+	}
+}
+
+func TestChatMessageTransport(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	svc := NewService(store, EchoAgent{Delay: time.Millisecond}, nil)
+	t.Cleanup(svc.Close)
+	srv := NewServer(svc, nil).Handler()
+
+	thread, err := svc.CreateThread("", "")
+	r.NoError(err)
+
+	form := url.Values{"prompt": []string{"hi agent"}}
+	req := httptest.NewRequest(http.MethodPost, "/chat/"+strconv.FormatInt(thread.ID, 10)+"/messages", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	a.Equal(http.StatusNoContent, rec.Code)
+
+	r.Eventually(func() bool {
+		view, err := svc.View(thread.ID)
+		return err == nil && !view.Streaming && len(view.Messages) == 2
+	}, 5*time.Second, 10*time.Millisecond)
+
+	view, err := svc.View(thread.ID)
+	r.NoError(err)
+	a.Equal("hi agent", view.Messages[0].Body)
+	a.Equal("You said: hi agent", view.Messages[1].Body)
 }

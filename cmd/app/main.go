@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -94,12 +95,8 @@ func newRootCmd() *cobra.Command {
 			chatSrv := chat.NewServer(chatSvc, logger)
 			inboxSrv := inbox.NewServer(svc, chatSvc, logger)
 			inboxHandler := inboxSrv.Handler()
-			todoSrv := todo.NewServer(svc, logger)
-			srv.Mux.Handle("/chat", chatSrv.Handler())
+			srv.Mux.HandleFunc("/chat", http.NotFound)
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
-			srv.Mux.Handle("GET /tasks", inboxHandler)
-			srv.Mux.Handle("POST /tasks", inboxHandler)
-			srv.Mux.Handle("/tasks/", todoSrv.Handler())
 			srv.Mux.Handle("/", inboxHandler)
 
 			slog.Info("listening", "addr", addr, "agent", agent.Author())

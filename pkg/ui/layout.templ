@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/templui/templui/components/card"
@@ -27,8 +28,8 @@ templ InboxBrand() {
 
 templ InboxNav(active string, tasks, chats int) {
 	<nav class="inbox-nav" aria-label="Primary">
-		@inboxNavLink("/", "todo", active, "Tasks", tasks)
-		@inboxNavLink("/chat", "chat", active, "Chat", chats)
+		@inboxNavLink("/inbox/tasks", "todo", active, "Tasks", tasks)
+		@inboxNavLink("/inbox/chats", "chat", active, "Chat", chats)
 		@inboxNavLink("/code/", "code", active, "Code", 0)
 		@inboxNavLink("/files/", "files", active, "Files", 0)
 		@inboxNavLink("/setup", "setup", active, "Setup", 0)
@@ -107,7 +108,7 @@ templ inboxNavLink(href, name, active, label string, count int) {
 	<a href={ templ.SafeURL(href) } class={ "inbox-nav-item", templ.KV("active", name == active) }>
 		<span>{ label }</span>
 		if count > 0 {
-			<span class="inbox-nav-count">{ itoa(count) }</span>
+			<span class="inbox-nav-count">{ strconv.Itoa(count) }</span>
 		}
 	</a>
 }

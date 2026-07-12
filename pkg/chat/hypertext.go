@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/a-h/templ"
 	"github.com/cockroachdb/errors"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/housecat-inc/scratch/pkg/db"
@@ -37,28 +36,10 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
-	mux.HandleFunc("GET /chat", s.handleIndex)
-	mux.HandleFunc("GET /chat/{$}", s.handleIndex)
-	mux.HandleFunc("POST /chat", s.handleCreate)
-	mux.HandleFunc("GET /chat/{id}", s.handleThread)
-	mux.HandleFunc("PATCH /chat/{id}", s.handleUpdateThread)
 	mux.HandleFunc("POST /chat/{id}/elicitations", s.handleElicitation)
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
 	return logging.Middleware(s.log, mux)
-}
-
-func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
-	thread, err := s.svc.CreateThread(r.FormValue("agent"), r.FormValue("title"))
-	if err != nil {
-		if errors.Is(err, ErrAgentUnknown) {
-			http.Error(w, "unknown agent", http.StatusBadRequest)
-			return
-		}
-		s.fail(w, err)
-		return
-	}
-	http.Redirect(w, r, fmt.Sprintf("/chat/%d", thread.ID), http.StatusSeeOther)
 }
 
 func (s *Server) handleElicitation(w http.ResponseWriter, r *http.Request) {
@@ -145,16 +126,6 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	threads, err := s.svc.Threads()
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	items := s.threadItems(threads)
-	s.render(w, r, ui.ChatIndexPage(ui.ChatIndexProps{Agents: s.svc.AgentNames(), Chats: len(items), Threads: items}))
-}
-
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	id, ok := threadID(w, r)
 	if !ok {
@@ -176,53 +147,6 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
-	id, ok := threadID(w, r)
-	if !ok {
-		return
-	}
-	view, err := s.svc.View(id)
-	if err != nil {
-		s.notFoundOr(w, err)
-		return
-	}
-	s.render(w, r, ui.ChatThreadPage(s.toThreadProps(view)))
-}
-
-func (s *Server) handleUpdateThread(w http.ResponseWriter, r *http.Request) {
-	id, ok := threadID(w, r)
-	if !ok {
-		return
-	}
-	changed := false
-	if starred := r.FormValue("starred"); starred != "" {
-		if err := s.svc.SetThreadStarred(id, starred == "true"); err != nil {
-			s.notFoundOr(w, err)
-			return
-		}
-		changed = true
-	}
-	if state := r.FormValue("state"); state != "" {
-		if state == "done" {
-			state = db.ThreadStateResolved
-		}
-		if err := s.svc.SetThreadState(id, state); err != nil {
-			if errors.Is(err, ErrThreadStateUnknown) {
-				http.Error(w, "unknown thread state", http.StatusBadRequest)
-				return
-			}
-			s.notFoundOr(w, err)
-			return
-		}
-		changed = true
-	}
-	if !changed {
-		http.Error(w, "missing thread update", http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/chat", http.StatusSeeOther)
-}
-
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	httperr.Log(s.log, "chat error", err)
 	httperr.Error(w, err, http.StatusInternalServerError)
@@ -234,13 +158,6 @@ func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
 		return
 	}
 	s.fail(w, err)
-}
-
-func (s *Server) render(w http.ResponseWriter, r *http.Request, comp templ.Component) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := comp.Render(r.Context(), w); err != nil {
-		httperr.Error(w, err, http.StatusInternalServerError)
-	}
 }
 
 func (s *Server) writeMessagesEvent(w http.ResponseWriter, r *http.Request, threadID int64) error {
@@ -270,33 +187,11 @@ func threadID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
-func (s *Server) threadItems(threads []db.Thread) []ui.ChatThreadItemProps {
-	items := make([]ui.ChatThreadItemProps, 0, len(threads))
-	for _, t := range threads {
-		title := t.Title
-		if title == "" {
-			title = "Untitled"
-		}
-		items = append(items, ui.ChatThreadItemProps{
-			Agent: s.svc.AgentName(t),
-			ID:    t.ID,
-			Title: title,
-			When:  t.UpdatedAt.Format("Jan 2 15:04"),
-		})
-	}
-	return items
-}
-
 func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
-	threads, _ := s.svc.Threads()
-	items := s.threadItems(threads)
 	props := ui.ChatThreadProps{
 		Agent:    s.svc.AgentName(v.Thread),
-		Agents:   s.svc.AgentNames(),
-		Chats:    len(items),
 		ID:       v.Thread.ID,
 		Messages: make([]ui.ChatMessageProps, 0, len(v.Messages)),
-		Threads:  items,
 		Title:    v.Thread.Title,
 	}
 	if props.Title == "" {

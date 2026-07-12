@@ -27,20 +27,6 @@ type ChatFormProps struct {
 	MessageID     int64
 }
 
-type ChatIndexProps struct {
-	ActiveID int64
-	Agents   []string
-	Chats    int
-	Threads  []ChatThreadItemProps
-}
-
-type ChatThreadItemProps struct {
-	Agent string
-	ID    int64
-	Title string
-	When  string
-}
-
 type ChatMessageProps struct {
 	Author string
 	Body   string
@@ -53,19 +39,14 @@ type ChatMessageProps struct {
 
 type ChatThreadProps struct {
 	Agent    string
-	Agents   []string
-	Chats    int
 	ID       int64
 	Messages []ChatMessageProps
-	Threads  []ChatThreadItemProps
 	Title    string
 }
 
 func ChatCSS() templ.Component {
 	return templ.Raw(`<style>` + chatCSS + `</style>`)
 }
-
-func chatPath(id int64) string { return "/chat/" + itoa64(id) }
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
 
