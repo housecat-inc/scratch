@@ -78,6 +78,16 @@ func InputValueContains(selector, expected string) Step {
 	}
 }
 
+func ElementEventuallyPresent(selector string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventuallyf(func() bool {
+			_, err := h.Page.Element(selector)
+			return err == nil
+		}, 20*time.Second, 50*time.Millisecond, "%s should be present", selector)
+	}
+}
+
 func TextEventuallyContains(selector, expected string) Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
@@ -230,7 +240,7 @@ func TestChatBrowser(t *testing.T) {
 			},
 			Assert: []Step{
 				TextEventuallyContains("#chat-messages", "The turn was stopped."),
-				ElementAbsent(`[aria-label="Stop chat"]`),
+				ElementEventuallyPresent(`[aria-label="Stop chat"]`),
 			},
 		},
 	})

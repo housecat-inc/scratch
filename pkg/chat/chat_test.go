@@ -85,7 +85,7 @@ func TestWithDir(t *testing.T) {
 	a.Equal(CodexAgent{}, WithDir(CodexAgent{}, ""))
 }
 
-func TestSendBusy(t *testing.T) {
+func TestSendBusyQueuesNextTurn(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
@@ -98,15 +98,50 @@ func TestSendBusy(t *testing.T) {
 	_, err = svc.Send(thread.ID, "first")
 	r.NoError(err)
 
-	_, err = svc.Send(thread.ID, "second")
-	a.True(IsThreadBusy(err))
+	user, err := svc.Send(thread.ID, "second")
+	r.NoError(err)
+	a.Equal("second", user.Body)
 
 	close(block)
 	view := waitComplete(t, svc, thread.ID)
+	r.Len(view.Messages, 4)
+	a.Equal("first", view.Messages[0].Body)
 	a.Equal(db.MessageStatusComplete, view.Messages[1].Status)
+	a.Equal("second", view.Messages[2].Body)
+	a.Equal(db.MessageStatusComplete, view.Messages[3].Status)
+	r.NotNil(view.Messages[3].ParentID)
+	a.Equal(view.Messages[2].ID, *view.Messages[3].ParentID)
 
 	_, err = svc.Send(thread.ID, "third")
 	a.NoError(err)
+}
+
+func TestStopThreadStartsQueuedTurn(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	block := make(chan struct{})
+	svc := newTestService(t, blockingAgent{release: block})
+	thread, err := svc.CreateThread("", "")
+	r.NoError(err)
+	_, err = svc.Send(thread.ID, "stop me")
+	r.NoError(err)
+	_, err = svc.Send(thread.ID, "next")
+	r.NoError(err)
+
+	r.Eventually(func() bool {
+		view, err := svc.View(thread.ID)
+		return err == nil && view.Streaming
+	}, 5*time.Second, 10*time.Millisecond)
+
+	r.NoError(svc.StopThread(thread.ID))
+	close(block)
+	view := waitComplete(t, svc, thread.ID)
+	r.Len(view.Messages, 4)
+	a.Equal(db.MessageStatusError, view.Messages[1].Status)
+	a.Contains(view.Messages[1].Body, "The turn was stopped.")
+	a.Equal("next", view.Messages[2].Body)
+	a.Equal(db.MessageStatusComplete, view.Messages[3].Status)
 }
 
 func TestSendAgentError(t *testing.T) {
@@ -187,8 +222,9 @@ func TestRecoverFinishesOrphanedStreaming(t *testing.T) {
 	})
 	r.NoError(err)
 
-	_, err = svc.Send(thread.ID, "hi")
-	r.True(IsThreadBusy(err))
+	queued, err := svc.Send(thread.ID, "hi")
+	r.NoError(err)
+	a.Equal("hi", queued.Body)
 
 	r.NoError(svc.Recover())
 
@@ -196,6 +232,8 @@ func TestRecoverFinishesOrphanedStreaming(t *testing.T) {
 	r.NoError(err)
 	a.Equal(db.MessageStatusError, swept.Status)
 	a.Contains(swept.Body, "interrupted by a restart")
+	view := waitComplete(t, svc, thread.ID)
+	a.Equal("You said: hi", view.Messages[len(view.Messages)-1].Body)
 
 	_, err = svc.Send(thread.ID, "hi again")
 	r.NoError(err)

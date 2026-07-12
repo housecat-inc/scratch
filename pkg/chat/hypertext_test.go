@@ -63,3 +63,68 @@ func TestChatMessageTransport(t *testing.T) {
 	a.Equal("hi agent", view.Messages[0].Body)
 	a.Equal("You said: hi agent", view.Messages[1].Body)
 }
+
+func TestChatMessageTransportQueuesWhileStreaming(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	block := make(chan struct{})
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	svc := NewService(store, blockingAgent{release: block}, nil)
+	t.Cleanup(svc.Close)
+	srv := NewServer(svc, nil).Handler()
+
+	thread, err := svc.CreateThread("", "")
+	r.NoError(err)
+	_, err = svc.Send(thread.ID, "first")
+	r.NoError(err)
+
+	form := url.Values{"prompt": []string{"second"}}
+	req := httptest.NewRequest(http.MethodPost, "/chat/"+strconv.FormatInt(thread.ID, 10)+"/messages", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	a.Equal(http.StatusNoContent, rec.Code)
+
+	close(block)
+	r.Eventually(func() bool {
+		view, err := svc.View(thread.ID)
+		return err == nil && !view.Streaming && len(view.Messages) == 4
+	}, 5*time.Second, 10*time.Millisecond)
+
+	view, err := svc.View(thread.ID)
+	r.NoError(err)
+	a.Equal("second", view.Messages[2].Body)
+	a.Equal(db.MessageStatusComplete, view.Messages[3].Status)
+}
+
+func TestChatStopTransport(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	block := make(chan struct{})
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	svc := NewService(store, blockingAgent{release: block}, nil)
+	t.Cleanup(svc.Close)
+	srv := NewServer(svc, nil).Handler()
+
+	thread, err := svc.CreateThread("", "")
+	r.NoError(err)
+	_, err = svc.Send(thread.ID, "stop")
+	r.NoError(err)
+
+	req := httptest.NewRequest(http.MethodPost, "/chat/"+strconv.FormatInt(thread.ID, 10)+"/stop", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	a.Equal(http.StatusNoContent, rec.Code)
+
+	close(block)
+	r.Eventually(func() bool {
+		view, err := svc.View(thread.ID)
+		return err == nil && !view.Streaming && len(view.Messages) == 2 && view.Messages[1].Status == db.MessageStatusError
+	}, 5*time.Second, 10*time.Millisecond)
+}

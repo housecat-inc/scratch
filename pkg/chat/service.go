@@ -174,6 +174,7 @@ func (s *Service) Recover() error {
 		if _, err := s.store.FinishMessage(m.ID, db.MessageStatusError); err != nil {
 			return err
 		}
+		s.startNextTurn(thread.ID)
 		s.log.Info("chat.recovered", "message", m.ID, "thread", m.ThreadID)
 	}
 	return nil
@@ -271,11 +272,6 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 	if err != nil {
 		return db.Message{}, err
 	}
-	for _, m := range msgs {
-		if m.Status == db.MessageStatusStreaming {
-			return db.Message{}, ErrThreadBusy
-		}
-	}
 	if err := s.validateDraftAttachments(threadID, attachmentIDs); err != nil {
 		return db.Message{}, err
 	}
@@ -292,7 +288,25 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 	if err := s.store.LinkAttachments(threadID, user.ID, attachmentIDs); err != nil {
 		return db.Message{}, err
 	}
-	files, err := s.messageAttachments(user.ID, attachmentIDs)
+	if thread.Title == "" {
+		if err := s.store.SetThreadTitle(threadID, truncate(prompt, titleMaxLen)); err != nil {
+			return db.Message{}, err
+		}
+	} else if err := s.store.TouchThread(threadID); err != nil {
+		return db.Message{}, err
+	}
+	if threadStreaming(msgs) {
+		s.broker.Publish(threadID, StructuralUpdate)
+		return user, nil
+	}
+	if _, err := s.startTurn(thread, agent, user); err != nil {
+		return db.Message{}, err
+	}
+	return user, nil
+}
+
+func (s *Service) startTurn(thread db.Thread, agent Agent, user db.Message) (db.Message, error) {
+	files, err := s.messageAttachments(user.ID)
 	if err != nil {
 		return db.Message{}, err
 	}
@@ -301,37 +315,27 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 		ParentID: &user.ID,
 		Role:     db.MessageRoleAssistant,
 		Status:   db.MessageStatusStreaming,
-		ThreadID: threadID,
+		ThreadID: thread.ID,
 	})
 	if err != nil {
 		return db.Message{}, err
 	}
-	if thread.Title == "" {
-		if err := s.store.SetThreadTitle(threadID, truncate(prompt, titleMaxLen)); err != nil {
-			return db.Message{}, err
-		}
-	} else if err := s.store.TouchThread(threadID); err != nil {
-		return db.Message{}, err
-	}
-	s.broker.Publish(threadID, StructuralUpdate)
+	s.broker.Publish(thread.ID, StructuralUpdate)
 
 	turn := Turn{
 		Anchor:      thread.Anchor,
 		Attachments: files,
 		MessageID:   asst.ID,
 		Meta:        asst.Meta,
-		Prompt:      prompt,
-		ThreadID:    threadID,
+		Prompt:      user.Body,
+		ThreadID:    thread.ID,
 	}
 	s.wg.Add(1)
 	go s.run(agent, thread, turn)
-	return user, nil
+	return asst, nil
 }
 
-func (s *Service) messageAttachments(messageID int64, ids []int64) ([]Attachment, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
+func (s *Service) messageAttachments(messageID int64) ([]Attachment, error) {
 	rows, err := s.store.ListMessageAttachments(messageID)
 	if err != nil {
 		return nil, err
@@ -354,6 +358,15 @@ func (s *Service) validateDraftAttachments(threadID int64, ids []int64) error {
 		}
 	}
 	return nil
+}
+
+func threadStreaming(msgs []db.Message) bool {
+	for _, m := range msgs {
+		if m.Status == db.MessageStatusStreaming {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) SetThreadState(threadID int64, state string) error {
@@ -409,6 +422,7 @@ func (s *Service) StopThread(threadID int64) error {
 		return err
 	}
 	s.broker.Publish(threadID, StructuralUpdate)
+	s.startNextTurn(threadID)
 	return nil
 }
 
@@ -590,6 +604,50 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 		s.log.Error("chat.touch", "error", err.Error())
 	}
 	s.broker.Publish(thread.ID, StructuralUpdate)
+	s.startNextTurn(thread.ID)
+}
+
+func (s *Service) startNextTurn(threadID int64) {
+	thread, err := s.store.GetThread(threadID)
+	if err != nil {
+		s.log.Error("chat.queue.thread", "error", err.Error(), "thread", threadID)
+		return
+	}
+	agent, err := s.resolveAgent(thread)
+	if err != nil {
+		s.log.Error("chat.queue.agent", "error", err.Error(), "thread", threadID)
+		return
+	}
+	msgs, err := s.store.ListThreadMessages(threadID)
+	if err != nil {
+		s.log.Error("chat.queue.messages", "error", err.Error(), "thread", threadID)
+		return
+	}
+	if threadStreaming(msgs) {
+		return
+	}
+	user, ok := nextQueuedUser(msgs)
+	if !ok {
+		return
+	}
+	if _, err := s.startTurn(thread, agent, user); err != nil {
+		s.log.Error("chat.queue.start", "error", err.Error(), "thread", threadID, "user", user.ID)
+	}
+}
+
+func nextQueuedUser(msgs []db.Message) (db.Message, bool) {
+	parentIDs := map[int64]bool{}
+	for _, m := range msgs {
+		if m.ParentID != nil {
+			parentIDs[*m.ParentID] = true
+		}
+	}
+	for _, m := range msgs {
+		if m.Role == db.MessageRoleUser && !parentIDs[m.ID] {
+			return m, true
+		}
+	}
+	return db.Message{}, false
 }
 
 func (s *Service) messageStreaming(messageID int64) bool {

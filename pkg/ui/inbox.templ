@@ -113,6 +113,9 @@ templ MailComposer(p InboxProps) {
 				<button type="button" id="chat-snap" class="chat-icon-circle" title="Screenshot a section of the page" aria-label="Screenshot a section of the page">
 					@crosshairIcon()
 				</button>
+				<button type="button" class="chat-icon-circle" title="Stop chat" aria-label="Stop chat" hx-post={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/stop" } hx-swap="none">
+					@stopIcon()
+				</button>
 				<div id="chat-attachments" class="chat-attachments"></div>
 				<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
 					@sendIcon()
