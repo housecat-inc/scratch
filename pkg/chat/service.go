@@ -125,6 +125,10 @@ func (s *Service) CreateThreadWithModel(agent, model, title string) (db.Thread, 
 	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
 }
 
+func (s *Service) DeleteThread(threadID int64) error {
+	return s.store.DeleteThread(threadID)
+}
+
 func (s *Service) Publish(threadID int64) {
 	s.broker.Publish(threadID)
 }

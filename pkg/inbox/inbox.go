@@ -46,12 +46,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
+	mux.HandleFunc("POST /inbox/chats/{id}/trash", s.handleTrashThread)
 	mux.HandleFunc("POST /inbox/tasks/{id}/archive", s.handleArchiveTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/done", s.handleDoneTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/star", s.handleStarTask)
+	mux.HandleFunc("POST /inbox/tasks/{id}/trash", s.handleTrashTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
 	mux.HandleFunc("POST /tasks", s.handleCreateTask)
 	return logging.Middleware(s.log, mux)
 }
@@ -239,6 +242,30 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "tasks", ui.InboxSelection{})
 }
 
+func (s *Server) handleTrashTask(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.tasks.Delete(id); err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	s.redirectBack(w, r)
+}
+
+func (s *Server) handleTrashThread(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.chat.DeleteThread(id); err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	s.redirectBack(w, r)
+}
+
 func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {
@@ -310,7 +337,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, comp templ.Compo
 }
 
 func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, view string, selected ui.InboxSelection) {
-	props, err := s.props(view, selected)
+	props, err := s.props(view, archiveFilter(view, r.URL.Query().Get("archived")), selected)
 	if err != nil {
 		s.notFoundOr(w, err)
 		return
@@ -318,16 +345,17 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, view string,
 	s.render(w, r, ui.InboxPage(props))
 }
 
-func (s *Server) props(view string, selected ui.InboxSelection) (ui.InboxProps, error) {
-	items, counts, err := s.items(view)
+func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.InboxProps, error) {
+	items, counts, err := s.items(view, filter)
 	if err != nil {
 		return ui.InboxProps{}, err
 	}
 	props := ui.InboxProps{
-		Agents: chatAgentOptions(s.chat.AgentNames()),
-		Counts: counts,
-		Items:  items,
-		View:   view,
+		ArchiveFilter: filter,
+		Agents:        chatAgentOptions(s.chat.AgentNames()),
+		Counts:        counts,
+		Items:         items,
+		View:          view,
 	}
 	props.Selected = selected
 	if selected.Kind == "" {
@@ -350,7 +378,7 @@ func (s *Server) props(view string, selected ui.InboxSelection) (ui.InboxProps, 
 	return props, nil
 }
 
-func (s *Server) items(view string) ([]ui.InboxItem, ui.InboxCounts, error) {
+func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, error) {
 	tasks, err := s.tasks.All()
 	if err != nil {
 		return nil, ui.InboxCounts{}, errors.Wrap(err, "list tasks")
@@ -364,7 +392,7 @@ func (s *Server) items(view string) ([]ui.InboxItem, ui.InboxCounts, error) {
 	for _, task := range tasks {
 		item := taskItem(task)
 		addCounts(&counts, item)
-		if includeItem(view, item) {
+		if includeItem(view, filter, item) {
 			all = append(all, item)
 		}
 	}
@@ -376,7 +404,7 @@ func (s *Server) items(view string) ([]ui.InboxItem, ui.InboxCounts, error) {
 		}
 		item := threadItem(thread, kind, agent)
 		addCounts(&counts, item)
-		if includeItem(view, item) {
+		if includeItem(view, filter, item) {
 			all = append(all, item)
 		}
 	}
@@ -450,18 +478,41 @@ func addCounts(counts *ui.InboxCounts, item ui.InboxItem) {
 	}
 }
 
-func includeItem(view string, item ui.InboxItem) bool {
+func archiveFilter(view, filter string) string {
+	if view != "chats" && view != "tasks" && view != "workflows" {
+		return ""
+	}
+	switch filter {
+	case "active", "archived":
+		return filter
+	default:
+		return "all"
+	}
+}
+
+func includeItem(view, filter string, item ui.InboxItem) bool {
 	switch view {
 	case "chats":
-		return item.Kind == "chat"
+		return item.Kind == "chat" && includeArchiveFilter(filter, item)
 	case "starred":
 		return item.Starred && !item.Archived
 	case "tasks":
-		return item.Kind == "task"
+		return item.Kind == "task" && includeArchiveFilter(filter, item)
 	case "workflows":
-		return item.Kind == "workflow"
+		return item.Kind == "workflow" && includeArchiveFilter(filter, item)
 	default:
 		return !item.Archived
+	}
+}
+
+func includeArchiveFilter(filter string, item ui.InboxItem) bool {
+	switch filter {
+	case "active":
+		return !item.Archived
+	case "archived":
+		return item.Archived
+	default:
+		return true
 	}
 }
 

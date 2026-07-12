@@ -35,6 +35,7 @@ type ThreadStore interface {
 	AddMessageEvent(messageID int64, eventType, data string) (MessageEvent, error)
 	AddThread(kind, title, anchor string) (Thread, error)
 	AppendMessageBody(id int64, delta string) error
+	DeleteThread(id int64) error
 	FinishMessage(id int64, status string) (Message, error)
 	GetMessage(id int64) (Message, error)
 	GetThread(id int64) (Thread, error)
@@ -71,6 +72,37 @@ func (d *DB) AddThread(kind, title, anchor string) (Thread, error) {
 		return Thread{}, errors.Wrap(err, "insert thread")
 	}
 	return fromSqliteThread(row), nil
+}
+
+func (d *DB) DeleteThread(id int64) error {
+	ctx := context.Background()
+	tx, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return errors.Wrap(err, "begin delete thread")
+	}
+	defer tx.Rollback()
+
+	q := d.queries.WithTx(tx)
+	if err := q.DeleteThreadMessageEvents(ctx, id); err != nil {
+		return errors.Wrap(err, "delete thread message events")
+	}
+	if err := q.DeleteThreadAttachments(ctx, id); err != nil {
+		return errors.Wrap(err, "delete thread attachments")
+	}
+	if err := q.DeleteThreadMessages(ctx, id); err != nil {
+		return errors.Wrap(err, "delete thread messages")
+	}
+	n, err := q.DeleteThread(ctx, id)
+	if err != nil {
+		return errors.Wrap(err, "delete thread")
+	}
+	if n == 0 {
+		return ErrThreadNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return errors.Wrap(err, "commit delete thread")
+	}
+	return nil
 }
 
 func (d *DB) GetThread(id int64) (Thread, error) {

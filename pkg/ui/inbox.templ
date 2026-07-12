@@ -107,7 +107,16 @@ templ MailComposer(p InboxProps) {
 
 templ InboxListView(p InboxProps) {
 	<header class="mail-mainbar">
-		<h1>{ inboxTitle(p) }</h1>
+		<div class="mail-mainbar-title">
+			<h1>{ inboxTitle(p) }</h1>
+			if showArchiveFilters(p.View) {
+				<nav class="mail-filter-tabs" aria-label="Archive filter">
+					@archiveFilterTab(p.View, p.ArchiveFilter, "all", "All")
+					@archiveFilterTab(p.View, p.ArchiveFilter, "active", "Active")
+					@archiveFilterTab(p.View, p.ArchiveFilter, "archived", "Archived")
+				</nav>
+			}
+		</div>
 		<span>{ strconv.Itoa(len(p.Items)) }</span>
 	</header>
 	if len(p.Items) == 0 {
@@ -115,15 +124,19 @@ templ InboxListView(p InboxProps) {
 	} else {
 		<div class="mail-list">
 			for _, item := range p.Items {
-				@InboxRow(item, p.View)
+				@InboxRow(item, p.View, p.ArchiveFilter)
 			}
 		</div>
 	}
 }
 
-templ InboxRow(item InboxItem, view string) {
+templ archiveFilterTab(view, active, value, label string) {
+	<a href={ templ.SafeURL(archiveFilterHref(view, value)) } class={ "mail-filter-tab", templ.KV("active", active == value) }>{ label }</a>
+}
+
+templ InboxRow(item InboxItem, view, filter string) {
 	<div class={ "gm-row", templ.KV("selected", false), templ.KV("archived", item.Archived), templ.KV("done", item.Done) } data-kind={ item.Kind } data-id={ strconv.FormatInt(item.ID, 10) }>
-		@rowPostButton(itemActionURL(item, "star"), view, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
+		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
 		<a class="gm-row-link" href={ templ.SafeURL(item.Href) }>
 			<span class="gm-row-from">
 				<span class={ "gm-kind-dot", "gm-kind-" + item.Kind }></span>
@@ -131,6 +144,9 @@ templ InboxRow(item InboxItem, view string) {
 			</span>
 			<span class="gm-row-main">
 				<span class="gm-row-subject">{ item.Title }</span>
+				if item.Archived {
+					<span class="gm-row-badge">Archived</span>
+				}
 				if item.Snippet != "" {
 					<span class="gm-row-snippet"> - { item.Snippet }</span>
 				}
@@ -139,9 +155,14 @@ templ InboxRow(item InboxItem, view string) {
 		<span class="gm-row-date">{ item.When }</span>
 		<div class="gm-row-actions gm-row-actions-right">
 			if item.Kind == "task" {
-				@rowPostButton(itemActionURL(item, "done"), view, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
+				@rowPostButton(itemActionURL(item, "done"), view, filter, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
 			}
-			@rowPostButton(itemActionURL(item, "archive"), view, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
+			if item.Archived {
+				@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), unarchiveIcon(), "gm-row-action", "Unarchive")
+				@rowTrashButton(itemActionURL(item, "trash"), view, filter, trashActionLabel(item), "gm-row-action")
+			} else {
+				@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
+			}
 		</div>
 	</div>
 }
@@ -165,7 +186,12 @@ templ InboxTaskReader(d InboxTaskDetail) {
 		</div>
 		<div class="mail-reader-actions">
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "done"), doneActionLabel(taskInboxItem(d.Task)), doneIcon(d.Task.Completed))
-			@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
+			if d.Task.Archived {
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), unarchiveIcon())
+				@readerTrashButton(taskInboxActionURL(d.Task.ID, "trash"), trashActionLabel(taskInboxItem(d.Task)))
+			} else {
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
+			}
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), starIcon(d.Task.Starred))
 		</div>
 	</header>
@@ -223,7 +249,12 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			<p>{ d.Agent }</p>
 		</div>
 		<div class="mail-reader-actions">
-			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), archiveIcon())
+			if d.Archived {
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), unarchiveIcon())
+				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))
+			} else {
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), archiveIcon())
+			}
 			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), starIcon(d.Starred))
 		</div>
 	</header>
@@ -314,20 +345,61 @@ templ readerPostButton(action, label string, icon templ.Component) {
 	</form>
 }
 
-templ rowPostButton(action, view, label string, icon templ.Component, class string, fallback string) {
+templ readerTrashButton(action, label string) {
+	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
+		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
+		<button type="button" class="gm-icon-btn danger mail-trash-trigger" title={ label } aria-label={ label } data-trash-trigger>
+			@trashIcon()
+		</button>
+		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
+			<button type="submit" class="gm-icon-btn danger" title="Delete permanently" aria-label="Delete permanently" data-trash-submit>
+				@trashIcon()
+			</button>
+			<button type="button" class="gm-icon-btn" title="Cancel" aria-label="Cancel" data-trash-cancel>
+				@xIcon()
+			</button>
+		</span>
+	</form>
+}
+
+templ rowPostButton(action, view, filter, label string, icon templ.Component, class string, fallback string) {
 	<form method="post" action={ action }>
-		<input type="hidden" name="back" value={ "/" + view }/>
+		<input type="hidden" name="back" value={ archiveFilterHref(view, filter) }/>
 		<button type="submit" class={ class } title={ label } aria-label={ fallback } onclick="event.stopPropagation()">
 			@icon
 		</button>
 	</form>
 }
 
+templ rowTrashButton(action, view, filter, label, class string) {
+	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
+		<input type="hidden" name="back" value={ archiveFilterHref(view, filter) }/>
+		<button type="button" class={ class + " danger mail-trash-trigger" } title={ label } aria-label={ label } onclick="event.stopPropagation()" data-trash-trigger>
+			@trashIcon()
+		</button>
+		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
+			<button type="submit" class={ class + " danger" } title="Delete permanently" aria-label="Delete permanently" onclick="event.stopPropagation()" data-trash-submit>
+				@trashIcon()
+			</button>
+			<button type="button" class={ class } title="Cancel" aria-label="Cancel" onclick="event.stopPropagation()" data-trash-cancel>
+				@xIcon()
+			</button>
+		</span>
+	</form>
+}
+
 func archiveActionLabel(item InboxItem) string {
 	if item.Archived {
-		return "Move to inbox"
+		return "Unarchive"
 	}
 	return "Archive"
+}
+
+func archiveFilterHref(view, filter string) string {
+	if filter == "all" {
+		return "/" + view
+	}
+	return "/" + view + "?archived=" + filter
 }
 
 func agentLabel(agent string) string {
@@ -491,8 +563,27 @@ func sendIcon() templ.Component {
 	return lucideIcon(`<path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path>`)
 }
 
+func showArchiveFilters(view string) bool {
+	return view == "chats" || view == "tasks" || view == "workflows"
+}
+
 func taskIcon() templ.Component {
 	return lucideIcon(`<rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path>`)
+}
+
+func trashActionLabel(item InboxItem) string {
+	switch item.Kind {
+	case "task":
+		return "Delete task permanently"
+	case "workflow":
+		return "Delete workflow permanently"
+	default:
+		return "Delete chat permanently"
+	}
+}
+
+func trashIcon() templ.Component {
+	return lucideIcon(`<path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`)
 }
 
 func taskInboxActionURL(id int64, action string) string {
@@ -528,6 +619,14 @@ func lucideIcon(body string) templ.Component {
 	return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + body + `</svg>`)
 }
 
+func unarchiveIcon() templ.Component {
+	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="m9 15 3-3 3 3"></path><path d="M12 12v6"></path>`)
+}
+
 func workflowIcon() templ.Component {
 	return lucideIcon(`<circle cx="12" cy="4.5" r="2.5"></circle><circle cx="4.5" cy="12" r="2.5"></circle><circle cx="19.5" cy="12" r="2.5"></circle><circle cx="12" cy="19.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><path d="M7 12h10"></path><path d="m13.8 17.7 3.9-3.9"></path>`)
+}
+
+func xIcon() templ.Component {
+	return lucideIcon(`<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>`)
 }

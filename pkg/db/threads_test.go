@@ -72,6 +72,7 @@ func TestThreadErrors(t *testing.T) {
 		act  func(d *DB) error
 		name string
 	}{
+		{act: func(d *DB) error { return d.DeleteThread(404) }, name: "delete missing"},
 		{act: func(d *DB) error { _, err := d.GetThread(404); return err }, name: "get missing"},
 		{act: func(d *DB) error { return d.SetThreadAnchor(404, "{}") }, name: "anchor missing"},
 		{act: func(d *DB) error { return d.SetThreadState(404, ThreadStateResolved) }, name: "state missing"},
@@ -85,6 +86,35 @@ func TestThreadErrors(t *testing.T) {
 			a.True(IsThreadNotFound(tc.act(d)))
 		})
 	}
+}
+
+func TestDeleteThreadDeletesMessagesAndEvents(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	d := newTestDB(t)
+
+	thread, err := d.AddThread(ThreadKindChat, "chat", "")
+	r.NoError(err)
+	msg, err := d.AddMessage(NewMessage{
+		Author:   "noah",
+		Body:     "hello",
+		Role:     MessageRoleUser,
+		ThreadID: thread.ID,
+	})
+	r.NoError(err)
+	_, err = d.AddMessageEvent(msg.ID, "delta", `{"text":"hello"}`)
+	r.NoError(err)
+
+	r.NoError(d.DeleteThread(thread.ID))
+
+	_, err = d.GetThread(thread.ID)
+	a.True(IsThreadNotFound(err))
+	_, err = d.GetMessage(msg.ID)
+	a.True(IsMessageNotFound(err))
+	events, err := d.ListMessageEvents(msg.ID, 0)
+	r.NoError(err)
+	a.Empty(events)
 }
 
 func TestMessageLifecycle(t *testing.T) {

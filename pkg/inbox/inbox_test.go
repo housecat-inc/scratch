@@ -3,6 +3,7 @@ package inbox
 import (
 	"testing"
 
+	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -75,6 +76,48 @@ func TestChatModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
 			a.Equal(tt.want, chatModel(tt.agent, tt.model))
+		})
+	}
+}
+
+func TestArchiveFilter(t *testing.T) {
+	tests := []struct {
+		filter string
+		name   string
+		view   string
+		want   string
+	}{
+		{filter: "active", name: "active group filter", view: "chats", want: "active"},
+		{filter: "archived", name: "archived group filter", view: "tasks", want: "archived"},
+		{filter: "other", name: "unknown group filter defaults all", view: "workflows", want: "all"},
+		{filter: "archived", name: "inbox ignores filter", view: "inbox", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tt.want, archiveFilter(tt.view, tt.filter))
+		})
+	}
+}
+
+func TestIncludeArchiveFilter(t *testing.T) {
+	tests := []struct {
+		archived bool
+		filter   string
+		name     string
+		want     bool
+	}{
+		{filter: "all", name: "all includes active", want: true},
+		{archived: true, filter: "all", name: "all includes archived", want: true},
+		{filter: "active", name: "active includes active", want: true},
+		{archived: true, filter: "active", name: "active excludes archived"},
+		{filter: "archived", name: "archived excludes active"},
+		{archived: true, filter: "archived", name: "archived includes archived", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tt.want, includeArchiveFilter(tt.filter, ui.InboxItem{Archived: tt.archived}))
 		})
 	}
 }

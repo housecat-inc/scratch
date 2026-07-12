@@ -3,6 +3,20 @@ INSERT INTO threads (anchor_json, created_at, kind, state, title, updated_at)
 VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
 
+-- name: DeleteThread :execrows
+DELETE FROM threads WHERE id = ?;
+
+-- name: DeleteThreadAttachments :exec
+DELETE FROM attachments
+WHERE message_id IN (SELECT id FROM messages WHERE thread_id = ?);
+
+-- name: DeleteThreadMessageEvents :exec
+DELETE FROM message_events
+WHERE message_id IN (SELECT id FROM messages WHERE thread_id = ?);
+
+-- name: DeleteThreadMessages :exec
+DELETE FROM messages WHERE thread_id = ?;
+
 -- name: GetThread :one
 SELECT * FROM threads WHERE id = ?;
 

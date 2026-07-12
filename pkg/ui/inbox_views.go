@@ -30,13 +30,14 @@ type InboxItem struct {
 }
 
 type InboxProps struct {
-	Agents   []string
-	Counts   InboxCounts
-	Items    []InboxItem
-	Selected InboxSelection
-	Task     *InboxTaskDetail
-	Thread   *InboxThreadDetail
-	View     string
+	ArchiveFilter string
+	Agents        []string
+	Counts        InboxCounts
+	Items         []InboxItem
+	Selected      InboxSelection
+	Task          *InboxTaskDetail
+	Thread        *InboxThreadDetail
+	View          string
 }
 
 type InboxSelection struct {
