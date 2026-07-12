@@ -413,14 +413,7 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 	}
 	messages := make([]ui.ChatMessageProps, 0, len(view.Messages))
 	for _, m := range view.Messages {
-		messages = append(messages, ui.ChatMessageProps{
-			Author: m.Author,
-			Body:   m.Body,
-			ID:     m.ID,
-			Role:   m.Role,
-			Status: m.Status,
-			Tools:  view.ToolCalls[m.ID],
-		})
+		messages = append(messages, chat.MessageProps(view, m))
 	}
 	agent := s.chat.AgentName(view.Thread)
 	return ui.InboxThreadDetail{

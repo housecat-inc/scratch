@@ -14,8 +14,12 @@ const (
 	EventElicitation       = "elicitation"
 	EventElicitationResult = "elicitation_result"
 	EventError             = "error"
+	EventPlan              = "plan"
 	EventResult            = "result"
+	EventThinking          = "thinking"
 	EventToolCall          = "tool_call"
+	EventToolCallUpdate    = "tool_call_update"
+	EventUsage             = "usage"
 )
 
 type Event struct {
@@ -38,6 +42,30 @@ type Agent interface {
 func DeltaEvent(text string) Event {
 	data, _ := json.Marshal(map[string]string{"text": text})
 	return Event{Data: string(data), Type: EventDelta}
+}
+
+func thinkingEvent(text string) Event {
+	data, _ := json.Marshal(map[string]string{"text": text})
+	return Event{Data: string(data), Type: EventThinking}
+}
+
+func clip(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "…"
+}
+
+func toolTitle(name string, input json.RawMessage) string {
+	var params map[string]any
+	_ = json.Unmarshal(input, &params)
+	for _, key := range []string{"command", "file_path", "path", "pattern", "query", "url", "description", "prompt"} {
+		if value, ok := params[key].(string); ok && value != "" {
+			return clip(name+" "+value, 120)
+		}
+	}
+	return name
 }
 
 func ResolveAgent(name string) (Agent, error) {

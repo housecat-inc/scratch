@@ -2,6 +2,7 @@ package chat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/cockroachdb/errors"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/housecat-inc/scratch/pkg/db"
@@ -100,7 +102,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Content-Type", "text/event-stream")
 
-	updates, cancel := s.svc.Subscribe(id)
+	updates, take, cancel := s.svc.Subscribe(id)
 	defer cancel()
 
 	ping := time.NewTicker(ssePingInterval)
@@ -118,12 +120,39 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, ": ping\n\n")
 			flusher.Flush()
 		case <-updates:
-			if err := s.writeMessagesEvent(w, r, id); err != nil {
+			if err := s.writeUpdates(w, r, id, take()); err != nil {
 				return
 			}
 			flusher.Flush()
 		}
 	}
+}
+
+func (s *Server) writeUpdates(w http.ResponseWriter, r *http.Request, threadID int64, messageIDs []int64) error {
+	view, err := s.svc.View(threadID)
+	if err != nil {
+		return err
+	}
+	props := s.toThreadProps(view)
+	byID := map[int64]ui.ChatMessageProps{}
+	for _, m := range props.Messages {
+		byID[m.ID] = m
+	}
+	for _, messageID := range messageIDs {
+		if messageID == StructuralUpdate {
+			return writeSSE(w, r.Context(), "message", ui.ChatMessages(props))
+		}
+		if _, ok := byID[messageID]; !ok {
+			return writeSSE(w, r.Context(), "message", ui.ChatMessages(props))
+		}
+	}
+	for _, messageID := range messageIDs {
+		event := "message-" + strconv.FormatInt(messageID, 10)
+		if err := writeSSE(w, r.Context(), event, ui.ChatMessage(byID[messageID])); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
@@ -165,16 +194,20 @@ func (s *Server) writeMessagesEvent(w http.ResponseWriter, r *http.Request, thre
 	if err != nil {
 		return err
 	}
+	return writeSSE(w, r.Context(), "message", ui.ChatMessages(s.toThreadProps(view)))
+}
+
+func writeSSE(w http.ResponseWriter, ctx context.Context, event string, component templ.Component) error {
 	var buf bytes.Buffer
-	if err := ui.ChatMessages(s.toThreadProps(view)).Render(r.Context(), &buf); err != nil {
+	if err := component.Render(ctx, &buf); err != nil {
 		return err
 	}
-	fmt.Fprint(w, "event: message\n")
+	fmt.Fprintf(w, "event: %s\n", event)
 	html := strings.ReplaceAll(buf.String(), "\r", "")
 	for line := range strings.SplitSeq(html, "\n") {
 		fmt.Fprintf(w, "data: %s\n", line)
 	}
-	_, err = fmt.Fprint(w, "\n")
+	_, err := fmt.Fprint(w, "\n")
 	return err
 }
 
@@ -198,19 +231,46 @@ func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
 		props.Title = "New chat"
 	}
 	for _, m := range v.Messages {
-		msg := ui.ChatMessageProps{
-			Author: m.Author,
-			Body:   m.Body,
-			ID:     m.ID,
-			Role:   m.Role,
-			Status: m.Status,
-			Tools:  v.ToolCalls[m.ID],
+		props.Messages = append(props.Messages, MessageProps(v, m))
+	}
+	return props
+}
+
+func MessageProps(v ThreadView, m db.Message) ui.ChatMessageProps {
+	msg := ui.ChatMessageProps{
+		Author: m.Author,
+		Body:   m.Body,
+		ID:     m.ID,
+		Parts:  toPartProps(v.Parts[m.ID]),
+		Role:   m.Role,
+		Status: m.Status,
+	}
+	if prompt, ok := v.Forms[m.ID]; ok {
+		form := toFormProps(v.Thread.ID, m.ID, prompt)
+		msg.Form = &form
+	}
+	return msg
+}
+
+func toPartProps(parts []MessagePart) []ui.ChatPartProps {
+	props := make([]ui.ChatPartProps, 0, len(parts))
+	for _, part := range parts {
+		p := ui.ChatPartProps{Kind: part.Kind, Text: strings.TrimSpace(part.Text)}
+		if (part.Kind == PartText || part.Kind == PartThinking) && p.Text == "" {
+			continue
 		}
-		if prompt, ok := v.Forms[m.ID]; ok {
-			form := toFormProps(v.Thread.ID, m.ID, prompt)
-			msg.Form = &form
+		for _, entry := range part.Plan {
+			p.Plan = append(p.Plan, ui.ChatPlanEntryProps{Content: entry.Content, Status: entry.Status})
 		}
-		props.Messages = append(props.Messages, msg)
+		if part.Tool != nil {
+			p.Tool = &ui.ChatToolCallProps{
+				Detail: part.Tool.Detail,
+				ID:     part.Tool.ID,
+				Status: part.Tool.Status,
+				Title:  part.Tool.Title,
+			}
+		}
+		props = append(props, p)
 	}
 	return props
 }

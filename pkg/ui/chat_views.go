@@ -32,9 +32,28 @@ type ChatMessageProps struct {
 	Body   string
 	Form   *ChatFormProps
 	ID     int64
+	Parts  []ChatPartProps
 	Role   string
 	Status string
-	Tools  []string
+}
+
+type ChatPartProps struct {
+	Kind string
+	Plan []ChatPlanEntryProps
+	Text string
+	Tool *ChatToolCallProps
+}
+
+type ChatPlanEntryProps struct {
+	Content string
+	Status  string
+}
+
+type ChatToolCallProps struct {
+	Detail string
+	ID     string
+	Status string
+	Title  string
 }
 
 type ChatThreadProps struct {
@@ -50,9 +69,22 @@ func ChatCSS() templ.Component {
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
 
-func toolSummary(tools []string) string {
-	if len(tools) == 1 {
-		return "1 tool call"
+func toolStatusIcon(status string) string {
+	switch status {
+	case "completed":
+		return "✓"
+	case "failed":
+		return "✕"
 	}
-	return strconv.Itoa(len(tools)) + " tool calls"
+	return ""
+}
+
+func planStatusIcon(status string) string {
+	switch status {
+	case "completed":
+		return "☑"
+	case "in_progress":
+		return "◪"
+	}
+	return "☐"
 }

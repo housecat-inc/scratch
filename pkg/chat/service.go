@@ -41,9 +41,9 @@ type Resolver interface {
 type ThreadView struct {
 	Forms     map[int64]elicit.Prompt
 	Messages  []db.Message
+	Parts     map[int64][]MessagePart
 	Streaming bool
 	Thread    db.Thread
-	ToolCalls map[int64][]string
 }
 
 type Service struct {
@@ -130,7 +130,7 @@ func (s *Service) DeleteThread(threadID int64) error {
 }
 
 func (s *Service) Publish(threadID int64) {
-	s.broker.Publish(threadID)
+	s.broker.Publish(threadID, StructuralUpdate)
 }
 
 func (s *Service) Recover() error {
@@ -223,7 +223,7 @@ func (s *Service) ResolveElicitation(messageID int64, elicitationID, action stri
 	if err := s.resolver.Deliver(prompt.WorkflowID, prompt.Topic, prompt.ElicitationID, reply); err != nil {
 		return errors.Wrap(err, "deliver reply")
 	}
-	s.broker.Publish(msg.ThreadID)
+	s.broker.Publish(msg.ThreadID, messageID)
 	return nil
 }
 
@@ -272,7 +272,7 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	} else if err := s.store.TouchThread(threadID); err != nil {
 		return db.Message{}, err
 	}
-	s.broker.Publish(threadID)
+	s.broker.Publish(threadID, StructuralUpdate)
 
 	turn := Turn{Anchor: thread.Anchor, MessageID: asst.ID, Prompt: prompt, ThreadID: threadID}
 	s.wg.Add(1)
@@ -297,7 +297,7 @@ func (s *Service) SetResolver(r Resolver) {
 	s.resolver = r
 }
 
-func (s *Service) Subscribe(threadID int64) (<-chan struct{}, func()) {
+func (s *Service) Subscribe(threadID int64) (<-chan struct{}, func() []int64, func()) {
 	return s.broker.Subscribe(threadID)
 }
 
@@ -323,10 +323,10 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 		return ThreadView{}, err
 	}
 	view := ThreadView{
-		Forms:     map[int64]elicit.Prompt{},
-		Messages:  msgs,
-		Thread:    thread,
-		ToolCalls: map[int64][]string{},
+		Forms:    map[int64]elicit.Prompt{},
+		Messages: msgs,
+		Parts:    map[int64][]MessagePart{},
+		Thread:   thread,
 	}
 	byMessage := map[int64][]db.MessageEvent{}
 	for _, ev := range events {
@@ -345,7 +345,11 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 }
 
 func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
-	tools := []string{}
+	if parts := foldParts(events, m.Status == db.MessageStatusStreaming); len(parts) > 0 {
+		view.Parts[m.ID] = parts
+	} else if m.Body != "" {
+		view.Parts[m.ID] = []MessagePart{{Kind: PartText, Text: m.Body}}
+	}
 	prompts := []elicit.Prompt{}
 	resolved := map[string]bool{}
 	for _, ev := range events {
@@ -360,17 +364,7 @@ func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
 			if err := json.Unmarshal([]byte(ev.Data), &r); err == nil {
 				resolved[r.ElicitationID] = true
 			}
-		case EventToolCall:
-			var call struct {
-				Name string `json:"name"`
-			}
-			if err := json.Unmarshal([]byte(ev.Data), &call); err == nil && call.Name != "" {
-				tools = append(tools, call.Name)
-			}
 		}
-	}
-	if len(tools) > 0 {
-		view.ToolCalls[m.ID] = tools
 	}
 	if m.Status != db.MessageStatusStreaming {
 		return
@@ -397,7 +391,7 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 			}
 		}
 	}
-	s.broker.Publish(threadID)
+	s.broker.Publish(threadID, messageID)
 }
 
 func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {
@@ -439,7 +433,7 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	if err := s.store.TouchThread(thread.ID); err != nil {
 		s.log.Error("chat.touch", "error", err.Error())
 	}
-	s.broker.Publish(thread.ID)
+	s.broker.Publish(thread.ID, turn.MessageID)
 }
 
 type elicitationResult struct {

@@ -5,22 +5,25 @@ templ ChatMessages(p ChatThreadProps) {
 		<p class="chat-empty">Say something to get started</p>
 	}
 	for _, m := range p.Messages {
-		@chatMessage(m)
+		@ChatMessage(m)
 	}
 }
 
-templ chatMessage(m ChatMessageProps) {
-	<div id={ "message-" + itoa64(m.ID) } class={ "chat-message", "role-" + m.Role, "status-" + m.Status }>
+templ ChatMessage(m ChatMessageProps) {
+	<div
+		id={ "message-" + itoa64(m.ID) }
+		class={ "chat-message", "role-" + m.Role, "status-" + m.Status }
+		sse-swap={ "message-" + itoa64(m.ID) }
+		hx-swap="outerHTML"
+	>
 		<div class="chat-author">{ m.Author }</div>
-		if len(m.Tools) > 0 {
-			<details class="chat-tools">
-				<summary>{ toolSummary(m.Tools) }</summary>
-				for _, tool := range m.Tools {
-					<span class="chat-tool">{ tool }</span>
-				}
-			</details>
+		if m.Role == "assistant" && len(m.Parts) > 0 {
+			for i, part := range m.Parts {
+				@chatPart(m, part, i == len(m.Parts)-1)
+			}
+		} else {
+			<div class="chat-body">{ m.Body }</div>
 		}
-		<div class="chat-body">{ m.Body }</div>
 		if m.Form != nil {
 			@chatForm(*m.Form)
 		}
@@ -28,6 +31,58 @@ templ chatMessage(m ChatMessageProps) {
 			<span class="chat-cursor"></span>
 		}
 	</div>
+}
+
+templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
+	switch part.Kind {
+		case "text":
+			<div class="chat-body">{ part.Text }</div>
+		case "thinking":
+			<details
+				class="chat-thinking"
+				data-key={ "m" + itoa64(m.ID) + "-thinking" }
+				open?={ last && m.Status == "streaming" }
+			>
+				<summary>
+					if last && m.Status == "streaming" {
+						<span class="chat-shimmer">Thinking</span>
+					} else {
+						Thought for a moment
+					}
+				</summary>
+				<div class="chat-thinking-body">{ part.Text }</div>
+			</details>
+		case "tool":
+			@chatToolCall(m, *part.Tool)
+		case "plan":
+			<ul class="chat-plan">
+				for _, entry := range part.Plan {
+					<li class={ "chat-plan-entry", "plan-" + entry.Status }>
+						<span class="chat-plan-icon">{ planStatusIcon(entry.Status) }</span>
+						{ entry.Content }
+					</li>
+				}
+			</ul>
+	}
+}
+
+templ chatToolCall(m ChatMessageProps, tool ChatToolCallProps) {
+	<details
+		class={ "chat-tool-call", "tool-" + tool.Status }
+		data-key={ "m" + itoa64(m.ID) + "-tool-" + tool.ID }
+	>
+		<summary>
+			if tool.Status == "in_progress" || tool.Status == "pending" {
+				<span class="chat-spinner"></span>
+			} else {
+				<span class={ "chat-tool-icon", "tool-icon-" + tool.Status }>{ toolStatusIcon(tool.Status) }</span>
+			}
+			<span class="chat-tool-title">{ tool.Title }</span>
+		</summary>
+		if tool.Detail != "" {
+			<pre class="chat-tool-detail">{ tool.Detail }</pre>
+		}
+	</details>
 }
 
 templ chatForm(f ChatFormProps) {
