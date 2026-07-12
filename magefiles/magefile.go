@@ -275,7 +275,7 @@ func processInfo(pid int) (int, string, error) {
 }
 
 func Generate() error {
-	if err := sh.RunV("go", "generate", "./pkg/db/...", "./pkg/ui/..."); err != nil {
+	if err := sh.RunV("go", "generate", "./pkg/db/...", "./pkg/ui/...", "./uikit/..."); err != nil {
 		return err
 	}
 	return sh.RunV("go", "generate", "./pkg/api/...")

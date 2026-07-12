@@ -17,10 +17,10 @@ import (
 )
 
 type fakeLogin struct {
-	closed     bool
-	submitErr  error
-	submitted  string
-	url        string
+	closed    bool
+	submitErr error
+	submitted string
+	url       string
 }
 
 func (f *fakeLogin) Close() error { f.closed = true; return nil }
@@ -80,7 +80,7 @@ func (f *fakeDeps) deps() Deps {
 			f.installed = true
 			return nil
 		},
-		Installed: func() bool { return f.installed },
+		Installed:    func() bool { return f.installed },
 		ListSessions: func() []*claudecode.Session { return f.sessions },
 		ListSubdirs: func(dir string) ([]string, error) {
 			if f.listSubdirs != nil {
@@ -174,8 +174,8 @@ func TestSetupPage(t *testing.T) {
 			mustMiss: []string{`hx-post="/login"`},
 		},
 		{
-			name: "all done still shows update button",
-			fake: fakeDeps{installed: true, configured: true, authenticated: true},
+			name:     "all done still shows update button",
+			fake:     fakeDeps{installed: true, configured: true, authenticated: true},
 			mustHave: []string{">Update<"},
 			mustMiss: []string{`hx-post="/login"`, `hx-post="/configure"`},
 		},
@@ -227,14 +227,14 @@ func TestTopNav(t *testing.T) {
 			s.Handler().ServeHTTP(rec, req)
 
 			body := rec.Body.String()
-			a.Contains(body, `>Sessions</a>`)
-			a.Contains(body, `>Code</a>`)
-			a.Contains(body, `>Setup</a>`)
+			a.Contains(body, `>Sessions</span>`)
+			a.Contains(body, `>Code review</span>`)
+			a.Contains(body, `>Setup</span>`)
 			a.Contains(body, `href="/code/"`)
 
 			activeNeedle := map[string]string{
-				"sessions": `href="/" class="flex-1 text-center py-3 text-sm font-medium text-slate-900`,
-				"setup":    `href="/setup" class="flex-1 text-center py-3 text-sm font-medium text-slate-900`,
+				"sessions": `href="/sessions" class="gm-label active"`,
+				"setup":    `href="/setup" class="gm-label active"`,
 			}[tc.active]
 			a.Contains(body, activeNeedle)
 		})
@@ -625,8 +625,8 @@ func TestSessionPicker(t *testing.T) {
 			},
 		},
 		{
-			name: "empty dir says no subdirectories",
-			dir:  "/tmp",
+			name:     "empty dir says no subdirectories",
+			dir:      "/tmp",
 			mustHave: []string{"No subdirectories"},
 		},
 	}

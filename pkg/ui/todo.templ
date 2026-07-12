@@ -1,0 +1,118 @@
+package ui
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/uikit"
+)
+
+templ TodoPage(p TodoProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Todos · scratch</title>
+			@InboxCSS()
+		</head>
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: TodoActions(),
+				AppName: "todos",
+				BrandHref: "/",
+				MainClass: "mail-tool-main",
+				Nav: todoNavItems(p),
+			}) {
+				<header class="mail-mainbar">
+					<div class="mail-mainbar-title">
+						<h1>Todos</h1>
+					</div>
+					<span>{ strconv.Itoa(len(p.Tasks)) }</span>
+				</header>
+				if len(p.Tasks) == 0 {
+					<div class="mail-empty">Nothing here.</div>
+				} else {
+					<div class="mail-list">
+						for _, task := range p.Tasks {
+							@TodoRow(task.ID, task.Title, task.Completed)
+						}
+					</div>
+				}
+				if p.Detail != nil {
+					@TodoReader(*p.Detail)
+				}
+			}
+		</body>
+	</html>
+}
+
+templ TodoActions() {
+	<form class="todo-create-form" method="post" action="/tasks">
+		<input class="todo-new-input" name="title" placeholder="New task" autocomplete="off" required/>
+		<button class="mail-create-btn" type="submit">
+			@uikit.Icon("task")
+			<span>Add</span>
+		</button>
+	</form>
+}
+
+templ TodoReader(d TodoTaskDetail) {
+	<header class="mail-reader-head todo-reader-head">
+		<div class="mail-reader-title">
+			<h1>{ d.Task.Title }</h1>
+			<p>
+				if d.Task.Completed {
+					Done
+				} else {
+					Active
+				}
+			</p>
+		</div>
+		<div class="mail-reader-actions">
+			<form method="post" action={ "/tasks/" + strconv.FormatInt(d.Task.ID, 10) + "/done" }>
+				<button type="submit" class="gm-icon-btn" aria-label="Toggle done">
+					@doneIcon(d.Task.Completed)
+				</button>
+			</form>
+			<form method="post" action={ "/tasks/" + strconv.FormatInt(d.Task.ID, 10) + "/delete" }>
+				<button type="submit" class="gm-icon-btn danger" aria-label="Delete">
+					@trashIcon()
+				</button>
+			</form>
+		</div>
+	</header>
+	<div class="mail-reader-body">
+		<form class="mail-card mail-task-editor" method="post" action={ "/tasks/" + strconv.FormatInt(d.Task.ID, 10) }>
+			<label>
+				<span>Title</span>
+				<input name="title" value={ d.Task.Title } autocomplete="off"/>
+			</label>
+			<label>
+				<span>Description</span>
+				<textarea name="description" rows="6" placeholder="Add task details...">{ d.Task.Description }</textarea>
+			</label>
+			<button class="mail-save-btn" type="submit">Save</button>
+		</form>
+	</div>
+}
+
+templ TodoRow(id int64, title string, done bool) {
+	<div class={ "gm-row", templ.KV("done", done) } data-id={ strconv.FormatInt(id, 10) }>
+		<form method="post" action={ "/tasks/" + strconv.FormatInt(id, 10) + "/done" }>
+			<button type="submit" class="gm-row-action" aria-label="Toggle done">
+				@doneIcon(done)
+			</button>
+		</form>
+		<a class="gm-row-link" href={ templ.SafeURL("/tasks/" + strconv.FormatInt(id, 10)) }>
+			<span class="gm-row-main">
+				<span class="gm-row-subject">{ title }</span>
+			</span>
+		</a>
+	</div>
+}
+
+func todoNavItems(p TodoProps) []uikit.NavItem {
+	return []uikit.NavItem{
+		{Active: true, Count: p.ActiveCount, Href: "/", Icon: "task", Label: "Tasks"},
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/housecat-inc/scratch/uikit"
 	"github.com/templui/templui/components/card"
 )
 
@@ -95,13 +96,36 @@ templ Layout(title, nav string) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@Head(title)
-		<body class="bg-background text-foreground min-h-screen">
-			@TopNav(nav)
-			<main class="max-w-2xl mx-auto px-4 py-4">
-				{ children... }
-			</main>
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				AppName: "scratch",
+				BrandHref: "/",
+				MainClass: "mail-tool-main",
+				Nav: toolNavItems(nav),
+			}) {
+				<div class="mail-tool-content">
+					<header class="mail-mainbar">
+						<div class="mail-mainbar-title">
+							<h1>{ title }</h1>
+						</div>
+					</header>
+					<div class="mail-tool-body">
+						{ children... }
+					</div>
+				</div>
+			}
 		</body>
 	</html>
+}
+
+func toolNavItems(active string) []uikit.NavItem {
+	return []uikit.NavItem{
+		{Active: active == "sessions", Href: "/sessions", Icon: "chat", Label: "Sessions"},
+		{Active: active == "setup", Href: "/setup", Icon: "settings", Label: "Setup"},
+		{Active: active == "code", Href: "/code/", Icon: "code", Label: "Code review"},
+		{Active: active == "files", Href: "/files/", Icon: "file", Label: "Files"},
+		{Group: "App", Href: "/", Icon: "inbox", Label: "Inbox"},
+	}
 }
 
 templ inboxNavLink(href, name, active, label string, count int) {

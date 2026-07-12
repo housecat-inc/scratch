@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 templ InboxPage(p InboxProps) {
@@ -13,7 +14,13 @@ templ InboxPage(p InboxProps) {
 	<html lang="en">
 		@InboxHead(inboxTitle(p))
 		<body>
-			@MailShell(p) {
+			@uikit.Shell(uikit.ShellProps{
+				Actions: InboxActions(p),
+				AppName: "scratch",
+				BrandHref: "/",
+				Footer: MailComposer(p),
+				Nav: inboxNavItems(p),
+			}) {
 				if p.Task != nil {
 					@InboxTaskReader(*p.Task)
 				} else if p.Thread != nil {
@@ -24,6 +31,12 @@ templ InboxPage(p InboxProps) {
 			}
 		</body>
 	</html>
+}
+
+templ InboxActions(p InboxProps) {
+	@createChatButton(p.Agents)
+	@createButton("task", "New task", taskIcon())
+	@createWorkflowButton()
 }
 
 templ InboxHead(title string) {
@@ -548,6 +561,20 @@ func inboxBackPath(kind string) string {
 		return "inbox/workflows"
 	}
 	return "inbox/chats"
+}
+
+func inboxNavItems(p InboxProps) []uikit.NavItem {
+	return []uikit.NavItem{
+		{Active: p.View == "inbox", Count: p.Counts.Inbox, Href: "/", Icon: "inbox", Label: "Inbox"},
+		{Active: p.View == "starred", Count: p.Counts.Starred, Href: "/starred", Icon: "star", Label: "Starred"},
+		{Group: "More", Active: p.View == "chats", Count: p.Counts.Chats, Href: "/inbox/chats", Icon: "chat", Label: "Chats"},
+		{Active: p.View == "tasks", Count: p.Counts.Tasks, Href: "/inbox/tasks", Icon: "task", Label: "Tasks"},
+		{Active: p.View == "workflows", Count: p.Counts.Workflows, Href: "/inbox/workflows", Icon: "play", Label: "Workflows"},
+		{Group: "Tools", Href: "/setup", Icon: "settings", Label: "Setup"},
+		{Href: "/sessions", Icon: "chat", Label: "Sessions"},
+		{Href: "/code/", Icon: "code", Label: "Code review"},
+		{Href: "/files/", Icon: "file", Label: "Files"},
+	}
 }
 
 func inboxViewHref(view string) string {

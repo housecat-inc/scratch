@@ -1,0 +1,54 @@
+package uikit
+
+//go:generate go tool templ generate
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/a-h/templ"
+)
+
+type NavItem struct {
+	Active bool
+	Count  int
+	Group  string
+	Href   string
+	Icon   string
+	Label  string
+}
+
+type ShellProps struct {
+	Actions   templ.Component
+	AppName   string
+	BrandHref string
+	Class     string
+	Footer    templ.Component
+	MainClass string
+	Nav       []NavItem
+}
+
+func countLabel(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strconv.Itoa(count)
+}
+
+func mainClass(extra string, footer templ.Component) string {
+	classes := []string{"mail-main"}
+	if footer == nil {
+		classes = append(classes, "mail-main-no-footer")
+	}
+	if extra != "" {
+		classes = append(classes, extra)
+	}
+	return strings.Join(classes, " ")
+}
+
+func shellClass(extra string) string {
+	if extra == "" {
+		return "mail-shell"
+	}
+	return "mail-shell " + extra
+}

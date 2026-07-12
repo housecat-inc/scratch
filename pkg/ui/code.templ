@@ -9,6 +9,7 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
+	"github.com/housecat-inc/scratch/uikit"
 	"github.com/templui/templui/components/badge"
 	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
@@ -162,12 +163,18 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@Head(title)
-		<body class="bg-background text-foreground min-h-screen">
-			@TopNav("code")
-			@CodeSubnav(subnav)
-			<main class="max-w-2xl mx-auto px-4 py-4">
-				{ children... }
-			</main>
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				AppName: "scratch",
+				BrandHref: "/",
+				MainClass: "mail-tool-main",
+				Nav: toolNavItems("code"),
+			}) {
+				@CodeSubnav(subnav)
+				<div class="mail-tool-body max-w-2xl mx-auto w-full px-4 py-4">
+					{ children... }
+				</div>
+			}
 		</body>
 	</html>
 }
@@ -176,29 +183,35 @@ templ DiffPage(p DiffProps) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@diffHead(p.Repo.Slug())
-		<body class="bg-background text-foreground min-h-screen">
-			@TopNav("code")
-			@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
-			<main class="max-w-2xl mx-auto px-3 py-3">
-				if p.Commit.SHA != "" {
-					<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits", p.Repo.Slug())) } class="block bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 active:bg-accent">
-						<div class="flex items-baseline justify-between gap-2">
-							<div class="font-medium truncate text-sm">{ p.Commit.Subject }</div>
-							<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(p.Commit.SHA) }</code>
-						</div>
-						<div class="text-muted-foreground text-xs mt-1 truncate">{ p.Commit.Author } · { p.Commit.Date.Format("2006-01-02 15:04") }</div>
-					</a>
-				}
-				if p.Error != "" {
-					<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
-				}
-				if len(p.Files) == 0 {
-					<p class="text-slate-500 text-sm">No changes.</p>
-				}
-				for _, f := range p.Files {
-					@FileBlock(f)
-				}
-			</main>
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				AppName: "scratch",
+				BrandHref: "/",
+				MainClass: "mail-tool-main",
+				Nav: toolNavItems("code"),
+			}) {
+				@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
+				<div class="mail-tool-body max-w-2xl mx-auto w-full px-3 py-3">
+					if p.Commit.SHA != "" {
+						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits", p.Repo.Slug())) } class="block bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 active:bg-accent">
+							<div class="flex items-baseline justify-between gap-2">
+								<div class="font-medium truncate text-sm">{ p.Commit.Subject }</div>
+								<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(p.Commit.SHA) }</code>
+							</div>
+							<div class="text-muted-foreground text-xs mt-1 truncate">{ p.Commit.Author } · { p.Commit.Date.Format("2006-01-02 15:04") }</div>
+						</a>
+					}
+					if p.Error != "" {
+						<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
+					}
+					if len(p.Files) == 0 {
+						<p class="text-slate-500 text-sm">No changes.</p>
+					}
+					for _, f := range p.Files {
+						@FileBlock(f)
+					}
+				</div>
+			}
 		</body>
 	</html>
 }

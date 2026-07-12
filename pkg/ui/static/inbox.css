@@ -596,6 +596,29 @@ textarea {
   min-width: 0;
 }
 
+.mail-main.mail-main-no-footer {
+  grid-row: 2 / 4;
+}
+
+.mail-tool-main {
+  overflow: auto;
+}
+
+.mail-tool-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.mail-tool-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
 .mail-mainbar,
 .mail-reader-head {
   align-items: center;
@@ -1040,6 +1063,34 @@ textarea {
   grid-row: 3;
   min-height: 68px;
   padding: 0.65rem 0.9rem;
+}
+
+.todo-create-form {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  min-width: min(28rem, 100%);
+}
+
+.todo-new-input {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 999px;
+  color: #111827;
+  height: 2.2rem;
+  min-width: 12rem;
+  outline: none;
+  padding: 0 0.85rem;
+  width: 100%;
+}
+
+.todo-new-input:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgb(148 163 184 / 0.2);
+}
+
+.todo-reader-head {
+  border-top: 1px solid #e5e7eb;
 }
 
 .mail-universal-compose {
