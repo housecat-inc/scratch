@@ -225,7 +225,7 @@ func webChatThreadLabel(id int64, want string) webStep {
 		h.R.Eventually(func() bool {
 			thread, err := h.Chat.Thread(id)
 			return err == nil && h.Chat.ThreadLabel(thread) == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -235,7 +235,7 @@ func webChatThreadCount(want int) webStep {
 		h.R.Eventually(func() bool {
 			threads, err := h.Chat.Threads()
 			return err == nil && len(threads) == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -266,7 +266,7 @@ func webElementEventuallyPresent(selector string) webStep {
 		h.R.Eventuallyf(func() bool {
 			_, err := h.Page.Element(selector)
 			return err == nil
-		}, 20*time.Second, 50*time.Millisecond, "%s should be present", selector)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s should be present", selector)
 	}
 }
 
@@ -302,7 +302,7 @@ func webTaskArchivedState(id int64, want bool) webStep {
 		h.R.Eventually(func() bool {
 			task, err := h.Tasks.Get(id)
 			return err == nil && task.Archived == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -312,7 +312,7 @@ func webTaskCompletedState(id int64, want bool) webStep {
 		h.R.Eventually(func() bool {
 			task, err := h.Tasks.Get(id)
 			return err == nil && task.Completed == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -322,7 +322,7 @@ func webTaskDeleted(id int64) webStep {
 		h.R.Eventually(func() bool {
 			_, err := h.Tasks.Get(id)
 			return db.IsTaskNotFound(err)
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -332,7 +332,7 @@ func webTaskPresent(id int64) webStep {
 		h.R.Eventually(func() bool {
 			_, err := h.Tasks.Get(id)
 			return err == nil
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -342,6 +342,6 @@ func webTaskDescription(id int64, want string) webStep {
 		h.R.Eventually(func() bool {
 			task, err := h.Tasks.Get(id)
 			return err == nil && task.Description == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }

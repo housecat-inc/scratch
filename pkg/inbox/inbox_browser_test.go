@@ -2,7 +2,6 @@ package inbox
 
 import (
 	"testing"
-	"time"
 
 	"github.com/housecat-inc/scratch/testkit"
 )
@@ -83,7 +82,7 @@ func ChatThreadCount(want int) Step {
 		h.R.Eventually(func() bool {
 			threads, err := h.Chat.Threads()
 			return err == nil && len(threads) == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -93,6 +92,6 @@ func TaskCount(want int) Step {
 		h.R.Eventually(func() bool {
 			tasks, err := h.Tasks.All()
 			return err == nil && len(tasks) == want
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }

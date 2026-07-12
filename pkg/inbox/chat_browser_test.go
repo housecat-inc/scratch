@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/housecat-inc/scratch/pkg/chat"
@@ -82,7 +81,7 @@ func InputValueContains(selector, expected string) Step {
 		h.R.Eventuallyf(func() bool {
 			el, err := h.Page.Element(selector)
 			return err == nil && strings.Contains(el.MustProperty("value").Str(), expected)
-		}, 20*time.Second, 50*time.Millisecond, "%s value should contain %q", selector, expected)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s value should contain %q", selector, expected)
 	}
 }
 
@@ -92,7 +91,7 @@ func PathEventuallyEquals(expected string) Step {
 		h.R.Eventuallyf(func() bool {
 			result, err := h.Page.Eval(`() => location.pathname`)
 			return err == nil && result.Value.Str() == expected
-		}, 20*time.Second, 50*time.Millisecond, "path should equal %q", expected)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "path should equal %q", expected)
 	}
 }
 
@@ -102,7 +101,7 @@ func ElementEventuallyPresent(selector string) Step {
 		h.R.Eventuallyf(func() bool {
 			_, err := h.Page.Element(selector)
 			return err == nil
-		}, 20*time.Second, 50*time.Millisecond, "%s should be present", selector)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s should be present", selector)
 	}
 }
 
@@ -131,7 +130,7 @@ func FloatingChatControlsFit() Step {
 				return !visible(minimize) && visible(close) && visible(expand) && visible(restore) && inside(close) && inside(expand) && inside(restore);
 			}`)
 			return err == nil && result.Value.Bool()
-		}, 5*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
@@ -145,7 +144,7 @@ func TextEventuallyContains(selector, expected string) Step {
 			}
 			text, err := el.Text()
 			return err == nil && strings.Contains(text, expected)
-		}, 20*time.Second, 50*time.Millisecond, "%s text should contain %q", selector, expected)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s text should contain %q", selector, expected)
 	}
 }
 
@@ -169,7 +168,7 @@ func WaitChatReady() Step {
 		h.R.Eventually(func() bool {
 			result, err := h.Page.Eval(`() => Boolean(window.htmx && document.querySelector("#chat-form"))`)
 			return err == nil && result.Value.Bool()
-		}, 20*time.Second, 50*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 

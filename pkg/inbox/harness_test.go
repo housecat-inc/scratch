@@ -116,6 +116,6 @@ func TaskDescription(id int64, want string) Step {
 		h.R.Eventually(func() bool {
 			task, err := h.Tasks.Get(id)
 			return err == nil && task.Description == want
-		}, 5*time.Second, 10*time.Millisecond)
+		}, testkit.BrowserWaitTimeout, 10*time.Millisecond)
 	}
 }
