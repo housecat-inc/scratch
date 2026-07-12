@@ -21,6 +21,14 @@ func SeedChatThread() Step {
 	}
 }
 
+func SeedChatThreadTitle(title string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		_, err := h.Chat.CreateThread("", title)
+		h.R.NoError(err)
+	}
+}
+
 func SeedAssistantMessage(body string, events ...[2]string) Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
@@ -85,6 +93,34 @@ func ElementEventuallyPresent(selector string) Step {
 			_, err := h.Page.Element(selector)
 			return err == nil
 		}, 20*time.Second, 50*time.Millisecond, "%s should be present", selector)
+	}
+}
+
+func FloatingChatControlsFit() Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			result, err := h.Page.Eval(`() => {
+				const panel = document.querySelector("#floating-chat");
+				const expand = document.querySelector("#floating-chat [data-chat-fullscreen]");
+				const close = document.querySelector("#floating-chat [data-chat-close]");
+				const minimize = document.querySelector("#floating-chat [data-chat-minimize]");
+				const access = document.querySelector("#floating-chat .chat-access-switch");
+				if (!panel || !expand || !close || !minimize || !access) return false;
+				const panelRect = panel.getBoundingClientRect();
+				const visible = (el) => {
+					const style = getComputedStyle(el);
+					const rect = el.getBoundingClientRect();
+					return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+				};
+				const inside = (el) => {
+					const rect = el.getBoundingClientRect();
+					return rect.left >= panelRect.left && rect.right <= panelRect.right && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom;
+				};
+				return !visible(access) && !visible(minimize) && visible(expand) && visible(close) && inside(expand) && inside(close);
+			}`)
+			return err == nil && result.Value.Bool()
+		}, 5*time.Second, 50*time.Millisecond)
 	}
 }
 
@@ -198,6 +234,23 @@ func TestChatBrowser(t *testing.T) {
 			Assert: []Step{
 				TextEventuallyContains("#floating-chat .role-user .chat-bubble", "from popout"),
 				TextEventuallyContains("#floating-chat .role-assistant", "You said: from popout"),
+			},
+		},
+		{
+			Name: "keeps minimized floating chat actions visible",
+			Path: "/inbox/chats/1",
+			Seed: []Step{
+				SeedChatThreadTitle(strings.Repeat("long thread title ", 20)),
+				SeedAssistantMessage(strings.Repeat("long thread content ", 120)),
+			},
+			Act: []Step{
+				WaitChatReady(),
+				Click(`[data-chat-popout-thread="1"]`),
+				ElementEventuallyPresent("#floating-chat"),
+				Click("#floating-chat [data-chat-minimize]"),
+			},
+			Assert: []Step{
+				FloatingChatControlsFit(),
 			},
 		},
 		{

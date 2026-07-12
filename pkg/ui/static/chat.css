@@ -611,7 +611,9 @@ body.chat-selecting * {
 }
 
 .floating-chat.minimized .floating-chat-body,
-.floating-chat.minimized .floating-chat-compose {
+.floating-chat.minimized .floating-chat-compose,
+.floating-chat.minimized .chat-access-switch,
+.floating-chat.minimized [data-chat-minimize] {
   display: none;
 }
 
@@ -658,6 +660,7 @@ body.chat-selecting * {
   display: flex;
   flex-shrink: 0;
   gap: 0.2rem;
+  max-width: max-content;
 }
 
 .floating-chat-actions .chat-access-switch {
@@ -673,6 +676,7 @@ body.chat-selecting * {
   color: #e2e8f0;
   cursor: pointer;
   display: inline-flex;
+  flex: 0 0 auto;
   height: 1.8rem;
   justify-content: center;
   padding: 0;
