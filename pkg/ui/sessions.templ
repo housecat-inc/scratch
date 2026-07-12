@@ -227,6 +227,10 @@ func configureDone(v SessionsProps) bool {
 	return v.Configured && !v.AgentsDirty && v.AgentsBehind <= 0
 }
 
+func sessionsReady(v SessionsProps) bool {
+	return v.Installed && v.Authenticated
+}
+
 func configureHint(v SessionsProps) string {
 	switch {
 	case !v.Authenticated:
@@ -248,7 +252,7 @@ templ SessionsCard(v SessionsProps) {
 			hx-swap-oob="true"
 		}
 	>
-		if !v.Configured {
+		if !sessionsReady(v) {
 			@AppCard("bg-amber-50 border-amber-200") {
 				@card.Content() {
 					<p class="text-sm text-foreground">Finish <a href="/setup" class="text-blue-700 underline">Setup</a> to start sessions.</p>

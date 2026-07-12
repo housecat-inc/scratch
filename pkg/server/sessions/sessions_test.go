@@ -539,14 +539,14 @@ func TestSessionsPageGate(t *testing.T) {
 		name     string
 	}{
 		{
-			name:     "unconfigured points back to setup",
-			fake:     fakeDeps{installed: true, authenticated: true},
+			name:     "not signed in points back to setup",
+			fake:     fakeDeps{installed: true},
 			mustHave: []string{`href="/setup"`, "Finish"},
 			mustMiss: []string{`hx-post="/sessions"`},
 		},
 		{
-			name: "configured shows session form with default dir",
-			fake: fakeDeps{installed: true, configured: true, authenticated: true},
+			name: "installed and signed in shows form without full configure",
+			fake: fakeDeps{installed: true, authenticated: true},
 			mustHave: []string{
 				`hx-post="/sessions"`,
 				`value="` + mustHome(t) + `"`,
@@ -554,7 +554,7 @@ func TestSessionsPageGate(t *testing.T) {
 				`name="prompt"`,
 				`hx-get="/sessions/picker?dir=` + mustHome(t) + `"`,
 			},
-			mustMiss: []string{`name="name"`},
+			mustMiss: []string{`name="name"`, "Finish"},
 		},
 	}
 
