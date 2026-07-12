@@ -292,11 +292,19 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 	if err != nil {
 		return ThreadView{}, err
 	}
+	events, err := s.store.ListThreadMessageEvents(threadID)
+	if err != nil {
+		return ThreadView{}, err
+	}
 	view := ThreadView{
 		Forms:     map[int64]elicit.Prompt{},
 		Messages:  msgs,
 		Thread:    thread,
 		ToolCalls: map[int64][]string{},
+	}
+	byMessage := map[int64][]db.MessageEvent{}
+	for _, ev := range events {
+		byMessage[ev.MessageID] = append(byMessage[ev.MessageID], ev)
 	}
 	for _, m := range msgs {
 		if m.Status == db.MessageStatusStreaming {
@@ -305,31 +313,26 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 		if m.Role != db.MessageRoleAssistant {
 			continue
 		}
-		if err := s.collectEvents(&view, m); err != nil {
-			return ThreadView{}, err
-		}
+		collectEvents(&view, m, byMessage[m.ID])
 	}
 	return view, nil
 }
 
-func (s *Service) collectEvents(view *ThreadView, m db.Message) error {
-	events, err := s.store.ListMessageEvents(m.ID, 0)
-	if err != nil {
-		return err
-	}
+func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
 	tools := []string{}
-	pending := map[string]elicit.Prompt{}
+	prompts := []elicit.Prompt{}
+	resolved := map[string]bool{}
 	for _, ev := range events {
 		switch ev.Type {
 		case EventElicitation:
 			var p elicit.Prompt
 			if err := json.Unmarshal([]byte(ev.Data), &p); err == nil {
-				pending[p.ElicitationID] = p
+				prompts = append(prompts, p)
 			}
 		case EventElicitationResult:
 			var r elicitationResult
 			if err := json.Unmarshal([]byte(ev.Data), &r); err == nil {
-				delete(pending, r.ElicitationID)
+				resolved[r.ElicitationID] = true
 			}
 		case EventToolCall:
 			var call struct {
@@ -343,12 +346,15 @@ func (s *Service) collectEvents(view *ThreadView, m db.Message) error {
 	if len(tools) > 0 {
 		view.ToolCalls[m.ID] = tools
 	}
-	if m.Status == db.MessageStatusStreaming {
-		for _, p := range pending {
+	if m.Status != db.MessageStatusStreaming {
+		return
+	}
+	for _, p := range prompts {
+		if !resolved[p.ElicitationID] {
 			view.Forms[m.ID] = p
+			return
 		}
 	}
-	return nil
 }
 
 func (s *Service) emit(threadID, messageID int64, ev Event) {

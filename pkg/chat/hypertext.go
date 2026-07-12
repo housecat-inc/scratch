@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -229,7 +228,8 @@ func (s *Server) writeMessagesEvent(w http.ResponseWriter, r *http.Request, thre
 		return err
 	}
 	fmt.Fprint(w, "event: message\n")
-	for line := range strings.SplitSeq(buf.String(), "\n") {
+	html := strings.ReplaceAll(buf.String(), "\r", "")
+	for line := range strings.SplitSeq(html, "\n") {
 		fmt.Fprintf(w, "data: %s\n", line)
 	}
 	_, err = fmt.Fprint(w, "\n")
@@ -284,18 +284,11 @@ func toFormProps(threadID, messageID int64, prompt elicit.Prompt) ui.ChatFormPro
 	if schema == nil {
 		return form
 	}
-	names := prompt.Order
-	if len(names) == 0 {
-		for name := range schema.Properties {
-			names = append(names, name)
-		}
-		slices.Sort(names)
-	}
 	required := map[string]bool{}
 	for _, name := range schema.Required {
 		required[name] = true
 	}
-	for _, name := range names {
+	for _, name := range prompt.Order {
 		prop, ok := schema.Properties[name]
 		if !ok {
 			continue

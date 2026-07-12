@@ -290,3 +290,23 @@ body {
   font-size: 0.72rem;
   padding: 0.15rem 0.45rem;
 }
+
+#chat-alert {
+  background: #d1495b;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-size: 0.85rem;
+  left: 50%;
+  opacity: 0;
+  padding: 0.5rem 1rem;
+  pointer-events: none;
+  position: fixed;
+  top: 0.75rem;
+  transform: translateX(-50%);
+  transition: opacity 0.2s;
+  z-index: 30;
+}
+
+#chat-alert.visible {
+  opacity: 1;
+}
