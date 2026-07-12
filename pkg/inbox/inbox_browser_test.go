@@ -40,7 +40,7 @@ func TestInboxTasksBrowser(t *testing.T) {
 			},
 			Assert: []Step{
 				TextContains(".mail-reader-title", "buy milk"),
-				TextContains(".mail-reader-title", "Active"),
+				TextContains(".mail-reader-labels", "Active"),
 			},
 			Name: "creates a task from the footer",
 			Path: "/inbox/tasks",

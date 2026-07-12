@@ -3,7 +3,9 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -47,6 +49,27 @@ type Turn struct {
 type Agent interface {
 	Author() string
 	Run(ctx context.Context, turn Turn, emit func(Event)) (string, error)
+}
+
+func agentInstructions(dir string) string {
+	parts := []string{
+		"You are running inside Scratch's ACP chat for an existing local workspace.",
+		"Use the current working tree for all file inspection, edits, tests, and commands.",
+		"Do not create, switch, rename, or reset git branches unless the user explicitly asks for that git operation.",
+		"Do not create a new Conductor workspace, start a separate coding agent, or start another chat unless the user explicitly asks.",
+		"If AGENTS.md says to start every change on a new branch off main, treat that as already satisfied by this existing workspace chat. Continue from the current branch and worktree.",
+	}
+	if dir = strings.TrimSpace(dir); dir != "" {
+		parts = append(parts, "Current working directory: "+dir)
+	}
+	if branch := currentBranch(dir); branch != "" {
+		parts = append(parts, "Current git branch: "+branch)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func agentPrompt(turn Turn, dir string, files []Attachment) string {
+	return agentInstructions(dir) + "\n\nUser request:\n" + turn.Prompt + attachmentAppendix(files)
 }
 
 func DeltaEvent(text string) Event {
@@ -151,6 +174,25 @@ func WithDir(agent Agent, dir string) Agent {
 	default:
 		return agent
 	}
+}
+
+func currentBranch(dir string) string {
+	if strings.TrimSpace(dir) == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return ""
+		}
+		dir = cwd
+	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return ""
+	}
+	out, err := exec.Command("git", "-C", dir, "branch", "--show-current").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 type EchoAgent struct {

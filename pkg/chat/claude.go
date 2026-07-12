@@ -57,7 +57,7 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
 	parser := &claudeParser{state: &state}
-	if err := runTurn(ctx, turn, emit, "claude", claudeArgs(state, turn), a.Dir, parser); err != nil {
+	if err := runTurn(ctx, turn, emit, "claude", claudeArgs(state, turn, a.Dir), a.Dir, parser); err != nil {
 		return "", err
 	}
 	state.Agent = "claude"
@@ -68,13 +68,14 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 	return string(out), nil
 }
 
-func claudeArgs(state claudeAnchor, turn Turn) []string {
+func claudeArgs(state claudeAnchor, turn Turn, dir string) []string {
 	mode := "bypassPermissions"
 	if state.Access == AccessSafe {
 		mode = "default"
 	}
 	args := []string{
 		"-p", turn.Prompt + attachmentAppendix(turn.Attachments),
+		"--append-system-prompt", agentInstructions(dir),
 		"--include-partial-messages",
 		"--output-format", "stream-json",
 		"--permission-mode", mode,

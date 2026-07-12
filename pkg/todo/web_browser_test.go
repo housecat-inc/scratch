@@ -54,7 +54,7 @@ func TestTodoWebBrowser(t *testing.T) {
 			},
 			Assert: []webStep{
 				testkit.TextContainsStep[*webHarness](".mail-reader-title", "buy milk"),
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "Active"),
+				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Active"),
 				webElementAbsent("section.mail-card"),
 			},
 			Name: "creates a task",
@@ -84,7 +84,7 @@ func TestTodoWebBrowser(t *testing.T) {
 			},
 			Assert: []webStep{
 				testkit.TextContainsStep[*webHarness](".mail-reader-title", "open task"),
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "Active"),
+				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Active"),
 				webElementAbsent("section.mail-card"),
 			},
 			Name: "opens a task page from the inbox row",
@@ -152,7 +152,7 @@ func TestTodoWebBrowser(t *testing.T) {
 				testkit.ClickStep[*webHarness](`.mail-reader-head form[action="/tasks/1/done"] button`),
 			},
 			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "Done"),
+				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Done"),
 				webTaskCompletedState(1, true),
 			},
 			Name: "toggles completion",
