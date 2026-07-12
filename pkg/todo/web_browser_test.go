@@ -69,6 +69,20 @@ func TestTodoWebBrowser(t *testing.T) {
 		{
 			Act: []webStep{
 				testkit.ClickStep[*webHarness]("[data-new-chat]"),
+				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				testkit.ClickStep[*webHarness](`.gm-label[href="/tasks"]`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/tasks"),
+				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				testkit.TextContainsStep[*webHarness]("#floating-chat", "New chat"),
+			},
+			Name: "floating chat survives navigation",
+			Path: "/",
+		},
+		{
+			Act: []webStep{
+				testkit.ClickStep[*webHarness]("[data-new-chat]"),
 				webElementEventuallyPresent("#floating-chat"),
 				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
 			},
