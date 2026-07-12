@@ -160,6 +160,43 @@ func pidAlive(pid int) bool {
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
+func stopRunner(runner *runnerMeta) error {
+	if runner == nil || runner.PID <= 0 {
+		return nil
+	}
+	if !pidAlive(runner.PID) {
+		return nil
+	}
+	if err := signalRunner(runner.PID, syscall.SIGTERM); err != nil {
+		return errors.Wrap(err, "stop runner")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !pidAlive(runner.PID) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err := signalRunner(runner.PID, syscall.SIGKILL); err != nil {
+		return errors.Wrap(err, "kill runner")
+	}
+	return nil
+}
+
+func signalRunner(pid int, sig syscall.Signal) error {
+	if err := syscall.Kill(-pid, sig); err == nil || errors.Is(err, syscall.ESRCH) {
+		if err == nil {
+			return nil
+		}
+	} else {
+		return err
+	}
+	if err := syscall.Kill(pid, sig); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	return nil
+}
+
 func tailOf(path string, n int) string {
 	data, err := os.ReadFile(path)
 	if err != nil {

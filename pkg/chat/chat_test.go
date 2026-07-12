@@ -76,6 +76,15 @@ func TestAgentName(t *testing.T) {
 	a.Equal("echo", AgentName(EchoAgent{}))
 }
 
+func TestWithDir(t *testing.T) {
+	a := assert.New(t)
+
+	a.Equal(CodexAgent{Dir: "/repo"}, WithDir(CodexAgent{}, "/repo"))
+	a.Equal(ClaudeAgent{Dir: "/repo"}, WithDir(ClaudeAgent{}, "/repo"))
+	a.Equal(EchoAgent{Delay: time.Second}, WithDir(EchoAgent{Delay: time.Second}, "/repo"))
+	a.Equal(CodexAgent{}, WithDir(CodexAgent{}, ""))
+}
+
 func TestSendBusy(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
@@ -120,6 +129,42 @@ func TestSendAgentError(t *testing.T) {
 	last := parts[len(parts)-1]
 	a.Equal(PartError, last.Kind)
 	a.Contains(last.Text, "agent exploded")
+}
+
+func TestStopThreadCancelsRunningTurn(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	block := make(chan struct{})
+	svc := newTestService(t, blockingAgent{release: block})
+	thread, err := svc.CreateThread("", "")
+	r.NoError(err)
+	_, err = svc.Send(thread.ID, "stop me")
+	r.NoError(err)
+
+	r.Eventually(func() bool {
+		view, err := svc.View(thread.ID)
+		return err == nil && view.Streaming
+	}, 5*time.Second, 10*time.Millisecond)
+
+	r.NoError(svc.StopThread(thread.ID))
+	view := waitComplete(t, svc, thread.ID)
+	asst := view.Messages[1]
+	a.Equal(db.MessageStatusError, asst.Status)
+	a.Contains(asst.Body, "The turn was stopped.")
+	close(block)
+}
+
+func TestStopThreadNotBusy(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{Delay: time.Millisecond})
+	thread, err := svc.CreateThread("", "")
+	r.NoError(err)
+
+	err = svc.StopThread(thread.ID)
+	a.True(IsThreadNotBusy(err))
 }
 
 func TestRecoverFinishesOrphanedStreaming(t *testing.T) {

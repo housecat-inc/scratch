@@ -109,6 +109,14 @@ func ResolveAgent(name string) (Agent, error) {
 	return nil, errors.Newf("unknown agent %q", name)
 }
 
+func ResolveAgentInDir(name, dir string) (Agent, error) {
+	agent, err := ResolveAgent(name)
+	if err != nil {
+		return nil, err
+	}
+	return WithDir(agent, dir), nil
+}
+
 func AvailableAgents() []Agent {
 	agents := []Agent{}
 	if _, err := exec.LookPath("codex"); err == nil {
@@ -119,6 +127,30 @@ func AvailableAgents() []Agent {
 	}
 	agents = append(agents, EchoAgent{Delay: 200 * time.Millisecond})
 	return agents
+}
+
+func AvailableAgentsInDir(dir string) []Agent {
+	agents := AvailableAgents()
+	for i, agent := range agents {
+		agents[i] = WithDir(agent, dir)
+	}
+	return agents
+}
+
+func WithDir(agent Agent, dir string) Agent {
+	if dir == "" {
+		return agent
+	}
+	switch a := agent.(type) {
+	case ClaudeAgent:
+		a.Dir = dir
+		return a
+	case CodexAgent:
+		a.Dir = dir
+		return a
+	default:
+		return agent
+	}
 }
 
 type EchoAgent struct {

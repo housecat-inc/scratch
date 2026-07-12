@@ -46,6 +46,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
+	mux.HandleFunc("POST /inbox/chats/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/trash", s.handleTrashThread)
 	mux.HandleFunc("POST /inbox/tasks/{id}/archive", s.handleArchiveTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/done", s.handleDoneTask)
@@ -54,6 +55,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
 	return logging.Middleware(s.log, mux)
 }
@@ -216,6 +218,18 @@ func (s *Server) handleStarThread(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "starred", ui.InboxSelection{})
+}
+
+func (s *Server) handleStopThread(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.chat.StopThread(id); err != nil && !chat.IsThreadNotBusy(err) {
+		s.notFoundOr(w, err)
+		return
+	}
+	s.redirectBack(w, r)
 }
 
 func (s *Server) handleTask(w http.ResponseWriter, r *http.Request) {
@@ -417,14 +431,15 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 	}
 	agent := s.chat.AgentName(view.Thread)
 	return ui.InboxThreadDetail{
-		Access:   s.chat.ThreadAccess(view.Thread),
-		Agent:    agent,
-		Archived: view.Thread.State == db.ThreadStateArchived,
-		ID:       id,
-		Kind:     kind,
-		Messages: messages,
-		Starred:  view.Thread.Starred,
-		Title:    title,
+		Access:    s.chat.ThreadAccess(view.Thread),
+		Agent:     agent,
+		Archived:  view.Thread.State == db.ThreadStateArchived,
+		ID:        id,
+		Kind:      kind,
+		Messages:  messages,
+		Starred:   view.Thread.Starred,
+		Streaming: view.Streaming,
+		Title:     title,
 	}, nil
 }
 

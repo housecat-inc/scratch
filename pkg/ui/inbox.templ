@@ -284,6 +284,9 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			if d.Kind == "chat" {
 				@ChatAccessToggle(d.ID, d.Access)
 			}
+			if d.Streaming {
+				@readerStopButton(d.Kind, d.ID)
+			}
 			if d.Archived {
 				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), unarchiveIcon())
 				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))
@@ -374,6 +377,15 @@ templ readerPostButton(action, label string, icon templ.Component) {
 		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
 		<button type="submit" class="gm-icon-btn" title={ label } aria-label={ label }>
 			@icon
+		</button>
+	</form>
+}
+
+templ readerStopButton(kind string, id int64) {
+	<form method="post" action={ threadInboxActionURL(kind, id, "stop") }>
+		<input type="hidden" name="back" value={ threadInboxDetailURL(kind, id) }/>
+		<button type="submit" class="gm-icon-btn" title="Stop chat" aria-label="Stop chat">
+			@stopIcon()
 		</button>
 	</form>
 }
@@ -645,6 +657,10 @@ func sendIcon() templ.Component {
 	return lucideIcon(`<path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path>`)
 }
 
+func stopIcon() templ.Component {
+	return lucideIcon(`<rect width="14" height="14" x="5" y="5" rx="2"></rect>`)
+}
+
 func showArchiveFilters(view string) bool {
 	return view == "chats" || view == "tasks" || view == "workflows"
 }
@@ -691,6 +707,13 @@ func threadInboxActionURL(kind string, id int64, action string) string {
 		return fmt.Sprintf("/inbox/workflows/%d/%s", id, action)
 	}
 	return fmt.Sprintf("/inbox/chats/%d/%s", id, action)
+}
+
+func threadInboxDetailURL(kind string, id int64) string {
+	if kind == "workflow" {
+		return fmt.Sprintf("/inbox/workflows/%d", id)
+	}
+	return fmt.Sprintf("/inbox/chats/%d", id)
 }
 
 func threadInboxItem(d InboxThreadDetail) InboxItem {

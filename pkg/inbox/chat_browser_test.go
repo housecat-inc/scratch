@@ -38,6 +38,20 @@ func SeedAssistantMessage(body string, events ...[2]string) Step {
 	}
 }
 
+func SeedStreamingAssistant(body string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		_, err := h.Store.AddMessage(db.NewMessage{
+			Author:   "agent:echo",
+			Body:     body,
+			Role:     db.MessageRoleAssistant,
+			Status:   db.MessageStatusStreaming,
+			ThreadID: 1,
+		})
+		h.R.NoError(err)
+	}
+}
+
 func AttachFile(name, contents string) Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
@@ -200,6 +214,23 @@ func TestChatBrowser(t *testing.T) {
 					h.R.NoError(err)
 					h.A.Equal(chat.AccessSafe, h.Chat.ThreadAccess(thread))
 				},
+			},
+		},
+		{
+			Console: []string{"[[object Event]]"},
+			Name:    "stops a streaming chat turn",
+			Path:    "/inbox/chats/1",
+			Seed: []Step{
+				SeedChatThread(),
+				SeedStreamingAssistant("Working"),
+			},
+			Act: []Step{
+				WaitChatReady(),
+				Click(`[aria-label="Stop chat"]`),
+			},
+			Assert: []Step{
+				TextEventuallyContains("#chat-messages", "The turn was stopped."),
+				ElementAbsent(`[aria-label="Stop chat"]`),
 			},
 		},
 	})

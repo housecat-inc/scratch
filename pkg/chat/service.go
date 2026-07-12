@@ -24,11 +24,19 @@ var (
 	ErrElicitationResolved = errors.New("elicitation already resolved")
 	ErrNoResolver          = errors.New("no elicitation resolver configured")
 	ErrThreadBusy          = errors.New("thread busy")
+	ErrThreadNotBusy       = errors.New("thread not busy")
 	ErrThreadStateUnknown  = errors.New("thread state unknown")
 	ErrTurnPending         = errors.New("turn pending durable recovery")
 )
 
 func IsThreadBusy(err error) bool { return errors.Is(err, ErrThreadBusy) }
+
+func IsThreadNotBusy(err error) bool { return errors.Is(err, ErrThreadNotBusy) }
+
+type activeTurn struct {
+	cancel    context.CancelFunc
+	messageID int64
+}
 
 type Recoverable interface {
 	Alive(turn Turn) bool
@@ -48,6 +56,8 @@ type ThreadView struct {
 }
 
 type Service struct {
+	active      map[int64]activeTurn
+	activeMu    sync.Mutex
 	agents      map[string]Agent
 	broker      *Broker
 	cancel      context.CancelFunc
@@ -66,6 +76,7 @@ func NewService(store db.ThreadStore, agent Agent, log *slog.Logger) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 	name := AgentName(agent)
 	return &Service{
+		active:      map[int64]activeTurn{},
 		agents:      map[string]Agent{name: agent},
 		broker:      NewBroker(),
 		cancel:      cancel,
@@ -358,6 +369,49 @@ func (s *Service) SetThreadStarred(threadID int64, starred bool) error {
 	return s.store.SetThreadStarred(threadID, starred)
 }
 
+func (s *Service) StopThread(threadID int64) error {
+	thread, err := s.store.GetThread(threadID)
+	if err != nil {
+		return err
+	}
+	msgs, err := s.store.ListThreadMessages(threadID)
+	if err != nil {
+		return err
+	}
+	var msg *db.Message
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == db.MessageRoleAssistant && msgs[i].Status == db.MessageStatusStreaming {
+			msg = &msgs[i]
+			break
+		}
+	}
+	if msg == nil {
+		return ErrThreadNotBusy
+	}
+
+	s.emit(thread.ID, msg.ID, DeltaEvent("\nThe turn was stopped."))
+	if _, err := s.store.FinishMessage(msg.ID, db.MessageStatusError); err != nil {
+		return err
+	}
+	if err := s.store.TouchThread(threadID); err != nil {
+		return err
+	}
+
+	s.activeMu.Lock()
+	active, ok := s.active[threadID]
+	if ok && active.messageID == msg.ID {
+		active.cancel()
+		delete(s.active, threadID)
+	}
+	s.activeMu.Unlock()
+
+	if err := stopRunner(runnerFromMeta(msg.Meta)); err != nil {
+		return err
+	}
+	s.broker.Publish(threadID, StructuralUpdate)
+	return nil
+}
+
 func (s *Service) SetResolver(r Resolver) {
 	s.resolver = r
 }
@@ -453,6 +507,9 @@ func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
 }
 
 func (s *Service) emit(threadID, messageID int64, ev Event) {
+	if !s.messageStreaming(messageID) {
+		return
+	}
 	if _, err := s.store.AddMessageEvent(messageID, ev.Type, ev.Data); err != nil {
 		s.log.Error("chat.event", "error", err.Error())
 	}
@@ -490,12 +547,28 @@ func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {
 func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	defer s.wg.Done()
 
-	anchor, err := agent.Run(s.ctx, turn, func(ev Event) {
+	ctx, cancel := context.WithCancel(s.ctx)
+	s.activeMu.Lock()
+	s.active[thread.ID] = activeTurn{cancel: cancel, messageID: turn.MessageID}
+	s.activeMu.Unlock()
+	defer func() {
+		cancel()
+		s.activeMu.Lock()
+		if active, ok := s.active[thread.ID]; ok && active.messageID == turn.MessageID {
+			delete(s.active, thread.ID)
+		}
+		s.activeMu.Unlock()
+	}()
+
+	anchor, err := agent.Run(ctx, turn, func(ev Event) {
 		s.emit(thread.ID, turn.MessageID, ev)
 	})
 
 	if errors.Is(err, ErrTurnPending) {
 		s.log.Info("chat.pending", "message", turn.MessageID, "thread", thread.ID)
+		return
+	}
+	if !s.messageStreaming(turn.MessageID) {
 		return
 	}
 
@@ -517,6 +590,11 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 		s.log.Error("chat.touch", "error", err.Error())
 	}
 	s.broker.Publish(thread.ID, StructuralUpdate)
+}
+
+func (s *Service) messageStreaming(messageID int64) bool {
+	msg, err := s.store.GetMessage(messageID)
+	return err == nil && msg.Status == db.MessageStatusStreaming
 }
 
 type elicitationResult struct {

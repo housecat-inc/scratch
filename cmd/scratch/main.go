@@ -56,6 +56,10 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "user home dir")
 			}
+			workdir, err := os.Getwd()
+			if err != nil {
+				return errors.Wrap(err, "working dir")
+			}
 			dbPath := filepath.Join(home, ".config", "scratch", "scratch.db")
 			store, err := db.New(dbPath)
 			if err != nil {
@@ -68,12 +72,12 @@ func newRootCmd() *cobra.Command {
 			}
 			defer workflows.Close()
 
-			agent, err := chat.ResolveAgent(agentName)
+			agent, err := chat.ResolveAgentInDir(agentName, workdir)
 			if err != nil {
 				return err
 			}
 			chatSvc := chat.NewService(store, agent, logger)
-			for _, available := range chat.AvailableAgents() {
+			for _, available := range chat.AvailableAgentsInDir(workdir) {
 				chatSvc.RegisterAgent(chat.AgentName(available), available)
 			}
 			defer chatSvc.Close()

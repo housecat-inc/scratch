@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,4 +111,24 @@ func TestHasRunner(t *testing.T) {
 	a.False(HasRunner("{}"))
 	a.False(HasRunner(`{"runner":{}}`))
 	a.True(HasRunner(`{"runner":{"out":"/tmp/x.out","pid":1}}`))
+}
+
+func TestStopRunnerTerminatesProcessGroup(t *testing.T) {
+	r := require.New(t)
+
+	cmd := exec.Command("/bin/sh", "-c", "sleep 30")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	r.NoError(cmd.Start())
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	r.NoError(stopRunner(&runnerMeta{PID: cmd.Process.Pid}))
+	r.Eventually(func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return !pidAlive(cmd.Process.Pid)
+		}
+	}, 5*time.Second, 50*time.Millisecond)
 }

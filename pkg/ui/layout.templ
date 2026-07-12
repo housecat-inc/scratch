@@ -120,11 +120,15 @@ templ Layout(title, nav string) {
 
 func toolNavItems(active string) []uikit.NavItem {
 	return []uikit.NavItem{
+		{Active: active == "inbox", Href: "/", Icon: "inbox", Label: "Inbox"},
+		{Active: active == "starred", Href: "/starred", Icon: "star", Label: "Starred"},
+		{Group: "More", Active: active == "chats", Href: "/inbox/chats", Icon: "chat", Label: "Chats"},
+		{Active: active == "tasks", Href: "/inbox/tasks", Icon: "task", Label: "Tasks"},
+		{Active: active == "workflows", Href: "/inbox/workflows", Icon: "play", Label: "Workflows"},
+		{Group: "Tools", Active: active == "setup", Href: "/setup", Icon: "settings", Label: "Setup"},
 		{Active: active == "sessions", Href: "/sessions", Icon: "chat", Label: "Sessions"},
-		{Active: active == "setup", Href: "/setup", Icon: "settings", Label: "Setup"},
 		{Active: active == "code", Href: "/code/", Icon: "code", Label: "Code review"},
 		{Active: active == "files", Href: "/files/", Icon: "file", Label: "Files"},
-		{Group: "App", Href: "/", Icon: "inbox", Label: "Inbox"},
 	}
 }
 
