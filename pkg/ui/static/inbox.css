@@ -585,9 +585,9 @@ textarea {
   cursor: pointer;
   display: flex;
   font-size: 0.9rem;
-  gap: 0.35rem;
+  gap: 0.45rem;
   height: 2.75rem;
-  padding: 0 0.8rem;
+  padding: 0 0.8rem 0 0.55rem;
   position: relative;
 }
 
@@ -673,8 +673,11 @@ textarea {
   pointer-events: none;
 }
 
-.gm-row-actions-left {
-  flex: 0 0 4.4rem;
+.gm-row-actions-right {
+  box-shadow: -12px 0 14px #fff;
+  padding-left: 0.4rem;
+  position: absolute;
+  right: 0.55rem;
 }
 
 .gm-row:hover .gm-row-actions {
@@ -682,7 +685,11 @@ textarea {
   pointer-events: auto;
 }
 
-.gm-row:hover .gm-row-actions + .gm-row-link .gm-row-from {
+.gm-row:hover .gm-row-date {
+  opacity: 0;
+}
+
+.gm-row:hover .gm-row-from {
   color: #111827;
 }
 
@@ -724,10 +731,6 @@ textarea {
 
 .gm-star {
   flex: 0 0 auto;
-}
-
-.gm-star svg {
-  fill: currentColor;
 }
 
 .gm-star.on {
@@ -892,8 +895,7 @@ textarea {
     flex-basis: 5.5rem;
   }
 
-  .gm-row-actions-left {
-    flex-basis: 0;
-    width: 0;
+  .gm-row-actions-right {
+    right: 0.4rem;
   }
 }

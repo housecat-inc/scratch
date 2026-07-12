@@ -95,12 +95,7 @@ templ InboxListView(p InboxProps) {
 
 templ InboxRow(item InboxItem, view string) {
 	<div class={ "gm-row", templ.KV("selected", false), templ.KV("archived", item.Archived), templ.KV("done", item.Done) } data-kind={ item.Kind } data-id={ strconv.FormatInt(item.ID, 10) }>
-		<div class="gm-row-actions gm-row-actions-left">
-			if item.Kind == "task" {
-				@rowPostButton(itemActionURL(item, "done"), view, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
-			}
-			@rowPostButton(itemActionURL(item, "archive"), view, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
-		</div>
+		@rowPostButton(itemActionURL(item, "star"), view, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
 		<a class="gm-row-link" href={ templ.SafeURL(item.Href) }>
 			<span class="gm-row-from">
 				<span class={ "gm-kind-dot", "gm-kind-" + item.Kind }></span>
@@ -114,7 +109,12 @@ templ InboxRow(item InboxItem, view string) {
 			</span>
 		</a>
 		<span class="gm-row-date">{ item.When }</span>
-		@rowPostButton(itemActionURL(item, "star"), view, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
+		<div class="gm-row-actions gm-row-actions-right">
+			if item.Kind == "task" {
+				@rowPostButton(itemActionURL(item, "done"), view, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
+			}
+			@rowPostButton(itemActionURL(item, "archive"), view, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
+		</div>
 	</div>
 }
 
@@ -240,15 +240,15 @@ func archiveActionLabel(item InboxItem) string {
 }
 
 func chatIcon() templ.Component {
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H8l-4 4z"></path></svg>`)
+	return lucideIcon(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>`)
 }
 
 func archiveIcon() templ.Component {
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18l-2 5v11H5V9zM8 12h8v2H8z"></path></svg>`)
+	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path>`)
 }
 
 func backIcon() templ.Component {
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7v-5h6v-4h-6z"></path></svg>`)
+	return lucideIcon(`<path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path>`)
 }
 
 func currentBackFallback(action string) string {
@@ -270,9 +270,9 @@ func doneActionLabel(item InboxItem) string {
 
 func doneIcon(done bool) templ.Component {
 	if done {
-		return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.34 5.66L4 20l.6-3.4A7.97 7.97 0 0 1 4 12zm4-1 3 3 5-6 2 2-7 8-5-5z"></path></svg>`)
+		return lucideIcon(`<circle cx="12" cy="12" r="10"></circle>`)
 	}
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 14-4-4 1.8-1.8 2.2 2.2 4.8-5.4L18 8.6z"></path></svg>`)
+	return lucideIcon(`<path d="M21.8 10A10 10 0 1 1 17 3.3"></path><path d="m9 11 3 3L22 4"></path>`)
 }
 
 func inboxBackPath(kind string) string {
@@ -298,7 +298,7 @@ func inboxTitle(p InboxProps) string {
 }
 
 func inboxIcon() templ.Component {
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zm3 3v4h10V7z"></path></svg>`)
+	return lucideIcon(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
 }
 
 func itemActionURL(item InboxItem, action string) string {
@@ -328,13 +328,13 @@ func starClass(on bool) string {
 
 func starIcon(on bool) templ.Component {
 	if on {
-		return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"></path></svg>`)
+		return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`)
 	}
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5.8 1.7 4 4.3.37-3.25 2.82.98 4.22L12 14.97 8.27 17.2l.98-4.22L6 10.17l4.3-.37zm0-3.8L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61z"></path></svg>`)
+	return lucideIcon(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>`)
 }
 
 func taskIcon() templ.Component {
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 16.2-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5z"></path></svg>`)
+	return lucideIcon(`<rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path>`)
 }
 
 func taskInboxActionURL(id int64, action string) string {
@@ -356,6 +356,10 @@ func threadInboxItem(d InboxThreadDetail) InboxItem {
 	return InboxItem{Archived: d.Archived, ID: d.ID, Kind: d.Kind, Starred: d.Starred}
 }
 
+func lucideIcon(body string) templ.Component {
+	return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + body + `</svg>`)
+}
+
 func workflowIcon() templ.Component {
-	return templ.Raw(`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h4v4H7zm6 6h4v4h-4zM13 7h4v4h-4zM7 13h4v4H7z"></path></svg>`)
+	return lucideIcon(`<circle cx="12" cy="4.5" r="2.5"></circle><circle cx="4.5" cy="12" r="2.5"></circle><circle cx="19.5" cy="12" r="2.5"></circle><circle cx="12" cy="19.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><path d="M7 12h10"></path><path d="m13.8 17.7 3.9-3.9"></path>`)
 }

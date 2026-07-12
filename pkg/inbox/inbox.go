@@ -248,9 +248,6 @@ func (s *Server) props(view string, selected ui.InboxSelection) (ui.InboxProps, 
 		Items:  items,
 		View:   view,
 	}
-	if selected.Kind == "" && len(items) > 0 && view != "inbox" && view != "starred" {
-		selected = ui.InboxSelection{ID: items[0].ID, Kind: items[0].Kind}
-	}
 	props.Selected = selected
 	if selected.Kind == "" {
 		return props, nil
