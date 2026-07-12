@@ -11,13 +11,32 @@ import (
 //go:embed static/chat.css
 var chatCSS string
 
+type ChatFormFieldProps struct {
+	Label    string
+	Name     string
+	Options  []string
+	Required bool
+	Type     string
+	Value    string
+}
+
+type ChatFormProps struct {
+	Action        string
+	ElicitationID string
+	Fields        []ChatFormFieldProps
+	Message       string
+	MessageID     int64
+}
+
 type ChatIndexProps struct {
+	Agents  []string
 	Threads []db.Thread
 }
 
 type ChatMessageProps struct {
 	Author string
 	Body   string
+	Form   *ChatFormProps
 	ID     int64
 	Role   string
 	Status string

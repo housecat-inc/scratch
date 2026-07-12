@@ -121,7 +121,7 @@ func SeedExchange(threadID int64, prompt string) Step {
 
 func SeedThread(title string) Step {
 	return func(t *testing.T, h *Harness) {
-		_, err := h.Svc.CreateThread(title)
+		_, err := h.Svc.CreateThread("", title)
 		h.R.NoError(err)
 		h.Clock.Advance(time.Minute)
 	}

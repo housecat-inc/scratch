@@ -37,11 +37,11 @@ type claudeLine struct {
 
 func (ClaudeAgent) Author() string { return "agent:claude" }
 
-func (a ClaudeAgent) Run(ctx context.Context, anchor, prompt string, emit func(Event)) (string, error) {
+func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
 	var state claudeAnchor
-	_ = json.Unmarshal([]byte(anchor), &state)
+	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
-	args := []string{"-p", prompt, "--output-format", "stream-json", "--verbose"}
+	args := []string{"-p", turn.Prompt, "--output-format", "stream-json", "--verbose"}
 	if state.SessionID != "" {
 		args = append(args, "--resume", state.SessionID)
 	}

@@ -203,3 +203,78 @@ body {
   padding: 1.5rem 0;
   text-align: center;
 }
+
+.chat-new-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-new-alt {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #1f2937;
+}
+
+.chat-elicit {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding: 0.75rem;
+}
+
+.chat-elicit-message {
+  font-weight: 500;
+  margin: 0;
+}
+
+.chat-elicit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.chat-elicit-field span {
+  color: #6b7280;
+  font-size: 0.78rem;
+  text-transform: capitalize;
+}
+
+.chat-elicit-field input[type="text"],
+.chat-elicit-field input[type="email"],
+.chat-elicit-field input[type="number"],
+.chat-elicit-field select {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.4rem;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.chat-elicit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.chat-elicit-actions button {
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+}
+
+#elicit-accept {
+  background: #1f2937;
+  color: #fff;
+}
+
+#elicit-decline {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+}

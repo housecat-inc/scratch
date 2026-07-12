@@ -10,10 +10,12 @@ import (
 )
 
 const (
-	EventDelta    = "delta"
-	EventError    = "error"
-	EventResult   = "result"
-	EventToolCall = "tool_call"
+	EventDelta             = "delta"
+	EventElicitation       = "elicitation"
+	EventElicitationResult = "elicitation_result"
+	EventError             = "error"
+	EventResult            = "result"
+	EventToolCall          = "tool_call"
 )
 
 type Event struct {
@@ -21,9 +23,16 @@ type Event struct {
 	Type string
 }
 
+type Turn struct {
+	Anchor    string
+	MessageID int64
+	Prompt    string
+	ThreadID  int64
+}
+
 type Agent interface {
 	Author() string
-	Run(ctx context.Context, anchor, prompt string, emit func(Event)) (string, error)
+	Run(ctx context.Context, turn Turn, emit func(Event)) (string, error)
 }
 
 func DeltaEvent(text string) Event {
@@ -52,8 +61,8 @@ type EchoAgent struct {
 
 func (EchoAgent) Author() string { return "agent:echo" }
 
-func (a EchoAgent) Run(ctx context.Context, anchor, prompt string, emit func(Event)) (string, error) {
-	for _, chunk := range []string{"You said: ", prompt} {
+func (a EchoAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
+	for _, chunk := range []string{"You said: ", turn.Prompt} {
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()

@@ -42,7 +42,7 @@ func TestSendEcho(t *testing.T) {
 
 	svc := newTestService(t, EchoAgent{Delay: time.Millisecond})
 
-	thread, err := svc.CreateThread("")
+	thread, err := svc.CreateThread("", "")
 	r.NoError(err)
 	a.Equal(db.ThreadKindChat, thread.Kind)
 
@@ -75,7 +75,7 @@ func TestSendBusy(t *testing.T) {
 	block := make(chan struct{})
 	svc := newTestService(t, blockingAgent{release: block})
 
-	thread, err := svc.CreateThread("busy")
+	thread, err := svc.CreateThread("", "busy")
 	r.NoError(err)
 
 	_, err = svc.Send(thread.ID, "first")
@@ -98,7 +98,7 @@ func TestSendAgentError(t *testing.T) {
 
 	svc := newTestService(t, failingAgent{})
 
-	thread, err := svc.CreateThread("")
+	thread, err := svc.CreateThread("", "")
 	r.NoError(err)
 	_, err = svc.Send(thread.ID, "boom")
 	r.NoError(err)
@@ -143,7 +143,7 @@ type blockingAgent struct {
 
 func (blockingAgent) Author() string { return "agent:block" }
 
-func (a blockingAgent) Run(ctx context.Context, anchor, prompt string, emit func(Event)) (string, error) {
+func (a blockingAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -157,6 +157,6 @@ type failingAgent struct{}
 
 func (failingAgent) Author() string { return "agent:fail" }
 
-func (failingAgent) Run(ctx context.Context, anchor, prompt string, emit func(Event)) (string, error) {
+func (failingAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
 	return "", errors.New("agent exploded")
 }

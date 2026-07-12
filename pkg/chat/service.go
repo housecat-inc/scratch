@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/elicit"
 )
 
 const (
@@ -16,11 +18,22 @@ const (
 	userAuthor  = "you"
 )
 
-var ErrThreadBusy = errors.New("thread busy")
+var (
+	ErrAgentUnknown         = errors.New("agent unknown")
+	ErrElicitationNotFound  = errors.New("elicitation not found")
+	ErrElicitationResolved  = errors.New("elicitation already resolved")
+	ErrNoResolver           = errors.New("no elicitation resolver configured")
+	ErrThreadBusy           = errors.New("thread busy")
+)
 
 func IsThreadBusy(err error) bool { return errors.Is(err, ErrThreadBusy) }
 
+type Resolver interface {
+	Deliver(workflowID, topic, idempotencyKey string, reply elicit.Reply) error
+}
+
 type ThreadView struct {
+	Forms     map[int64]elicit.Prompt
 	Messages  []db.Message
 	Streaming bool
 	Thread    db.Thread
@@ -28,13 +41,15 @@ type ThreadView struct {
 }
 
 type Service struct {
-	agent  Agent
-	broker *Broker
-	cancel context.CancelFunc
-	ctx    context.Context
-	log    *slog.Logger
-	store  db.ThreadStore
-	wg     sync.WaitGroup
+	agents      map[string]Agent
+	broker      *Broker
+	cancel      context.CancelFunc
+	ctx         context.Context
+	defaultName string
+	log         *slog.Logger
+	resolver    Resolver
+	store       db.ThreadStore
+	wg          sync.WaitGroup
 }
 
 func NewService(store db.ThreadStore, agent Agent, log *slog.Logger) *Service {
@@ -42,14 +57,28 @@ func NewService(store db.ThreadStore, agent Agent, log *slog.Logger) *Service {
 		log = slog.Default()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	name := agentName(agent)
 	return &Service{
-		agent:  agent,
-		broker: NewBroker(),
-		cancel: cancel,
-		ctx:    ctx,
-		log:    log,
-		store:  store,
+		agents:      map[string]Agent{name: agent},
+		broker:      NewBroker(),
+		cancel:      cancel,
+		ctx:         ctx,
+		defaultName: name,
+		log:         log,
+		store:       store,
 	}
+}
+
+func (s *Service) AgentNames() []string {
+	names := make([]string, 0, len(s.agents))
+	names = append(names, s.defaultName)
+	for name := range s.agents {
+		if name != s.defaultName {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names[1:])
+	return names
 }
 
 func (s *Service) Close() {
@@ -57,12 +86,96 @@ func (s *Service) Close() {
 	s.wg.Wait()
 }
 
-func (s *Service) CreateThread(title string) (db.Thread, error) {
-	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), "")
+func (s *Service) CreateThread(agent, title string) (db.Thread, error) {
+	if agent == "" {
+		agent = s.defaultName
+	}
+	if _, ok := s.agents[agent]; !ok {
+		return db.Thread{}, errors.Wrapf(ErrAgentUnknown, "%q", agent)
+	}
+	anchor, err := json.Marshal(map[string]string{"agent": agent})
+	if err != nil {
+		return db.Thread{}, errors.Wrap(err, "marshal anchor")
+	}
+	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
+}
+
+func (s *Service) Publish(threadID int64) {
+	s.broker.Publish(threadID)
+}
+
+func (s *Service) RegisterAgent(name string, agent Agent) {
+	s.agents[name] = agent
+}
+
+func (s *Service) ResolveElicitation(messageID int64, elicitationID, action string, values map[string]string) error {
+	if s.resolver == nil {
+		return ErrNoResolver
+	}
+	msg, err := s.store.GetMessage(messageID)
+	if err != nil {
+		return err
+	}
+	events, err := s.store.ListMessageEvents(messageID, 0)
+	if err != nil {
+		return err
+	}
+	var prompt *elicit.Prompt
+	for _, ev := range events {
+		switch ev.Type {
+		case EventElicitation:
+			var p elicit.Prompt
+			if err := json.Unmarshal([]byte(ev.Data), &p); err == nil && p.ElicitationID == elicitationID {
+				prompt = &p
+			}
+		case EventElicitationResult:
+			var r elicitationResult
+			if err := json.Unmarshal([]byte(ev.Data), &r); err == nil && r.ElicitationID == elicitationID {
+				return ErrElicitationResolved
+			}
+		}
+	}
+	if prompt == nil {
+		return ErrElicitationNotFound
+	}
+
+	reply := elicit.Reply{Action: action}
+	switch action {
+	case elicit.ActionAccept:
+		content, err := elicit.Coerce(prompt.RequestedSchema, values)
+		if err != nil {
+			return err
+		}
+		data, err := json.Marshal(content)
+		if err != nil {
+			return errors.Wrap(err, "marshal content")
+		}
+		reply.Content = string(data)
+	case elicit.ActionCancel, elicit.ActionDecline:
+	default:
+		return errors.Wrapf(elicit.ErrInvalid, "unknown action %q", action)
+	}
+
+	if err := s.resolver.Deliver(prompt.WorkflowID, prompt.Topic, prompt.ElicitationID, reply); err != nil {
+		return errors.Wrap(err, "deliver reply")
+	}
+	result, err := json.Marshal(elicitationResult{Action: action, Content: reply.Content, ElicitationID: elicitationID})
+	if err != nil {
+		return errors.Wrap(err, "marshal result")
+	}
+	if _, err := s.store.AddMessageEvent(messageID, EventElicitationResult, string(result)); err != nil {
+		return errors.Wrap(err, "record result")
+	}
+	s.broker.Publish(msg.ThreadID)
+	return nil
 }
 
 func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	thread, err := s.store.GetThread(threadID)
+	if err != nil {
+		return db.Message{}, err
+	}
+	agent, err := s.resolveAgent(thread)
 	if err != nil {
 		return db.Message{}, err
 	}
@@ -86,7 +199,7 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 		return db.Message{}, err
 	}
 	asst, err := s.store.AddMessage(db.NewMessage{
-		Author:   s.agent.Author(),
+		Author:   agent.Author(),
 		ParentID: &user.ID,
 		Role:     db.MessageRoleAssistant,
 		Status:   db.MessageStatusStreaming,
@@ -104,9 +217,14 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	}
 	s.broker.Publish(threadID)
 
+	turn := Turn{Anchor: thread.Anchor, MessageID: asst.ID, Prompt: prompt, ThreadID: threadID}
 	s.wg.Add(1)
-	go s.run(thread, asst, prompt)
+	go s.run(agent, thread, turn)
 	return user, nil
+}
+
+func (s *Service) SetResolver(r Resolver) {
+	s.resolver = r
 }
 
 func (s *Service) Subscribe(threadID int64) (<-chan struct{}, func()) {
@@ -130,7 +248,12 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 	if err != nil {
 		return ThreadView{}, err
 	}
-	view := ThreadView{Messages: msgs, Thread: thread, ToolCalls: map[int64][]string{}}
+	view := ThreadView{
+		Forms:     map[int64]elicit.Prompt{},
+		Messages:  msgs,
+		Thread:    thread,
+		ToolCalls: map[int64][]string{},
+	}
 	for _, m := range msgs {
 		if m.Status == db.MessageStatusStreaming {
 			view.Streaming = true
@@ -138,15 +261,50 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 		if m.Role != db.MessageRoleAssistant {
 			continue
 		}
-		names, err := s.toolCalls(m.ID)
-		if err != nil {
+		if err := s.collectEvents(&view, m); err != nil {
 			return ThreadView{}, err
-		}
-		if len(names) > 0 {
-			view.ToolCalls[m.ID] = names
 		}
 	}
 	return view, nil
+}
+
+func (s *Service) collectEvents(view *ThreadView, m db.Message) error {
+	events, err := s.store.ListMessageEvents(m.ID, 0)
+	if err != nil {
+		return err
+	}
+	tools := []string{}
+	pending := map[string]elicit.Prompt{}
+	for _, ev := range events {
+		switch ev.Type {
+		case EventElicitation:
+			var p elicit.Prompt
+			if err := json.Unmarshal([]byte(ev.Data), &p); err == nil {
+				pending[p.ElicitationID] = p
+			}
+		case EventElicitationResult:
+			var r elicitationResult
+			if err := json.Unmarshal([]byte(ev.Data), &r); err == nil {
+				delete(pending, r.ElicitationID)
+			}
+		case EventToolCall:
+			var call struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal([]byte(ev.Data), &call); err == nil && call.Name != "" {
+				tools = append(tools, call.Name)
+			}
+		}
+	}
+	if len(tools) > 0 {
+		view.ToolCalls[m.ID] = tools
+	}
+	if m.Status == db.MessageStatusStreaming {
+		for _, p := range pending {
+			view.Forms[m.ID] = p
+		}
+	}
+	return nil
 }
 
 func (s *Service) emit(threadID, messageID int64, ev Event) {
@@ -166,21 +324,36 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 	s.broker.Publish(threadID)
 }
 
-func (s *Service) run(thread db.Thread, asst db.Message, prompt string) {
+func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {
+	var anchor struct {
+		Agent string `json:"agent"`
+	}
+	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
+	if anchor.Agent == "" {
+		anchor.Agent = s.defaultName
+	}
+	agent, ok := s.agents[anchor.Agent]
+	if !ok {
+		return nil, errors.Wrapf(ErrAgentUnknown, "%q", anchor.Agent)
+	}
+	return agent, nil
+}
+
+func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	defer s.wg.Done()
 
-	anchor, err := s.agent.Run(s.ctx, thread.Anchor, prompt, func(ev Event) {
-		s.emit(thread.ID, asst.ID, ev)
+	anchor, err := agent.Run(s.ctx, turn, func(ev Event) {
+		s.emit(thread.ID, turn.MessageID, ev)
 	})
 
 	status := db.MessageStatusComplete
 	if err != nil {
 		status = db.MessageStatusError
-		s.log.Error("chat.run", "error", err.Error(), "message", asst.ID, "thread", thread.ID)
-		s.emit(thread.ID, asst.ID, DeltaEvent(err.Error()))
-		s.emit(thread.ID, asst.ID, Event{Data: errorData(err), Type: EventError})
+		s.log.Error("chat.run", "error", err.Error(), "message", turn.MessageID, "thread", thread.ID)
+		s.emit(thread.ID, turn.MessageID, DeltaEvent(err.Error()))
+		s.emit(thread.ID, turn.MessageID, Event{Data: errorData(err), Type: EventError})
 	}
-	if _, err := s.store.FinishMessage(asst.ID, status); err != nil {
+	if _, err := s.store.FinishMessage(turn.MessageID, status); err != nil {
 		s.log.Error("chat.finish", "error", err.Error())
 	}
 	if anchor != "" && anchor != thread.Anchor {
@@ -194,24 +367,18 @@ func (s *Service) run(thread db.Thread, asst db.Message, prompt string) {
 	s.broker.Publish(thread.ID)
 }
 
-func (s *Service) toolCalls(messageID int64) ([]string, error) {
-	events, err := s.store.ListMessageEvents(messageID, 0)
-	if err != nil {
-		return nil, err
+type elicitationResult struct {
+	Action        string `json:"action"`
+	Content       string `json:"content,omitempty"`
+	ElicitationID string `json:"elicitationId"`
+}
+
+func agentName(a Agent) string {
+	name := a.Author()
+	if i := strings.LastIndex(name, ":"); i >= 0 {
+		name = name[i+1:]
 	}
-	names := []string{}
-	for _, ev := range events {
-		if ev.Type != EventToolCall {
-			continue
-		}
-		var call struct {
-			Name string `json:"name"`
-		}
-		if err := json.Unmarshal([]byte(ev.Data), &call); err == nil && call.Name != "" {
-			names = append(names, call.Name)
-		}
-	}
-	return names, nil
+	return name
 }
 
 func errorData(err error) string {
