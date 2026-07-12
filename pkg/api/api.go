@@ -1,5 +1,7 @@
 package api
 
+//go:generate go run ../../cmd/openapi ../../docs/openapi.json
+
 import (
 	"github.com/cockroachdb/errors"
 	"github.com/getkin/kin-openapi/openapi3"

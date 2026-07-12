@@ -10,8 +10,8 @@ import (
 func symlinkSources() map[string]string {
 	return map[string]string{
 		".claude/skills": filepath.Join("scratch", "agents", "skills"),
-		"AGENTS.md":      filepath.Join("scratch", "agents", "AGENTS.md"),
-		"CLAUDE.md":      filepath.Join("scratch", "agents", "CLAUDE.md"),
+		"AGENTS.md":      filepath.Join("scratch", "AGENTS.md"),
+		"CLAUDE.md":      filepath.Join("scratch", "CLAUDE.md"),
 	}
 }
 

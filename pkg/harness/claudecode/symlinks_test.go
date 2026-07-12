@@ -104,7 +104,7 @@ func TestHasSymlinksAt(t *testing.T) {
 		{
 			name: "partial returns false",
 			setup: func(t *testing.T, home string) {
-				require.New(t).NoError(os.Symlink(filepath.Join("scratch", "agents", "AGENTS.md"), filepath.Join(home, "AGENTS.md")))
+				require.New(t).NoError(os.Symlink(filepath.Join("scratch", "AGENTS.md"), filepath.Join(home, "AGENTS.md")))
 			},
 			want: false,
 		},

@@ -1,0 +1,92 @@
+package ui
+
+import "github.com/housecat-inc/scratch/pkg/db"
+
+templ TodoPage(p TodoProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>todos</title>
+			@TodoCSS()
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			<section class="todoapp">
+				<h1>todos</h1>
+				<form hx-post="/tasks" hx-target="#todo-main" hx-swap="outerHTML" hx-on::after-request="this.reset()">
+					<input
+						id="new-todo"
+						class="new-todo"
+						name="title"
+						placeholder="What needs to be done?"
+						autocomplete="off"
+						autofocus
+					/>
+				</form>
+				@TodoMain(p)
+			</section>
+		</body>
+	</html>
+}
+
+templ TodoMain(p TodoProps) {
+	<div id="todo-main">
+		if len(p.Tasks) == 0 {
+			<p class="empty">Nothing to do</p>
+		} else {
+			<ul id="todo-list" class="todo-list">
+				for _, t := range p.Tasks {
+					if t.ID == p.EditingID {
+						@todoEditItem(t)
+					} else {
+						@todoItem(t)
+					}
+				}
+			</ul>
+			@todoFooter(p)
+		}
+	</div>
+}
+
+templ todoItem(t db.Task) {
+	<li id={ "task-" + taskID(t) } class={ "todo-item", templ.KV("completed", t.Completed) }>
+		<input
+			class="toggle"
+			type="checkbox"
+			checked?={ t.Completed }
+			hx-patch={ taskPath(t) }
+			hx-vals={ toggleVals(t) }
+			hx-target="#todo-main"
+			hx-swap="outerHTML"
+		/>
+		<span class="title">{ t.Title }</span>
+		<button class="edit" hx-get={ taskPath(t) + "/edit" } hx-target="#todo-main" hx-swap="outerHTML">Edit</button>
+		<button class="destroy" hx-delete={ taskPath(t) } hx-target="#todo-main" hx-swap="outerHTML">Delete</button>
+	</li>
+}
+
+templ todoEditItem(t db.Task) {
+	<li id={ "task-" + taskID(t) } class="todo-item editing">
+		<form hx-patch={ taskPath(t) } hx-target="#todo-main" hx-swap="outerHTML" style="flex:1;display:flex">
+			<input id={ "edit-" + taskID(t) } class="edit-input" name="title" value={ t.Title } autofocus/>
+		</form>
+	</li>
+}
+
+templ todoFooter(p TodoProps) {
+	<div class="footer" id="footer">
+		<span id="todo-count"><strong>{ itoa(p.ActiveCount) }</strong> { plural(p.ActiveCount, "item", "items") } left</span>
+		<ul class="filters">
+			<li><a id="filter-all" href="/?filter=all" class={ templ.KV("selected", p.Filter == "all") }>All</a></li>
+			<li><a id="filter-active" href="/?filter=active" class={ templ.KV("selected", p.Filter == "active") }>Active</a></li>
+			<li><a id="filter-completed" href="/?filter=completed" class={ templ.KV("selected", p.Filter == "completed") }>Completed</a></li>
+		</ul>
+		if p.CompletedCount > 0 {
+			<button id="clear-completed" class="clear-completed" hx-delete="/tasks/completed" hx-target="#todo-main" hx-swap="outerHTML">
+				Clear completed
+			</button>
+		}
+	</div>
+}

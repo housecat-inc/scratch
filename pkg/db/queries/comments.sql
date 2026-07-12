@@ -1,6 +1,6 @@
 -- name: AddComment :one
-INSERT INTO comments (body, branch, id, line, path, side, slug)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO comments (body, branch, created_at, id, line, path, side, slug, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: DeleteComment :execrows
@@ -13,7 +13,7 @@ SELECT * FROM comments WHERE id = ? AND slug = ?;
 SELECT * FROM comments WHERE slug = ? AND branch = ? ORDER BY created_at ASC;
 
 -- name: SetCommentResolved :execrows
-UPDATE comments SET resolved = ?, resolved_body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND slug = ?;
+UPDATE comments SET resolved = ?, resolved_body = ?, updated_at = ? WHERE id = ? AND slug = ?;
 
 -- name: UpdateCommentBody :execrows
-UPDATE comments SET body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND slug = ?;
+UPDATE comments SET body = ?, updated_at = ? WHERE id = ? AND slug = ?;
