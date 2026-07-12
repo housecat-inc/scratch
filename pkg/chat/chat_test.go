@@ -37,6 +37,15 @@ func waitComplete(t *testing.T, svc *Service, threadID int64) ThreadView {
 	return view
 }
 
+type anchorAgent struct{}
+
+func (anchorAgent) Author() string { return "agent:anchor" }
+
+func (anchorAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
+	emit(Event{Data: `{"agent":"anchor","thread_id":"event"}`, Type: EventAnchor})
+	return `{"agent":"anchor","thread_id":"done"}`, nil
+}
+
 func TestSendEcho(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
@@ -71,6 +80,25 @@ func TestSendEcho(t *testing.T) {
 	prompt, err := svc.ThreadPrompt(thread.ID)
 	r.NoError(err)
 	a.Equal("hello there", prompt)
+}
+
+func TestSendPreservesThreadLabel(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, anchorAgent{})
+
+	thread, err := svc.CreateThreadWithLabel("", "", "todo", "")
+	r.NoError(err)
+	_, err = svc.Send(thread.ID, "hello there")
+	r.NoError(err)
+
+	waitComplete(t, svc, thread.ID)
+
+	got, err := svc.Thread(thread.ID)
+	r.NoError(err)
+	a.Equal("todo", svc.ThreadLabel(got))
+	a.JSONEq(`{"agent":"anchor","label":"todo","thread_id":"done"}`, got.Anchor)
 }
 
 func TestThreadPromptEmptyThread(t *testing.T) {

@@ -453,6 +453,27 @@ func (s *Service) ThreadLabel(thread db.Thread) string {
 	return anchor.Label
 }
 
+func mergeThreadAnchor(current, next string) string {
+	var currentData map[string]any
+	if err := json.Unmarshal([]byte(current), &currentData); err != nil {
+		return next
+	}
+	var nextData map[string]any
+	if err := json.Unmarshal([]byte(next), &nextData); err != nil {
+		return next
+	}
+	if _, ok := nextData["label"]; !ok {
+		if label, ok := currentData["label"]; ok {
+			nextData["label"] = label
+		}
+	}
+	data, err := json.Marshal(nextData)
+	if err != nil {
+		return next
+	}
+	return string(data)
+}
+
 func (s *Service) ThreadPrompt(id int64) (string, error) {
 	message, err := s.store.GetFirstThreadUserMessage(id)
 	if db.IsMessageNotFound(err) {
@@ -569,7 +590,13 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 	}
 	switch ev.Type {
 	case EventAnchor:
-		if err := s.store.SetThreadAnchor(threadID, ev.Data); err != nil {
+		thread, err := s.store.GetThread(threadID)
+		if err != nil {
+			s.log.Error("chat.anchor", "error", err.Error())
+			return
+		}
+		anchor := mergeThreadAnchor(thread.Anchor, ev.Data)
+		if err := s.store.SetThreadAnchor(threadID, anchor); err != nil {
 			s.log.Error("chat.anchor", "error", err.Error())
 		}
 	case EventRunner:
@@ -636,7 +663,7 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 		s.log.Error("chat.finish", "error", err.Error())
 	}
 	if anchor != "" && anchor != thread.Anchor {
-		if err := s.store.SetThreadAnchor(thread.ID, anchor); err != nil {
+		if err := s.store.SetThreadAnchor(thread.ID, mergeThreadAnchor(thread.Anchor, anchor)); err != nil {
 			s.log.Error("chat.anchor", "error", err.Error())
 		}
 	}
