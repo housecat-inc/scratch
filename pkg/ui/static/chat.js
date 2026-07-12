@@ -86,7 +86,26 @@
     if (snap) {
       const overlay = document.createElement("div");
       overlay.id = "chat-select-overlay";
+      const label = document.createElement("span");
+      label.className = "chat-select-label";
+      overlay.appendChild(label);
       let target = null;
+
+      const sectionOf = (el) => {
+        const preferred = el.closest(
+          ".chat-turn, .chat-row, .chat-plan, .chat-md, .chat-bubble, .mail-reader-head, .mail-list-item, .gm-label, article, section, aside, nav, form, header, footer"
+        );
+        if (preferred) return preferred;
+        let node = el;
+        while (
+          node.parentElement &&
+          node.parentElement !== document.body &&
+          (node.getBoundingClientRect().width < 80 || node.getBoundingClientRect().height < 32)
+        ) {
+          node = node.parentElement;
+        }
+        return node;
+      };
 
       const stopSelecting = () => {
         target = null;
@@ -98,18 +117,22 @@
       };
       const onMove = (e) => {
         overlay.style.display = "none";
-        target = document.elementFromPoint(e.clientX, e.clientY);
-        overlay.style.display = "";
-        if (!target || target === document.body || target === document.documentElement) {
+        let el = document.elementFromPoint(e.clientX, e.clientY);
+        if (el && (el.closest("#chat-form") || el.closest(".mail-footer"))) el = null;
+        if (!el || el === document.body || el === document.documentElement) {
           target = null;
-          overlay.style.display = "none";
           return;
         }
+        target = sectionOf(el);
         const rect = target.getBoundingClientRect();
+        overlay.style.display = "block";
         overlay.style.height = rect.height + "px";
         overlay.style.left = rect.left + "px";
         overlay.style.top = rect.top + "px";
         overlay.style.width = rect.width + "px";
+        overlay.classList.toggle("label-inside", rect.top < 30);
+        label.textContent =
+          cssPath(target) + "  " + Math.round(rect.width) + "×" + Math.round(rect.height);
       };
       const onKey = (e) => {
         if (e.key === "Escape") stopSelecting();
@@ -122,11 +145,15 @@
         if (el) capture(el);
       };
       snap.addEventListener("click", () => {
+        if (document.body.classList.contains("chat-selecting")) return;
         document.body.classList.add("chat-selecting");
         document.body.appendChild(overlay);
+        overlay.style.display = "none";
         document.addEventListener("mousemove", onMove, true);
-        document.addEventListener("click", onPick, true);
-        document.addEventListener("keydown", onKey, true);
+        setTimeout(() => {
+          document.addEventListener("click", onPick, true);
+          document.addEventListener("keydown", onKey, true);
+        }, 0);
       });
 
       const cssPath = (el) => {
@@ -152,8 +179,6 @@
 
       const capture = async (el) => {
         const selector = cssPath(el);
-        let html = el.outerHTML;
-        if (html.length > 1500) html = html.slice(0, 1500) + "…";
         try {
           const canvas = await html2canvas(el, { logging: false, useCORS: true });
           const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
@@ -163,9 +188,8 @@
         } catch (err) {
           showAlert("screenshot failed: " + err.message);
         }
-        const note = "Selected element: " + selector + "\n```html\n" + html + "\n```\n";
-        input.value = input.value ? input.value + "\n" + note : note;
-        input.dispatchEvent(new Event("input"));
+        const html = "<!-- selector: " + selector + " -->\n" + el.outerHTML;
+        await upload(new File([html], "selection.html", { type: "text/html" }));
         input.focus();
       };
     }

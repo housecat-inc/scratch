@@ -84,28 +84,28 @@ templ MailComposer(p InboxProps) {
 			hx-on::after-request="this.reset()"
 			data-upload-url={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/attachments" }
 		>
-			<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
-				@paperclipIcon()
-				<input id="chat-file" type="file" multiple hidden/>
-			</label>
-			<button type="button" id="chat-snap" class="chat-icon-circle" title="Screenshot a section of the page" aria-label="Screenshot a section of the page">
-				@crosshairIcon()
-			</button>
-			<div class="chat-input-shell">
-				<div id="chat-attachments" class="chat-attachments"></div>
-				<textarea
-					id="chat-input"
-					name="prompt"
-					rows="1"
-					placeholder={ threadComposePlaceholder(*p.Thread) }
-					autocomplete="off"
-					autofocus
-				></textarea>
+			<div id="chat-attachments" class="chat-attachments"></div>
+			<textarea
+				id="chat-input"
+				name="prompt"
+				rows="1"
+				placeholder={ threadComposePlaceholder(*p.Thread) }
+				autocomplete="off"
+				autofocus
+			></textarea>
+			<div class="chat-compose-row">
+				<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
+					@paperclipIcon()
+					<input id="chat-file" type="file" multiple hidden/>
+				</label>
+				<button type="button" id="chat-snap" class="chat-icon-circle" title="Screenshot a section of the page" aria-label="Screenshot a section of the page">
+					@crosshairIcon()
+				</button>
+				<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
+					@sendIcon()
+					<span>Send</span>
+				</button>
 			</div>
-			<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
-				@sendIcon()
-				<span>Send</span>
-			</button>
 		</form>
 	} else {
 		<form

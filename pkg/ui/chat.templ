@@ -52,6 +52,7 @@ templ ChatAttachmentChip(a ChatAttachmentProps) {
 		<input type="hidden" name="attachment_id" value={ itoa64(a.ID) }/>
 		if a.IsImage {
 			<img class="chat-chip-thumb" src={ attachmentURL(a) } alt={ a.Name }/>
+			<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
 		} else {
 			@paperclipIcon()
 		}
