@@ -7,8 +7,7 @@ RETURNING *;
 DELETE FROM threads WHERE id = ?;
 
 -- name: DeleteThreadAttachments :exec
-DELETE FROM attachments
-WHERE message_id IN (SELECT id FROM messages WHERE thread_id = ?);
+DELETE FROM attachments WHERE thread_id = ?;
 
 -- name: DeleteThreadMessageEvents :exec
 DELETE FROM message_events

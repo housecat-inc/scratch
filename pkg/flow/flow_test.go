@@ -112,7 +112,13 @@ func TestContactIntakeAccept(t *testing.T) {
 	asst := view.Messages[1]
 	a.Equal(db.MessageStatusComplete, asst.Status)
 	a.Contains(asst.Body, "Added todo #1: Follow up with Jane Doe <jane@example.com>")
-	a.Equal([]string{"draft_contact", "add_task"}, view.ToolCalls[asst.ID])
+	tools := []string{}
+	for _, part := range view.Parts[asst.ID] {
+		if part.Kind == chat.PartTool {
+			tools = append(tools, part.Tool.Title)
+		}
+	}
+	a.Equal([]string{"draft_contact", "add_task"}, tools)
 	a.Empty(view.Forms)
 
 	tasks, err := s.Store.ListTasks()

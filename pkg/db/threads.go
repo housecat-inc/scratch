@@ -31,19 +31,28 @@ type Thread struct {
 }
 
 type ThreadStore interface {
+	AddAttachment(a NewAttachment) (Attachment, error)
 	AddMessage(m NewMessage) (Message, error)
 	AddMessageEvent(messageID int64, eventType, data string) (MessageEvent, error)
 	AddThread(kind, title, anchor string) (Thread, error)
 	AppendMessageBody(id int64, delta string) error
+	DeleteDraftAttachment(id int64) (Attachment, error)
 	DeleteThread(id int64) error
 	FinishMessage(id int64, status string) (Message, error)
+	GetAttachment(id int64) (Attachment, error)
 	GetMessage(id int64) (Message, error)
 	GetThread(id int64) (Thread, error)
+	LinkAttachments(threadID, messageID int64, ids []int64) error
+	ListMessageAttachments(messageID int64) ([]Attachment, error)
 	ListMessageEvents(messageID, afterSeq int64) ([]MessageEvent, error)
 	ListMessagesByStatus(status string) ([]Message, error)
+	ListThreadAttachments(threadID int64) ([]Attachment, error)
 	ListThreadMessageEvents(threadID int64) ([]MessageEvent, error)
 	ListThreadMessages(threadID int64) ([]Message, error)
 	ListThreads(kind string) ([]Thread, error)
+	ResetMessageEvents(id int64) error
+	SetMessageBody(id int64, body string) error
+	SetMessageMeta(id int64, meta string) error
 	SetThreadAnchor(id int64, anchor string) error
 	SetThreadState(id int64, state string) error
 	SetThreadStarred(id int64, starred bool) error

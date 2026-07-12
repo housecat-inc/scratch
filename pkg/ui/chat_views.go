@@ -27,14 +27,53 @@ type ChatFormProps struct {
 	MessageID     int64
 }
 
+type ChatAttachmentProps struct {
+	ID       int64
+	IsImage  bool
+	Name     string
+	ThreadID int64
+}
+
 type ChatMessageProps struct {
-	Author string
-	Body   string
-	Form   *ChatFormProps
-	ID     int64
-	Role   string
-	Status string
-	Tools  []string
+	Attachments []ChatAttachmentProps
+	Author      string
+	Body        string
+	Form        *ChatFormProps
+	ID          int64
+	Parts       []ChatPartProps
+	Role        string
+	Status      string
+}
+
+type ChatPartProps struct {
+	Kind    string
+	Plan    []ChatPlanEntryProps
+	Summary string
+	Text    string
+	Tool    *ChatToolCallProps
+}
+
+type chatRowProps struct {
+	Detail  string
+	Failed  bool
+	Key     string
+	Kind    string
+	Label   string
+	Live    bool
+	Summary string
+}
+
+type ChatPlanEntryProps struct {
+	Content string
+	Status  string
+}
+
+type ChatToolCallProps struct {
+	Detail  string
+	ID      string
+	Status  string
+	Summary string
+	Title   string
 }
 
 type ChatThreadProps struct {
@@ -50,9 +89,23 @@ func ChatCSS() templ.Component {
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
 
-func toolSummary(tools []string) string {
-	if len(tools) == 1 {
-		return "1 tool call"
+func accessLabel(access string) string {
+	if access == "full" {
+		return "Full access — agent can edit files and run commands"
 	}
-	return strconv.Itoa(len(tools)) + " tool calls"
+	return "Safe mode — agent is read-only"
+}
+
+func attachmentURL(a ChatAttachmentProps) string {
+	return "/chat/" + itoa64(a.ThreadID) + "/attachments/" + itoa64(a.ID)
+}
+
+func planStatusIcon(status string) string {
+	switch status {
+	case "completed":
+		return "☑"
+	case "in_progress":
+		return "◪"
+	}
+	return "☐"
 }

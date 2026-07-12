@@ -113,8 +113,13 @@ func TestSendAgentError(t *testing.T) {
 
 	view := waitComplete(t, svc, thread.ID)
 	r.Len(view.Messages, 2)
-	a.Equal(db.MessageStatusError, view.Messages[1].Status)
-	a.Contains(view.Messages[1].Body, "agent exploded")
+	asst := view.Messages[1]
+	a.Equal(db.MessageStatusError, asst.Status)
+	parts := view.Parts[asst.ID]
+	r.NotEmpty(parts)
+	last := parts[len(parts)-1]
+	a.Equal(PartError, last.Kind)
+	a.Contains(last.Text, "agent exploded")
 }
 
 func TestRecoverFinishesOrphanedStreaming(t *testing.T) {

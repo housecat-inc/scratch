@@ -35,6 +35,7 @@ templ InboxHead(title string) {
 		@ChatCSS()
 		<script src="/static/htmx.min.js"></script>
 		<script src="/static/htmx-ext-sse.min.js"></script>
+		<script src="/static/html2canvas.min.js" defer></script>
 		<script src="/static/chat.js" defer></script>
 		<script src="/static/inbox.js" defer></script>
 	</head>
@@ -75,18 +76,36 @@ templ MailComposer(p InboxProps) {
 	if p.Thread != nil {
 		<form
 			id="chat-form"
-			class="mail-universal-compose"
+			class="chat-compose"
 			action={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
 			method="post"
 			hx-post={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
 			hx-swap="none"
 			hx-on::after-request="this.reset()"
+			data-upload-url={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/attachments" }
 		>
-			<input id="chat-input" class="mail-compose-input" name="prompt" placeholder={ threadComposePlaceholder(*p.Thread) } autocomplete="off" autofocus/>
-			<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
-				@sendIcon()
-				<span>Send</span>
-			</button>
+			<textarea
+				id="chat-input"
+				name="prompt"
+				rows="1"
+				placeholder={ threadComposePlaceholder(*p.Thread) }
+				autocomplete="off"
+				autofocus
+			></textarea>
+			<div class="chat-compose-row">
+				<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
+					@paperclipIcon()
+					<input id="chat-file" type="file" multiple hidden/>
+				</label>
+				<button type="button" id="chat-snap" class="chat-icon-circle" title="Screenshot a section of the page" aria-label="Screenshot a section of the page">
+					@crosshairIcon()
+				</button>
+				<div id="chat-attachments" class="chat-attachments"></div>
+				<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
+					@sendIcon()
+					<span>Send</span>
+				</button>
+			</div>
 		</form>
 	} else {
 		<form
@@ -249,6 +268,9 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			<p>{ d.Agent }</p>
 		</div>
 		<div class="mail-reader-actions">
+			if d.Kind == "chat" {
+				@ChatAccessToggle(d.ID, d.Access)
+			}
 			if d.Archived {
 				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), unarchiveIcon())
 				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))

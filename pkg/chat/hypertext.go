@@ -2,14 +2,17 @@ package chat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/cockroachdb/errors"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/housecat-inc/scratch/pkg/db"
@@ -36,10 +39,109 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
+	mux.HandleFunc("POST /chat/{id}/access", s.handleAccess)
+	mux.HandleFunc("POST /chat/{id}/attachments", s.handleUpload)
+	mux.HandleFunc("GET /chat/{id}/attachments/{attachment}", s.handleAttachment)
+	mux.HandleFunc("DELETE /chat/{id}/attachments/{attachment}", s.handleDeleteAttachment)
 	mux.HandleFunc("POST /chat/{id}/elicitations", s.handleElicitation)
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
 	return logging.Middleware(s.log, mux)
+}
+
+func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	access, err := s.svc.ToggleThreadAccess(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if err := ui.ChatAccessToggle(id, access).Render(r.Context(), w); err != nil {
+		s.fail(w, err)
+	}
+}
+
+func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, ok := s.threadAttachment(w, r)
+	if !ok {
+		return
+	}
+	w.Header().Set("Content-Type", attachment.MimeType)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": attachment.Name}))
+	http.ServeFile(w, r, attachment.FilePath)
+}
+
+func (s *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, ok := s.threadAttachment(w, r)
+	if !ok {
+		return
+	}
+	err := s.svc.DeleteDraftAttachment(attachment.ID)
+	if db.IsAttachmentNotFound(err) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) threadAttachment(w http.ResponseWriter, r *http.Request) (db.Attachment, bool) {
+	threadID, ok := threadID(w, r)
+	if !ok {
+		return db.Attachment{}, false
+	}
+	id, err := strconv.ParseInt(r.PathValue("attachment"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid attachment id", http.StatusBadRequest)
+		return db.Attachment{}, false
+	}
+	attachment, err := s.svc.Attachment(id)
+	if db.IsAttachmentNotFound(err) || (err == nil && attachment.ThreadID != threadID) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
+		return db.Attachment{}, false
+	}
+	if err != nil {
+		s.fail(w, err)
+		return db.Attachment{}, false
+	}
+	return attachment, true
+}
+
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, attachmentMaxBytes+(1<<20))
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, ErrAttachmentTooLarge.Error(), http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "missing file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	attachment, err := s.svc.AddAttachment(id, header.Filename, header.Header.Get("Content-Type"), file)
+	if errors.Is(err, ErrAttachmentTooLarge) {
+		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		return
+	}
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if err := ui.ChatAttachmentChip(toAttachmentProps(attachment)).Render(r.Context(), w); err != nil {
+		s.fail(w, err)
+	}
 }
 
 func (s *Server) handleElicitation(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +202,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Content-Type", "text/event-stream")
 
-	updates, cancel := s.svc.Subscribe(id)
+	updates, take, cancel := s.svc.Subscribe(id)
 	defer cancel()
 
 	ping := time.NewTicker(ssePingInterval)
@@ -118,7 +220,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, ": ping\n\n")
 			flusher.Flush()
 		case <-updates:
-			if err := s.writeMessagesEvent(w, r, id); err != nil {
+			if err := s.writeUpdates(w, r, id, take()); err != nil {
 				return
 			}
 			flusher.Flush()
@@ -126,17 +228,60 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) writeUpdates(w http.ResponseWriter, r *http.Request, threadID int64, messageIDs []int64) error {
+	view, err := s.svc.View(threadID)
+	if err != nil {
+		return err
+	}
+	props := s.toThreadProps(view)
+	byID := map[int64]ui.ChatMessageProps{}
+	for _, m := range props.Messages {
+		byID[m.ID] = m
+	}
+	for _, messageID := range messageIDs {
+		if messageID == StructuralUpdate {
+			return writeSSE(w, r.Context(), "message", ui.ChatMessages(props))
+		}
+		if _, ok := byID[messageID]; !ok {
+			return writeSSE(w, r.Context(), "message", ui.ChatMessages(props))
+		}
+	}
+	for _, messageID := range messageIDs {
+		event := "message-" + strconv.FormatInt(messageID, 10)
+		if err := writeSSE(w, r.Context(), event, ui.ChatMessage(byID[messageID])); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	id, ok := threadID(w, r)
 	if !ok {
 		return
 	}
-	prompt := strings.TrimSpace(r.FormValue("prompt"))
-	if prompt == "" {
-		w.WriteHeader(http.StatusNoContent)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-	if _, err := s.svc.Send(id, prompt); err != nil {
+	attachmentIDs := []int64{}
+	for _, raw := range r.Form["attachment_id"] {
+		aid, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			http.Error(w, "invalid attachment id", http.StatusBadRequest)
+			return
+		}
+		attachmentIDs = append(attachmentIDs, aid)
+	}
+	prompt := strings.TrimSpace(r.FormValue("prompt"))
+	if prompt == "" {
+		if len(attachmentIDs) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		prompt = "See attached files."
+	}
+	if _, err := s.svc.Send(id, prompt, attachmentIDs...); err != nil {
 		if IsThreadBusy(err) {
 			http.Error(w, "agent is still responding", http.StatusConflict)
 			return
@@ -157,6 +302,10 @@ func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
 		http.Error(w, "thread not found", http.StatusNotFound)
 		return
 	}
+	if db.IsAttachmentNotFound(err) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
+		return
+	}
 	s.fail(w, err)
 }
 
@@ -165,16 +314,20 @@ func (s *Server) writeMessagesEvent(w http.ResponseWriter, r *http.Request, thre
 	if err != nil {
 		return err
 	}
+	return writeSSE(w, r.Context(), "message", ui.ChatMessages(s.toThreadProps(view)))
+}
+
+func writeSSE(w http.ResponseWriter, ctx context.Context, event string, component templ.Component) error {
 	var buf bytes.Buffer
-	if err := ui.ChatMessages(s.toThreadProps(view)).Render(r.Context(), &buf); err != nil {
+	if err := component.Render(ctx, &buf); err != nil {
 		return err
 	}
-	fmt.Fprint(w, "event: message\n")
+	fmt.Fprintf(w, "event: %s\n", event)
 	html := strings.ReplaceAll(buf.String(), "\r", "")
 	for line := range strings.SplitSeq(html, "\n") {
 		fmt.Fprintf(w, "data: %s\n", line)
 	}
-	_, err = fmt.Fprint(w, "\n")
+	_, err := fmt.Fprint(w, "\n")
 	return err
 }
 
@@ -198,21 +351,70 @@ func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
 		props.Title = "New chat"
 	}
 	for _, m := range v.Messages {
-		msg := ui.ChatMessageProps{
-			Author: m.Author,
-			Body:   m.Body,
-			ID:     m.ID,
-			Role:   m.Role,
-			Status: m.Status,
-			Tools:  v.ToolCalls[m.ID],
-		}
-		if prompt, ok := v.Forms[m.ID]; ok {
-			form := toFormProps(v.Thread.ID, m.ID, prompt)
-			msg.Form = &form
-		}
-		props.Messages = append(props.Messages, msg)
+		props.Messages = append(props.Messages, MessageProps(v, m))
 	}
 	return props
+}
+
+func MessageProps(v ThreadView, m db.Message) ui.ChatMessageProps {
+	msg := ui.ChatMessageProps{
+		Author: m.Author,
+		Body:   m.Body,
+		ID:     m.ID,
+		Parts:  toPartProps(v.Parts[m.ID]),
+		Role:   m.Role,
+		Status: m.Status,
+	}
+	for _, a := range v.Attachments[m.ID] {
+		msg.Attachments = append(msg.Attachments, toAttachmentProps(a))
+	}
+	if prompt, ok := v.Forms[m.ID]; ok {
+		form := toFormProps(v.Thread.ID, m.ID, prompt)
+		msg.Form = &form
+	}
+	return msg
+}
+
+func toAttachmentProps(a db.Attachment) ui.ChatAttachmentProps {
+	return ui.ChatAttachmentProps{
+		ID:       a.ID,
+		IsImage:  strings.HasPrefix(a.MimeType, "image/"),
+		Name:     a.Name,
+		ThreadID: a.ThreadID,
+	}
+}
+
+func toPartProps(parts []MessagePart) []ui.ChatPartProps {
+	props := make([]ui.ChatPartProps, 0, len(parts))
+	for _, part := range parts {
+		p := ui.ChatPartProps{
+			Kind:    part.Kind,
+			Summary: summaryLine(part.Text),
+			Text:    strings.TrimSpace(part.Text),
+		}
+		if (part.Kind == PartText || part.Kind == PartThinking) && p.Text == "" {
+			continue
+		}
+		for _, entry := range part.Plan {
+			p.Plan = append(p.Plan, ui.ChatPlanEntryProps{Content: entry.Content, Status: entry.Status})
+		}
+		if part.Tool != nil {
+			p.Tool = &ui.ChatToolCallProps{
+				Detail:  part.Tool.Detail,
+				ID:      part.Tool.ID,
+				Status:  part.Tool.Status,
+				Summary: summaryLine(part.Tool.Detail),
+				Title:   part.Tool.Title,
+			}
+		}
+		props = append(props, p)
+	}
+	return props
+}
+
+func summaryLine(text string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	return clip(strings.TrimSpace(line), 140)
 }
 
 func toFormProps(threadID, messageID int64, prompt elicit.Prompt) ui.ChatFormProps {

@@ -39,11 +39,12 @@ type Resolver interface {
 }
 
 type ThreadView struct {
-	Forms     map[int64]elicit.Prompt
-	Messages  []db.Message
-	Streaming bool
-	Thread    db.Thread
-	ToolCalls map[int64][]string
+	Attachments map[int64][]db.Attachment
+	Forms       map[int64]elicit.Prompt
+	Messages    []db.Message
+	Parts       map[int64][]MessagePart
+	Streaming   bool
+	Thread      db.Thread
 }
 
 type Service struct {
@@ -130,7 +131,7 @@ func (s *Service) DeleteThread(threadID int64) error {
 }
 
 func (s *Service) Publish(threadID int64) {
-	s.broker.Publish(threadID)
+	s.broker.Publish(threadID, StructuralUpdate)
 }
 
 func (s *Service) Recover() error {
@@ -147,8 +148,14 @@ func (s *Service) Recover() error {
 			continue
 		}
 		if agent, err := s.resolveAgent(thread); err == nil {
-			turn := Turn{Anchor: thread.Anchor, MessageID: m.ID, ThreadID: m.ThreadID}
+			turn := Turn{Anchor: thread.Anchor, MessageID: m.ID, Meta: m.Meta, ThreadID: m.ThreadID}
 			if recoverable, ok := agent.(Recoverable); ok && recoverable.Alive(turn) {
+				continue
+			}
+			if HasRunner(m.Meta) {
+				if err := s.reattach(agent, thread, turn); err != nil {
+					return err
+				}
 				continue
 			}
 		}
@@ -158,6 +165,19 @@ func (s *Service) Recover() error {
 		}
 		s.log.Info("chat.recovered", "message", m.ID, "thread", m.ThreadID)
 	}
+	return nil
+}
+
+func (s *Service) reattach(agent Agent, thread db.Thread, turn Turn) error {
+	if err := s.store.ResetMessageEvents(turn.MessageID); err != nil {
+		return err
+	}
+	if err := s.store.SetMessageBody(turn.MessageID, ""); err != nil {
+		return err
+	}
+	s.wg.Add(1)
+	go s.run(agent, thread, turn)
+	s.log.Info("chat.reattached", "message", turn.MessageID, "thread", thread.ID)
 	return nil
 }
 
@@ -223,11 +243,11 @@ func (s *Service) ResolveElicitation(messageID int64, elicitationID, action stri
 	if err := s.resolver.Deliver(prompt.WorkflowID, prompt.Topic, prompt.ElicitationID, reply); err != nil {
 		return errors.Wrap(err, "deliver reply")
 	}
-	s.broker.Publish(msg.ThreadID)
+	s.broker.Publish(msg.ThreadID, messageID)
 	return nil
 }
 
-func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
+func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (db.Message, error) {
 	thread, err := s.store.GetThread(threadID)
 	if err != nil {
 		return db.Message{}, err
@@ -245,6 +265,9 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 			return db.Message{}, ErrThreadBusy
 		}
 	}
+	if err := s.validateDraftAttachments(threadID, attachmentIDs); err != nil {
+		return db.Message{}, err
+	}
 
 	user, err := s.store.AddMessage(db.NewMessage{
 		Author:   userAuthor,
@@ -252,6 +275,13 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 		Role:     db.MessageRoleUser,
 		ThreadID: threadID,
 	})
+	if err != nil {
+		return db.Message{}, err
+	}
+	if err := s.store.LinkAttachments(threadID, user.ID, attachmentIDs); err != nil {
+		return db.Message{}, err
+	}
+	files, err := s.messageAttachments(user.ID, attachmentIDs)
 	if err != nil {
 		return db.Message{}, err
 	}
@@ -272,12 +302,47 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	} else if err := s.store.TouchThread(threadID); err != nil {
 		return db.Message{}, err
 	}
-	s.broker.Publish(threadID)
+	s.broker.Publish(threadID, StructuralUpdate)
 
-	turn := Turn{Anchor: thread.Anchor, MessageID: asst.ID, Prompt: prompt, ThreadID: threadID}
+	turn := Turn{
+		Anchor:      thread.Anchor,
+		Attachments: files,
+		MessageID:   asst.ID,
+		Meta:        asst.Meta,
+		Prompt:      prompt,
+		ThreadID:    threadID,
+	}
 	s.wg.Add(1)
 	go s.run(agent, thread, turn)
 	return user, nil
+}
+
+func (s *Service) messageAttachments(messageID int64, ids []int64) ([]Attachment, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := s.store.ListMessageAttachments(messageID)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]Attachment, 0, len(rows))
+	for _, a := range rows {
+		files = append(files, Attachment{MimeType: a.MimeType, Path: a.FilePath})
+	}
+	return files, nil
+}
+
+func (s *Service) validateDraftAttachments(threadID int64, ids []int64) error {
+	for _, id := range ids {
+		attachment, err := s.store.GetAttachment(id)
+		if err != nil {
+			return err
+		}
+		if attachment.MessageID != nil || attachment.ThreadID != threadID {
+			return db.ErrAttachmentNotFound
+		}
+	}
+	return nil
 }
 
 func (s *Service) SetThreadState(threadID int64, state string) error {
@@ -297,7 +362,7 @@ func (s *Service) SetResolver(r Resolver) {
 	s.resolver = r
 }
 
-func (s *Service) Subscribe(threadID int64) (<-chan struct{}, func()) {
+func (s *Service) Subscribe(threadID int64) (<-chan struct{}, func() []int64, func()) {
 	return s.broker.Subscribe(threadID)
 }
 
@@ -322,11 +387,21 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 	if err != nil {
 		return ThreadView{}, err
 	}
+	attachments, err := s.store.ListThreadAttachments(threadID)
+	if err != nil {
+		return ThreadView{}, err
+	}
 	view := ThreadView{
-		Forms:     map[int64]elicit.Prompt{},
-		Messages:  msgs,
-		Thread:    thread,
-		ToolCalls: map[int64][]string{},
+		Attachments: map[int64][]db.Attachment{},
+		Forms:       map[int64]elicit.Prompt{},
+		Messages:    msgs,
+		Parts:       map[int64][]MessagePart{},
+		Thread:      thread,
+	}
+	for _, a := range attachments {
+		if a.MessageID != nil {
+			view.Attachments[*a.MessageID] = append(view.Attachments[*a.MessageID], a)
+		}
 	}
 	byMessage := map[int64][]db.MessageEvent{}
 	for _, ev := range events {
@@ -345,7 +420,11 @@ func (s *Service) View(threadID int64) (ThreadView, error) {
 }
 
 func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
-	tools := []string{}
+	if parts := foldParts(events, m.Status == db.MessageStatusStreaming); len(parts) > 0 {
+		view.Parts[m.ID] = parts
+	} else if m.Body != "" {
+		view.Parts[m.ID] = []MessagePart{{Kind: PartText, Text: m.Body}}
+	}
 	prompts := []elicit.Prompt{}
 	resolved := map[string]bool{}
 	for _, ev := range events {
@@ -360,17 +439,7 @@ func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
 			if err := json.Unmarshal([]byte(ev.Data), &r); err == nil {
 				resolved[r.ElicitationID] = true
 			}
-		case EventToolCall:
-			var call struct {
-				Name string `json:"name"`
-			}
-			if err := json.Unmarshal([]byte(ev.Data), &call); err == nil && call.Name != "" {
-				tools = append(tools, call.Name)
-			}
 		}
-	}
-	if len(tools) > 0 {
-		view.ToolCalls[m.ID] = tools
 	}
 	if m.Status != db.MessageStatusStreaming {
 		return
@@ -387,7 +456,16 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 	if _, err := s.store.AddMessageEvent(messageID, ev.Type, ev.Data); err != nil {
 		s.log.Error("chat.event", "error", err.Error())
 	}
-	if ev.Type == EventDelta {
+	switch ev.Type {
+	case EventAnchor:
+		if err := s.store.SetThreadAnchor(threadID, ev.Data); err != nil {
+			s.log.Error("chat.anchor", "error", err.Error())
+		}
+	case EventRunner:
+		if err := s.store.SetMessageMeta(messageID, ev.Data); err != nil {
+			s.log.Error("chat.runner", "error", err.Error())
+		}
+	case EventDelta:
 		var delta struct {
 			Text string `json:"text"`
 		}
@@ -397,7 +475,7 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 			}
 		}
 	}
-	s.broker.Publish(threadID)
+	s.broker.Publish(threadID, messageID)
 }
 
 func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {
@@ -425,7 +503,6 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	if err != nil {
 		status = db.MessageStatusError
 		s.log.Error("chat.run", "error", err.Error(), "message", turn.MessageID, "thread", thread.ID)
-		s.emit(thread.ID, turn.MessageID, DeltaEvent(err.Error()))
 		s.emit(thread.ID, turn.MessageID, Event{Data: errorData(err), Type: EventError})
 	}
 	if _, err := s.store.FinishMessage(turn.MessageID, status); err != nil {
@@ -439,7 +516,7 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	if err := s.store.TouchThread(thread.ID); err != nil {
 		s.log.Error("chat.touch", "error", err.Error())
 	}
-	s.broker.Publish(thread.ID)
+	s.broker.Publish(thread.ID, StructuralUpdate)
 }
 
 type elicitationResult struct {

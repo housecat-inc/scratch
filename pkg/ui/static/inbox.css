@@ -370,7 +370,7 @@ textarea {
   color: #202124;
   display: grid;
   grid-template-columns: 16rem minmax(0, 1fr);
-  grid-template-rows: 56px minmax(0, 1fr) 68px;
+  grid-template-rows: 56px minmax(0, 1fr) auto;
   height: 100vh;
   overflow: hidden;
 }
@@ -1031,13 +1031,14 @@ textarea {
 }
 
 .mail-footer {
-  align-items: center;
+  align-items: flex-end;
   background: #f8fafc;
   border-top: 1px solid #e5e7eb;
   color: #64748b;
   display: flex;
   grid-column: 2;
   grid-row: 3;
+  min-height: 68px;
   padding: 0.65rem 0.9rem;
 }
 
