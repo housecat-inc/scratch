@@ -504,16 +504,21 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 		messages = append(messages, chat.MessageProps(view, m))
 	}
 	agent := s.chat.AgentName(view.Thread)
+	prompt, err := s.threadPrompt(id)
+	if err != nil {
+		return ui.InboxThreadDetail{}, errors.Wrap(err, "thread prompt")
+	}
 	return ui.InboxThreadDetail{
-		Access:    s.chat.ThreadAccess(view.Thread),
-		Agent:     agent,
-		Archived:  view.Thread.State == db.ThreadStateArchived,
-		ID:        id,
-		Kind:      kind,
-		Messages:  messages,
-		Starred:   view.Thread.Starred,
-		Streaming: view.Streaming,
-		Title:     title,
+		Access:      s.chat.ThreadAccess(view.Thread),
+		Agent:       agent,
+		Archived:    view.Thread.State == db.ThreadStateArchived,
+		Description: chat.FriendlyDescription(prompt),
+		ID:          id,
+		Kind:        kind,
+		Messages:    messages,
+		Starred:     view.Thread.Starred,
+		Streaming:   view.Streaming,
+		Title:       title,
 	}, nil
 }
 
@@ -717,7 +722,7 @@ func threadItem(thread db.Thread, kind, agent, prompt string) ui.InboxItem {
 		Href:      "/inbox/" + titleKindPath(kind) + "/" + strconv.FormatInt(thread.ID, 10),
 		ID:        thread.ID,
 		Kind:      kind,
-		Snippet:   prompt,
+		Snippet:   chat.FriendlyDescription(prompt),
 		Starred:   thread.Starred,
 		Title:     title,
 		UpdatedAt: thread.UpdatedAt.Time,

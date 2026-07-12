@@ -5,24 +5,26 @@ import "strconv"
 templ ChatComposer(p ChatComposerProps) {
 	if p.UploadURL != "" {
 		<form
-			id="chat-form"
+			id={ chatDOMID(p, "chat-form") }
 			class="chat-compose"
 			action={ p.Action }
 			method="post"
 			hx-post={ p.HXPost }
 			hx-swap="none"
 			hx-on::after-request="this.reset()"
+			data-chat-form
 			data-upload-url={ p.UploadURL }
 		>
 			@chatComposerBody(p)
 		</form>
 	} else {
 		<form
-			id="chat-form"
+			id={ chatDOMID(p, "chat-form") }
 			class="chat-compose mail-universal-compose"
 			action={ p.Action }
 			method="post"
 			enctype="multipart/form-data"
+			data-chat-form
 		>
 			@chatComposerBody(p)
 		</form>
@@ -34,7 +36,8 @@ templ chatComposerBody(p ChatComposerProps) {
 		<input type="hidden" name={ hidden.Name } value={ hidden.Value }/>
 	}
 	<textarea
-		id="chat-input"
+		id={ chatDOMID(p, "chat-input") }
+		data-chat-input
 		name="prompt"
 		rows="1"
 		placeholder={ p.Placeholder }
@@ -44,9 +47,9 @@ templ chatComposerBody(p ChatComposerProps) {
 	<div class="chat-compose-row">
 		<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
 			@paperclipIcon()
-			<input id="chat-file" name={ p.FileName } type="file" multiple hidden/>
+			<input id={ chatDOMID(p, "chat-file") } data-chat-file name={ p.FileName } type="file" multiple hidden/>
 		</label>
-		<button type="button" id="chat-snap" class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
+		<button type="button" id={ chatDOMID(p, "chat-snap") } data-chat-snap class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
 			@crosshairIcon()
 		</button>
 		if p.StopAction != "" {
@@ -54,8 +57,8 @@ templ chatComposerBody(p ChatComposerProps) {
 				@stopIcon()
 			</button>
 		}
-		<div id="chat-attachments" class="chat-attachments"></div>
-		<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
+		<div id={ chatDOMID(p, "chat-attachments") } data-chat-attachments class="chat-attachments"></div>
+		<button id={ chatDOMID(p, "chat-send") } data-chat-send class="mail-send-btn" type="submit" aria-label="Send">
 			@sendIcon()
 			<span>Send</span>
 		</button>
@@ -69,6 +72,59 @@ templ ChatMessages(p ChatThreadProps) {
 	for _, m := range p.Messages {
 		@ChatMessage(m)
 	}
+}
+
+templ FloatingChatPanel(p FloatingChatProps) {
+	<section
+		id="floating-chat"
+		class="floating-chat"
+		data-chat-popout
+		data-thread-id={ itoa64(p.ID) }
+		data-empty={ strconv.FormatBool(len(p.Messages) == 0) }
+		aria-label="Chat popout"
+	>
+		<header class="floating-chat-head">
+			<a class="floating-chat-title" href={ templ.SafeURL("/inbox/chats/" + itoa64(p.ID)) }>
+				<span>{ p.Title }</span>
+				<small>{ p.Agent }</small>
+			</a>
+			<div class="floating-chat-actions">
+				if p.Access != "" {
+					@ChatAccessToggle(p.ID, p.Access)
+				}
+				if p.Streaming {
+					<button type="button" class="floating-chat-icon" title="Stop chat" aria-label="Stop chat" hx-post={ "/chat/" + itoa64(p.ID) + "/stop" } hx-swap="none">
+						@stopIcon()
+					</button>
+				}
+				<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
+					@minusIcon()
+				</button>
+				<button type="button" class="floating-chat-icon" data-chat-fullscreen title="Fullscreen" aria-label="Fullscreen chat">
+					@fullscreenIcon()
+				</button>
+				<button type="button" class="floating-chat-icon" data-chat-close title="Close" aria-label="Close chat">
+					@closeIcon()
+				</button>
+			</div>
+		</header>
+		<div hx-ext="sse" sse-connect={ "/chat/" + itoa64(p.ID) + "/events" } class="floating-chat-body" data-chat-scroller>
+			<div id={ "floating-chat-" + itoa64(p.ID) + "-messages" } data-chat-messages class="chat-messages floating-chat-messages" sse-swap="message">
+				@ChatMessages(ChatThreadProps{Agent: p.Agent, ID: p.ID, Messages: p.Messages, Title: p.Title})
+			</div>
+		</div>
+		<footer class="floating-chat-compose">
+			@ChatComposer(ChatComposerProps{
+				Action:      "/chat/" + itoa64(p.ID) + "/messages",
+				FileName:   "",
+				HXPost:     "/chat/" + itoa64(p.ID) + "/messages",
+				IDPrefix:    "floating-chat-" + itoa64(p.ID),
+				Placeholder: "Message " + p.Agent + "...",
+				StopAction:  "/chat/" + itoa64(p.ID) + "/stop",
+				UploadURL:   "/chat/" + itoa64(p.ID) + "/attachments",
+			})
+		</footer>
+	</section>
 }
 
 templ ChatMessage(m ChatMessageProps) {
@@ -157,6 +213,18 @@ templ boltIcon() {
 
 templ crosshairIcon() {
 	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg>
+}
+
+templ closeIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+}
+
+templ fullscreenIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M21 16v3a2 2 0 0 1-2 2h-3"></path></svg>
+}
+
+templ minusIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg>
 }
 
 templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {

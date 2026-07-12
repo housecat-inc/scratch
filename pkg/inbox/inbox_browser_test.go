@@ -14,11 +14,11 @@ func TestInboxTasksBrowser(t *testing.T) {
 				Click("[data-new-chat]"),
 			},
 			Assert: []Step{
-				ChatThreadCount(0),
-				ElementEventuallyPresent("#chat-input"),
-				TextContains(".mail-reader-title", "New chat"),
+				ChatThreadCount(1),
+				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				TextContains("#floating-chat", "New chat"),
 			},
-			Name: "new chat action opens a draft chat without creating a thread",
+			Name: "new chat action opens a floating chat",
 			Path: "/",
 		},
 		{

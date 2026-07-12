@@ -39,6 +39,9 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
+	mux.HandleFunc("GET /chat/popout/new", s.handleNewPopout)
+	mux.HandleFunc("GET /chat/{id}", http.NotFound)
+	mux.HandleFunc("DELETE /chat/{id}", s.handleDelete)
 	mux.HandleFunc("POST /chat/{id}/access", s.handleAccess)
 	mux.HandleFunc("POST /chat/{id}/attachments", s.handleUpload)
 	mux.HandleFunc("GET /chat/{id}/attachments/{attachment}", s.handleAttachment)
@@ -46,8 +49,56 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /chat/{id}/elicitations", s.handleElicitation)
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
+	mux.HandleFunc("GET /chat/{id}/popout", s.handlePopout)
 	mux.HandleFunc("POST /chat/{id}/stop", s.handleStop)
 	return logging.Middleware(s.log, mux)
+}
+
+func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
+	agent := strings.TrimSpace(r.URL.Query().Get("agent"))
+	model := strings.TrimSpace(r.URL.Query().Get("model"))
+	if model == "default" {
+		model = ""
+	}
+	thread, err := s.svc.CreateThreadWithModel(agent, model, "")
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if err := s.renderPopout(w, r, thread.ID); err != nil {
+		s.fail(w, err)
+	}
+}
+
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.svc.DeleteThread(id); err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handlePopout(w http.ResponseWriter, r *http.Request) {
+	id, ok := threadID(w, r)
+	if !ok {
+		return
+	}
+	if err := s.renderPopout(w, r, id); err != nil {
+		s.notFoundOr(w, err)
+	}
+}
+
+func (s *Server) renderPopout(w http.ResponseWriter, r *http.Request, threadID int64) error {
+	view, err := s.svc.View(threadID)
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return ui.FloatingChatPanel(s.toFloatingProps(view)).Render(r.Context(), w)
 }
 
 func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
@@ -367,6 +418,18 @@ func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
 		props.Messages = append(props.Messages, MessageProps(v, m))
 	}
 	return props
+}
+
+func (s *Server) toFloatingProps(v ThreadView) ui.FloatingChatProps {
+	thread := s.toThreadProps(v)
+	return ui.FloatingChatProps{
+		Access:    s.svc.ThreadAccess(v.Thread),
+		Agent:     thread.Agent,
+		ID:        thread.ID,
+		Messages:  thread.Messages,
+		Streaming: v.Streaming,
+		Title:     thread.Title,
+	}
 }
 
 func MessageProps(v ThreadView, m db.Message) ui.ChatMessageProps {

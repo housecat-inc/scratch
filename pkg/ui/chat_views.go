@@ -40,6 +40,7 @@ type ChatComposerProps struct {
 	FileName    string
 	Hidden      []ChatComposerHiddenProps
 	HXPost      string
+	IDPrefix    string
 	Model       string
 	Placeholder string
 	StopAction  string
@@ -100,11 +101,27 @@ type ChatThreadProps struct {
 	Title    string
 }
 
+type FloatingChatProps struct {
+	Access    string
+	Agent     string
+	ID        int64
+	Messages  []ChatMessageProps
+	Streaming bool
+	Title     string
+}
+
 func ChatCSS() templ.Component {
 	return templ.Raw(`<style>` + chatCSS + `</style>`)
 }
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
+
+func chatDOMID(p ChatComposerProps, id string) string {
+	if p.IDPrefix == "" {
+		return id
+	}
+	return p.IDPrefix + "-" + id
+}
 
 func accessLabel(access string) string {
 	if access == "full" {

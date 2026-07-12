@@ -332,6 +332,31 @@
   margin-left: auto;
 }
 
+.mail-send-btn {
+  align-items: center;
+  background: #1a73e8;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 650;
+  gap: 0.4rem;
+  height: 2.1rem;
+  padding: 0 0.85rem;
+}
+
+.mail-send-btn:hover {
+  background: #1558b0;
+}
+
+.mail-send-btn svg {
+  height: 1rem;
+  width: 1rem;
+}
+
 .chat-attachments {
   display: flex;
   flex-wrap: wrap;
@@ -554,6 +579,156 @@ body.chat-selecting * {
   color: #64748b;
   padding: 1.5rem 0;
   text-align: center;
+}
+
+.floating-chat {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.55rem 0.55rem 0 0;
+  bottom: 0;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.28);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(42rem, calc(100vh - 5rem));
+  overflow: hidden;
+  position: fixed;
+  right: 1.25rem;
+  width: min(46rem, calc(100vw - 2.5rem));
+  z-index: 90;
+}
+
+.floating-chat.fullscreen {
+  border-radius: 0;
+  height: 100dvh;
+  inset: 0;
+  width: 100vw;
+}
+
+.floating-chat.minimized {
+  cursor: pointer;
+  height: auto;
+  width: min(22rem, calc(100vw - 2.5rem));
+}
+
+.floating-chat.minimized .floating-chat-body,
+.floating-chat.minimized .floating-chat-compose {
+  display: none;
+}
+
+.floating-chat-head {
+  align-items: center;
+  background: #0f172a;
+  color: #f8fafc;
+  display: flex;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.9rem;
+}
+
+.floating-chat-title {
+  color: inherit;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.floating-chat-title span,
+.floating-chat-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-chat-title span {
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.floating-chat-title small {
+  color: #cbd5e1;
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.floating-chat-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.2rem;
+}
+
+.floating-chat-actions .chat-access-switch {
+  color: #e2e8f0;
+  padding: 0.2rem;
+}
+
+.floating-chat-icon {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 0.35rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  display: inline-flex;
+  height: 1.8rem;
+  justify-content: center;
+  padding: 0;
+  width: 1.8rem;
+}
+
+.floating-chat-icon:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.floating-chat-icon svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.floating-chat-body {
+  background: #fff;
+  min-height: 0;
+  overflow: auto;
+}
+
+.floating-chat-messages {
+  min-height: 100%;
+  padding: 1rem 1rem 1.25rem;
+}
+
+.floating-chat-compose {
+  background: #f8fafc;
+  border-top: 1px solid #e5e7eb;
+  padding: 0.65rem;
+}
+
+.floating-chat-compose .chat-compose {
+  border-radius: 0.8rem;
+}
+
+@media (max-width: 720px) {
+  .floating-chat {
+    border-radius: 0.55rem 0.55rem 0 0;
+    height: min(38rem, calc(100dvh - 2rem));
+    left: 0.65rem;
+    right: 0.65rem;
+    width: auto;
+  }
+
+  .floating-chat.fullscreen {
+    border-radius: 0;
+    height: 100dvh;
+    inset: 0;
+  }
+
+  .floating-chat.minimized {
+    left: auto;
+    width: min(22rem, calc(100vw - 1.3rem));
+  }
 }
 
 .chat-new-row {

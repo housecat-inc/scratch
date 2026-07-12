@@ -1,4 +1,6 @@
 (() => {
+  const popoutKey = "scratch.chat.popout";
+
   const showAlert = (text) => {
     let alert = document.getElementById("chat-alert");
     if (!alert) {
@@ -18,16 +20,74 @@
   const paperclipIconHTML = () =>
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path></svg>`;
 
-  document.body.addEventListener("htmx:responseError", (e) => {
-    showAlert(e.detail.xhr.responseText);
-  });
+  const state = () => {
+    try {
+      return JSON.parse(sessionStorage.getItem(popoutKey) || "{}");
+    } catch {
+      return {};
+    }
+  };
 
-  const form = document.getElementById("chat-form");
-  const strip = document.getElementById("chat-attachments");
-  const input = document.getElementById("chat-input");
-  if (form && strip && input) {
+  const saveState = (next) => {
+    const merged = { ...state(), ...next };
+    if (!merged.threadID) {
+      sessionStorage.removeItem(popoutKey);
+      return;
+    }
+    sessionStorage.setItem(popoutKey, JSON.stringify(merged));
+  };
+
+  const clearState = () => sessionStorage.removeItem(popoutKey);
+
+  const panelMode = (panel) => {
+    if (panel.classList.contains("fullscreen")) return "fullscreen";
+    if (panel.classList.contains("minimized")) return "minimized";
+    return "open";
+  };
+
+  const applyPanelMode = (panel, mode) => {
+    panel.classList.toggle("fullscreen", mode === "fullscreen");
+    panel.classList.toggle("minimized", mode === "minimized");
+    saveState({ mode, threadID: panel.dataset.threadId });
+  };
+
+  const insertPopout = (html, mode = "open") => {
+    document.getElementById("floating-chat")?.remove();
+    document.body.insertAdjacentHTML("beforeend", html);
+    const panel = document.getElementById("floating-chat");
+    if (!panel) return null;
+    applyPanelMode(panel, mode);
+    window.htmx?.process(panel);
+    initAll(panel);
+    panel.querySelector("[data-chat-input]")?.focus();
+    return panel;
+  };
+
+  const openPopout = async (url, mode = "open") => {
+    const res = await fetch(url);
+    if (!res.ok) {
+      showAlert(await res.text());
+      return null;
+    }
+    return insertPopout(await res.text(), mode);
+  };
+
+  const restorePopout = () => {
+    const saved = state();
+    if (!saved.threadID) return;
+    openPopout(`/chat/${saved.threadID}/popout`, saved.mode || "open");
+  };
+
+  const initComposer = (form) => {
+    if (form.dataset.chatInitialized === "true") return;
+    form.dataset.chatInitialized = "true";
+
+    const strip = form.querySelector("[data-chat-attachments]");
+    const input = form.querySelector("[data-chat-input]");
+    if (!strip || !input) return;
+
     const uploadURL = form.dataset.uploadUrl;
-    const fileInput = document.getElementById("chat-file");
+    const fileInput = form.querySelector("[data-chat-file]");
     const draftFiles = [];
     const previewURLKey = Symbol("previewURL");
 
@@ -102,14 +162,6 @@
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 200) + "px";
     };
-    input.addEventListener("input", resize);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-        e.preventDefault();
-        form.requestSubmit();
-      }
-    });
-    resize();
 
     const upload = async (file) => {
       if (!uploadURL) {
@@ -125,9 +177,19 @@
       }
       strip.insertAdjacentHTML("beforeend", await res.text());
     };
-    const uploadAll = (files) => {
-      for (const file of files) upload(file);
+
+    const uploadAll = async (files) => {
+      for (const file of files) await upload(file);
     };
+
+    input.addEventListener("input", resize);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    resize();
 
     fileInput?.addEventListener("change", (e) => {
       uploadAll(e.target.files);
@@ -169,193 +231,264 @@
         revokeDraftPreviews();
         strip.replaceChildren();
         resize();
+        form.closest("[data-chat-popout]")?.setAttribute("data-empty", "false");
       }
     });
     form.addEventListener("submit", () => {
       if (!uploadURL) revokeDraftPreviews();
     });
 
-    const snap = document.getElementById("chat-snap");
-    if (snap) {
-      const overlay = document.createElement("div");
-      overlay.id = "chat-select-overlay";
-      const label = document.createElement("span");
-      label.className = "chat-select-label";
-      overlay.appendChild(label);
-      let target = null;
-
-      const sectionOf = (el) => {
-        const preferred = el.closest(
-          ".chat-turn, .chat-row, .chat-plan, .chat-md, .chat-bubble, .mail-reader-head, .mail-list-item, .gm-label, article, section, aside, nav, form, header, footer"
-        );
-        if (preferred) return preferred;
-        let node = el;
-        while (
-          node.parentElement &&
-          node.parentElement !== document.body &&
-          (node.getBoundingClientRect().width < 80 || node.getBoundingClientRect().height < 32)
-        ) {
-          node = node.parentElement;
-        }
-        return node;
-      };
-
-      const stopSelecting = () => {
-        target = null;
-        overlay.remove();
-        document.body.classList.remove("chat-selecting");
-        document.removeEventListener("mousemove", onMove, true);
-        document.removeEventListener("click", onPick, true);
-        document.removeEventListener("keydown", onKey, true);
-      };
-      const onMove = (e) => {
-        overlay.style.display = "none";
-        let el = document.elementFromPoint(e.clientX, e.clientY);
-        if (el && (el.closest("#chat-form") || el.closest(".mail-footer"))) el = null;
-        if (!el || el === document.body || el === document.documentElement) {
-          target = null;
-          return;
-        }
-        target = sectionOf(el);
-        const rect = target.getBoundingClientRect();
-        overlay.style.display = "block";
-        overlay.style.height = rect.height + "px";
-        overlay.style.left = rect.left + "px";
-        overlay.style.top = rect.top + "px";
-        overlay.style.width = rect.width + "px";
-        overlay.classList.toggle("label-inside", rect.top < 30);
-        label.textContent =
-          cssPath(target) + "  " + Math.round(rect.width) + "×" + Math.round(rect.height);
-      };
-      const onKey = (e) => {
-        if (e.key === "Escape") stopSelecting();
-      };
-      const onPick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const el = target;
-        stopSelecting();
-        if (el) capture(el);
-      };
-      snap.addEventListener("click", () => {
-        if (document.body.classList.contains("chat-selecting")) return;
-        document.body.classList.add("chat-selecting");
-        document.body.appendChild(overlay);
-        overlay.style.display = "none";
-        document.addEventListener("mousemove", onMove, true);
-        setTimeout(() => {
-          document.addEventListener("click", onPick, true);
-          document.addEventListener("keydown", onKey, true);
-        }, 0);
-      });
-
-      const cssPath = (el) => {
-        const parts = [];
-        for (let node = el; node && node.nodeType === 1 && parts.length < 6; node = node.parentElement) {
-          if (node.id) {
-            parts.unshift("#" + node.id);
-            break;
-          }
-          let part = node.tagName.toLowerCase();
-          const cls = [...node.classList].slice(0, 2).join(".");
-          if (cls) part += "." + cls;
-          const siblings = node.parentElement
-            ? [...node.parentElement.children].filter((c) => c.tagName === node.tagName)
-            : [];
-          if (siblings.length > 1) {
-            part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
-          }
-          parts.unshift(part);
-        }
-        return parts.join(" > ");
-      };
-
-      const capture = async (el) => {
-        setComposeMode("chat");
-        const selector = cssPath(el);
-        const html =
-          "<!-- url: " + location.href + " -->\n<!-- selector: " + selector + " -->\n" + el.outerHTML;
-        if (uploadURL) {
-          try {
-            const canvas = await html2canvas(el, { logging: false, useCORS: true });
-            const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-            if (blob) {
-              await upload(new File([blob], "selection.png", { type: "image/png" }));
-            }
-          } catch (err) {
-            showAlert("screenshot failed: " + err.message);
-          }
-          await upload(new File([html], "selection.html", { type: "text/html" }));
-        } else {
-          const files = [];
-          try {
-            const canvas = await html2canvas(el, { logging: false, useCORS: true });
-            const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-            if (blob) {
-              files.push(new File([blob], "selection.png", { type: "image/png" }));
-            }
-          } catch (err) {
-            showAlert("screenshot failed: " + err.message);
-          }
-          files.push(new File([html], "selection.html", { type: "text/html" }));
-          addDraftFiles(files);
-        }
-        const note = uploadURL
-          ? "Selected " + selector + " on " + location.href
-          : "Selected " + selector + " on " + location.href;
-        input.value = input.value ? input.value + "\n" + note : note;
-        input.dispatchEvent(new Event("input"));
-        input.focus();
-      };
-
-    }
-  }
-
-  const messages = document.getElementById("chat-messages");
-  if (!messages) return;
-
-  const pendingElicitation = (root) =>
-    root.querySelector("#elicit-form [name=elicitation_id]")?.value;
-
-  messages.addEventListener("htmx:sseBeforeMessage", (e) => {
-    const current = pendingElicitation(document);
-    if (!current) return;
-    const incoming = new DOMParser().parseFromString(e.detail.data, "text/html");
-    if (pendingElicitation(incoming) === current) {
-      e.preventDefault();
-    }
-  });
-
-  const toggled = new Map();
-  messages.addEventListener("click", (e) => {
-    const details = e.target.closest("details[data-key]");
-    if (!details || !e.target.closest("summary")) return;
-    toggled.set(details.dataset.key, !details.open);
-  });
-
-  const applyToggles = () => {
-    for (const details of messages.querySelectorAll("details[data-key]")) {
-      const open = toggled.get(details.dataset.key);
-      if (open !== undefined && details.open !== open) {
-        details.open = open;
-      }
-    }
+    initCapture(form, input, upload, addDraftFiles, setComposeMode);
   };
 
-  const scroller = messages.closest(".mail-chat-body") || messages;
-  const nearBottom = () =>
-    scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
-  let stick = true;
-  scroller.addEventListener("scroll", () => {
-    stick = nearBottom();
+  const initCapture = (form, input, upload, addDraftFiles, setComposeMode) => {
+    const snap = form.querySelector("[data-chat-snap]");
+    if (!snap) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "chat-select-overlay";
+    const label = document.createElement("span");
+    label.className = "chat-select-label";
+    overlay.appendChild(label);
+    let target = null;
+
+    const sectionOf = (el) => {
+      const preferred = el.closest(
+        ".chat-turn, .chat-row, .chat-plan, .chat-md, .chat-bubble, .mail-reader-head, .mail-list-item, .gm-label, article, section, aside, nav, form, header, footer"
+      );
+      if (preferred) return preferred;
+      let node = el;
+      while (
+        node.parentElement &&
+        node.parentElement !== document.body &&
+        (node.getBoundingClientRect().width < 80 || node.getBoundingClientRect().height < 32)
+      ) {
+        node = node.parentElement;
+      }
+      return node;
+    };
+
+    const stopSelecting = () => {
+      target = null;
+      overlay.remove();
+      document.body.classList.remove("chat-selecting");
+      document.removeEventListener("mousemove", onMove, true);
+      document.removeEventListener("click", onPick, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+
+    const onMove = (e) => {
+      overlay.style.display = "none";
+      let el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el && (el.closest("[data-chat-popout]") || el.closest("[data-chat-form]") || el.closest(".mail-footer"))) {
+        el = null;
+      }
+      if (!el || el === document.body || el === document.documentElement) {
+        target = null;
+        return;
+      }
+      target = sectionOf(el);
+      const rect = target.getBoundingClientRect();
+      overlay.style.display = "block";
+      overlay.style.height = rect.height + "px";
+      overlay.style.left = rect.left + "px";
+      overlay.style.top = rect.top + "px";
+      overlay.style.width = rect.width + "px";
+      overlay.classList.toggle("label-inside", rect.top < 30);
+      label.textContent = cssPath(target) + "  " + Math.round(rect.width) + "×" + Math.round(rect.height);
+    };
+
+    const onKey = (e) => {
+      if (e.key === "Escape") stopSelecting();
+    };
+
+    const onPick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const el = target;
+      stopSelecting();
+      if (el) capture(el);
+    };
+
+    snap.addEventListener("click", () => {
+      if (document.body.classList.contains("chat-selecting")) return;
+      document.body.classList.add("chat-selecting");
+      document.body.appendChild(overlay);
+      overlay.style.display = "none";
+      document.addEventListener("mousemove", onMove, true);
+      setTimeout(() => {
+        document.addEventListener("click", onPick, true);
+        document.addEventListener("keydown", onKey, true);
+      }, 0);
+    });
+
+    const cssPath = (el) => {
+      const parts = [];
+      for (let node = el; node && node.nodeType === 1 && parts.length < 6; node = node.parentElement) {
+        if (node.id) {
+          parts.unshift("#" + node.id);
+          break;
+        }
+        let part = node.tagName.toLowerCase();
+        const cls = [...node.classList].slice(0, 2).join(".");
+        if (cls) part += "." + cls;
+        const siblings = node.parentElement
+          ? [...node.parentElement.children].filter((c) => c.tagName === node.tagName)
+          : [];
+        if (siblings.length > 1) {
+          part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+        }
+        parts.unshift(part);
+      }
+      return parts.join(" > ");
+    };
+
+    const capture = async (el) => {
+      setComposeMode("chat");
+      const selector = cssPath(el);
+      const html = "<!-- url: " + location.href + " -->\n<!-- selector: " + selector + " -->\n" + el.outerHTML;
+      const uploadURL = form.dataset.uploadUrl;
+      if (uploadURL) {
+        try {
+          const canvas = await html2canvas(el, { logging: false, useCORS: true });
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+          if (blob) await upload(new File([blob], "selection.png", { type: "image/png" }));
+        } catch (err) {
+          showAlert("screenshot failed: " + err.message);
+        }
+        await upload(new File([html], "selection.html", { type: "text/html" }));
+      } else {
+        const files = [];
+        try {
+          const canvas = await html2canvas(el, { logging: false, useCORS: true });
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+          if (blob) files.push(new File([blob], "selection.png", { type: "image/png" }));
+        } catch (err) {
+          showAlert("screenshot failed: " + err.message);
+        }
+        files.push(new File([html], "selection.html", { type: "text/html" }));
+        addDraftFiles(files);
+      }
+      const note = "Selected " + selector + " on " + location.href;
+      input.value = input.value ? input.value + "\n" + note : note;
+      input.dispatchEvent(new Event("input"));
+      input.focus();
+    };
+  };
+
+  const initMessages = (messages) => {
+    if (messages.dataset.chatMessagesInitialized === "true") return;
+    messages.dataset.chatMessagesInitialized = "true";
+
+    const pendingElicitation = (root) => root.querySelector("#elicit-form [name=elicitation_id]")?.value;
+
+    messages.addEventListener("htmx:sseBeforeMessage", (e) => {
+      const current = pendingElicitation(document);
+      if (!current) return;
+      const incoming = new DOMParser().parseFromString(e.detail.data, "text/html");
+      if (pendingElicitation(incoming) === current) {
+        e.preventDefault();
+      }
+    });
+
+    const toggled = new Map();
+    messages.addEventListener("click", (e) => {
+      const details = e.target.closest("details[data-key]");
+      if (!details || !e.target.closest("summary")) return;
+      toggled.set(details.dataset.key, !details.open);
+    });
+
+    const applyToggles = () => {
+      for (const details of messages.querySelectorAll("details[data-key]")) {
+        const open = toggled.get(details.dataset.key);
+        if (open !== undefined && details.open !== open) details.open = open;
+      }
+    };
+
+    const scroller = messages.closest("[data-chat-scroller]") || messages.closest(".mail-chat-body") || messages;
+    const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+    let stick = true;
+    scroller.addEventListener("scroll", () => {
+      stick = nearBottom();
+    });
+    new MutationObserver(() => {
+      applyToggles();
+      if (stick) scroller.scrollTo(0, scroller.scrollHeight);
+    }).observe(messages, {
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    scroller.scrollTo(0, scroller.scrollHeight);
+  };
+
+  const initPopout = (panel) => {
+    if (panel.dataset.chatPanelInitialized === "true") return;
+    panel.dataset.chatPanelInitialized = "true";
+
+    panel.addEventListener("click", async (e) => {
+      const minimize = e.target.closest("[data-chat-minimize]");
+      if (minimize) {
+        applyPanelMode(panel, panel.classList.contains("minimized") ? "open" : "minimized");
+        return;
+      }
+      const fullscreen = e.target.closest("[data-chat-fullscreen]");
+      if (fullscreen) {
+        applyPanelMode(panel, panel.classList.contains("fullscreen") ? "open" : "fullscreen");
+        return;
+      }
+      const close = e.target.closest("[data-chat-close]");
+      if (close) {
+        const empty = panel.dataset.empty === "true";
+        const threadID = panel.dataset.threadId;
+        panel.remove();
+        clearState();
+        if (empty && threadID) await fetch(`/chat/${threadID}`, { method: "DELETE" });
+        return;
+      }
+      if (panel.classList.contains("minimized") && e.target.closest(".floating-chat-head")) {
+        applyPanelMode(panel, "open");
+      }
+    });
+  };
+
+  const initAll = (root = document) => {
+    if (root.matches?.("[data-chat-form]")) initComposer(root);
+    if (root.matches?.("[data-chat-messages]")) initMessages(root);
+    if (root.matches?.("[data-chat-popout]")) initPopout(root);
+    root.querySelectorAll("[data-chat-form]").forEach(initComposer);
+    root.querySelectorAll("[data-chat-messages]").forEach(initMessages);
+    root.querySelectorAll("[data-chat-popout]").forEach(initPopout);
+  };
+
+  document.body.addEventListener("htmx:responseError", (e) => {
+    showAlert(e.detail.xhr.responseText);
   });
-  new MutationObserver(() => {
-    applyToggles();
-    if (stick) scroller.scrollTo(0, scroller.scrollHeight);
-  }).observe(messages, {
-    characterData: true,
-    childList: true,
-    subtree: true,
+
+  document.addEventListener("submit", (e) => {
+    const form = e.target.closest("[data-chat-popout-new]");
+    if (!form) return;
+    e.preventDefault();
+    const params = new URLSearchParams(new FormData(form));
+    openPopout(`/chat/popout/new?${params.toString()}`);
   });
-  scroller.scrollTo(0, scroller.scrollHeight);
+
+  document.addEventListener("click", (e) => {
+    const trigger = e.target.closest("[data-chat-popout-thread]");
+    if (!trigger) return;
+    e.preventDefault();
+    openPopout(`/chat/${trigger.dataset.chatPopoutThread}/popout`);
+  });
+
+  new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === 1) initAll(node);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+
+  window.scratchChat = { init: initAll, openPopout };
+  initAll();
+  restorePopout();
 })();

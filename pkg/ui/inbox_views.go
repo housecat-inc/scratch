@@ -57,15 +57,16 @@ type InboxTaskDetail struct {
 }
 
 type InboxThreadDetail struct {
-	Access    string
-	Agent     string
-	Archived  bool
-	ID        int64
-	Kind      string
-	Messages  []ChatMessageProps
-	Starred   bool
-	Streaming bool
-	Title     string
+	Access      string
+	Agent       string
+	Archived    bool
+	Description string
+	ID          int64
+	Kind        string
+	Messages    []ChatMessageProps
+	Starred     bool
+	Streaming   bool
+	Title       string
 }
 
 type ReaderHeaderProps struct {

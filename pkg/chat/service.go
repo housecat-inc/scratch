@@ -289,7 +289,7 @@ func (s *Service) Send(threadID int64, prompt string, attachmentIDs ...int64) (d
 		return db.Message{}, err
 	}
 	if thread.Title == "" {
-		if err := s.store.SetThreadTitle(threadID, truncate(prompt, titleMaxLen)); err != nil {
+		if err := s.store.SetThreadTitle(threadID, FriendlyTitle(prompt)); err != nil {
 			return db.Message{}, err
 		}
 	} else if err := s.store.TouchThread(threadID); err != nil {

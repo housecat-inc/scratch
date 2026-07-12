@@ -185,6 +185,22 @@ func TestChatBrowser(t *testing.T) {
 			},
 		},
 		{
+			Name: "opens an existing thread in a floating chat",
+			Path: "/inbox/chats/1",
+			Seed: []Step{SeedChatThread()},
+			Act: []Step{
+				WaitChatReady(),
+				Click(`[data-chat-popout-thread="1"]`),
+				ElementEventuallyPresent("#floating-chat"),
+				Type("#floating-chat [data-chat-input]", "from popout"),
+				Click("#floating-chat [data-chat-send]"),
+			},
+			Assert: []Step{
+				TextEventuallyContains("#floating-chat .role-user .chat-bubble", "from popout"),
+				TextEventuallyContains("#floating-chat .role-assistant", "You said: from popout"),
+			},
+		},
+		{
 			Name: "renders thinking, tool, plan, and markdown parts",
 			Path: "/inbox/chats/1",
 			Seed: []Step{
