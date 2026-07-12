@@ -284,8 +284,9 @@
       if (e.detail.successful && e.detail.xhr?.status === 204) {
         clearTextDraft();
         revokeDraftPreviews();
+        input.value = "";
         strip.replaceChildren();
-        resize();
+        requestAnimationFrame(resize);
         form.closest("[data-chat-popout]")?.setAttribute("data-empty", "false");
       }
     });
