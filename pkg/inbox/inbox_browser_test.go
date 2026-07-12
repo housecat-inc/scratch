@@ -10,8 +10,8 @@ func TestInboxTasksBrowser(t *testing.T) {
 	runBrowser(t, []testkit.BrowserCase[*Harness]{
 		{
 			Act: []Step{
-				Type(".mail-compose-input", "buy milk"),
-				Press(".mail-compose-input", "Enter"),
+				Type("#chat-input", "buy milk"),
+				Click("#chat-send"),
 			},
 			Assert: []Step{
 				TextContains(".mail-reader-title", "buy milk"),

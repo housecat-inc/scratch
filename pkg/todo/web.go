@@ -28,12 +28,31 @@ func NewWebServer(tasks *Service, log *slog.Logger) *WebServer {
 func (s *WebServer) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleList)
+	mux.HandleFunc("GET /tasks", s.handleTasks)
 	mux.HandleFunc("GET /tasks/{id}", s.handleShow)
 	mux.HandleFunc("POST /tasks", s.handleCreate)
+	mux.HandleFunc("POST /tasks/{id}/archive", s.handleArchive)
 	mux.HandleFunc("POST /tasks/{id}", s.handleUpdate)
 	mux.HandleFunc("POST /tasks/{id}/delete", s.handleDelete)
 	mux.HandleFunc("POST /tasks/{id}/done", s.handleDone)
 	return logging.Middleware(s.log, mux)
+}
+
+func (s *WebServer) handleArchive(w http.ResponseWriter, r *http.Request) {
+	id, ok := taskPathID(w, r)
+	if !ok {
+		return
+	}
+	task, err := s.tasks.Get(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if _, err := s.tasks.SetArchived(id, !task.Archived); err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	s.redirectBack(w, r)
 }
 
 func (s *WebServer) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +82,7 @@ func (s *WebServer) handleDelete(w http.ResponseWriter, r *http.Request) {
 		s.notFoundOr(w, err)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	s.redirectBack(w, r)
 }
 
 func (s *WebServer) handleDone(w http.ResponseWriter, r *http.Request) {
@@ -75,11 +94,11 @@ func (s *WebServer) handleDone(w http.ResponseWriter, r *http.Request) {
 		s.notFoundOr(w, err)
 		return
 	}
-	http.Redirect(w, r, "/tasks/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	s.redirectBack(w, r)
 }
 
 func (s *WebServer) handleList(w http.ResponseWriter, r *http.Request) {
-	s.renderPage(w, r, 0)
+	s.renderPage(w, r, FilterActive, 0)
 }
 
 func (s *WebServer) handleShow(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +106,11 @@ func (s *WebServer) handleShow(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.renderPage(w, r, id)
+	s.renderPage(w, r, FilterAll, id)
+}
+
+func (s *WebServer) handleTasks(w http.ResponseWriter, r *http.Request) {
+	s.renderPage(w, r, FilterAll, 0)
 }
 
 func (s *WebServer) handleUpdate(w http.ResponseWriter, r *http.Request) {
@@ -125,19 +148,48 @@ func (s *WebServer) notFoundOr(w http.ResponseWriter, err error) {
 	s.fail(w, err)
 }
 
-func (s *WebServer) props(selectedID int64) (ui.TodoProps, error) {
-	view, err := s.tasks.ViewTask(FilterAll, selectedID)
+func (s *WebServer) props(filter Filter, selectedID int64) (ui.TodoProps, error) {
+	all, err := s.tasks.All()
 	if err != nil {
 		return ui.TodoProps{}, err
 	}
-	props := ui.TodoProps{
-		ActiveCount: view.ActiveCount,
-		Tasks:       view.Tasks,
+	activeCount := 0
+	tasks := make([]db.Task, 0, len(all))
+	for _, task := range all {
+		if !task.Archived && !task.Completed {
+			activeCount++
+		}
+		if filter == FilterActive && (task.Archived || task.Completed) {
+			continue
+		}
+		tasks = append(tasks, task)
 	}
-	if view.Detail != nil {
-		props.Detail = &ui.TodoTaskDetail{Task: view.Detail.Task}
+	props := ui.TodoProps{
+		ActiveCount: activeCount,
+		Title:       todoTitle(filter),
+		Tasks:       tasks,
+		TaskCount:   len(all),
+		View:        todoView(filter),
+	}
+	if selectedID != 0 {
+		task, err := s.tasks.Get(selectedID)
+		if err != nil {
+			return ui.TodoProps{}, err
+		}
+		props.Detail = &ui.TodoTaskDetail{Task: task}
 	}
 	return props, nil
+}
+
+func (s *WebServer) redirectBack(w http.ResponseWriter, r *http.Request) {
+	back := r.FormValue("back")
+	if back == "" {
+		back = r.Header.Get("Referer")
+	}
+	if back == "" {
+		back = "/"
+	}
+	http.Redirect(w, r, back, http.StatusSeeOther)
 }
 
 func (s *WebServer) render(w http.ResponseWriter, r *http.Request, comp templ.Component) {
@@ -147,13 +199,27 @@ func (s *WebServer) render(w http.ResponseWriter, r *http.Request, comp templ.Co
 	}
 }
 
-func (s *WebServer) renderPage(w http.ResponseWriter, r *http.Request, selectedID int64) {
-	props, err := s.props(selectedID)
+func (s *WebServer) renderPage(w http.ResponseWriter, r *http.Request, filter Filter, selectedID int64) {
+	props, err := s.props(filter, selectedID)
 	if err != nil {
 		s.notFoundOr(w, err)
 		return
 	}
 	s.render(w, r, ui.TodoPage(props))
+}
+
+func todoTitle(filter Filter) string {
+	if filter == FilterActive {
+		return "Inbox"
+	}
+	return "Tasks"
+}
+
+func todoView(filter Filter) string {
+	if filter == FilterActive {
+		return "inbox"
+	}
+	return "tasks"
 }
 
 func taskPathID(w http.ResponseWriter, r *http.Request) (int64, bool) {

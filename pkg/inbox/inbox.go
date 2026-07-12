@@ -404,7 +404,11 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 		if isWorkflowAgent(agent) {
 			kind = "workflow"
 		}
-		item := threadItem(thread, kind, agent)
+		prompt, err := s.threadPrompt(thread.ID)
+		if err != nil {
+			return nil, ui.InboxCounts{}, errors.Wrap(err, "first thread prompt")
+		}
+		item := threadItem(thread, kind, agent, prompt)
 		addCounts(&counts, item)
 		if includeItem(view, filter, item) {
 			all = append(all, item)
@@ -444,17 +448,12 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 }
 
 func (s *Server) taskDetail(id int64) (ui.InboxTaskDetail, error) {
-	view, err := s.tasks.ViewTask(todo.FilterAll, id)
+	task, err := s.tasks.Get(id)
 	if err != nil {
 		return ui.InboxTaskDetail{}, err
 	}
-	if view.Detail == nil {
-		return ui.InboxTaskDetail{}, db.ErrTaskNotFound
-	}
 	return ui.InboxTaskDetail{
-		Notes:    view.Detail.Notes,
-		Subitems: view.Detail.Subitems,
-		Task:     view.Detail.Task,
+		Task: task,
 	}, nil
 }
 
@@ -617,10 +616,6 @@ func resolveComposeMode(mode, prompt, view string) (string, string) {
 }
 
 func taskItem(task db.Task) ui.InboxItem {
-	status := "Active"
-	if task.Completed {
-		status = "Done"
-	}
 	return ui.InboxItem{
 		Archived:  task.Archived,
 		Done:      task.Completed,
@@ -628,7 +623,7 @@ func taskItem(task db.Task) ui.InboxItem {
 		Href:      "/inbox/tasks/" + strconv.FormatInt(task.ID, 10),
 		ID:        task.ID,
 		Kind:      "task",
-		Snippet:   status,
+		Snippet:   task.Description,
 		Starred:   task.Starred,
 		Title:     task.Title,
 		UpdatedAt: task.UpdatedAt.Time,
@@ -637,7 +632,7 @@ func taskItem(task db.Task) ui.InboxItem {
 	}
 }
 
-func threadItem(thread db.Thread, kind, agent string) ui.InboxItem {
+func threadItem(thread db.Thread, kind, agent, prompt string) ui.InboxItem {
 	title := thread.Title
 	if title == "" {
 		title = "New chat"
@@ -649,13 +644,26 @@ func threadItem(thread db.Thread, kind, agent string) ui.InboxItem {
 		Href:      "/inbox/" + titleKindPath(kind) + "/" + strconv.FormatInt(thread.ID, 10),
 		ID:        thread.ID,
 		Kind:      kind,
-		Snippet:   agent,
+		Snippet:   prompt,
 		Starred:   thread.Starred,
 		Title:     title,
 		UpdatedAt: thread.UpdatedAt.Time,
 		When:      when(thread.UpdatedAt.Time),
 		Workflow:  kind == "workflow",
 	}
+}
+
+func (s *Server) threadPrompt(id int64) (string, error) {
+	view, err := s.chat.View(id)
+	if err != nil {
+		return "", err
+	}
+	for _, message := range view.Messages {
+		if message.Role == db.MessageRoleUser && message.Body != "" {
+			return message.Body, nil
+		}
+	}
+	return "", nil
 }
 
 func titleKind(kind, agent string) string {

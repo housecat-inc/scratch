@@ -36,6 +36,10 @@
     resize();
 
     const upload = async (file) => {
+      if (!uploadURL) {
+        showAlert("Open a chat to attach files.");
+        return;
+      }
       const body = new FormData();
       body.append("file", file, file.name || "pasted-image.png");
       const res = await fetch(uploadURL, { body, method: "POST" });

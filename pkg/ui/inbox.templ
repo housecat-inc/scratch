@@ -125,17 +125,35 @@ templ MailComposer(p InboxProps) {
 		</form>
 	} else {
 		<form
-			class="mail-universal-compose"
+			id="chat-form"
+			class="chat-compose mail-universal-compose"
 			action="/compose"
 			method="post"
 		>
 			<input type="hidden" name="view" value={ p.View }/>
 			<input type="hidden" name="mode" value={ composeMode(p) }/>
-			<input class="mail-compose-input" name="prompt" placeholder={ composePlaceholder(p) } autocomplete="off"/>
-			<button class="mail-send-btn" type="submit" aria-label="Send">
-				@sendIcon()
-				<span>Send</span>
-			</button>
+			<textarea
+				id="chat-input"
+				name="prompt"
+				rows="1"
+				placeholder={ composePlaceholder(p) }
+				autocomplete="off"
+				autofocus
+			></textarea>
+			<div class="chat-compose-row">
+				<label class="chat-icon-circle disabled" title="Open a chat to attach files" aria-label="Attach files" aria-disabled="true">
+					@paperclipIcon()
+					<input id="chat-file" type="file" multiple disabled hidden/>
+				</label>
+				<button type="button" id="chat-snap" class="chat-icon-circle disabled" title="Open a chat to attach a screenshot" aria-label="Screenshot a section of the page" disabled>
+					@crosshairIcon()
+				</button>
+				<div id="chat-attachments" class="chat-attachments"></div>
+				<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
+					@sendIcon()
+					<span>Send</span>
+				</button>
+			</div>
 		</form>
 	}
 }
@@ -170,36 +188,36 @@ templ archiveFilterTab(view, active, value, label string) {
 }
 
 templ InboxRow(item InboxItem, view, filter string) {
-	<div class={ "gm-row", templ.KV("selected", false), templ.KV("archived", item.Archived), templ.KV("done", item.Done) } data-kind={ item.Kind } data-id={ strconv.FormatInt(item.ID, 10) }>
+	@uikit.ListRow(uikit.ListRowProps{
+		Actions: InboxRowActions(item, view, filter),
+		Archived: item.Archived,
+		Done: item.Done,
+		Href: item.Href,
+		ID: strconv.FormatInt(item.ID, 10),
+		Kind: item.Kind,
+		Labels: rowLabels(item, view),
+		Primary: InboxRowPrimary(item, view, filter),
+		Subject: item.Snippet,
+		What: item.Title,
+		When: item.When,
+	})
+}
+
+templ InboxRowActions(item InboxItem, view, filter string) {
+	if item.Archived {
+		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), unarchiveIcon(), "gm-row-action", "Unarchive")
+		@rowTrashButton(itemActionURL(item, "trash"), view, filter, trashActionLabel(item), "gm-row-action")
+	} else {
+		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
+	}
+}
+
+templ InboxRowPrimary(item InboxItem, view, filter string) {
+	if item.Kind == "task" {
+		@rowPostButton(itemActionURL(item, "done"), view, filter, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
+	} else {
 		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
-		<a class="gm-row-link" href={ templ.SafeURL(item.Href) }>
-			<span class="gm-row-main">
-				if showRowLabels(view) {
-					<span class="gm-row-labels">
-						if showRowKindLabel(view) {
-							<span class="gm-row-label">{ rowKindLabel(item.Kind) }</span>
-						}
-					</span>
-				}
-				<span class="gm-row-subject">{ item.Title }</span>
-				if item.Snippet != "" {
-					<span class="gm-row-snippet"> - { item.Snippet }</span>
-				}
-			</span>
-		</a>
-		<span class="gm-row-date">{ item.When }</span>
-		<div class="gm-row-actions gm-row-actions-right">
-			if item.Kind == "task" {
-				@rowPostButton(itemActionURL(item, "done"), view, filter, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
-			}
-			if item.Archived {
-				@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), unarchiveIcon(), "gm-row-action", "Unarchive")
-				@rowTrashButton(itemActionURL(item, "trash"), view, filter, trashActionLabel(item), "gm-row-action")
-			} else {
-				@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
-			}
-		</div>
-	</div>
+	}
 }
 
 templ InboxTaskReader(d InboxTaskDetail) {
@@ -242,35 +260,6 @@ templ InboxTaskReader(d InboxTaskDetail) {
 			</label>
 			<button class="mail-save-btn" type="submit">Save</button>
 		</form>
-		<section class="mail-card">
-			<h2>Subitems</h2>
-			if len(d.Subitems) == 0 {
-				<p class="mail-muted">No subitems.</p>
-			} else {
-				<ul class="mail-task-list">
-					for _, s := range d.Subitems {
-						<li class={ "mail-task-item", templ.KV("done", s.Completed) }>
-							<span>{ s.Title }</span>
-						</li>
-					}
-				</ul>
-			}
-		</section>
-		<section class="mail-card">
-			<h2>Notes</h2>
-			if len(d.Notes) == 0 {
-				<p class="mail-muted">No notes.</p>
-			} else {
-				<div class="mail-notes">
-					for _, n := range d.Notes {
-						<article>
-							<p>{ n.Body }</p>
-							<time>{ n.CreatedAt.Format("Jan 2 15:04") }</time>
-						</article>
-					}
-				</div>
-			}
-		</section>
 	</div>
 }
 
@@ -484,12 +473,19 @@ func rowKindLabel(kind string) string {
 	}
 }
 
-func showRowKindLabel(view string) bool {
-	return view == "inbox" || view == "starred"
+func rowLabels(item InboxItem, view string) []string {
+	labels := []string{}
+	if showRowKindLabel(view) {
+		labels = append(labels, rowKindLabel(item.Kind))
+	}
+	if item.Kind == "task" {
+		labels = append(labels, taskStatusLabel(item))
+	}
+	return labels
 }
 
-func showRowLabels(view string) bool {
-	return showRowKindLabel(view)
+func showRowKindLabel(view string) bool {
+	return view == "inbox" || view == "starred"
 }
 
 func workflowTypeLabel(typ string) string {
@@ -547,13 +543,13 @@ func composeMode(p InboxProps) string {
 func composePlaceholder(p InboxProps) string {
 	switch composeMode(p) {
 	case "chat":
-		return "Start a chat..."
+		return "Message Codex..."
 	case "task":
-		return "Add a task..."
+		return "Create task..."
 	case "workflow":
-		return "Start a workflow..."
+		return "Start workflow..."
 	default:
-		return "Message, task, or workflow..."
+		return "Message Codex, create task, or start workflow..."
 	}
 }
 
@@ -696,6 +692,16 @@ func taskInboxActionURL(id int64, action string) string {
 
 func taskInboxItem(t db.Task) InboxItem {
 	return InboxItem{Archived: t.Archived, Done: t.Completed, ID: t.ID, Kind: "task", Starred: t.Starred}
+}
+
+func taskStatusLabel(item InboxItem) string {
+	if item.Archived {
+		return "Archived"
+	}
+	if item.Done {
+		return "Done"
+	}
+	return "Active"
 }
 
 func threadComposePlaceholder(d InboxThreadDetail) string {

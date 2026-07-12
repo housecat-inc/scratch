@@ -46,9 +46,7 @@ type InboxSelection struct {
 }
 
 type InboxTaskDetail struct {
-	Notes    []db.TaskNote
-	Subitems []db.TaskSubitem
-	Task     db.Task
+	Task db.Task
 }
 
 type InboxThreadDetail struct {
