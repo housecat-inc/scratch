@@ -214,7 +214,7 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			<button type="button" class="gm-icon-btn" data-chat-popout-thread={ itoa64(d.ID) } title="Open chat popout" aria-label="Open chat popout">
 				@popoutIcon()
 			</button>
-			if d.Streaming {
+			if d.Streaming && d.Kind != "chat" {
 				@readerStopButton(d.Kind, d.ID)
 			}
 			if d.Archived {
