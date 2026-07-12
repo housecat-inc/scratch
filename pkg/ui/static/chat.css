@@ -30,7 +30,7 @@
 .chat-message {
   background: #f8fafc;
   border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   max-width: 46rem;
   padding: 0.7rem 0.9rem;
 }
@@ -69,10 +69,27 @@
 }
 
 .chat-tools {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.45rem;
+  margin-bottom: 0.3rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.chat-tools summary {
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.chat-tools[open] {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  margin-bottom: 0.3rem;
+}
+
+.chat-tools[open] summary {
+  flex-basis: 100%;
 }
 
 .chat-tool {

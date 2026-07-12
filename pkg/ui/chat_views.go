@@ -68,3 +68,10 @@ func ChatCSS() templ.Component {
 func chatPath(id int64) string { return "/chat/" + itoa64(id) }
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
+
+func toolSummary(tools []string) string {
+	if len(tools) == 1 {
+		return "1 tool call"
+	}
+	return strconv.Itoa(len(tools)) + " tool calls"
+}

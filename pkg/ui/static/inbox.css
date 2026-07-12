@@ -379,8 +379,11 @@ textarea {
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
+  flex-wrap: nowrap;
   gap: 1rem;
+  height: 56px;
   min-width: 0;
+  overflow: hidden;
   padding: 0 1rem;
 }
 
@@ -398,6 +401,8 @@ textarea {
   flex: 1;
   gap: 0.45rem;
   min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .mail-create-actions form {
@@ -527,6 +532,10 @@ textarea {
   gap: 0.7rem;
   height: 3rem;
   padding: 0 0.9rem;
+}
+
+.mail-reader-head {
+  height: 4rem;
 }
 
 .mail-mainbar h1,
@@ -729,8 +738,14 @@ textarea {
   white-space: nowrap;
 }
 
+.mail-reader-title p {
+  margin: 0.18rem 0 0;
+}
+
 .mail-reader-actions {
+  align-items: center;
   display: inline-flex;
+  flex: 0 0 auto;
   gap: 0.25rem;
 }
 
@@ -787,15 +802,6 @@ textarea {
   margin-top: 0.25rem;
 }
 
-.mail-reader-footer {
-  align-items: center;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  flex: 0 0 auto;
-  gap: 0.6rem;
-  padding: 0.7rem 1rem;
-}
-
 .gm-foot-btn {
   border: 1px solid #d8dee9;
   border-radius: 999px;
@@ -808,8 +814,16 @@ textarea {
 
 .mail-chat-messages {
   margin: 0 auto;
-  max-width: 52rem;
-  padding-bottom: 1rem;
+  max-width: 64rem;
+  padding: 1.25rem 2rem 2rem;
+  width: 100%;
+}
+
+.mail-chat-body {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
 }
 
 .mail-footer {
@@ -882,6 +896,11 @@ textarea {
 
 .mail-agent-select:focus {
   border-color: #94a3b8;
+}
+
+.mail-agent-select.disabled {
+  color: #94a3b8;
+  opacity: 0.55;
 }
 
 .mail-compose-input {

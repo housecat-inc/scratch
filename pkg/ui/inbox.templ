@@ -32,9 +32,11 @@ templ InboxHead(title string) {
 		<meta name="viewport" content="width=device-width, initial-scale=1"/>
 		<title>{ title } · scratch</title>
 		@InboxCSS()
+		@ChatCSS()
 		<script src="/static/htmx.min.js"></script>
 		<script src="/static/htmx-ext-sse.min.js"></script>
 		<script src="/static/chat.js" defer></script>
+		<script src="/static/inbox.js" defer></script>
 	</head>
 }
 
@@ -70,27 +72,53 @@ templ MailShell(p InboxProps) {
 }
 
 templ MailComposer(p InboxProps) {
-	<form class="mail-universal-compose" action="/compose" method="post">
-		<input type="hidden" name="view" value={ p.View }/>
-		<div class="mail-compose-modes" role="radiogroup" aria-label="Compose mode">
-			@composeModeOption("auto", "Auto", composeMode(p) == "auto")
-			@composeModeOption("chat", "Chat", composeMode(p) == "chat")
-			@composeModeOption("task", "Task", composeMode(p) == "task")
-			@composeModeOption("workflow", "Workflow", composeMode(p) == "workflow")
-		</div>
-		if len(p.Agents) > 0 {
-			<select class="mail-agent-select" name="agent" aria-label="Agent">
-				for _, agent := range p.Agents {
-					<option value={ agent }>{ agentLabel(agent) }</option>
-				}
-			</select>
-		}
-		<input class="mail-compose-input" name="prompt" placeholder={ composePlaceholder(p) } autocomplete="off"/>
-		<button class="mail-send-btn" type="submit" aria-label="Send">
-			@sendIcon()
-			<span>Send</span>
-		</button>
-	</form>
+	if p.Thread != nil {
+		<form
+			id="chat-form"
+			class="mail-universal-compose"
+			action={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
+			method="post"
+			hx-post={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
+			hx-swap="none"
+			hx-on::after-request="this.reset()"
+		>
+			<input id="chat-input" class="mail-compose-input" name="prompt" placeholder={ threadComposePlaceholder(*p.Thread) } autocomplete="off" autofocus/>
+			<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
+				@sendIcon()
+				<span>Send</span>
+			</button>
+		</form>
+	} else {
+		<form
+			class="mail-universal-compose"
+			action="/compose"
+			method="post"
+			data-placeholder-auto="Message, task, or workflow..."
+			data-placeholder-chat="Start a chat..."
+			data-placeholder-task="Add a task..."
+			data-placeholder-workflow="Start a workflow..."
+		>
+			<input type="hidden" name="view" value={ p.View }/>
+			<div class="mail-compose-modes" role="radiogroup" aria-label="Compose mode">
+				@composeModeOption("auto", "Auto", composeMode(p) == "auto")
+				@composeModeOption("chat", "Chat", composeMode(p) == "chat")
+				@composeModeOption("task", "Task", composeMode(p) == "task")
+				@composeModeOption("workflow", "Workflow", composeMode(p) == "workflow")
+			</div>
+			if len(p.Agents) > 0 {
+				<select class="mail-agent-select" name="agent" aria-label="Agent">
+					for _, agent := range p.Agents {
+						<option value={ agent }>{ agentLabel(agent) }</option>
+					}
+				</select>
+			}
+			<input class="mail-compose-input" name="prompt" placeholder={ composePlaceholder(p) } autocomplete="off"/>
+			<button class="mail-send-btn" type="submit" aria-label="Send">
+				@sendIcon()
+				<span>Send</span>
+			</button>
+		</form>
+	}
 }
 
 templ InboxListView(p InboxProps) {
@@ -152,6 +180,7 @@ templ InboxTaskReader(d InboxTaskDetail) {
 			</p>
 		</div>
 		<div class="mail-reader-actions">
+			<a class="gm-foot-btn" href={ templ.SafeURL("/tasks/" + strconv.FormatInt(d.Task.ID, 10)) }>Open task</a>
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "done"), doneActionLabel(taskInboxItem(d.Task)), doneIcon(d.Task.Completed))
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), starIcon(d.Task.Starred))
@@ -188,9 +217,6 @@ templ InboxTaskReader(d InboxTaskDetail) {
 			}
 		</section>
 	</div>
-	<footer class="mail-reader-footer">
-		<a class="gm-foot-btn" href={ templ.SafeURL("/tasks/" + strconv.FormatInt(d.Task.ID, 10)) }>Open task</a>
-	</footer>
 }
 
 templ InboxThreadReader(d InboxThreadDetail) {
@@ -207,15 +233,11 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), starIcon(d.Starred))
 		</div>
 	</header>
-	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body">
+	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body mail-chat-body">
 		<div id="chat-messages" class="chat-messages mail-chat-messages" sse-swap="message">
 			@ChatMessages(ChatThreadProps{Agent: d.Agent, ID: d.ID, Messages: d.Messages, Title: d.Title})
 		</div>
 	</div>
-	<form id="chat-form" class="mail-reader-footer chat-form" hx-post={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/messages" } hx-swap="none" hx-on::after-request="this.reset()">
-		<input id="chat-input" name="prompt" placeholder="Message the agent..." autocomplete="off"/>
-		<button id="chat-send" type="submit">Send</button>
-	</form>
 }
 
 templ mailLabel(href, name, active, label string, count int, icon templ.Component) {
@@ -414,6 +436,13 @@ func taskInboxActionURL(id int64, action string) string {
 
 func taskInboxItem(t db.Task) InboxItem {
 	return InboxItem{Archived: t.Archived, Done: t.Completed, ID: t.ID, Kind: "task", Starred: t.Starred}
+}
+
+func threadComposePlaceholder(d InboxThreadDetail) string {
+	if d.Kind == "workflow" {
+		return "Message the workflow..."
+	}
+	return "Message " + agentLabel(d.Agent) + "..."
 }
 
 func threadInboxActionURL(kind string, id int64, action string) string {

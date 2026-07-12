@@ -133,11 +133,12 @@ templ chatMessage(m ChatMessageProps) {
 	<div id={ "message-" + itoa64(m.ID) } class={ "chat-message", "role-" + m.Role, "status-" + m.Status }>
 		<div class="chat-author">{ m.Author }</div>
 		if len(m.Tools) > 0 {
-			<div class="chat-tools">
+			<details class="chat-tools">
+				<summary>{ toolSummary(m.Tools) }</summary>
 				for _, tool := range m.Tools {
 					<span class="chat-tool">{ tool }</span>
 				}
-			</div>
+			</details>
 		}
 		<div class="chat-body">{ m.Body }</div>
 		if m.Form != nil {

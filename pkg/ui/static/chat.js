@@ -27,7 +27,7 @@
     alert.hideTimer = setTimeout(() => alert.classList.remove("visible"), 5000);
   });
 
-  const scroll = () => window.scrollTo(0, document.body.scrollHeight);
+  const scroll = () => messages.scrollTo(0, messages.scrollHeight);
   new MutationObserver(scroll).observe(messages, {
     characterData: true,
     childList: true,
