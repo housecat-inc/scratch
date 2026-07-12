@@ -52,9 +52,6 @@ func Form[T any](ctx dbos.DBOSContext, p Prompter, key, message string, defaults
 	return out, ActionAccept, nil
 }
 
-// Returning a cancellation error would record a terminal ERROR outcome, which
-// resumeWorkflows excludes; parking the goroutine keeps the workflow PENDING so
-// the next launch recovers it back to this Recv.
 func blockForRecovery() {
 	select {}
 }

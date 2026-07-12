@@ -20,7 +20,7 @@ type claudeAnchor struct {
 }
 
 type claudeLine struct {
-	IsError bool   `json:"is_error"`
+	IsError bool `json:"is_error"`
 	Message struct {
 		Content []struct {
 			Input json.RawMessage `json:"input"`
