@@ -43,6 +43,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /inbox/chats/{id}", s.handleChat)
 	mux.HandleFunc("GET /inbox/tasks/{id}", s.handleTask)
 	mux.HandleFunc("GET /inbox/workflows/{id}", s.handleWorkflow)
+	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
 	mux.HandleFunc("POST /inbox/tasks/{id}/archive", s.handleArchiveTask)
@@ -113,6 +114,55 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
+}
+
+func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
+	prompt := strings.TrimSpace(r.FormValue("prompt"))
+	mode := strings.TrimSpace(r.FormValue("mode"))
+	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"))
+	createOnly := r.FormValue("create_only") == "true"
+	if prompt == "" && !createOnly {
+		s.redirectBack(w, r)
+		return
+	}
+	switch mode {
+	case "task":
+		if prompt == "" {
+			prompt = "New task"
+		}
+		task, err := s.tasks.Create(prompt)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		http.Redirect(w, r, "/inbox/tasks/"+strconv.FormatInt(task.ID, 10), http.StatusSeeOther)
+	case "workflow":
+		thread, err := s.chat.CreateThread("contact", createTitle(prompt, "New workflow", createOnly))
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if prompt != "" && !createOnly {
+			if _, err := s.chat.Send(thread.ID, prompt); err != nil {
+				s.fail(w, err)
+				return
+			}
+		}
+		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
+	default:
+		thread, err := s.chat.CreateThread("", createTitle(prompt, "New chat", createOnly))
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if prompt != "" && !createOnly {
+			if _, err := s.chat.Send(thread.ID, prompt); err != nil {
+				s.fail(w, err)
+				return
+			}
+		}
+		http.Redirect(w, r, "/inbox/chats/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
+	}
 }
 
 func (s *Server) handleDoneTask(w http.ResponseWriter, r *http.Request) {
@@ -388,6 +438,13 @@ func isWorkflowAgent(agent string) bool {
 	return agent == "contact" || strings.HasPrefix(agent, "workflow")
 }
 
+func createTitle(prompt, fallback string, createOnly bool) string {
+	if createOnly || prompt == "" {
+		return fallback
+	}
+	return ""
+}
+
 func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -395,6 +452,25 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+func resolveComposeMode(mode, prompt, view string) (string, string) {
+	if mode == "auto" || mode == "" {
+		for _, prefix := range []string{"chat", "task", "workflow"} {
+			if rest, ok := strings.CutPrefix(strings.ToLower(prompt), prefix+":"); ok {
+				return prefix, strings.TrimSpace(prompt[len(prompt)-len(rest):])
+			}
+		}
+		switch view {
+		case "tasks":
+			return "task", prompt
+		case "workflows":
+			return "workflow", prompt
+		default:
+			return "chat", prompt
+		}
+	}
+	return mode, prompt
 }
 
 func taskItem(task db.Task) ui.InboxItem {

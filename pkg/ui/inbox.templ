@@ -42,8 +42,10 @@ templ MailShell(p InboxProps) {
 	<div class="mail-shell">
 		<header class="mail-topbar">
 			<a class="mail-brand" href="/">scratch</a>
-			<div class="mail-search">
-				<input type="search" placeholder="Search mail"/>
+			<div class="mail-create-actions">
+				@createButton("chat", "New chat", chatIcon())
+				@createButton("task", "New task", taskIcon())
+				@createButton("workflow", "New workflow", workflowIcon())
 			</div>
 			<nav class="mail-topnav" aria-label="App">
 				<a href="/chats">Chat</a>
@@ -53,10 +55,6 @@ templ MailShell(p InboxProps) {
 		</header>
 		<div class="mail-body">
 			<aside class="mail-sidebar">
-				<form class="mail-compose" action="/tasks" method="post">
-					<input name="title" placeholder="New task"/>
-					<button type="submit">Add</button>
-				</form>
 				<nav class="mail-labels" aria-label="Mail">
 					@mailLabel("/", "inbox", p.View, "Inbox", p.Counts.Inbox, inboxIcon())
 					@mailLabel("/starred", "starred", p.View, "Starred", p.Counts.Starred, starIcon(false))
@@ -71,10 +69,26 @@ templ MailShell(p InboxProps) {
 			</main>
 		</div>
 		<footer class="mail-footer">
-			<span>{ inboxTitle(p) }</span>
-			<span>{ strconv.Itoa(len(p.Items)) } shown</span>
+			@MailComposer(p)
 		</footer>
 	</div>
+}
+
+templ MailComposer(p InboxProps) {
+	<form class="mail-universal-compose" action="/compose" method="post">
+		<input type="hidden" name="view" value={ p.View }/>
+		<div class="mail-compose-modes" role="radiogroup" aria-label="Compose mode">
+			@composeModeOption("auto", "Auto", composeMode(p) == "auto")
+			@composeModeOption("chat", "Chat", composeMode(p) == "chat")
+			@composeModeOption("task", "Task", composeMode(p) == "task")
+			@composeModeOption("workflow", "Workflow", composeMode(p) == "workflow")
+		</div>
+		<input class="mail-compose-input" name="prompt" placeholder={ composePlaceholder(p) } autocomplete="off"/>
+		<button class="mail-send-btn" type="submit" aria-label="Send">
+			@sendIcon()
+			<span>Send</span>
+		</button>
+	</form>
 }
 
 templ InboxListView(p InboxProps) {
@@ -214,6 +228,24 @@ templ mailLabel(href, name, active, label string, count int, icon templ.Componen
 	</a>
 }
 
+templ composeModeOption(value, label string, checked bool) {
+	<label class={ "mail-compose-mode", templ.KV("active", checked) }>
+		<input type="radio" name="mode" value={ value } checked?={ checked }/>
+		<span>{ label }</span>
+	</label>
+}
+
+templ createButton(mode, label string, icon templ.Component) {
+	<form method="post" action="/compose">
+		<input type="hidden" name="mode" value={ mode }/>
+		<input type="hidden" name="create_only" value="true"/>
+		<button class="mail-create-btn" type="submit">
+			@icon
+			<span>{ label }</span>
+		</button>
+	</form>
+}
+
 templ readerPostButton(action, label string, icon templ.Component) {
 	<form method="post" action={ action }>
 		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
@@ -259,6 +291,32 @@ func currentBackFallback(action string) string {
 		return "/chats"
 	}
 	return "/tasks"
+}
+
+func composeMode(p InboxProps) string {
+	switch p.View {
+	case "chats":
+		return "chat"
+	case "tasks":
+		return "task"
+	case "workflows":
+		return "workflow"
+	default:
+		return "auto"
+	}
+}
+
+func composePlaceholder(p InboxProps) string {
+	switch composeMode(p) {
+	case "chat":
+		return "Start a chat..."
+	case "task":
+		return "Add a task..."
+	case "workflow":
+		return "Start a workflow..."
+	default:
+		return "Message, task, or workflow..."
+	}
 }
 
 func doneActionLabel(item InboxItem) string {
@@ -331,6 +389,10 @@ func starIcon(on bool) templ.Component {
 		return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`)
 	}
 	return lucideIcon(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>`)
+}
+
+func sendIcon() templ.Component {
+	return lucideIcon(`<path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path>`)
 }
 
 func taskIcon() templ.Component {
