@@ -61,9 +61,11 @@ func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
 		agent, model = ParseProviderModel(providerModel)
 	}
 	label := strings.TrimSpace(r.URL.Query().Get("chat_label"))
-	if model == "default" {
-		model = ""
+	modelAgent := agent
+	if modelAgent == "" {
+		modelAgent = s.svc.defaultName
 	}
+	model = NormalizeModel(modelAgent, model)
 	thread, err := s.svc.CreateThreadWithLabel(agent, model, label, "")
 	if err != nil {
 		s.notFoundOr(w, err)

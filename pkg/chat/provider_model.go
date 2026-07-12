@@ -1,13 +1,10 @@
 package chat
 
-import "strings"
+import (
+	"strings"
 
-type ProviderModelOption struct {
-	Agent string
-	Label string
-	Model string
-	Value string
-}
+	"github.com/housecat-inc/scratch/uikit"
+)
 
 func ParseProviderModel(value string) (string, string) {
 	agent, model, ok := strings.Cut(strings.TrimSpace(value), ":")
@@ -20,8 +17,8 @@ func ParseProviderModel(value string) (string, string) {
 	return strings.TrimSpace(agent), strings.TrimSpace(model)
 }
 
-func ProviderModelOptions(agents []string) []ProviderModelOption {
-	options := []ProviderModelOption{}
+func ProviderModelOptions(agents []string) []uikit.SelectOption {
+	options := []uikit.SelectOption{}
 	for _, agent := range agents {
 		agent = strings.TrimSpace(agent)
 		if agent == "" || agent == "contact" {
@@ -71,15 +68,13 @@ func NormalizeModel(agent, model string) string {
 	return ""
 }
 
-func providerModelOption(agent, model, label string) ProviderModelOption {
+func providerModelOption(agent, model, label string) uikit.SelectOption {
 	valueModel := model
 	if valueModel == "" {
 		valueModel = "default"
 	}
-	return ProviderModelOption{
-		Agent: agent,
+	return uikit.SelectOption{
 		Label: label,
-		Model: model,
 		Value: agent + ":" + valueModel,
 	}
 }

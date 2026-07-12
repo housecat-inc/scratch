@@ -16,7 +16,6 @@ import (
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
-	"github.com/housecat-inc/scratch/uikit"
 )
 
 type Server struct {
@@ -435,7 +434,7 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 	}
 	props := ui.InboxProps{
 		ArchiveFilter: filter,
-		ChatOptions:   chatOptions(s.chat.AgentNames()),
+		ChatOptions:   chat.ProviderModelOptions(s.chat.AgentNames()),
 		Counts:        counts,
 		Items:         items,
 		View:          view,
@@ -633,15 +632,6 @@ func chatAgentOptions(agents []string) []string {
 			continue
 		}
 		out = append(out, agent)
-	}
-	return out
-}
-
-func chatOptions(agents []string) []uikit.SelectOption {
-	options := chat.ProviderModelOptions(agents)
-	out := make([]uikit.SelectOption, 0, len(options))
-	for _, option := range options {
-		out = append(out, uikit.SelectOption{Label: option.Label, Value: option.Value})
 	}
 	return out
 }

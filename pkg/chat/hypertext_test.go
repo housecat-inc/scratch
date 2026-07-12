@@ -32,6 +32,49 @@ func TestLegacyChatPagesAreNotMounted(t *testing.T) {
 	}
 }
 
+func TestNewPopoutNormalizesProviderModel(t *testing.T) {
+	tests := []struct {
+		name       string
+		provider   string
+		wantAnchor string
+	}{
+		{
+			name:       "valid model",
+			provider:   "codex:gpt-5",
+			wantAnchor: `{"agent":"codex","model":"gpt-5"}`,
+		},
+		{
+			name:       "invalid model",
+			provider:   "codex:not-real",
+			wantAnchor: `{"agent":"codex"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+
+			store, err := db.New(":memory:")
+			r.NoError(err)
+			t.Cleanup(func() { store.Close() })
+			svc := NewService(store, EchoAgent{}, nil)
+			svc.RegisterAgent("codex", EchoAgent{})
+			t.Cleanup(svc.Close)
+			srv := NewServer(svc, nil).Handler()
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/chat/popout/new?provider_model="+url.QueryEscape(tt.provider), nil)
+			srv.ServeHTTP(rec, req)
+			a.Equal(http.StatusOK, rec.Code)
+
+			threads, err := svc.Threads()
+			r.NoError(err)
+			r.Len(threads, 1)
+			a.JSONEq(tt.wantAnchor, threads[0].Anchor)
+		})
+	}
+}
+
 func TestChatMessageTransport(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)

@@ -13,7 +13,6 @@ import (
 	"github.com/housecat-inc/scratch/pkg/server/httperr"
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/ui"
-	"github.com/housecat-inc/scratch/uikit"
 )
 
 const chatLabelTodo = "todo"
@@ -202,7 +201,7 @@ func (s *WebServer) props(filter Filter, selectedID int64) (ui.TodoProps, error)
 		props.ChatCount = len(chatItems)
 		props.ChatItems = chatItems
 		props.ChatLabel = chatLabelTodo
-		props.ChatOptions = chatOptions(s.chat.AgentNames())
+		props.ChatOptions = chat.ProviderModelOptions(s.chat.AgentNames())
 	}
 	if selectedID != 0 {
 		task, err := s.tasks.Get(selectedID)
@@ -221,31 +220,18 @@ func (s *WebServer) chatItems() ([]ui.TodoChatItem, error) {
 	}
 	items := make([]ui.TodoChatItem, 0, len(threads))
 	for _, thread := range threads {
-		prompt, err := s.chat.ThreadPrompt(thread.ID)
-		if err != nil {
-			return nil, err
-		}
 		title := thread.Title
 		if title == "" {
 			title = "New chat"
 		}
 		items = append(items, ui.TodoChatItem{
-			Description: chat.FriendlyDescription(prompt),
+			Description: chat.FriendlyDescription(thread.Title),
 			ID:          thread.ID,
 			Title:       title,
 			When:        todoWhen(thread.UpdatedAt.Time),
 		})
 	}
 	return items, nil
-}
-
-func chatOptions(agents []string) []uikit.SelectOption {
-	options := chat.ProviderModelOptions(agents)
-	out := make([]uikit.SelectOption, 0, len(options))
-	for _, option := range options {
-		out = append(out, uikit.SelectOption{Label: option.Label, Value: option.Value})
-	}
-	return out
 }
 
 func (s *WebServer) redirectBack(w http.ResponseWriter, r *http.Request) {

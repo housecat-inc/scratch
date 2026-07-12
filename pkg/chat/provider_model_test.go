@@ -3,6 +3,7 @@ package chat
 import (
 	"testing"
 
+	"github.com/housecat-inc/scratch/uikit"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,15 +36,15 @@ func TestProviderModelOptions(t *testing.T) {
 
 	a := assert.New(t)
 	options := ProviderModelOptions([]string{"claude", "codex", "contact", "echo"})
-	a.Equal([]ProviderModelOption{
-		{Agent: "claude", Label: "Claude Default", Model: "", Value: "claude:default"},
-		{Agent: "claude", Label: "Claude Haiku", Model: "haiku", Value: "claude:haiku"},
-		{Agent: "claude", Label: "Claude Opus", Model: "opus", Value: "claude:opus"},
-		{Agent: "claude", Label: "Claude Sonnet", Model: "sonnet", Value: "claude:sonnet"},
-		{Agent: "codex", Label: "Codex Default", Model: "", Value: "codex:default"},
-		{Agent: "codex", Label: "Codex GPT 5", Model: "gpt-5", Value: "codex:gpt-5"},
-		{Agent: "codex", Label: "Codex GPT 5.1", Model: "gpt-5.1", Value: "codex:gpt-5.1"},
-		{Agent: "codex", Label: "Codex GPT 5.5", Model: "gpt-5.5", Value: "codex:gpt-5.5"},
-		{Agent: "echo", Label: "Echo", Model: "", Value: "echo:default"},
+	a.Equal([]uikit.SelectOption{
+		{Label: "Claude Default", Value: "claude:default"},
+		{Label: "Claude Haiku", Value: "claude:haiku"},
+		{Label: "Claude Opus", Value: "claude:opus"},
+		{Label: "Claude Sonnet", Value: "claude:sonnet"},
+		{Label: "Codex Default", Value: "codex:default"},
+		{Label: "Codex GPT 5", Value: "codex:gpt-5"},
+		{Label: "Codex GPT 5.1", Value: "codex:gpt-5.1"},
+		{Label: "Codex GPT 5.5", Value: "codex:gpt-5.5"},
+		{Label: "Echo", Value: "echo:default"},
 	}, options)
 }

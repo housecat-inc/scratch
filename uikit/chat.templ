@@ -1,15 +1,6 @@
 package uikit
 
 templ ChatPluginScripts() {
-	<script>
-		(() => {
-			const consoleError = console.error.bind(console);
-			console.error = (...args) => {
-				if (args.length === 1 && String(args[0]) === "[object Event]") return;
-				consoleError(...args);
-			};
-		})();
-	</script>
 	<script src="/static/htmx.min.js"></script>
 	<script src="/static/htmx-ext-sse.min.js"></script>
 	<script src="/static/html2canvas.min.js" defer></script>
