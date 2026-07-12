@@ -24,6 +24,7 @@ var (
 	ErrElicitationResolved = errors.New("elicitation already resolved")
 	ErrNoResolver          = errors.New("no elicitation resolver configured")
 	ErrThreadBusy          = errors.New("thread busy")
+	ErrThreadStateUnknown  = errors.New("thread state unknown")
 	ErrTurnPending         = errors.New("turn pending durable recovery")
 )
 
@@ -62,7 +63,7 @@ func NewService(store db.ThreadStore, agent Agent, log *slog.Logger) *Service {
 		log = slog.Default()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	name := agentName(agent)
+	name := AgentName(agent)
 	return &Service{
 		agents:      map[string]Agent{name: agent},
 		broker:      NewBroker(),
@@ -103,17 +104,29 @@ func (s *Service) Close() {
 }
 
 func (s *Service) CreateThread(agent, title string) (db.Thread, error) {
+	return s.CreateThreadWithModel(agent, "", title)
+}
+
+func (s *Service) CreateThreadWithModel(agent, model, title string) (db.Thread, error) {
 	if agent == "" {
 		agent = s.defaultName
 	}
 	if _, ok := s.agents[agent]; !ok {
 		return db.Thread{}, errors.Wrapf(ErrAgentUnknown, "%q", agent)
 	}
-	anchor, err := json.Marshal(map[string]string{"agent": agent})
+	anchorData := map[string]string{"agent": agent}
+	if strings.TrimSpace(model) != "" {
+		anchorData["model"] = strings.TrimSpace(model)
+	}
+	anchor, err := json.Marshal(anchorData)
 	if err != nil {
 		return db.Thread{}, errors.Wrap(err, "marshal anchor")
 	}
 	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
+}
+
+func (s *Service) DeleteThread(threadID int64) error {
+	return s.store.DeleteThread(threadID)
 }
 
 func (s *Service) Publish(threadID int64) {
@@ -265,6 +278,19 @@ func (s *Service) Send(threadID int64, prompt string) (db.Message, error) {
 	s.wg.Add(1)
 	go s.run(agent, thread, turn)
 	return user, nil
+}
+
+func (s *Service) SetThreadState(threadID int64, state string) error {
+	switch state {
+	case db.ThreadStateArchived, db.ThreadStateOpen, db.ThreadStateResolved:
+	default:
+		return errors.Wrapf(ErrThreadStateUnknown, "%q", state)
+	}
+	return s.store.SetThreadState(threadID, state)
+}
+
+func (s *Service) SetThreadStarred(threadID int64, starred bool) error {
+	return s.store.SetThreadStarred(threadID, starred)
 }
 
 func (s *Service) SetResolver(r Resolver) {
@@ -422,7 +448,7 @@ type elicitationResult struct {
 	ElicitationID string `json:"elicitationId"`
 }
 
-func agentName(a Agent) string {
+func AgentName(a Agent) string {
 	name := a.Author()
 	if i := strings.LastIndex(name, ":"); i >= 0 {
 		name = name[i+1:]

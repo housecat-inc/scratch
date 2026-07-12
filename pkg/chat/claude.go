@@ -16,6 +16,7 @@ type ClaudeAgent struct {
 
 type claudeAnchor struct {
 	Agent     string `json:"agent"`
+	Model     string `json:"model,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
 }
 
@@ -42,6 +43,9 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
 	args := []string{"-p", turn.Prompt, "--output-format", "stream-json", "--verbose"}
+	if state.Model != "" {
+		args = append(args, "--model", state.Model)
+	}
 	if state.SessionID != "" {
 		args = append(args, "--resume", state.SessionID)
 	}

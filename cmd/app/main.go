@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
+	"github.com/housecat-inc/scratch/pkg/inbox"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/spf13/cobra"
@@ -50,6 +52,9 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 			chatSvc := chat.NewService(store, agent, logger)
+			for _, available := range chat.AvailableAgents() {
+				chatSvc.RegisterAgent(chat.AgentName(available), available)
+			}
 			defer chatSvc.Close()
 
 			workflows, err := workflow.New(dbPath)
@@ -88,15 +93,17 @@ func newRootCmd() *cobra.Command {
 			)
 			todo.Register(srv, svc)
 			chatSrv := chat.NewServer(chatSvc, logger)
-			srv.Mux.Handle("/chat", chatSrv.Handler())
+			inboxSrv := inbox.NewServer(svc, chatSvc, logger)
+			inboxHandler := inboxSrv.Handler()
+			srv.Mux.HandleFunc("/chat", http.NotFound)
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
-			srv.Mux.Handle("/", todo.NewServer(svc, logger).Handler())
+			srv.Mux.Handle("/", inboxHandler)
 
 			slog.Info("listening", "addr", addr, "agent", agent.Author())
 			return srv.Run()
 		},
 	}
-	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, echo)")
+	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, codex, echo)")
 	cmd.Flags().IntVarP(&port, "port", "p", 8000, "HTTP listen port")
 	return cmd
 }

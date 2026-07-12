@@ -43,16 +43,33 @@ func DeltaEvent(text string) Event {
 func ResolveAgent(name string) (Agent, error) {
 	switch name {
 	case "", "auto":
+		if _, err := exec.LookPath("codex"); err == nil {
+			return CodexAgent{}, nil
+		}
 		if _, err := exec.LookPath("claude"); err == nil {
 			return ClaudeAgent{}, nil
 		}
 		return EchoAgent{Delay: 200 * time.Millisecond}, nil
 	case "claude":
 		return ClaudeAgent{}, nil
+	case "codex":
+		return CodexAgent{}, nil
 	case "echo":
 		return EchoAgent{Delay: 200 * time.Millisecond}, nil
 	}
 	return nil, errors.Newf("unknown agent %q", name)
+}
+
+func AvailableAgents() []Agent {
+	agents := []Agent{}
+	if _, err := exec.LookPath("codex"); err == nil {
+		agents = append(agents, CodexAgent{})
+	}
+	if _, err := exec.LookPath("claude"); err == nil {
+		agents = append(agents, ClaudeAgent{})
+	}
+	agents = append(agents, EchoAgent{Delay: 200 * time.Millisecond})
+	return agents
 }
 
 type EchoAgent struct {

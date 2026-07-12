@@ -2,12 +2,15 @@ package flow
 
 import (
 	"log/slog"
+	"net/http"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/inbox"
+	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ts"
 	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/housecat-inc/scratch/testkit"
@@ -55,10 +58,12 @@ func run(t *testing.T, cases []Case) {
 				workflows.Close()
 			})
 
-			handler := chat.NewServer(svc, slog.New(logs)).Handler()
+			mux := http.NewServeMux()
+			mux.Handle("/chat/", chat.NewServer(svc, slog.New(logs)).Handler())
+			mux.Handle("/", inbox.NewServer(todo.NewService(store), svc, slog.New(logs)).Handler())
 
 			return &Harness{
-				Harness: testkit.NewHarnessWithT(t, kit, handler),
+				Harness: testkit.NewHarnessWithT(t, kit, mux),
 				Clock:   clock,
 				Store:   store,
 				Svc:     svc,
@@ -68,7 +73,6 @@ func run(t *testing.T, cases []Case) {
 }
 
 var Click = testkit.ClickStep[*Harness]
-var Press = testkit.PressStep[*Harness]
 var TextContains = testkit.TextContainsStep[*Harness]
 var Type = testkit.TypeStep[*Harness]
 var Visible = testkit.VisibleStep[*Harness]
@@ -107,12 +111,11 @@ func TestContactIntakeBrowser(t *testing.T) {
 	run(t, []Case{
 		{
 			Name: "elicits a contact form and saves a todo on accept",
-			Path: "/chat",
+			Path: "/inbox/workflows/1",
+			Seed: []Step{
+				SeedPendingForm("Add Jane Doe jane@example.com from ACME"),
+			},
 			Act: []Step{
-				Click("#new-thread-contact"),
-				TextContains("#thread-agent", "contact"),
-				Type("#chat-input", "Add Jane Doe jane@example.com from ACME"),
-				Press("#chat-input", "Enter"),
 				Visible("#elicit-form"),
 				Type("[name=f_company]", "ACME"),
 				Type("[name=f_notes]", "Met at the conference"),
@@ -125,11 +128,11 @@ func TestContactIntakeBrowser(t *testing.T) {
 		},
 		{
 			Name: "declining the form discards the draft",
-			Path: "/chat",
+			Path: "/inbox/workflows/1",
+			Seed: []Step{
+				SeedPendingForm("met bob@example.com"),
+			},
 			Act: []Step{
-				Click("#new-thread-contact"),
-				Type("#chat-input", "met bob@example.com"),
-				Press("#chat-input", "Enter"),
 				Visible("#elicit-form"),
 				Click("#elicit-decline"),
 			},
@@ -140,7 +143,7 @@ func TestContactIntakeBrowser(t *testing.T) {
 		},
 		{
 			Name: "renders a pending review form",
-			Path: "/chat/1",
+			Path: "/inbox/workflows/1",
 			Seed: []Step{
 				SeedPendingForm("Add Jane Doe jane@example.com from ACME"),
 			},

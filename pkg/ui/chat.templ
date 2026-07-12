@@ -1,96 +1,5 @@
 package ui
 
-templ chatHead(title string) {
-	<head>
-		<meta charset="utf-8"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1"/>
-		<title>{ title }</title>
-		@ChatCSS()
-		<script src="/static/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
-		<script src="/static/chat.js" defer></script>
-	</head>
-}
-
-templ ChatIndexPage(p ChatIndexProps) {
-	<!DOCTYPE html>
-	<html lang="en">
-		@chatHead("chat")
-		<body>
-			<section class="chatapp">
-				<header class="chat-header">
-					<a class="chat-back" href="/">←</a>
-					<h1>chat</h1>
-				</header>
-				<div class="chat-new-row">
-					for i, agent := range p.Agents {
-						<form action="/chat" method="post">
-							<input type="hidden" name="agent" value={ agent }/>
-							if i == 0 {
-								<button id="new-thread" class="chat-new" type="submit">New chat</button>
-							} else {
-								<button id={ "new-thread-" + agent } class="chat-new chat-new-alt" type="submit">New { agent } chat</button>
-							}
-						</form>
-					}
-				</div>
-				if len(p.Threads) == 0 {
-					<p class="chat-empty">No chats yet</p>
-				} else {
-					<ul id="thread-list" class="thread-list">
-						for _, t := range p.Threads {
-							<li>
-								<a href={ templ.SafeURL(chatPath(t.ID)) }>
-									<span class="thread-agent">{ t.Agent }</span>
-									<span class="thread-title">{ t.Title }</span>
-									<span class="thread-when">{ t.When }</span>
-								</a>
-							</li>
-						}
-					</ul>
-				}
-			</section>
-		</body>
-	</html>
-}
-
-templ ChatThreadPage(p ChatThreadProps) {
-	<!DOCTYPE html>
-	<html lang="en">
-		@chatHead(p.Title)
-		<body>
-			<section class="chatapp">
-				<header class="chat-header">
-					<a class="chat-back" href="/chat">←</a>
-					<h1 id="thread-heading">{ p.Title }</h1>
-					<span id="thread-agent" class="thread-agent">{ p.Agent }</span>
-				</header>
-				<div hx-ext="sse" sse-connect={ chatPath(p.ID) + "/events" }>
-					<div id="chat-messages" class="chat-messages" sse-swap="message">
-						@ChatMessages(p)
-					</div>
-				</div>
-				<form
-					id="chat-form"
-					class="chat-form"
-					hx-post={ chatPath(p.ID) + "/messages" }
-					hx-swap="none"
-					hx-on::after-request="this.reset()"
-				>
-					<input
-						id="chat-input"
-						name="prompt"
-						placeholder="Message the agent…"
-						autocomplete="off"
-						autofocus
-					/>
-					<button id="chat-send" type="submit">Send</button>
-				</form>
-			</section>
-		</body>
-	</html>
-}
-
 templ ChatMessages(p ChatThreadProps) {
 	if len(p.Messages) == 0 {
 		<p class="chat-empty">Say something to get started</p>
@@ -104,11 +13,12 @@ templ chatMessage(m ChatMessageProps) {
 	<div id={ "message-" + itoa64(m.ID) } class={ "chat-message", "role-" + m.Role, "status-" + m.Status }>
 		<div class="chat-author">{ m.Author }</div>
 		if len(m.Tools) > 0 {
-			<div class="chat-tools">
+			<details class="chat-tools">
+				<summary>{ toolSummary(m.Tools) }</summary>
 				for _, tool := range m.Tools {
 					<span class="chat-tool">{ tool }</span>
 				}
-			</div>
+			</details>
 		}
 		<div class="chat-body">{ m.Body }</div>
 		if m.Form != nil {

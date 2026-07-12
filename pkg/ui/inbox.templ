@@ -1,0 +1,661 @@
+package ui
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/housecat-inc/scratch/pkg/db"
+)
+
+templ InboxPage(p InboxProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@InboxHead(inboxTitle(p))
+		<body>
+			@MailShell(p) {
+				if p.Task != nil {
+					@InboxTaskReader(*p.Task)
+				} else if p.Thread != nil {
+					@InboxThreadReader(*p.Thread)
+				} else {
+					@InboxListView(p)
+				}
+			}
+		</body>
+	</html>
+}
+
+templ InboxHead(title string) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<title>{ title } · scratch</title>
+		@InboxCSS()
+		@ChatCSS()
+		<script src="/static/htmx.min.js"></script>
+		<script src="/static/htmx-ext-sse.min.js"></script>
+		<script src="/static/chat.js" defer></script>
+		<script src="/static/inbox.js" defer></script>
+	</head>
+}
+
+templ MailShell(p InboxProps) {
+	<div class="mail-shell">
+		<header class="mail-topbar">
+			<a class="mail-brand" href="/">scratch</a>
+			<div class="mail-create-actions">
+				@createChatButton(p.Agents)
+				@createButton("task", "New task", taskIcon())
+				@createWorkflowButton()
+			</div>
+		</header>
+		<div class="mail-body">
+			<aside class="mail-sidebar">
+				<nav class="mail-labels" aria-label="Mail">
+					@mailLabel("/", "inbox", p.View, "Inbox", p.Counts.Inbox, inboxIcon())
+					@mailLabel("/starred", "starred", p.View, "Starred", p.Counts.Starred, starIcon(false))
+					<div class="mail-label-group">More</div>
+					@mailLabel("/inbox/chats", "chats", p.View, "Chats", p.Counts.Chats, chatIcon())
+					@mailLabel("/inbox/tasks", "tasks", p.View, "Tasks", p.Counts.Tasks, taskIcon())
+					@mailLabel("/inbox/workflows", "workflows", p.View, "Workflows", p.Counts.Workflows, workflowIcon())
+				</nav>
+			</aside>
+			<main class="mail-main">
+				{ children... }
+			</main>
+		</div>
+		<footer class="mail-footer">
+			@MailComposer(p)
+		</footer>
+	</div>
+}
+
+templ MailComposer(p InboxProps) {
+	if p.Thread != nil {
+		<form
+			id="chat-form"
+			class="mail-universal-compose"
+			action={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
+			method="post"
+			hx-post={ "/chat/" + strconv.FormatInt(p.Thread.ID, 10) + "/messages" }
+			hx-swap="none"
+			hx-on::after-request="this.reset()"
+		>
+			<input id="chat-input" class="mail-compose-input" name="prompt" placeholder={ threadComposePlaceholder(*p.Thread) } autocomplete="off" autofocus/>
+			<button id="chat-send" class="mail-send-btn" type="submit" aria-label="Send">
+				@sendIcon()
+				<span>Send</span>
+			</button>
+		</form>
+	} else {
+		<form
+			class="mail-universal-compose"
+			action="/compose"
+			method="post"
+		>
+			<input type="hidden" name="view" value={ p.View }/>
+			<input type="hidden" name="mode" value={ composeMode(p) }/>
+			<input class="mail-compose-input" name="prompt" placeholder={ composePlaceholder(p) } autocomplete="off"/>
+			<button class="mail-send-btn" type="submit" aria-label="Send">
+				@sendIcon()
+				<span>Send</span>
+			</button>
+		</form>
+	}
+}
+
+templ InboxListView(p InboxProps) {
+	<header class="mail-mainbar">
+		<div class="mail-mainbar-title">
+			<h1>{ inboxTitle(p) }</h1>
+			if showArchiveFilters(p.View) {
+				<nav class="mail-filter-tabs" aria-label="Archive filter">
+					@archiveFilterTab(p.View, p.ArchiveFilter, "all", "All")
+					@archiveFilterTab(p.View, p.ArchiveFilter, "active", "Active")
+					@archiveFilterTab(p.View, p.ArchiveFilter, "archived", "Archived")
+				</nav>
+			}
+		</div>
+		<span>{ strconv.Itoa(len(p.Items)) }</span>
+	</header>
+	if len(p.Items) == 0 {
+		<div class="mail-empty">Nothing here.</div>
+	} else {
+		<div class="mail-list">
+			for _, item := range p.Items {
+				@InboxRow(item, p.View, p.ArchiveFilter)
+			}
+		</div>
+	}
+}
+
+templ archiveFilterTab(view, active, value, label string) {
+	<a href={ templ.SafeURL(archiveFilterHref(view, value)) } class={ "mail-filter-tab", templ.KV("active", active == value) }>{ label }</a>
+}
+
+templ InboxRow(item InboxItem, view, filter string) {
+	<div class={ "gm-row", templ.KV("selected", false), templ.KV("archived", item.Archived), templ.KV("done", item.Done) } data-kind={ item.Kind } data-id={ strconv.FormatInt(item.ID, 10) }>
+		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
+		<a class="gm-row-link" href={ templ.SafeURL(item.Href) }>
+			<span class="gm-row-main">
+				if showRowLabels(view) {
+					<span class="gm-row-labels">
+						if showRowKindLabel(view) {
+							<span class="gm-row-label">{ rowKindLabel(item.Kind) }</span>
+						}
+					</span>
+				}
+				<span class="gm-row-subject">{ item.Title }</span>
+				if item.Snippet != "" {
+					<span class="gm-row-snippet"> - { item.Snippet }</span>
+				}
+			</span>
+		</a>
+		<span class="gm-row-date">{ item.When }</span>
+		<div class="gm-row-actions gm-row-actions-right">
+			if item.Kind == "task" {
+				@rowPostButton(itemActionURL(item, "done"), view, filter, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
+			}
+			if item.Archived {
+				@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), unarchiveIcon(), "gm-row-action", "Unarchive")
+				@rowTrashButton(itemActionURL(item, "trash"), view, filter, trashActionLabel(item), "gm-row-action")
+			} else {
+				@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
+			}
+		</div>
+	</div>
+}
+
+templ InboxTaskReader(d InboxTaskDetail) {
+	<header class="mail-reader-head">
+		<a class="gm-icon-btn" href="/inbox/tasks" aria-label="Back">
+			@backIcon()
+		</a>
+		<div class="mail-reader-title">
+			<h1>{ d.Task.Title }</h1>
+			<p>
+				if d.Task.Archived {
+					Archived
+				} else if d.Task.Completed {
+					Done
+				} else {
+					Active
+				}
+			</p>
+		</div>
+		<div class="mail-reader-actions">
+			@readerPostButton(taskInboxActionURL(d.Task.ID, "done"), doneActionLabel(taskInboxItem(d.Task)), doneIcon(d.Task.Completed))
+			if d.Task.Archived {
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), unarchiveIcon())
+				@readerTrashButton(taskInboxActionURL(d.Task.ID, "trash"), trashActionLabel(taskInboxItem(d.Task)))
+			} else {
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
+			}
+			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), starIcon(d.Task.Starred))
+		</div>
+	</header>
+	<div class="mail-reader-body">
+		<form class="mail-card mail-task-editor" method="post" action={ taskInboxActionURL(d.Task.ID, "") }>
+			<label>
+				<span>Title</span>
+				<input name="title" value={ d.Task.Title } autocomplete="off"/>
+			</label>
+			<label>
+				<span>Description</span>
+				<textarea name="description" rows="6" placeholder="Add task details...">{ d.Task.Description }</textarea>
+			</label>
+			<button class="mail-save-btn" type="submit">Save</button>
+		</form>
+		<section class="mail-card">
+			<h2>Subitems</h2>
+			if len(d.Subitems) == 0 {
+				<p class="mail-muted">No subitems.</p>
+			} else {
+				<ul class="mail-task-list">
+					for _, s := range d.Subitems {
+						<li class={ "mail-task-item", templ.KV("done", s.Completed) }>
+							<span>{ s.Title }</span>
+						</li>
+					}
+				</ul>
+			}
+		</section>
+		<section class="mail-card">
+			<h2>Notes</h2>
+			if len(d.Notes) == 0 {
+				<p class="mail-muted">No notes.</p>
+			} else {
+				<div class="mail-notes">
+					for _, n := range d.Notes {
+						<article>
+							<p>{ n.Body }</p>
+							<time>{ n.CreatedAt.Format("Jan 2 15:04") }</time>
+						</article>
+					}
+				</div>
+			}
+		</section>
+	</div>
+}
+
+templ InboxThreadReader(d InboxThreadDetail) {
+	<header class="mail-reader-head">
+		<a class="gm-icon-btn" href={ templ.SafeURL("/" + inboxBackPath(d.Kind)) } aria-label="Back">
+			@backIcon()
+		</a>
+		<div class="mail-reader-title">
+			<h1>{ d.Title }</h1>
+			<p>{ d.Agent }</p>
+		</div>
+		<div class="mail-reader-actions">
+			if d.Archived {
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), unarchiveIcon())
+				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))
+			} else {
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), archiveIcon())
+			}
+			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), starIcon(d.Starred))
+		</div>
+	</header>
+	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body mail-chat-body">
+		<div id="chat-messages" class="chat-messages mail-chat-messages" sse-swap="message">
+			@ChatMessages(ChatThreadProps{Agent: d.Agent, ID: d.ID, Messages: d.Messages, Title: d.Title})
+		</div>
+	</div>
+}
+
+templ mailLabel(href, name, active, label string, count int, icon templ.Component) {
+	<a href={ templ.SafeURL(href) } class={ "gm-label", templ.KV("active", active == name) }>
+		<span class="gm-label-icon">
+			@icon
+		</span>
+		<span class="gm-label-name">{ label }</span>
+		<span class="gm-label-count">{ strconv.Itoa(count) }</span>
+	</a>
+}
+
+templ createButton(mode, label string, icon templ.Component) {
+	<form method="post" action="/compose">
+		<input type="hidden" name="mode" value={ mode }/>
+		<input type="hidden" name="create_only" value="true"/>
+		<button class="mail-create-btn" type="submit">
+			@icon
+			<span>{ label }</span>
+		</button>
+	</form>
+}
+
+templ createChatButton(agents []string) {
+	<form class="mail-create-combo" method="post" action="/compose" data-agent-model-form="true">
+		<input type="hidden" name="mode" value="chat"/>
+		<input type="hidden" name="create_only" value="true"/>
+		<button class="mail-create-btn" type="submit">
+			@chatIcon()
+			<span>New chat</span>
+		</button>
+		if len(agents) > 0 {
+			<span class="mail-create-select-wrap">
+				<select class="mail-create-select" name="agent" aria-label="Provider and model">
+					for _, agent := range agents {
+						<option value={ agent }>{ providerModelLabel(agent) }</option>
+					}
+				</select>
+				<span class="mail-create-chevron">@chevronDownIcon()</span>
+			</span>
+			<span class="mail-create-select-wrap">
+				<select class="mail-create-select" name="model" aria-label="Model">
+					for _, model := range codexModelOptions() {
+						<option value={ model.Value }>{ model.Label }</option>
+					}
+				</select>
+				<span class="mail-create-chevron">@chevronDownIcon()</span>
+			</span>
+		}
+	</form>
+}
+
+templ createWorkflowButton() {
+	<form class="mail-create-combo" method="post" action="/compose">
+		<input type="hidden" name="mode" value="workflow"/>
+		<input type="hidden" name="create_only" value="true"/>
+		<button class="mail-create-btn" type="submit">
+			@workflowIcon()
+			<span>New workflow</span>
+		</button>
+		<span class="mail-create-select-wrap">
+			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type">
+				for _, typ := range workflowTypeOptions() {
+					<option value={ typ }>{ workflowTypeLabel(typ) }</option>
+				}
+			</select>
+			<span class="mail-create-chevron">@chevronDownIcon()</span>
+		</span>
+	</form>
+}
+
+templ readerPostButton(action, label string, icon templ.Component) {
+	<form method="post" action={ action }>
+		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
+		<button type="submit" class="gm-icon-btn" title={ label } aria-label={ label }>
+			@icon
+		</button>
+	</form>
+}
+
+templ readerTrashButton(action, label string) {
+	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
+		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
+		<button type="button" class="gm-icon-btn danger mail-trash-trigger" title={ label } aria-label={ label } data-trash-trigger>
+			@trashIcon()
+		</button>
+		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
+			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
+				Cancel
+			</button>
+			<button type="submit" class="mail-trash-text-btn danger" data-trash-submit>
+				Delete
+			</button>
+		</span>
+	</form>
+}
+
+templ rowPostButton(action, view, filter, label string, icon templ.Component, class string, fallback string) {
+	<form method="post" action={ action }>
+		<input type="hidden" name="back" value={ archiveFilterHref(view, filter) }/>
+		<button type="submit" class={ class } title={ label } aria-label={ fallback } onclick="event.stopPropagation()">
+			@icon
+		</button>
+	</form>
+}
+
+templ rowTrashButton(action, view, filter, label, class string) {
+	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
+		<input type="hidden" name="back" value={ archiveFilterHref(view, filter) }/>
+		<button type="button" class={ class + " danger mail-trash-trigger" } title={ label } aria-label={ label } data-trash-trigger>
+			@trashIcon()
+		</button>
+		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
+			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
+				Cancel
+			</button>
+			<button type="submit" class="mail-trash-text-btn danger" data-trash-submit>
+				Delete
+			</button>
+		</span>
+	</form>
+}
+
+func archiveActionLabel(item InboxItem) string {
+	if item.Archived {
+		return "Unarchive"
+	}
+	return "Archive"
+}
+
+func archiveFilterHref(view, filter string) string {
+	base := inboxViewHref(view)
+	if filter == "all" {
+		return base
+	}
+	return base + "?archived=" + filter
+}
+
+func agentLabel(agent string) string {
+	if agent == "" {
+		return "Agent"
+	}
+	return strings.ToUpper(agent[:1]) + agent[1:]
+}
+
+func codexModelOptions() []SelectOption {
+	return []SelectOption{
+		{Label: "Default", Value: "default"},
+		{Label: "GPT 5.5", Value: "gpt-5.5"},
+		{Label: "GPT 5.1", Value: "gpt-5.1"},
+		{Label: "GPT 5", Value: "gpt-5"},
+	}
+}
+
+func providerModelLabel(agent string) string {
+	return agentLabel(agent)
+}
+
+func rowKindLabel(kind string) string {
+	switch kind {
+	case "chat":
+		return "Chat"
+	case "task":
+		return "Task"
+	case "workflow":
+		return "Workflow"
+	default:
+		return "Item"
+	}
+}
+
+func showRowKindLabel(view string) bool {
+	return view == "inbox" || view == "starred"
+}
+
+func showRowLabels(view string) bool {
+	return showRowKindLabel(view)
+}
+
+func workflowTypeLabel(typ string) string {
+	switch typ {
+	case "contact":
+		return "Contact chat"
+	default:
+		return agentLabel(typ)
+	}
+}
+
+func workflowTypeOptions() []string {
+	return []string{"contact"}
+}
+
+func chatIcon() templ.Component {
+	return lucideIcon(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>`)
+}
+
+func chevronDownIcon() templ.Component {
+	return lucideIcon(`<path d="m6 9 6 6 6-6"></path>`)
+}
+
+func archiveIcon() templ.Component {
+	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path>`)
+}
+
+func backIcon() templ.Component {
+	return lucideIcon(`<path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path>`)
+}
+
+func currentBackFallback(action string) string {
+	if strings.Contains(action, "/workflows/") {
+		return "/inbox/workflows"
+	}
+	if strings.Contains(action, "/chats/") {
+		return "/inbox/chats"
+	}
+	return "/inbox/tasks"
+}
+
+func composeMode(p InboxProps) string {
+	switch p.View {
+	case "chats":
+		return "chat"
+	case "tasks":
+		return "task"
+	case "workflows":
+		return "workflow"
+	default:
+		return "auto"
+	}
+}
+
+func composePlaceholder(p InboxProps) string {
+	switch composeMode(p) {
+	case "chat":
+		return "Start a chat..."
+	case "task":
+		return "Add a task..."
+	case "workflow":
+		return "Start a workflow..."
+	default:
+		return "Message, task, or workflow..."
+	}
+}
+
+func doneActionLabel(item InboxItem) string {
+	if item.Done {
+		return "Mark not done"
+	}
+	return "Mark done"
+}
+
+func doneIcon(done bool) templ.Component {
+	if done {
+		return lucideIcon(`<circle cx="12" cy="12" r="10"></circle>`)
+	}
+	return lucideIcon(`<path d="M21.8 10A10 10 0 1 1 17 3.3"></path><path d="m9 11 3 3L22 4"></path>`)
+}
+
+func inboxBackPath(kind string) string {
+	if kind == "workflow" {
+		return "inbox/workflows"
+	}
+	return "inbox/chats"
+}
+
+func inboxViewHref(view string) string {
+	switch view {
+	case "chats":
+		return "/inbox/chats"
+	case "tasks":
+		return "/inbox/tasks"
+	case "workflows":
+		return "/inbox/workflows"
+	default:
+		return "/" + view
+	}
+}
+
+func inboxTitle(p InboxProps) string {
+	switch p.View {
+	case "chats":
+		return "Chats"
+	case "starred":
+		return "Starred"
+	case "tasks":
+		return "Tasks"
+	case "workflows":
+		return "Workflows"
+	default:
+		return "Inbox"
+	}
+}
+
+func inboxIcon() templ.Component {
+	return lucideIcon(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
+}
+
+func itemActionURL(item InboxItem, action string) string {
+	switch item.Kind {
+	case "task":
+		return taskInboxActionURL(item.ID, action)
+	case "workflow":
+		return threadInboxActionURL("workflow", item.ID, action)
+	default:
+		return threadInboxActionURL("chat", item.ID, action)
+	}
+}
+
+func starActionLabel(item InboxItem) string {
+	if item.Starred {
+		return "Unstar"
+	}
+	return "Star"
+}
+
+func starClass(on bool) string {
+	if on {
+		return "gm-star on"
+	}
+	return "gm-star"
+}
+
+func starIcon(on bool) templ.Component {
+	if on {
+		return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`)
+	}
+	return lucideIcon(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>`)
+}
+
+func sendIcon() templ.Component {
+	return lucideIcon(`<path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path>`)
+}
+
+func showArchiveFilters(view string) bool {
+	return view == "chats" || view == "tasks" || view == "workflows"
+}
+
+func taskIcon() templ.Component {
+	return lucideIcon(`<rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path>`)
+}
+
+func trashActionLabel(item InboxItem) string {
+	switch item.Kind {
+	case "task":
+		return "Delete task permanently"
+	case "workflow":
+		return "Delete workflow permanently"
+	default:
+		return "Delete chat permanently"
+	}
+}
+
+func trashIcon() templ.Component {
+	return lucideIcon(`<path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`)
+}
+
+func taskInboxActionURL(id int64, action string) string {
+	if action == "" {
+		return fmt.Sprintf("/inbox/tasks/%d", id)
+	}
+	return fmt.Sprintf("/inbox/tasks/%d/%s", id, action)
+}
+
+func taskInboxItem(t db.Task) InboxItem {
+	return InboxItem{Archived: t.Archived, Done: t.Completed, ID: t.ID, Kind: "task", Starred: t.Starred}
+}
+
+func threadComposePlaceholder(d InboxThreadDetail) string {
+	if d.Kind == "workflow" {
+		return "Message the workflow..."
+	}
+	return "Message " + agentLabel(d.Agent) + "..."
+}
+
+func threadInboxActionURL(kind string, id int64, action string) string {
+	if kind == "workflow" {
+		return fmt.Sprintf("/inbox/workflows/%d/%s", id, action)
+	}
+	return fmt.Sprintf("/inbox/chats/%d/%s", id, action)
+}
+
+func threadInboxItem(d InboxThreadDetail) InboxItem {
+	return InboxItem{Archived: d.Archived, ID: d.ID, Kind: d.Kind, Starred: d.Starred}
+}
+
+func lucideIcon(body string) templ.Component {
+	return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + body + `</svg>`)
+}
+
+func unarchiveIcon() templ.Component {
+	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="m9 15 3-3 3 3"></path><path d="M12 12v6"></path>`)
+}
+
+func workflowIcon() templ.Component {
+	return lucideIcon(`<circle cx="12" cy="4.5" r="2.5"></circle><circle cx="4.5" cy="12" r="2.5"></circle><circle cx="19.5" cy="12" r="2.5"></circle><circle cx="12" cy="19.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><path d="M7 12h10"></path><path d="m13.8 17.7 3.9-3.9"></path>`)
+}

@@ -24,6 +24,7 @@ type Thread struct {
 	CreatedAt ts.Timestamp
 	ID        int64
 	Kind      string
+	Starred   bool
 	State     string
 	Title     string
 	UpdatedAt ts.Timestamp
@@ -34,6 +35,7 @@ type ThreadStore interface {
 	AddMessageEvent(messageID int64, eventType, data string) (MessageEvent, error)
 	AddThread(kind, title, anchor string) (Thread, error)
 	AppendMessageBody(id int64, delta string) error
+	DeleteThread(id int64) error
 	FinishMessage(id int64, status string) (Message, error)
 	GetMessage(id int64) (Message, error)
 	GetThread(id int64) (Thread, error)
@@ -44,6 +46,7 @@ type ThreadStore interface {
 	ListThreads(kind string) ([]Thread, error)
 	SetThreadAnchor(id int64, anchor string) error
 	SetThreadState(id int64, state string) error
+	SetThreadStarred(id int64, starred bool) error
 	SetThreadTitle(id int64, title string) error
 	TouchThread(id int64) error
 }
@@ -69,6 +72,37 @@ func (d *DB) AddThread(kind, title, anchor string) (Thread, error) {
 		return Thread{}, errors.Wrap(err, "insert thread")
 	}
 	return fromSqliteThread(row), nil
+}
+
+func (d *DB) DeleteThread(id int64) error {
+	ctx := context.Background()
+	tx, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return errors.Wrap(err, "begin delete thread")
+	}
+	defer tx.Rollback()
+
+	q := d.queries.WithTx(tx)
+	if err := q.DeleteThreadMessageEvents(ctx, id); err != nil {
+		return errors.Wrap(err, "delete thread message events")
+	}
+	if err := q.DeleteThreadAttachments(ctx, id); err != nil {
+		return errors.Wrap(err, "delete thread attachments")
+	}
+	if err := q.DeleteThreadMessages(ctx, id); err != nil {
+		return errors.Wrap(err, "delete thread messages")
+	}
+	n, err := q.DeleteThread(ctx, id)
+	if err != nil {
+		return errors.Wrap(err, "delete thread")
+	}
+	if n == 0 {
+		return ErrThreadNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return errors.Wrap(err, "commit delete thread")
+	}
+	return nil
 }
 
 func (d *DB) GetThread(id int64) (Thread, error) {
@@ -124,6 +158,25 @@ func (d *DB) SetThreadState(id int64, state string) error {
 	return nil
 }
 
+func (d *DB) SetThreadStarred(id int64, starred bool) error {
+	flag := int64(0)
+	if starred {
+		flag = 1
+	}
+	n, err := d.queries.SetThreadStarred(context.Background(), sqlite.SetThreadStarredParams{
+		ID:        id,
+		Starred:   flag,
+		UpdatedAt: ts.Now(),
+	})
+	if err != nil {
+		return errors.Wrap(err, "set thread starred")
+	}
+	if n == 0 {
+		return ErrThreadNotFound
+	}
+	return nil
+}
+
 func (d *DB) SetThreadTitle(id int64, title string) error {
 	n, err := d.queries.SetThreadTitle(context.Background(), sqlite.SetThreadTitleParams{
 		ID:        id,
@@ -159,6 +212,7 @@ func fromSqliteThread(t sqlite.Thread) Thread {
 		CreatedAt: t.CreatedAt,
 		ID:        t.ID,
 		Kind:      t.Kind,
+		Starred:   t.Starred != 0,
 		State:     t.State,
 		Title:     t.Title,
 		UpdatedAt: t.UpdatedAt,
