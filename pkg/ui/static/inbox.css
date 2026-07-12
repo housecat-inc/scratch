@@ -698,25 +698,6 @@ textarea {
   text-decoration: none;
 }
 
-.gm-kind-dot {
-  border-radius: 999px;
-  display: inline-flex;
-  height: 0.5rem;
-  width: 0.5rem;
-}
-
-.gm-kind-chat {
-  background: #2563eb;
-}
-
-.gm-kind-task {
-  background: #16a34a;
-}
-
-.gm-kind-workflow {
-  background: #d97706;
-}
-
 .gm-row-from {
   align-items: center;
   color: #475569;
@@ -734,13 +715,16 @@ textarea {
   white-space: nowrap;
 }
 
-.gm-row-subject {
-  color: #111827;
-  font-weight: 650;
+.gm-row-labels {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.3rem;
+  margin-right: 0.45rem;
+  vertical-align: middle;
 }
 
-.gm-row-badge {
-  background: #f1f5f9;
+.gm-row-label {
+  background: #f8fafc;
   border: 1px solid #d8dee9;
   border-radius: 999px;
   color: #475569;
@@ -748,9 +732,19 @@ textarea {
   font-size: 0.68rem;
   font-weight: 700;
   line-height: 1;
-  margin-left: 0.45rem;
   padding: 0.18rem 0.42rem;
   text-transform: uppercase;
+}
+
+.gm-row-label.archived {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+
+.gm-row-subject {
+  color: #111827;
+  font-weight: 650;
 }
 
 .gm-row-snippet,

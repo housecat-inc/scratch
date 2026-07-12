@@ -139,14 +139,15 @@ templ InboxRow(item InboxItem, view, filter string) {
 		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
 		<a class="gm-row-link" href={ templ.SafeURL(item.Href) }>
 			<span class="gm-row-from">
-				<span class={ "gm-kind-dot", "gm-kind-" + item.Kind }></span>
 				{ item.From }
 			</span>
 			<span class="gm-row-main">
-				<span class="gm-row-subject">{ item.Title }</span>
 				if item.Archived {
-					<span class="gm-row-badge">Archived</span>
+					<span class="gm-row-labels">
+						<span class="gm-row-label archived">Archived</span>
+					</span>
 				}
+				<span class="gm-row-subject">{ item.Title }</span>
 				if item.Snippet != "" {
 					<span class="gm-row-snippet"> - { item.Snippet }</span>
 				}
@@ -374,14 +375,14 @@ templ rowPostButton(action, view, filter, label string, icon templ.Component, cl
 templ rowTrashButton(action, view, filter, label, class string) {
 	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
 		<input type="hidden" name="back" value={ archiveFilterHref(view, filter) }/>
-		<button type="button" class={ class + " danger mail-trash-trigger" } title={ label } aria-label={ label } onclick="event.stopPropagation()" data-trash-trigger>
+		<button type="button" class={ class + " danger mail-trash-trigger" } title={ label } aria-label={ label } data-trash-trigger>
 			@trashIcon()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
-			<button type="submit" class={ class + " danger" } title="Delete permanently" aria-label="Delete permanently" onclick="event.stopPropagation()" data-trash-submit>
+			<button type="submit" class={ class + " danger" } title="Delete permanently" aria-label="Delete permanently" data-trash-submit>
 				@trashIcon()
 			</button>
-			<button type="button" class={ class } title="Cancel" aria-label="Cancel" onclick="event.stopPropagation()" data-trash-cancel>
+			<button type="button" class={ class } title="Cancel" aria-label="Cancel" data-trash-cancel>
 				@xIcon()
 			</button>
 		</span>
