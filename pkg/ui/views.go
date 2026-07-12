@@ -165,23 +165,24 @@ type SessionProps struct {
 }
 
 type SessionsProps struct {
-	AgentsBehind   int
-	AgentsDir      string
-	AgentsDirty    bool
-	AgentsDiverged bool
-	Authenticated  bool
-	ClaudeVersion  string
-	CodexInstalled bool
-	CodexVersion   string
-	ConfigureError string
-	Configured     bool
-	InstallError   string
-	Installed      bool
-	LoginError     string
-	LoginURL       string
-	Nav            string
-	Oob            bool
-	SessionDir     string
-	SessionError   string
-	Sessions       []SessionProps
+	AgentsBehind       int
+	AgentsDir          string
+	AgentsDirty        bool
+	AgentsDiverged     bool
+	Authenticated      bool
+	ClaudeVersion      string
+	CodexAuthenticated bool
+	CodexInstalled     bool
+	CodexVersion       string
+	ConfigureError     string
+	Configured         bool
+	InstallError       string
+	Installed          bool
+	LoginError         string
+	LoginURL           string
+	Nav                string
+	Oob                bool
+	SessionDir         string
+	SessionError       string
+	Sessions           []SessionProps
 }

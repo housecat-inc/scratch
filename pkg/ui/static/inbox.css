@@ -634,6 +634,82 @@ textarea {
   overflow: hidden;
 }
 
+.setup-list {
+  display: flex;
+  flex-direction: column;
+  max-width: 40rem;
+}
+
+.setup-group-title {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.9rem 0.2rem 0.4rem;
+  text-transform: uppercase;
+}
+
+.setup-group-title:first-child {
+  padding-top: 0.2rem;
+}
+
+.setup-row {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.7rem;
+  margin-bottom: 0.4rem;
+  padding: 0.65rem 0.85rem;
+}
+
+.setup-check {
+  color: #cbd5e1;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.setup-check svg {
+  height: 1.4rem;
+  width: 1.4rem;
+}
+
+.setup-row.is-done .setup-check {
+  color: #059669;
+}
+
+.setup-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.setup-title {
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.setup-row.is-done .setup-title {
+  color: #64748b;
+}
+
+.setup-hint {
+  color: #64748b;
+  font-size: 0.8rem;
+  margin-top: 0.1rem;
+}
+
+.setup-cmd {
+  background: #f1f5f9;
+  border-radius: 0.4rem;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.5rem;
+}
+
 .mail-tool-content {
   display: flex;
   flex: 1;

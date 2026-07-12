@@ -22,6 +22,7 @@ type Deps struct {
 	AgentsStatus       func() (agents.State, error)
 	Authenticated      func() (bool, error)
 	ClaudeVersion      func() string
+	CodexAuthenticated func() (bool, error)
 	CodexInstalled     func() bool
 	CodexVersion       func() string
 	Configure          func() error
@@ -66,7 +67,8 @@ func DefaultDeps() Deps {
 			}
 			return v
 		},
-		CodexInstalled: codexcode.Installed,
+		CodexAuthenticated: codexcode.Authenticated,
+		CodexInstalled:     codexcode.Installed,
 		CodexVersion: func() string {
 			v, err := codexcode.Version()
 			if err != nil {
@@ -458,6 +460,11 @@ func (s *Server) viewModel() ui.SessionsProps {
 	}
 	if vm.CodexInstalled && s.deps.CodexVersion != nil {
 		vm.CodexVersion = s.deps.CodexVersion()
+	}
+	if s.deps.CodexAuthenticated != nil {
+		if ok, err := s.deps.CodexAuthenticated(); err == nil {
+			vm.CodexAuthenticated = ok
+		}
 	}
 	if dir, err := agents.Dir(); err == nil {
 		vm.AgentsDir = dir

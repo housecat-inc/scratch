@@ -1,7 +1,9 @@
 package codexcode
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -10,6 +12,23 @@ import (
 func Installed() bool {
 	_, err := exec.LookPath("codex")
 	return err == nil
+}
+
+func Authenticated() (bool, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false, errors.Wrap(err, "user home dir")
+	}
+	return AuthenticatedAt(home)
+}
+
+func AuthenticatedAt(home string) (bool, error) {
+	if _, err := os.Stat(filepath.Join(home, ".codex", "auth.json")); err == nil {
+		return true, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, errors.Wrap(err, "stat codex auth")
+	}
+	return false, nil
 }
 
 func Version() (string, error) {

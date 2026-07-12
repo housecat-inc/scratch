@@ -31,13 +31,14 @@ func (f *fakeLogin) SubmitCode(code string) error {
 func (f *fakeLogin) URL() string { return f.url }
 
 type fakeDeps struct {
-	agents         agents.State
-	authenticated  bool
-	claudeVersion  string
-	codexInstalled bool
-	codexVersion   string
-	configured     bool
-	installed      bool
+	agents             agents.State
+	authenticated      bool
+	claudeVersion      string
+	codexAuthenticated bool
+	codexInstalled     bool
+	codexVersion       string
+	configured         bool
+	installed          bool
 
 	configureErr error
 	installErr   error
@@ -62,11 +63,12 @@ type fakeDeps struct {
 
 func (f *fakeDeps) deps() Deps {
 	return Deps{
-		AgentsStatus:   func() (agents.State, error) { return f.agents, nil },
-		Authenticated:  func() (bool, error) { return f.authenticated, nil },
-		ClaudeVersion:  func() string { return f.claudeVersion },
-		CodexInstalled: func() bool { return f.codexInstalled },
-		CodexVersion:   func() string { return f.codexVersion },
+		AgentsStatus:       func() (agents.State, error) { return f.agents, nil },
+		Authenticated:      func() (bool, error) { return f.authenticated, nil },
+		ClaudeVersion:      func() string { return f.claudeVersion },
+		CodexAuthenticated: func() (bool, error) { return f.codexAuthenticated, nil },
+		CodexInstalled:     func() bool { return f.codexInstalled },
+		CodexVersion:       func() string { return f.codexVersion },
 		Configure: func() error {
 			f.configureCalls++
 			if f.configureErr != nil {
@@ -146,46 +148,56 @@ func TestSetupPage(t *testing.T) {
 		name     string
 	}{
 		{
-			name: "fresh state shows install active, others pending",
+			name: "fresh state groups claude and codex steps",
 			fake: fakeDeps{},
 			mustHave: []string{
 				"scratch",
-				">Install<", ">Pay<", ">Configure<",
+				">Claude Code<", ">Codex<", ">Workspace<",
+				"Install Claude Code", "Install Codex", ">Configure<",
 				`id="card-install"`,
 				`id="card-login"`,
 				`id="card-configure"`,
+				`id="card-codex-install"`,
+				`id="card-codex-login"`,
 				`hx-post="/install"`,
 			},
 			mustMiss: []string{`hx-post="/configure"`, `hx-post="/login"`},
 		},
 		{
-			name: "installed shows update button and version, activates step 2",
+			name: "installed shows update button and version, activates sign in",
 			fake: fakeDeps{installed: true, claudeVersion: "2.1.139"},
 			mustHave: []string{
 				`hx-post="/install"`,
 				">Update<",
-				"v2.1.139",
+				"claude v2.1.139",
 				`hx-post="/login"`,
 			},
 			mustMiss: []string{`hx-post="/configure"`},
 		},
 		{
-			name: "install card reports both claude and codex versions",
-			fake: fakeDeps{installed: true, claudeVersion: "2.1.139", codexInstalled: true, codexVersion: "0.5.2"},
+			name: "codex install row reports version and marks done",
+			fake: fakeDeps{installed: true, codexInstalled: true, codexVersion: "0.5.2"},
 			mustHave: []string{
-				">claude<", "v2.1.139",
-				">codex<", "v0.5.2",
+				`id="card-codex-install"`, "codex v0.5.2",
 			},
 		},
 		{
-			name: "codex not installed still lists it",
-			fake: fakeDeps{installed: true, claudeVersion: "2.1.139"},
+			name: "codex not installed prompts to get codex",
+			fake: fakeDeps{installed: true},
 			mustHave: []string{
-				">codex<", "not installed",
+				`id="card-codex-install"`, "codex CLI not installed", ">Get Codex<",
 			},
 		},
 		{
-			name: "authenticated checks step 2, activates step 3",
+			name: "codex authenticated marks sign in done",
+			fake: fakeDeps{installed: true, codexInstalled: true, codexAuthenticated: true},
+			mustHave: []string{
+				`id="card-codex-login"`,
+			},
+			mustMiss: []string{">codex login<"},
+		},
+		{
+			name: "authenticated checks sign in, activates configure",
 			fake: fakeDeps{installed: true, authenticated: true},
 			mustHave: []string{
 				`hx-post="/configure"`,
