@@ -107,7 +107,7 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "new code server")
 			}
-			filesSrv, err := files.NewServer(files.DefaultDeps(home))
+			filesSrv, err := files.NewServer(files.DefaultDeps(workdir))
 			if err != nil {
 				return errors.Wrap(err, "new files server")
 			}

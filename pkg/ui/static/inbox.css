@@ -630,6 +630,10 @@ textarea {
   overflow: auto;
 }
 
+.mail-files-main {
+  overflow: hidden;
+}
+
 .mail-tool-content {
   display: flex;
   flex: 1;

@@ -21,8 +21,8 @@ type Deps struct {
 	Root string
 }
 
-func DefaultDeps(home string) Deps {
-	return Deps{Root: home}
+func DefaultDeps(root string) Deps {
+	return Deps{Root: root}
 }
 
 type Server struct {
