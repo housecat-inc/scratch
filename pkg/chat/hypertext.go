@@ -30,6 +30,7 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
 	mux.HandleFunc("GET /chat", s.handleIndex)
 	mux.HandleFunc("GET /chat/{$}", s.handleIndex)
 	mux.HandleFunc("POST /chat", s.handleCreate)
@@ -161,7 +162,7 @@ func (s *Server) writeMessagesEvent(w http.ResponseWriter, r *http.Request, thre
 		return err
 	}
 	fmt.Fprint(w, "event: message\n")
-	for _, line := range strings.Split(buf.String(), "\n") {
+	for line := range strings.SplitSeq(buf.String(), "\n") {
 		fmt.Fprintf(w, "data: %s\n", line)
 	}
 	_, err = fmt.Fprint(w, "\n")
