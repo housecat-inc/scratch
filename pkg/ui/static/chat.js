@@ -188,8 +188,12 @@
         } catch (err) {
           showAlert("screenshot failed: " + err.message);
         }
-        const html = "<!-- selector: " + selector + " -->\n" + el.outerHTML;
+        const html =
+          "<!-- url: " + location.href + " -->\n<!-- selector: " + selector + " -->\n" + el.outerHTML;
         await upload(new File([html], "selection.html", { type: "text/html" }));
+        const note = "Selected " + selector + " on " + location.href;
+        input.value = input.value ? input.value + "\n" + note : note;
+        input.dispatchEvent(new Event("input"));
         input.focus();
       };
     }
