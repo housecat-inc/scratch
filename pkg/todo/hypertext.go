@@ -8,6 +8,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/ui"
 )
 
@@ -32,7 +33,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /tasks/{id}/edit", s.handleEdit)
 	mux.HandleFunc("PATCH /tasks/{id}", s.handleUpdate)
 	mux.HandleFunc("DELETE /tasks/{id}", s.handleDelete)
-	return s.logging(mux)
+	return logging.Middleware(s.log, mux)
 }
 
 func (s *Server) handleClearCompleted(w http.ResponseWriter, r *http.Request) {
@@ -141,26 +142,4 @@ func toProps(v View, editingID int64) ui.TodoProps {
 		Filter:         string(v.Filter),
 		Tasks:          v.Tasks,
 	}
-}
-
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (r *statusRecorder) WriteHeader(code int) {
-	r.status = code
-	r.ResponseWriter.WriteHeader(code)
-}
-
-func (s *Server) logging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(rec, r)
-		s.log.Info("http.request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rec.status,
-		)
-	})
 }

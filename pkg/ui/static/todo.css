@@ -133,3 +133,14 @@ body {
   padding: 1.5rem 1.25rem;
   text-align: center;
 }
+
+.info {
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+.info a {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  text-decoration: none;
+}

@@ -42,6 +42,8 @@ func New(path string) (*Workflows, error) {
 	return &Workflows{conn: conn, ctx: ctx}, nil
 }
 
+func (w *Workflows) Ctx() dbos.DBOSContext { return w.ctx }
+
 func (w *Workflows) Launch() error {
 	return errors.Wrap(dbos.Launch(w.ctx), "launch dbos")
 }
