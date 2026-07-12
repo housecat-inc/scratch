@@ -89,14 +89,6 @@ templ FloatingChatPanel(p FloatingChatProps) {
 				<small>{ p.Agent }</small>
 			</a>
 			<div class="floating-chat-actions">
-				if p.Access != "" {
-					@ChatAccessToggle(p.ID, p.Access)
-				}
-				if p.Streaming {
-					<button type="button" class="floating-chat-icon" title="Stop chat" aria-label="Stop chat" hx-post={ "/chat/" + itoa64(p.ID) + "/stop" } hx-swap="none">
-						@stopIcon()
-					</button>
-				}
 				<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
 					@minusIcon()
 				</button>

@@ -117,7 +117,7 @@ func FloatingChatControlsFit() Step {
 				const minimize = document.querySelector("#floating-chat [data-chat-minimize]");
 				const restore = document.querySelector("#floating-chat [data-chat-restore]");
 				const access = document.querySelector("#floating-chat .chat-access-switch");
-				if (!panel || !close || !expand || !minimize || !restore || !access) return false;
+				if (!panel || !close || !expand || !minimize || !restore || access) return false;
 				const panelRect = panel.getBoundingClientRect();
 				const visible = (el) => {
 					const style = getComputedStyle(el);
@@ -128,7 +128,7 @@ func FloatingChatControlsFit() Step {
 					const rect = el.getBoundingClientRect();
 					return rect.left >= panelRect.left && rect.right <= panelRect.right && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom;
 				};
-				return !visible(access) && !visible(minimize) && visible(close) && visible(expand) && visible(restore) && inside(close) && inside(expand) && inside(restore);
+				return !visible(minimize) && visible(close) && visible(expand) && visible(restore) && inside(close) && inside(expand) && inside(restore);
 			}`)
 			return err == nil && result.Value.Bool()
 		}, 5*time.Second, 50*time.Millisecond)
