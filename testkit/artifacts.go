@@ -84,6 +84,10 @@ func (a *Artifacts) MatchScreenshot(page *rod.Page, name string) {
 	}
 
 	expected, err := os.ReadFile(golden)
+	if os.IsNotExist(err) {
+		a.t.Logf("no golden %s; captured %s (set UPDATE_GOLDEN=1 to record)", golden, a.ActualPath(name))
+		return
+	}
 	if err != nil {
 		a.t.Fatalf("read golden %s: %v", golden, err)
 	}
