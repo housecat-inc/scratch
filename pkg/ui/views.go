@@ -171,6 +171,8 @@ type SessionsProps struct {
 	AgentsDiverged bool
 	Authenticated  bool
 	ClaudeVersion  string
+	CodexInstalled bool
+	CodexVersion   string
 	ConfigureError string
 	Configured     bool
 	InstallError   string

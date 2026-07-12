@@ -31,11 +31,13 @@ func (f *fakeLogin) SubmitCode(code string) error {
 func (f *fakeLogin) URL() string { return f.url }
 
 type fakeDeps struct {
-	agents        agents.State
-	authenticated bool
-	claudeVersion string
-	configured    bool
-	installed     bool
+	agents         agents.State
+	authenticated  bool
+	claudeVersion  string
+	codexInstalled bool
+	codexVersion   string
+	configured     bool
+	installed      bool
 
 	configureErr error
 	installErr   error
@@ -60,9 +62,11 @@ type fakeDeps struct {
 
 func (f *fakeDeps) deps() Deps {
 	return Deps{
-		AgentsStatus:  func() (agents.State, error) { return f.agents, nil },
-		Authenticated: func() (bool, error) { return f.authenticated, nil },
-		ClaudeVersion: func() string { return f.claudeVersion },
+		AgentsStatus:   func() (agents.State, error) { return f.agents, nil },
+		Authenticated:  func() (bool, error) { return f.authenticated, nil },
+		ClaudeVersion:  func() string { return f.claudeVersion },
+		CodexInstalled: func() bool { return f.codexInstalled },
+		CodexVersion:   func() string { return f.codexVersion },
 		Configure: func() error {
 			f.configureCalls++
 			if f.configureErr != nil {
@@ -164,6 +168,21 @@ func TestSetupPage(t *testing.T) {
 				`hx-post="/login"`,
 			},
 			mustMiss: []string{`hx-post="/configure"`},
+		},
+		{
+			name: "install card reports both claude and codex versions",
+			fake: fakeDeps{installed: true, claudeVersion: "2.1.139", codexInstalled: true, codexVersion: "0.5.2"},
+			mustHave: []string{
+				">claude<", "v2.1.139",
+				">codex<", "v0.5.2",
+			},
+		},
+		{
+			name: "codex not installed still lists it",
+			fake: fakeDeps{installed: true, claudeVersion: "2.1.139"},
+			mustHave: []string{
+				">codex<", "not installed",
+			},
 		},
 		{
 			name: "authenticated checks step 2, activates step 3",

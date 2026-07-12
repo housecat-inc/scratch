@@ -46,19 +46,35 @@ templ InstallCard(v SessionsProps) {
 			}) {
 				Update
 			}
-			if v.ClaudeVersion != "" {
-				<span class="text-xs text-muted-foreground font-mono">v{ v.ClaudeVersion }</span>
-			}
 		}
+		<div class="basis-full flex flex-col gap-1 mt-1">
+			@agentStatusRow("claude", v.ClaudeVersion, v.Installed)
+			@agentStatusRow("codex", v.CodexVersion, v.CodexInstalled)
+		</div>
 		if v.InstallError != "" {
 			@stepError(v.InstallError)
 		}
 	}
 }
 
+templ agentStatusRow(name, version string, installed bool) {
+	<div class="flex items-center gap-2 text-xs font-mono">
+		<span class="text-foreground">{ name }</span>
+		if installed {
+			if version != "" {
+				<span class="text-muted-foreground">v{ version }</span>
+			} else {
+				<span class="text-emerald-700">installed</span>
+			}
+		} else {
+			<span class="text-muted-foreground">not installed</span>
+		}
+	</div>
+}
+
 func installHint(v SessionsProps) string {
 	if !v.Installed {
-		return "Run claude.ai/install.sh"
+		return "Install the agent CLIs (claude.ai/install.sh)"
 	}
 	return ""
 }
@@ -192,7 +208,7 @@ func configureHint(v SessionsProps) string {
 	case !v.Authenticated:
 		return ""
 	case !v.Configured:
-		return "Write claude markdown and settings in $HOME"
+		return "Write AGENTS.md and settings in $HOME"
 	case v.AgentsDirty:
 		return "Local changes in ./scratch"
 	case v.AgentsBehind > 0:

@@ -14,6 +14,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/agents"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
+	"github.com/housecat-inc/scratch/pkg/harness/codexcode"
 	"github.com/housecat-inc/scratch/pkg/ui"
 )
 
@@ -21,6 +22,8 @@ type Deps struct {
 	AgentsStatus       func() (agents.State, error)
 	Authenticated      func() (bool, error)
 	ClaudeVersion      func() string
+	CodexInstalled     func() bool
+	CodexVersion       func() string
 	Configure          func() error
 	Configured         func() (bool, error)
 	Install            func() error
@@ -60,6 +63,14 @@ func DefaultDeps() Deps {
 			v, err := claudecode.Version()
 			if err != nil {
 				slog.Warn("claude version failed", "error", err.Error())
+			}
+			return v
+		},
+		CodexInstalled: codexcode.Installed,
+		CodexVersion: func() string {
+			v, err := codexcode.Version()
+			if err != nil {
+				slog.Warn("codex version failed", "error", err.Error())
 			}
 			return v
 		},
@@ -440,6 +451,12 @@ func (s *Server) viewModel() ui.SessionsProps {
 	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.home}
 	if vm.Installed && s.deps.ClaudeVersion != nil {
 		vm.ClaudeVersion = s.deps.ClaudeVersion()
+	}
+	if s.deps.CodexInstalled != nil {
+		vm.CodexInstalled = s.deps.CodexInstalled()
+	}
+	if vm.CodexInstalled && s.deps.CodexVersion != nil {
+		vm.CodexVersion = s.deps.CodexVersion()
 	}
 	if dir, err := agents.Dir(); err == nil {
 		vm.AgentsDir = dir

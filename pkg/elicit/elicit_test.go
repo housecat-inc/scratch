@@ -75,9 +75,9 @@ func TestCoerce(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "ignores unknown fields",
-			values:  map[string]string{"email": "j@x.com", "name": "Jane", "sneaky": "x"},
-			want:    map[string]any{"email": "j@x.com", "name": "Jane", "urgent": false},
+			name:   "ignores unknown fields",
+			values: map[string]string{"email": "j@x.com", "name": "Jane", "sneaky": "x"},
+			want:   map[string]any{"email": "j@x.com", "name": "Jane", "urgent": false},
 		},
 	}
 	for _, tc := range tests {
