@@ -24,6 +24,7 @@ type Thread struct {
 	CreatedAt ts.Timestamp
 	ID        int64
 	Kind      string
+	Starred   bool
 	State     string
 	Title     string
 	UpdatedAt ts.Timestamp
@@ -44,6 +45,7 @@ type ThreadStore interface {
 	ListThreads(kind string) ([]Thread, error)
 	SetThreadAnchor(id int64, anchor string) error
 	SetThreadState(id int64, state string) error
+	SetThreadStarred(id int64, starred bool) error
 	SetThreadTitle(id int64, title string) error
 	TouchThread(id int64) error
 }
@@ -124,6 +126,25 @@ func (d *DB) SetThreadState(id int64, state string) error {
 	return nil
 }
 
+func (d *DB) SetThreadStarred(id int64, starred bool) error {
+	flag := int64(0)
+	if starred {
+		flag = 1
+	}
+	n, err := d.queries.SetThreadStarred(context.Background(), sqlite.SetThreadStarredParams{
+		ID:        id,
+		Starred:   flag,
+		UpdatedAt: ts.Now(),
+	})
+	if err != nil {
+		return errors.Wrap(err, "set thread starred")
+	}
+	if n == 0 {
+		return ErrThreadNotFound
+	}
+	return nil
+}
+
 func (d *DB) SetThreadTitle(id int64, title string) error {
 	n, err := d.queries.SetThreadTitle(context.Background(), sqlite.SetThreadTitleParams{
 		ID:        id,
@@ -159,6 +180,7 @@ func fromSqliteThread(t sqlite.Thread) Thread {
 		CreatedAt: t.CreatedAt,
 		ID:        t.ID,
 		Kind:      t.Kind,
+		Starred:   t.Starred != 0,
 		State:     t.State,
 		Title:     t.Title,
 		UpdatedAt: t.UpdatedAt,

@@ -167,6 +167,12 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if starred := r.FormValue("starred"); starred != "" {
+		if _, err := s.svc.SetStarred(id, starred == "true"); err != nil && !db.IsTaskNotFound(err) {
+			s.fail(w, err)
+			return
+		}
+	}
 	if r.Header.Get("HX-Target") == "todo-shell" {
 		s.renderShell(w, r, ParseFilter(r.URL.Query().Get("filter")), id, 0)
 		return

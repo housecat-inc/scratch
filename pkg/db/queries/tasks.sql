@@ -46,6 +46,9 @@ UPDATE tasks SET archived = ?, updated_at = ? WHERE id = ?;
 -- name: SetTaskCompleted :execrows
 UPDATE tasks SET completed = ?, updated_at = ? WHERE id = ?;
 
+-- name: SetTaskStarred :execrows
+UPDATE tasks SET starred = ?, updated_at = ? WHERE id = ?;
+
 -- name: SetTaskSubitemCompleted :execrows
 UPDATE task_subitems SET completed = ?, updated_at = ? WHERE id = ?;
 

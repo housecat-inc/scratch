@@ -12,6 +12,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
+	"github.com/housecat-inc/scratch/pkg/inbox"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/spf13/cobra"
@@ -88,9 +89,15 @@ func newRootCmd() *cobra.Command {
 			)
 			todo.Register(srv, svc)
 			chatSrv := chat.NewServer(chatSvc, logger)
+			inboxSrv := inbox.NewServer(svc, chatSvc, logger)
+			inboxHandler := inboxSrv.Handler()
+			todoSrv := todo.NewServer(svc, logger)
 			srv.Mux.Handle("/chat", chatSrv.Handler())
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
-			srv.Mux.Handle("/", todo.NewServer(svc, logger).Handler())
+			srv.Mux.Handle("GET /tasks", inboxHandler)
+			srv.Mux.Handle("POST /tasks", inboxHandler)
+			srv.Mux.Handle("/tasks/", todoSrv.Handler())
+			srv.Mux.Handle("/", inboxHandler)
 
 			slog.Info("listening", "addr", addr, "agent", agent.Author())
 			return srv.Run()

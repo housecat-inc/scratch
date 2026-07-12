@@ -14,6 +14,7 @@ type Task struct {
 	Completed bool
 	CreatedAt ts.Timestamp
 	ID        int64
+	Starred   bool
 	Title     string
 	UpdatedAt ts.Timestamp
 }
@@ -40,6 +41,7 @@ type TaskStore interface {
 	ListTasksByArchived(archived bool) ([]Task, error)
 	SetTaskArchived(id int64, archived bool) (Task, error)
 	SetTaskCompleted(id int64, completed bool) (Task, error)
+	SetTaskStarred(id int64, starred bool) (Task, error)
 	SetTaskSubitemCompleted(id int64, completed bool) (TaskSubitem, error)
 	UpdateTaskTitle(id int64, title string) (Task, error)
 }
@@ -231,6 +233,25 @@ func (d *DB) SetTaskCompleted(id int64, completed bool) (Task, error) {
 	return d.GetTask(id)
 }
 
+func (d *DB) SetTaskStarred(id int64, starred bool) (Task, error) {
+	flag := int64(0)
+	if starred {
+		flag = 1
+	}
+	n, err := d.queries.SetTaskStarred(context.Background(), sqlite.SetTaskStarredParams{
+		ID:        id,
+		Starred:   flag,
+		UpdatedAt: ts.Now(),
+	})
+	if err != nil {
+		return Task{}, errors.Wrap(err, "set starred")
+	}
+	if n == 0 {
+		return Task{}, ErrTaskNotFound
+	}
+	return d.GetTask(id)
+}
+
 func (d *DB) SetTaskSubitemCompleted(id int64, completed bool) (TaskSubitem, error) {
 	flag := int64(0)
 	if completed {
@@ -278,6 +299,7 @@ func fromSqliteTask(t sqlite.Task) Task {
 		Completed: t.Completed != 0,
 		CreatedAt: t.CreatedAt,
 		ID:        t.ID,
+		Starred:   t.Starred != 0,
 		Title:     t.Title,
 		UpdatedAt: t.UpdatedAt,
 	}

@@ -194,16 +194,30 @@ func (s *Server) handleUpdateThread(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	state := r.FormValue("state")
-	if state == "done" {
-		state = db.ThreadStateResolved
-	}
-	if err := s.svc.SetThreadState(id, state); err != nil {
-		if errors.Is(err, ErrThreadStateUnknown) {
-			http.Error(w, "unknown thread state", http.StatusBadRequest)
+	changed := false
+	if starred := r.FormValue("starred"); starred != "" {
+		if err := s.svc.SetThreadStarred(id, starred == "true"); err != nil {
+			s.notFoundOr(w, err)
 			return
 		}
-		s.notFoundOr(w, err)
+		changed = true
+	}
+	if state := r.FormValue("state"); state != "" {
+		if state == "done" {
+			state = db.ThreadStateResolved
+		}
+		if err := s.svc.SetThreadState(id, state); err != nil {
+			if errors.Is(err, ErrThreadStateUnknown) {
+				http.Error(w, "unknown thread state", http.StatusBadRequest)
+				return
+			}
+			s.notFoundOr(w, err)
+			return
+		}
+		changed = true
+	}
+	if !changed {
+		http.Error(w, "missing thread update", http.StatusBadRequest)
 		return
 	}
 	http.Redirect(w, r, "/chat", http.StatusSeeOther)

@@ -15,6 +15,9 @@ UPDATE threads SET anchor_json = ?, updated_at = ? WHERE id = ?;
 -- name: SetThreadState :execrows
 UPDATE threads SET state = ?, updated_at = ? WHERE id = ?;
 
+-- name: SetThreadStarred :execrows
+UPDATE threads SET starred = ?, updated_at = ? WHERE id = ?;
+
 -- name: SetThreadTitle :execrows
 UPDATE threads SET title = ?, updated_at = ? WHERE id = ?;
 

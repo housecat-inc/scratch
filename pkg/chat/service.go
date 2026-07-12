@@ -277,6 +277,10 @@ func (s *Service) SetThreadState(threadID int64, state string) error {
 	return s.store.SetThreadState(threadID, state)
 }
 
+func (s *Service) SetThreadStarred(threadID int64, starred bool) error {
+	return s.store.SetThreadStarred(threadID, starred)
+}
+
 func (s *Service) SetResolver(r Resolver) {
 	s.resolver = r
 }

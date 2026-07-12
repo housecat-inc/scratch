@@ -94,12 +94,16 @@ func (s *Service) Get(id int64) (db.Task, error) {
 	return s.tasks.GetTask(id)
 }
 
+func (s *Service) SetArchived(id int64, archived bool) (db.Task, error) {
+	return s.tasks.SetTaskArchived(id, archived)
+}
+
 func (s *Service) SetCompleted(id int64, completed bool) (db.Task, error) {
 	return s.tasks.SetTaskCompleted(id, completed)
 }
 
-func (s *Service) SetArchived(id int64, archived bool) (db.Task, error) {
-	return s.tasks.SetTaskArchived(id, archived)
+func (s *Service) SetStarred(id int64, starred bool) (db.Task, error) {
+	return s.tasks.SetTaskStarred(id, starred)
 }
 
 func (s *Service) SetSubitemCompleted(id int64, completed bool) (db.TaskSubitem, error) {
