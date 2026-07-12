@@ -136,6 +136,7 @@ func (s *Server) Register(mux *http.ServeMux, includeRoot bool) {
 	if includeRoot {
 		mux.HandleFunc("GET /{$}", s.handleSessions)
 	}
+	mux.HandleFunc("GET /sessions", s.handleSessions)
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /sw.js", s.handleServiceWorker)
 	mux.HandleFunc("GET /setup", s.handleSetup)

@@ -281,6 +281,25 @@ func TestSessionsPageOmitsAgentsHints(t *testing.T) {
 	}
 }
 
+func TestSessionsRouteWithoutRoot(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	fd := fakeDeps{installed: true, configured: true, authenticated: true}
+	s, err := NewServer(fd.deps())
+	r.NoError(err)
+
+	mux := http.NewServeMux()
+	s.Register(mux, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/sessions", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	a.Contains(rec.Body.String(), "New session")
+}
+
 func TestSessionStartRedirectsWhenRequested(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
