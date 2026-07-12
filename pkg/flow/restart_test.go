@@ -42,7 +42,7 @@ func newRestartStack(t *testing.T, path string) *restartStack {
 	r.NoError(err)
 
 	svc := chat.NewService(store, chat.EchoAgent{Delay: time.Millisecond}, nil)
-	flows := New(Deps{DBOS: workflows.Ctx(), Publish: svc.Publish, Store: store, Tasks: store})
+	flows := New(Deps{DBOS: workflows.Ctx(), Extract: HeuristicExtractor(), Publish: svc.Publish, Store: store, Tasks: store})
 	svc.RegisterAgent("contact", flows.Agent())
 	svc.SetResolver(flows)
 	r.NoError(workflows.Launch())

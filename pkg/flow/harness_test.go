@@ -51,7 +51,7 @@ func run(t *testing.T, cases []Case) {
 			kit.R.NoError(err)
 
 			svc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.New(logs))
-			flows := New(Deps{DBOS: workflows.Ctx(), Log: slog.New(logs), Publish: svc.Publish, Store: store, Tasks: store})
+			flows := New(Deps{DBOS: workflows.Ctx(), Extract: HeuristicExtractor(), Log: slog.New(logs), Publish: svc.Publish, Store: store, Tasks: store})
 			svc.RegisterAgent("contact", flows.Agent())
 			svc.SetResolver(flows)
 			kit.R.NoError(workflows.Launch())

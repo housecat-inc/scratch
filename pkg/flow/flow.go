@@ -34,6 +34,7 @@ type ContactInput struct {
 
 type Deps struct {
 	DBOS    dbos.DBOSContext
+	Extract Extractor
 	Log     *slog.Logger
 	Publish func(threadID int64)
 	Store   db.ThreadStore
@@ -45,6 +46,9 @@ type Flows struct {
 }
 
 func New(deps Deps) *Flows {
+	if deps.Extract == nil {
+		deps.Extract = DefaultExtractor()
+	}
 	if deps.Log == nil {
 		deps.Log = slog.Default()
 	}
@@ -64,8 +68,13 @@ func (f *Flows) contactIntake(ctx dbos.DBOSContext, in ContactInput) (string, er
 	if err := f.toolCall(ctx, in, "draft_contact", map[string]string{"prompt": in.Prompt}); err != nil {
 		return "", err
 	}
-	draft, err := dbos.RunAsStep(ctx, func(context.Context) (Contact, error) {
-		return draftContact(in.Prompt), nil
+	draft, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (Contact, error) {
+		contact, err := f.deps.Extract.Extract(stepCtx, in.Prompt)
+		if err != nil {
+			f.deps.Log.Warn("flow.extract fallback", "error", err.Error())
+			return draftContact(in.Prompt), nil
+		}
+		return contact, nil
 	}, dbos.WithStepName("draft_contact"))
 	if err != nil {
 		return "", errors.Wrap(err, "draft contact")

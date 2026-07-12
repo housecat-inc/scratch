@@ -123,11 +123,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	ping := time.NewTicker(ssePingInterval)
 	defer ping.Stop()
 
+	if err := s.writeMessagesEvent(w, r, id); err != nil {
+		return
+	}
+	flusher.Flush()
 	for {
-		if err := s.writeMessagesEvent(w, r, id); err != nil {
-			return
-		}
-		flusher.Flush()
 		select {
 		case <-r.Context().Done():
 			return
@@ -135,6 +135,10 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, ": ping\n\n")
 			flusher.Flush()
 		case <-updates:
+			if err := s.writeMessagesEvent(w, r, id); err != nil {
+				return
+			}
+			flusher.Flush()
 		}
 	}
 }
