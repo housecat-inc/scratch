@@ -698,15 +698,6 @@ textarea {
   text-decoration: none;
 }
 
-.gm-row-from {
-  align-items: center;
-  color: #475569;
-  display: flex;
-  flex: 0 0 10rem;
-  gap: 0.55rem;
-  min-width: 0;
-}
-
 .gm-row-main {
   flex: 1;
   min-width: 0;
@@ -734,12 +725,6 @@ textarea {
   line-height: 1;
   padding: 0.18rem 0.42rem;
   text-transform: uppercase;
-}
-
-.gm-row-label.archived {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  color: #3730a3;
 }
 
 .gm-row-subject {
@@ -783,10 +768,6 @@ textarea {
   opacity: 0;
 }
 
-.gm-row:hover .gm-row-from {
-  color: #111827;
-}
-
 .gm-row-action,
 .gm-star,
 .gm-icon-btn {
@@ -825,6 +806,41 @@ textarea {
 
 .mail-trash-form.confirming .mail-trash-trigger {
   display: none;
+}
+
+.gm-row-actions.confirming-trash > :not(.mail-trash-form),
+.mail-reader-actions.confirming-trash > :not(.mail-trash-form) {
+  display: none;
+}
+
+.mail-trash-text-btn {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 999px;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 700;
+  height: 2rem;
+  padding: 0 0.7rem;
+}
+
+.mail-trash-text-btn:hover {
+  background: #f1f5f9;
+  color: #111827;
+}
+
+.mail-trash-text-btn.danger {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.mail-trash-text-btn.danger:hover {
+  background: #991b1b;
+  border-color: #991b1b;
 }
 
 .gm-row-action:hover,
@@ -1001,14 +1017,16 @@ textarea {
 .mail-chat-messages {
   margin: 0 auto;
   max-width: 64rem;
+  min-height: 100%;
+  overflow: visible;
   padding: 1.25rem 2rem 2rem;
   width: 100%;
 }
 
 .mail-chat-body {
-  display: flex;
+  display: block;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   padding: 0;
 }
 
@@ -1200,10 +1218,6 @@ textarea {
 
   .gm-row {
     height: 4.2rem;
-  }
-
-  .gm-row-from {
-    flex-basis: 5.5rem;
   }
 
   .gm-row-actions-right {

@@ -27,7 +27,8 @@
     alert.hideTimer = setTimeout(() => alert.classList.remove("visible"), 5000);
   });
 
-  const scroll = () => messages.scrollTo(0, messages.scrollHeight);
+  const scroller = messages.closest(".mail-chat-body") || messages;
+  const scroll = () => scroller.scrollTo(0, scroller.scrollHeight);
   new MutationObserver(scroll).observe(messages, {
     characterData: true,
     childList: true,

@@ -138,13 +138,12 @@ templ InboxRow(item InboxItem, view, filter string) {
 	<div class={ "gm-row", templ.KV("selected", false), templ.KV("archived", item.Archived), templ.KV("done", item.Done) } data-kind={ item.Kind } data-id={ strconv.FormatInt(item.ID, 10) }>
 		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
 		<a class="gm-row-link" href={ templ.SafeURL(item.Href) }>
-			<span class="gm-row-from">
-				{ item.From }
-			</span>
 			<span class="gm-row-main">
-				if item.Archived {
+				if showRowLabels(view) {
 					<span class="gm-row-labels">
-						<span class="gm-row-label archived">Archived</span>
+						if showRowKindLabel(view) {
+							<span class="gm-row-label">{ rowKindLabel(item.Kind) }</span>
+						}
 					</span>
 				}
 				<span class="gm-row-subject">{ item.Title }</span>
@@ -272,9 +271,7 @@ templ mailLabel(href, name, active, label string, count int, icon templ.Componen
 			@icon
 		</span>
 		<span class="gm-label-name">{ label }</span>
-		if count > 0 {
-			<span class="gm-label-count">{ strconv.Itoa(count) }</span>
-		}
+		<span class="gm-label-count">{ strconv.Itoa(count) }</span>
 	</a>
 }
 
@@ -353,11 +350,11 @@ templ readerTrashButton(action, label string) {
 			@trashIcon()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
-			<button type="submit" class="gm-icon-btn danger" title="Delete permanently" aria-label="Delete permanently" data-trash-submit>
-				@trashIcon()
+			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
+				Cancel
 			</button>
-			<button type="button" class="gm-icon-btn" title="Cancel" aria-label="Cancel" data-trash-cancel>
-				@xIcon()
+			<button type="submit" class="mail-trash-text-btn danger" data-trash-submit>
+				Delete
 			</button>
 		</span>
 	</form>
@@ -379,11 +376,11 @@ templ rowTrashButton(action, view, filter, label, class string) {
 			@trashIcon()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
-			<button type="submit" class={ class + " danger" } title="Delete permanently" aria-label="Delete permanently" data-trash-submit>
-				@trashIcon()
+			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
+				Cancel
 			</button>
-			<button type="button" class={ class } title="Cancel" aria-label="Cancel" data-trash-cancel>
-				@xIcon()
+			<button type="submit" class="mail-trash-text-btn danger" data-trash-submit>
+				Delete
 			</button>
 		</span>
 	</form>
@@ -421,6 +418,27 @@ func codexModelOptions() []SelectOption {
 
 func providerModelLabel(agent string) string {
 	return agentLabel(agent)
+}
+
+func rowKindLabel(kind string) string {
+	switch kind {
+	case "chat":
+		return "Chat"
+	case "task":
+		return "Task"
+	case "workflow":
+		return "Workflow"
+	default:
+		return "Item"
+	}
+}
+
+func showRowKindLabel(view string) bool {
+	return view == "inbox" || view == "starred"
+}
+
+func showRowLabels(view string) bool {
+	return showRowKindLabel(view)
 }
 
 func workflowTypeLabel(typ string) string {
@@ -626,8 +644,4 @@ func unarchiveIcon() templ.Component {
 
 func workflowIcon() templ.Component {
 	return lucideIcon(`<circle cx="12" cy="4.5" r="2.5"></circle><circle cx="4.5" cy="12" r="2.5"></circle><circle cx="19.5" cy="12" r="2.5"></circle><circle cx="12" cy="19.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><path d="M7 12h10"></path><path d="m13.8 17.7 3.9-3.9"></path>`)
-}
-
-func xIcon() templ.Component {
-	return lucideIcon(`<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>`)
 }

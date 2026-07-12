@@ -65,9 +65,13 @@
       const form = trigger.closest("[data-trash-form]");
       if (!form) return;
       document.querySelectorAll("[data-trash-form].confirming").forEach((other) => {
-        if (other !== form) other.classList.remove("confirming");
+        if (other !== form) {
+          other.classList.remove("confirming");
+          other.closest(".gm-row-actions, .mail-reader-actions")?.classList.remove("confirming-trash");
+        }
       });
       form.classList.add("confirming");
+      form.closest(".gm-row-actions, .mail-reader-actions")?.classList.add("confirming-trash");
       form.querySelector("[data-trash-submit]")?.focus();
       return;
     }
@@ -76,7 +80,9 @@
     if (cancel) {
       event.preventDefault();
       event.stopPropagation();
-      cancel.closest("[data-trash-form]")?.classList.remove("confirming");
+      const form = cancel.closest("[data-trash-form]");
+      form?.classList.remove("confirming");
+      form?.closest(".gm-row-actions, .mail-reader-actions")?.classList.remove("confirming-trash");
     }
   });
 })();
