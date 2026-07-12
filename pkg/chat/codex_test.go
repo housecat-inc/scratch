@@ -2,6 +2,8 @@ package chat
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,9 +41,49 @@ func TestCodexArgs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.New(t).Equal(tc.want, codexArgs(tc.state, "hi"))
+			assert.New(t).Equal(tc.want, codexArgs(tc.state, "hi", t.TempDir()))
 		})
 	}
+}
+
+func TestCodexArgsWorktreeWritableRoot(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	dir := t.TempDir()
+	r.NoError(os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: /repos/scratch/.git/worktrees/colombo-v2\n"), 0o644))
+
+	args := codexArgs(codexAnchor{}, "hi", dir)
+	a.Contains(args, `sandbox_workspace_write.writable_roots=["/repos/scratch/.git"]`)
+}
+
+func TestWorktreeGitDir(t *testing.T) {
+	tests := []struct {
+		contents string
+		name     string
+		want     string
+	}{
+		{name: "worktree", contents: "gitdir: /repos/scratch/.git/worktrees/colombo-v2\n", want: "/repos/scratch/.git"},
+		{name: "plain gitdir", contents: "gitdir: /repos/scratch/.git\n", want: "/repos/scratch/.git"},
+		{name: "empty", contents: "", want: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := require.New(t)
+			dir := t.TempDir()
+			r.NoError(os.WriteFile(filepath.Join(dir, ".git"), []byte(tc.contents), 0o644))
+			assert.New(t).Equal(tc.want, worktreeGitDir(dir))
+		})
+	}
+}
+
+func TestWorktreeGitDirRegularRepo(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	dir := t.TempDir()
+	r.NoError(os.Mkdir(filepath.Join(dir, ".git"), 0o755))
+	a.Equal("", worktreeGitDir(dir))
 }
 
 func TestCodexItemEvents(t *testing.T) {

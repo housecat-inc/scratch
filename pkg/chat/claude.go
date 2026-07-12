@@ -91,8 +91,12 @@ func (a ClaudeAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (stri
 		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
 			continue
 		}
-		if line.SessionID != "" {
+		if line.SessionID != "" && line.SessionID != state.SessionID {
+			state.Agent = "claude"
 			state.SessionID = line.SessionID
+			if data, err := json.Marshal(state); err == nil {
+				emit(Event{Data: string(data), Type: EventAnchor})
+			}
 		}
 		for _, ev := range claudeLineEvents(line, scanner.Bytes(), &textEmitted) {
 			emit(ev)

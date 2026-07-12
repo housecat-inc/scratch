@@ -381,7 +381,12 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 	if _, err := s.store.AddMessageEvent(messageID, ev.Type, ev.Data); err != nil {
 		s.log.Error("chat.event", "error", err.Error())
 	}
-	if ev.Type == EventDelta {
+	switch ev.Type {
+	case EventAnchor:
+		if err := s.store.SetThreadAnchor(threadID, ev.Data); err != nil {
+			s.log.Error("chat.anchor", "error", err.Error())
+		}
+	case EventDelta:
 		var delta struct {
 			Text string `json:"text"`
 		}

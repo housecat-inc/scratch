@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -53,7 +56,7 @@ type codexLine struct {
 
 func (CodexAgent) Author() string { return "agent:codex" }
 
-func codexArgs(state codexAnchor, prompt string) []string {
+func codexArgs(state codexAnchor, prompt, dir string) []string {
 	args := []string{"exec"}
 	if state.ThreadID != "" {
 		args = append(args, "resume")
@@ -64,6 +67,9 @@ func codexArgs(state codexAnchor, prompt string) []string {
 	} else {
 		args = append(args, "-c", `sandbox_mode="workspace-write"`)
 	}
+	if gitDir := worktreeGitDir(dir); gitDir != "" {
+		args = append(args, "-c", fmt.Sprintf("sandbox_workspace_write.writable_roots=[%q]", gitDir))
+	}
 	if state.Model != "" {
 		args = append(args, "--model", state.Model)
 	}
@@ -73,11 +79,33 @@ func codexArgs(state codexAnchor, prompt string) []string {
 	return append(args, prompt)
 }
 
+func worktreeGitDir(dir string) string {
+	if dir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return ""
+		}
+		dir = cwd
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".git"))
+	if err != nil {
+		return ""
+	}
+	gitdir := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(data)), "gitdir:"))
+	if gitdir == "" {
+		return ""
+	}
+	if i := strings.Index(gitdir, string(filepath.Separator)+".git"+string(filepath.Separator)); i >= 0 {
+		return gitdir[:i+len("/.git")]
+	}
+	return gitdir
+}
+
 func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
 	var state codexAnchor
 	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
-	cmd := exec.CommandContext(ctx, "codex", codexArgs(state, turn.Prompt)...)
+	cmd := exec.CommandContext(ctx, "codex", codexArgs(state, turn.Prompt, a.Dir)...)
 	cmd.Dir = a.Dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -97,8 +125,12 @@ func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (strin
 		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
 			continue
 		}
-		if line.ThreadID != "" {
+		if line.ThreadID != "" && line.ThreadID != state.ThreadID {
+			state.Agent = "codex"
 			state.ThreadID = line.ThreadID
+			if data, err := json.Marshal(state); err == nil {
+				emit(Event{Data: string(data), Type: EventAnchor})
+			}
 		}
 		switch line.Type {
 		case "item.started", "item.updated", "item.completed":

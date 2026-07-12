@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	EventAnchor            = "anchor"
 	EventDelta             = "delta"
 	EventElicitation       = "elicitation"
 	EventElicitationResult = "elicitation_result"
