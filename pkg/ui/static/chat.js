@@ -561,6 +561,11 @@
     if (historyLink) {
       clearState();
       document.getElementById("floating-chat")?.remove();
+      const url = new URL(historyLink.href, location.href);
+      if (url.pathname === location.pathname && url.search === location.search) {
+        e.preventDefault();
+        location.reload();
+      }
       return;
     }
 

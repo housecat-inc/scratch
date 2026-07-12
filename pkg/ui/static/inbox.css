@@ -424,6 +424,7 @@ textarea {
   display: inline-flex;
   flex: 0 0 auto;
   height: 2.2rem;
+  margin-left: auto;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
 }

@@ -85,6 +85,21 @@ func TestTodoWebBrowser(t *testing.T) {
 		},
 		{
 			Act: []webStep{
+				testkit.ClickStep[*webHarness]("[data-new-chat]"),
+				webElementEventuallyPresent("#floating-chat"),
+				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
+			},
+			Assert: []webStep{
+				webPathEventuallyEquals("/chats"),
+				webChatThreadCount(1),
+				webElementEventuallyPresent(`[data-kind="chat"][data-id="1"]`),
+				webElementAbsent("#floating-chat"),
+			},
+			Name: "chat history action refreshes current chats page",
+			Path: "/chats",
+		},
+		{
+			Act: []webStep{
 				testkit.TypeStep[*webHarness](".todo-new-input", "buy milk"),
 				testkit.ClickStep[*webHarness](".todo-create-form button"),
 			},
