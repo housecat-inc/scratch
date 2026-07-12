@@ -16,6 +16,8 @@ import (
 	"github.com/housecat-inc/scratch/uikit"
 )
 
+const chatLabelTodo = "todo"
+
 type WebServer struct {
 	chat  *chat.Service
 	log   *slog.Logger
@@ -199,6 +201,7 @@ func (s *WebServer) props(filter Filter, selectedID int64) (ui.TodoProps, error)
 		}
 		props.ChatCount = len(chatItems)
 		props.ChatItems = chatItems
+		props.ChatLabel = chatLabelTodo
 		props.ChatOptions = chatOptions(s.chat.AgentNames())
 	}
 	if selectedID != 0 {
@@ -212,7 +215,7 @@ func (s *WebServer) props(filter Filter, selectedID int64) (ui.TodoProps, error)
 }
 
 func (s *WebServer) chatItems() ([]ui.TodoChatItem, error) {
-	threads, err := s.chat.Threads()
+	threads, err := s.chat.ThreadsByLabel(chatLabelTodo)
 	if err != nil {
 		return nil, err
 	}

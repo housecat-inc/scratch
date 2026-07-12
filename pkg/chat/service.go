@@ -120,6 +120,10 @@ func (s *Service) CreateThread(agent, title string) (db.Thread, error) {
 }
 
 func (s *Service) CreateThreadWithModel(agent, model, title string) (db.Thread, error) {
+	return s.CreateThreadWithLabel(agent, model, "", title)
+}
+
+func (s *Service) CreateThreadWithLabel(agent, model, label, title string) (db.Thread, error) {
 	if agent == "" {
 		agent = s.defaultName
 	}
@@ -127,6 +131,9 @@ func (s *Service) CreateThreadWithModel(agent, model, title string) (db.Thread, 
 		return db.Thread{}, errors.Wrapf(ErrAgentUnknown, "%q", agent)
 	}
 	anchorData := map[string]string{"agent": agent}
+	if strings.TrimSpace(label) != "" {
+		anchorData["label"] = strings.TrimSpace(label)
+	}
 	if strings.TrimSpace(model) != "" {
 		anchorData["model"] = strings.TrimSpace(model)
 	}
@@ -438,6 +445,14 @@ func (s *Service) Thread(id int64) (db.Thread, error) {
 	return s.store.GetThread(id)
 }
 
+func (s *Service) ThreadLabel(thread db.Thread) string {
+	var anchor struct {
+		Label string `json:"label"`
+	}
+	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
+	return anchor.Label
+}
+
 func (s *Service) ThreadPrompt(id int64) (string, error) {
 	message, err := s.store.GetFirstThreadUserMessage(id)
 	if db.IsMessageNotFound(err) {
@@ -451,6 +466,20 @@ func (s *Service) ThreadPrompt(id int64) (string, error) {
 
 func (s *Service) Threads() ([]db.Thread, error) {
 	return s.store.ListThreads(db.ThreadKindChat)
+}
+
+func (s *Service) ThreadsByLabel(label string) ([]db.Thread, error) {
+	threads, err := s.Threads()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]db.Thread, 0, len(threads))
+	for _, thread := range threads {
+		if s.ThreadLabel(thread) == label {
+			out = append(out, thread)
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) View(threadID int64) (ThreadView, error) {

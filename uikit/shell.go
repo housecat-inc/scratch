@@ -35,6 +35,13 @@ func countLabel(count int) string {
 	return strconv.Itoa(count)
 }
 
+func historyHref(href string) string {
+	if href == "" {
+		return "/chats"
+	}
+	return href
+}
+
 func mainClass(extra string, footer templ.Component) string {
 	classes := []string{"mail-main"}
 	if footer == nil {

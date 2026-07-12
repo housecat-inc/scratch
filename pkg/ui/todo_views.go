@@ -16,6 +16,7 @@ type TodoProps struct {
 	ActiveCount int
 	ChatCount   int
 	ChatItems   []TodoChatItem
+	ChatLabel   string
 	ChatOptions []uikit.SelectOption
 	Detail      *TodoTaskDetail
 	Title       string

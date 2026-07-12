@@ -59,6 +59,7 @@ func TestTodoWebBrowser(t *testing.T) {
 			},
 			Assert: []webStep{
 				webChatThreadCount(1),
+				webChatThreadLabel(1, chatLabelTodo),
 				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
 				testkit.TextContainsStep[*webHarness]("#floating-chat", "New chat"),
 			},
@@ -198,21 +199,33 @@ func TestTodoWebBrowser(t *testing.T) {
 			Assert: []webStep{
 				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Chats"),
 				testkit.TextContainsStep[*webHarness](`[data-kind="chat"][data-id="1"]`, "old chat"),
+				webElementAbsent(`[data-kind="chat"][data-id="2"]`),
 			},
-			Name: "lists old chats",
+			Name: "lists todo chats without scratch chats",
 			Path: "/chats",
 			Seed: []webStep{
-				seedWebChat("old chat"),
+				seedWebChat("old chat", chatLabelTodo),
+				seedWebChat("scratch chat", ""),
 			},
 		},
 	})
 }
 
-func seedWebChat(title string) webStep {
+func seedWebChat(title, label string) webStep {
 	return func(t *testing.T, h *webHarness) {
 		t.Helper()
-		_, err := h.Chat.CreateThread("", title)
+		_, err := h.Chat.CreateThreadWithLabel("", "", label, title)
 		h.R.NoError(err)
+	}
+}
+
+func webChatThreadLabel(id int64, want string) webStep {
+	return func(t *testing.T, h *webHarness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			thread, err := h.Chat.Thread(id)
+			return err == nil && h.Chat.ThreadLabel(thread) == want
+		}, 5*time.Second, 50*time.Millisecond)
 	}
 }
 

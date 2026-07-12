@@ -47,7 +47,8 @@ templ TodoActions(p TodoProps) {
 		</button>
 	</form>
 	if len(p.ChatOptions) > 0 {
-		@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
+		@uikit.NewChatAction(uikit.NewChatActionProps{Label: p.ChatLabel, Options: p.ChatOptions})
+		@uikit.ChatHistoryAction("/chats")
 	}
 }
 
@@ -246,8 +247,7 @@ func todoBack(view string) string {
 func todoNavItems(p TodoProps) []uikit.NavItem {
 	return []uikit.NavItem{
 		{Active: p.View == "inbox", Count: p.ActiveCount, Href: "/", Icon: "inbox", Label: "Inbox"},
-		{Group: "More", Active: p.View == "chats", Count: p.ChatCount, Href: "/chats", Icon: "chat", Label: "Chats"},
-		{Active: p.View == "tasks", Count: p.TaskCount, Href: "/tasks", Icon: "task", Label: "Tasks"},
+		{Group: "More", Active: p.View == "tasks", Count: p.TaskCount, Href: "/tasks", Icon: "task", Label: "Tasks"},
 	}
 }
 

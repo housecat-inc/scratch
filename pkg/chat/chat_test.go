@@ -86,6 +86,25 @@ func TestThreadPromptEmptyThread(t *testing.T) {
 	a.Empty(prompt)
 }
 
+func TestThreadsByLabel(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, EchoAgent{Delay: time.Millisecond})
+	todo, err := svc.CreateThreadWithLabel("", "", "todo", "todo chat")
+	r.NoError(err)
+	_, err = svc.CreateThreadWithLabel("", "", "scratch", "scratch chat")
+	r.NoError(err)
+	_, err = svc.CreateThread("", "unlabeled chat")
+	r.NoError(err)
+
+	threads, err := svc.ThreadsByLabel("todo")
+	r.NoError(err)
+	r.Len(threads, 1)
+	a.Equal(todo.ID, threads[0].ID)
+	a.Equal("todo", svc.ThreadLabel(threads[0]))
+}
+
 func TestAgentName(t *testing.T) {
 	a := assert.New(t)
 

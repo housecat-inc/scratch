@@ -18,6 +18,9 @@ templ ChatPluginScripts() {
 
 templ NewChatAction(p NewChatActionProps) {
 	<form class="mail-create-combo" method="get" action={ newChatAction(p.Action) } data-chat-popout-new>
+		if p.Label != "" {
+			<input type="hidden" name="chat_label" value={ p.Label }/>
+		}
 		<button class="mail-create-btn" type="submit" data-new-chat>
 			@Icon("chat")
 			<span>New chat</span>
@@ -33,4 +36,10 @@ templ NewChatAction(p NewChatActionProps) {
 			</span>
 		}
 	</form>
+}
+
+templ ChatHistoryAction(href string) {
+	<a class="mail-create-btn" href={ templ.SafeURL(historyHref(href)) } title="Chat history" aria-label="Chat history">
+		@Icon("history")
+	</a>
 }

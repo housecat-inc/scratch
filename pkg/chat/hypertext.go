@@ -60,10 +60,11 @@ func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
 	if providerModel := r.URL.Query().Get("provider_model"); providerModel != "" {
 		agent, model = ParseProviderModel(providerModel)
 	}
+	label := strings.TrimSpace(r.URL.Query().Get("chat_label"))
 	if model == "default" {
 		model = ""
 	}
-	thread, err := s.svc.CreateThreadWithModel(agent, model, "")
+	thread, err := s.svc.CreateThreadWithLabel(agent, model, label, "")
 	if err != nil {
 		s.notFoundOr(w, err)
 		return
