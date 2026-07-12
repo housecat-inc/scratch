@@ -900,6 +900,11 @@ textarea {
   opacity: 1;
   pointer-events: auto;
 }
+.gm-row-actions-inline {
+  background: transparent;
+  opacity: 1;
+  pointer-events: auto;
+}
 
 .gm-row:hover .gm-row-date {
   opacity: 0;

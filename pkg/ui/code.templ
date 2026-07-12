@@ -119,23 +119,18 @@ templ CommitsPage(p CommitsProps) {
 		if len(p.Commits) == 0 {
 			<p class="text-slate-500 text-sm">No commits ahead of { p.Repo.Base }.</p>
 		}
-		<ul class="space-y-2">
+		<div class="mail-list">
 			for _, c := range p.Commits {
-				<li>
-					@AppCard("transition hover:shadow-md overflow-hidden") {
-						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits/%s", p.Repo.Slug(), c.SHA)) } class="block active:bg-accent">
-							@card.Content() {
-								<div class="flex items-baseline justify-between gap-2">
-									<div class="font-medium truncate">{ c.Subject }</div>
-									<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
-								</div>
-								<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
-							}
-						</a>
-					}
-				</li>
+				@uikit.ListRow(uikit.ListRowProps{
+					Href:    fmt.Sprintf("/code/%s/commits/%s", p.Repo.Slug(), c.SHA),
+					Kind:    "commit",
+					Labels:  []string{shortSHA(c.SHA)},
+					Subject: c.Subject,
+					What:    c.Author,
+					When:    c.Date.Format("2006-01-02 15:04"),
+				})
 			}
-		</ul>
+		</div>
 	}
 }
 
@@ -497,40 +492,52 @@ templ CommentCardItem(p CommentItemProps) {
 }
 
 templ CommentIcons(p CommentItemProps) {
-	<div class="flex items-center flex-shrink-0" onclick="event.stopPropagation()">
-		<button type="button" title="Edit"
-			class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
-			hx-get={ fmt.Sprintf("/code/%s/comments/%s/edit?view=%s", p.Slug, p.Comment.ID, p.View) }
-			hx-target={ "#comment-" + p.Comment.ID }
-			hx-swap="outerHTML">
-			<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3l9-9z"></path></svg>
-		</button>
-		<button type="button"
-			if p.Comment.Resolved {
-				title="Reopen"
-			} else {
-				title="Resolve"
-			}
-			class={ "p-1.5 rounded hover:bg-slate-100", resolveBtnColor(p.Comment.Resolved) }
-			hx-post={ fmt.Sprintf("/code/%s/comments/%s/resolve", p.Slug, p.Comment.ID) }
-			hx-vals={ fmt.Sprintf(`{"view":"%s"}`, p.View) }
-			hx-target={ "#comment-" + p.Comment.ID }
-			hx-swap="outerHTML">
-			if p.Comment.Resolved {
-				<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 119 3M3 5v3h3"></path></svg>
-			} else {
-				<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"></path></svg>
-			}
-		</button>
-		<button type="button" title="Delete"
-			class="p-1.5 text-slate-400 hover:text-red-700 rounded hover:bg-slate-100"
-			hx-delete={ fmt.Sprintf("/code/%s/comments/%s", p.Slug, p.Comment.ID) }
-			hx-target={ "#comment-" + p.Comment.ID }
-			hx-swap="delete"
-			hx-confirm="Delete this comment?">
-			<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4M7 4V2h2v2"></path></svg>
-		</button>
-	</div>
+	@uikit.ActionIcons() {
+		@uikit.ActionIcon(uikit.ActionIconProps{
+			Icon:  "edit",
+			Label: "Edit",
+			Attrs: templ.Attributes{
+				"hx-get":    fmt.Sprintf("/code/%s/comments/%s/edit?view=%s", p.Slug, p.Comment.ID, p.View),
+				"hx-target": "#comment-" + p.Comment.ID,
+				"hx-swap":   "outerHTML",
+			},
+		})
+		@uikit.ActionIcon(uikit.ActionIconProps{
+			Icon:  resolveIcon(p.Comment.Resolved),
+			Label: resolveLabel(p.Comment.Resolved),
+			Attrs: templ.Attributes{
+				"hx-post":   fmt.Sprintf("/code/%s/comments/%s/resolve", p.Slug, p.Comment.ID),
+				"hx-vals":   fmt.Sprintf(`{"view":"%s"}`, p.View),
+				"hx-target": "#comment-" + p.Comment.ID,
+				"hx-swap":   "outerHTML",
+			},
+		})
+		@uikit.ActionIcon(uikit.ActionIconProps{
+			Danger: true,
+			Icon:   "trash",
+			Label:  "Delete",
+			Attrs: templ.Attributes{
+				"hx-delete":  fmt.Sprintf("/code/%s/comments/%s", p.Slug, p.Comment.ID),
+				"hx-target":  "#comment-" + p.Comment.ID,
+				"hx-swap":    "delete",
+				"hx-confirm": "Delete this comment?",
+			},
+		})
+	}
+}
+
+func resolveIcon(resolved bool) string {
+	if resolved {
+		return "reopen"
+	}
+	return "check"
+}
+
+func resolveLabel(resolved bool) string {
+	if resolved {
+		return "Reopen"
+	}
+	return "Resolve"
 }
 
 templ EditCommentForm(p EditCommentFormProps) {
@@ -620,13 +627,6 @@ func statusColor(s git.FileStatus) string {
 		return "text-blue-700"
 	}
 	return "text-slate-500"
-}
-
-func resolveBtnColor(resolved bool) string {
-	if resolved {
-		return "text-emerald-600 hover:text-emerald-800"
-	}
-	return "text-slate-400 hover:text-emerald-700"
 }
 
 func isImagePath(path string) bool {
