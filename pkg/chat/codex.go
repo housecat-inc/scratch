@@ -53,23 +53,31 @@ type codexLine struct {
 
 func (CodexAgent) Author() string { return "agent:codex" }
 
+func codexArgs(state codexAnchor, prompt string) []string {
+	args := []string{"exec"}
+	if state.ThreadID != "" {
+		args = append(args, "resume")
+	}
+	args = append(args, "--json", "--skip-git-repo-check")
+	if state.ThreadID == "" {
+		args = append(args, "--sandbox", "workspace-write")
+	} else {
+		args = append(args, "-c", `sandbox_mode="workspace-write"`)
+	}
+	if state.Model != "" {
+		args = append(args, "--model", state.Model)
+	}
+	if state.ThreadID != "" {
+		args = append(args, state.ThreadID)
+	}
+	return append(args, prompt)
+}
+
 func (a CodexAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
 	var state codexAnchor
 	_ = json.Unmarshal([]byte(turn.Anchor), &state)
 
-	args := []string{"exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"}
-	if state.Model != "" {
-		args = append(args, "--model", state.Model)
-	}
-	args = append(args, turn.Prompt)
-	if state.ThreadID != "" {
-		args = []string{"exec", "resume", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"}
-		if state.Model != "" {
-			args = append(args, "--model", state.Model)
-		}
-		args = append(args, state.ThreadID, turn.Prompt)
-	}
-	cmd := exec.CommandContext(ctx, "codex", args...)
+	cmd := exec.CommandContext(ctx, "codex", codexArgs(state, turn.Prompt)...)
 	cmd.Dir = a.Dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

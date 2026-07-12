@@ -15,6 +15,35 @@ func codexEvents(t *testing.T, textEmitted *bool, raw string) []Event {
 	return codexItemEvents(line.Type, line.Item, textEmitted)
 }
 
+func TestCodexArgs(t *testing.T) {
+	tests := []struct {
+		name  string
+		state codexAnchor
+		want  []string
+	}{
+		{
+			name:  "new session",
+			state: codexAnchor{},
+			want:  []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "workspace-write", "hi"},
+		},
+		{
+			name:  "new session with model",
+			state: codexAnchor{Model: "gpt-5.2-codex"},
+			want:  []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "workspace-write", "--model", "gpt-5.2-codex", "hi"},
+		},
+		{
+			name:  "resume uses config override for sandbox",
+			state: codexAnchor{ThreadID: "t-1"},
+			want:  []string{"exec", "resume", "--json", "--skip-git-repo-check", "-c", `sandbox_mode="workspace-write"`, "t-1", "hi"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.New(t).Equal(tc.want, codexArgs(tc.state, "hi"))
+		})
+	}
+}
+
 func TestCodexItemEvents(t *testing.T) {
 	tests := []struct {
 		emitted bool
