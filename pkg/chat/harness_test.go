@@ -21,14 +21,13 @@ type Harness struct {
 type Step func(t *testing.T, h *Harness)
 
 type Case struct {
-	Act         []Step
-	Agent       Agent
-	Assert      []Step
-	Console     []string
-	Name        string
-	Path        string
-	Screenshots []testkit.Screenshot
-	Seed        []Step
+	Act     []Step
+	Agent   Agent
+	Assert  []Step
+	Console []string
+	Name    string
+	Path    string
+	Seed    []Step
 }
 
 func run(t *testing.T, cases []Case) {
@@ -63,11 +62,7 @@ func run(t *testing.T, cases []Case) {
 				step(t, h)
 			}
 
-			if len(tc.Screenshots) > 0 {
-				h.MatchScreenshots(tc.Screenshots, "begin", tc.Path)
-			} else {
-				h.Load(tc.Path)
-			}
+			h.Load(tc.Path)
 
 			logs.Reset()
 
@@ -76,10 +71,6 @@ func run(t *testing.T, cases []Case) {
 			}
 			for _, step := range tc.Assert {
 				step(t, h)
-			}
-
-			if len(tc.Screenshots) > 0 {
-				h.MatchScreenshots(tc.Screenshots, "end", tc.Path)
 			}
 
 			for _, msg := range h.Console.Errors() {

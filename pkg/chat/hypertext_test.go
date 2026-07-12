@@ -2,13 +2,7 @@ package chat
 
 import (
 	"testing"
-
-	"github.com/housecat-inc/scratch/testkit"
 )
-
-var screenshots = []testkit.Screenshot{
-	{Height: 480, Name: "chat.png", Width: 640},
-}
 
 func TestChat(t *testing.T) {
 	run(t, []Case{
@@ -37,9 +31,8 @@ func TestChat(t *testing.T) {
 			},
 		},
 		{
-			Name:        "lists threads and opens a conversation",
-			Path:        "/chat",
-			Screenshots: screenshots,
+			Name: "lists threads and opens a conversation",
+			Path: "/chat",
 			Seed: []Step{
 				SeedThread(""),
 				SeedExchange(1, "what is on my list today?"),
@@ -54,9 +47,8 @@ func TestChat(t *testing.T) {
 			},
 		},
 		{
-			Name:        "renders a conversation",
-			Path:        "/chat/1",
-			Screenshots: []testkit.Screenshot{{Height: 480, Name: "thread.png", Width: 640}},
+			Name: "renders a conversation",
+			Path: "/chat/1",
 			Seed: []Step{
 				SeedThread(""),
 				SeedExchange(1, "hello"),

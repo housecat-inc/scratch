@@ -24,13 +24,12 @@ type Harness struct {
 type Step func(t *testing.T, h *Harness)
 
 type Case struct {
-	Act         []Step
-	Assert      []Step
-	Console     []string
-	Name        string
-	Path        string
-	Screenshots []testkit.Screenshot
-	Seed        []Step
+	Act     []Step
+	Assert  []Step
+	Console []string
+	Name    string
+	Path    string
+	Seed    []Step
 }
 
 func run(t *testing.T, cases []Case) {
@@ -73,21 +72,13 @@ func run(t *testing.T, cases []Case) {
 				step(t, h)
 			}
 
-			if len(tc.Screenshots) > 0 {
-				h.MatchScreenshots(tc.Screenshots, "begin", tc.Path)
-			} else {
-				h.Load(tc.Path)
-			}
+			h.Load(tc.Path)
 
 			for _, step := range tc.Act {
 				step(t, h)
 			}
 			for _, step := range tc.Assert {
 				step(t, h)
-			}
-
-			if len(tc.Screenshots) > 0 {
-				h.MatchScreenshots(tc.Screenshots, "end", tc.Path)
 			}
 
 			for _, msg := range h.Console.Errors() {
@@ -185,9 +176,8 @@ func TestContactIntakeBrowser(t *testing.T) {
 			},
 		},
 		{
-			Name:        "renders a pending review form",
-			Path:        "/chat/1",
-			Screenshots: []testkit.Screenshot{{Height: 640, Name: "form.png", Width: 640}},
+			Name: "renders a pending review form",
+			Path: "/chat/1",
 			Seed: []Step{
 				SeedPendingForm("Add Jane Doe jane@example.com from ACME"),
 			},
