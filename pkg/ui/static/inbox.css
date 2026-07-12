@@ -762,7 +762,8 @@ textarea {
 	margin-right: 0.45rem;
 }
 
-.gm-row-label {
+.gm-row-label,
+.mail-reader-label {
   background: #f8fafc;
   border: 1px solid #d8dee9;
   border-radius: 999px;
@@ -773,6 +774,7 @@ textarea {
   line-height: 1;
   padding: 0.18rem 0.42rem;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .gm-row-what {
@@ -952,13 +954,6 @@ textarea {
 
 .mail-reader-title p {
   margin: 0.18rem 0 0;
-}
-
-.mail-reader-label {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 650;
-  white-space: nowrap;
 }
 
 .mail-reader-labels {
