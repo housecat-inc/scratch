@@ -18,8 +18,23 @@
 
   const form = document.getElementById("chat-form");
   const strip = document.getElementById("chat-attachments");
-  if (form && strip) {
+  const input = document.getElementById("chat-input");
+  if (form && strip && input) {
     const uploadURL = form.dataset.uploadUrl;
+
+    const resize = () => {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 200) + "px";
+    };
+    input.addEventListener("input", resize);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    resize();
+
     const upload = async (file) => {
       const body = new FormData();
       body.append("file", file, file.name || "pasted-image.png");
@@ -38,7 +53,7 @@
       uploadAll(e.target.files);
       e.target.value = "";
     });
-    document.getElementById("chat-input")?.addEventListener("paste", (e) => {
+    input.addEventListener("paste", (e) => {
       if (e.clipboardData?.files?.length) {
         e.preventDefault();
         uploadAll(e.clipboardData.files);
@@ -63,8 +78,97 @@
     form.addEventListener("htmx:afterRequest", (e) => {
       if (e.detail.successful && e.detail.xhr?.status === 204) {
         strip.replaceChildren();
+        resize();
       }
     });
+
+    const snap = document.getElementById("chat-snap");
+    if (snap) {
+      const overlay = document.createElement("div");
+      overlay.id = "chat-select-overlay";
+      let target = null;
+
+      const stopSelecting = () => {
+        target = null;
+        overlay.remove();
+        document.body.classList.remove("chat-selecting");
+        document.removeEventListener("mousemove", onMove, true);
+        document.removeEventListener("click", onPick, true);
+        document.removeEventListener("keydown", onKey, true);
+      };
+      const onMove = (e) => {
+        overlay.style.display = "none";
+        target = document.elementFromPoint(e.clientX, e.clientY);
+        overlay.style.display = "";
+        if (!target || target === document.body || target === document.documentElement) {
+          target = null;
+          overlay.style.display = "none";
+          return;
+        }
+        const rect = target.getBoundingClientRect();
+        overlay.style.height = rect.height + "px";
+        overlay.style.left = rect.left + "px";
+        overlay.style.top = rect.top + "px";
+        overlay.style.width = rect.width + "px";
+      };
+      const onKey = (e) => {
+        if (e.key === "Escape") stopSelecting();
+      };
+      const onPick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const el = target;
+        stopSelecting();
+        if (el) capture(el);
+      };
+      snap.addEventListener("click", () => {
+        document.body.classList.add("chat-selecting");
+        document.body.appendChild(overlay);
+        document.addEventListener("mousemove", onMove, true);
+        document.addEventListener("click", onPick, true);
+        document.addEventListener("keydown", onKey, true);
+      });
+
+      const cssPath = (el) => {
+        const parts = [];
+        for (let node = el; node && node.nodeType === 1 && parts.length < 6; node = node.parentElement) {
+          if (node.id) {
+            parts.unshift("#" + node.id);
+            break;
+          }
+          let part = node.tagName.toLowerCase();
+          const cls = [...node.classList].slice(0, 2).join(".");
+          if (cls) part += "." + cls;
+          const siblings = node.parentElement
+            ? [...node.parentElement.children].filter((c) => c.tagName === node.tagName)
+            : [];
+          if (siblings.length > 1) {
+            part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+          }
+          parts.unshift(part);
+        }
+        return parts.join(" > ");
+      };
+
+      const capture = async (el) => {
+        const selector = cssPath(el);
+        let html = el.outerHTML;
+        if (html.length > 1500) html = html.slice(0, 1500) + "…";
+        try {
+          const canvas = await html2canvas(el, { logging: false, useCORS: true });
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+          if (blob) {
+            await upload(new File([blob], "selection.png", { type: "image/png" }));
+          }
+        } catch (err) {
+          showAlert("screenshot failed: " + err.message);
+        }
+        const note = "Selected element: " + selector + "\n```html\n" + html + "\n```\n";
+        input.value = input.value ? input.value + "\n" + note : note;
+        input.dispatchEvent(new Event("input"));
+        input.focus();
+      };
+    }
   }
 
   const messages = document.getElementById("chat-messages");

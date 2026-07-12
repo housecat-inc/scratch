@@ -1,5 +1,7 @@
 package ui
 
+import "strconv"
+
 templ ChatMessages(p ChatThreadProps) {
 	if len(p.Messages) == 0 {
 		<p class="chat-empty">Say something to get started</p>
@@ -61,17 +63,20 @@ templ ChatAttachmentChip(a ChatAttachmentProps) {
 templ ChatAccessToggle(threadID int64, access string) {
 	<button
 		type="button"
-		class={ "gm-icon-btn", "chat-access-btn", templ.KV("access-full", access == "full") }
+		class={ "chat-access-switch", templ.KV("on", access == "full") }
+		role="switch"
+		aria-checked={ strconv.FormatBool(access == "full") }
 		hx-post={ "/chat/" + itoa64(threadID) + "/access" }
 		hx-swap="outerHTML"
 		title={ accessLabel(access) }
 		aria-label={ accessLabel(access) }
 	>
-		if access == "full" {
+		<span class="chat-switch-icon">
 			@boltIcon()
-		} else {
-			@shieldIcon()
-		}
+		</span>
+		<span class="chat-switch-track">
+			<span class="chat-switch-knob"></span>
+		</span>
 	</button>
 }
 
@@ -83,8 +88,8 @@ templ boltIcon() {
 	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
 }
 
-templ shieldIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+templ crosshairIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg>
 }
 
 templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
