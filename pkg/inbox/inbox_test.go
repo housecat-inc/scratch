@@ -31,3 +31,29 @@ func TestResolveComposeMode(t *testing.T) {
 		})
 	}
 }
+
+func TestChatAgent(t *testing.T) {
+	tests := []struct {
+		agent string
+		name  string
+		want  string
+	}{
+		{agent: "codex", name: "known chat agent", want: "codex"},
+		{agent: "contact", name: "workflow agent"},
+		{agent: "missing", name: "unknown agent"},
+		{agent: "", name: "default"},
+	}
+	agents := []string{"claude", "codex", "contact", "echo"}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tt.want, chatAgent(tt.agent, agents))
+		})
+	}
+}
+
+func TestChatAgentOptions(t *testing.T) {
+	a := assert.New(t)
+
+	a.Equal([]string{"claude", "codex", "echo"}, chatAgentOptions([]string{"claude", "codex", "contact", "echo"}))
+}

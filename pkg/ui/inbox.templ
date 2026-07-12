@@ -78,6 +78,13 @@ templ MailComposer(p InboxProps) {
 			@composeModeOption("task", "Task", composeMode(p) == "task")
 			@composeModeOption("workflow", "Workflow", composeMode(p) == "workflow")
 		</div>
+		if len(p.Agents) > 0 {
+			<select class="mail-agent-select" name="agent" aria-label="Agent">
+				for _, agent := range p.Agents {
+					<option value={ agent }>{ agentLabel(agent) }</option>
+				}
+			</select>
+		}
 		<input class="mail-compose-input" name="prompt" placeholder={ composePlaceholder(p) } autocomplete="off"/>
 		<button class="mail-send-btn" type="submit" aria-label="Send">
 			@sendIcon()
@@ -264,6 +271,13 @@ func archiveActionLabel(item InboxItem) string {
 		return "Move to inbox"
 	}
 	return "Archive"
+}
+
+func agentLabel(agent string) string {
+	if agent == "" {
+		return "Agent"
+	}
+	return strings.ToUpper(agent[:1]) + agent[1:]
 }
 
 func chatIcon() templ.Component {

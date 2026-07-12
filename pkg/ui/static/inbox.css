@@ -865,6 +865,25 @@ textarea {
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
 }
 
+.mail-agent-select {
+  appearance: none;
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 999px;
+  color: #334155;
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: 650;
+  height: 2.5rem;
+  min-width: 7rem;
+  outline: none;
+  padding: 0 1.8rem 0 0.85rem;
+}
+
+.mail-agent-select:focus {
+  border-color: #94a3b8;
+}
+
 .mail-compose-input {
   background: #fff;
   border: 1px solid #d8dee9;
@@ -967,6 +986,12 @@ textarea {
   .mail-compose-modes {
     max-width: 34vw;
     overflow-x: auto;
+  }
+
+  .mail-agent-select {
+    min-width: 5.5rem;
+    padding-left: 0.7rem;
+    padding-right: 0.8rem;
   }
 
   .mail-compose-mode {

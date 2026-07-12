@@ -63,7 +63,7 @@ func NewService(store db.ThreadStore, agent Agent, log *slog.Logger) *Service {
 		log = slog.Default()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	name := agentName(agent)
+	name := AgentName(agent)
 	return &Service{
 		agents:      map[string]Agent{name: agent},
 		broker:      NewBroker(),
@@ -436,7 +436,7 @@ type elicitationResult struct {
 	ElicitationID string `json:"elicitationId"`
 }
 
-func agentName(a Agent) string {
+func AgentName(a Agent) string {
 	name := a.Author()
 	if i := strings.LastIndex(name, ":"); i >= 0 {
 		name = name[i+1:]

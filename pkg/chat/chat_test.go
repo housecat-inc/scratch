@@ -69,6 +69,13 @@ func TestSendEcho(t *testing.T) {
 	a.Equal("hello there", got.Title)
 }
 
+func TestAgentName(t *testing.T) {
+	a := assert.New(t)
+
+	a.Equal("codex", AgentName(CodexAgent{}))
+	a.Equal("echo", AgentName(EchoAgent{}))
+}
+
 func TestSendBusy(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)

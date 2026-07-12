@@ -30,6 +30,7 @@ type InboxItem struct {
 }
 
 type InboxProps struct {
+	Agents   []string
 	Counts   InboxCounts
 	Items    []InboxItem
 	Selected InboxSelection

@@ -51,6 +51,9 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 			chatSvc := chat.NewService(store, agent, logger)
+			for _, available := range chat.AvailableAgents() {
+				chatSvc.RegisterAgent(chat.AgentName(available), available)
+			}
 			defer chatSvc.Close()
 
 			workflows, err := workflow.New(dbPath)
@@ -103,7 +106,7 @@ func newRootCmd() *cobra.Command {
 			return srv.Run()
 		},
 	}
-	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, echo)")
+	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, codex, echo)")
 	cmd.Flags().IntVarP(&port, "port", "p", 8000, "HTTP listen port")
 	return cmd
 }

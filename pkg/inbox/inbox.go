@@ -117,6 +117,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
+	agent := chatAgent(r.FormValue("agent"), s.chat.AgentNames())
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	mode := strings.TrimSpace(r.FormValue("mode"))
 	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"))
@@ -150,7 +151,7 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
 	default:
-		thread, err := s.chat.CreateThread("", createTitle(prompt, "New chat", createOnly))
+		thread, err := s.chat.CreateThread(agent, createTitle(prompt, "New chat", createOnly))
 		if err != nil {
 			s.fail(w, err)
 			return
@@ -294,6 +295,7 @@ func (s *Server) props(view string, selected ui.InboxSelection) (ui.InboxProps, 
 		return ui.InboxProps{}, err
 	}
 	props := ui.InboxProps{
+		Agents: chatAgentOptions(s.chat.AgentNames()),
 		Counts: counts,
 		Items:  items,
 		View:   view,
@@ -436,6 +438,30 @@ func includeItem(view string, item ui.InboxItem) bool {
 
 func isWorkflowAgent(agent string) bool {
 	return agent == "contact" || strings.HasPrefix(agent, "workflow")
+}
+
+func chatAgent(agent string, agents []string) string {
+	agent = strings.TrimSpace(agent)
+	if agent == "" || isWorkflowAgent(agent) {
+		return ""
+	}
+	for _, known := range agents {
+		if agent == known && !isWorkflowAgent(known) {
+			return agent
+		}
+	}
+	return ""
+}
+
+func chatAgentOptions(agents []string) []string {
+	out := make([]string, 0, len(agents))
+	for _, agent := range agents {
+		if agent == "" || isWorkflowAgent(agent) {
+			continue
+		}
+		out = append(out, agent)
+	}
+	return out
 }
 
 func createTitle(prompt, fallback string, createOnly bool) string {
