@@ -35,7 +35,7 @@ case ":$PATH:" in
   *) echo "note: $INSTALL_DIR is not in PATH" ;;
 esac
 
-if [ "${EXEUNTU:-}" = "1" ]; then
+if command -v shelley >/dev/null 2>&1; then
   VM=$(hostname -s 2>/dev/null || hostname)
   echo
   echo "detected exe.dev / Shelley"
