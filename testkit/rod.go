@@ -92,7 +92,7 @@ func (t *T) ElementTextContains(page *rod.Page, selector string, expected string
 
 func (t *T) Click(page *rod.Page, selector string) {
 	t.t.Helper()
-	page.MustElement(selector).MustClick()
+	page.Timeout(BrowserOperationTimeout).MustElement(selector).MustClick()
 }
 
 func (t *T) ElementAbsent(page *rod.Page, selector string) {
@@ -117,7 +117,7 @@ func (t *T) Press(page *rod.Page, selector string, chord string) {
 		pressed[i] = k
 	}
 
-	page.MustElement(selector).MustFocus()
+	page.Timeout(BrowserOperationTimeout).MustElement(selector).MustFocus()
 	for _, k := range pressed[:len(pressed)-1] {
 		if err := page.Keyboard.Press(k); err != nil {
 			t.t.Fatal(err)
@@ -133,7 +133,7 @@ func (t *T) Press(page *rod.Page, selector string, chord string) {
 
 func (t *T) Type(page *rod.Page, selector string, text string) {
 	t.t.Helper()
-	page.MustElement(selector).MustInput(text)
+	page.Timeout(BrowserOperationTimeout).MustElement(selector).MustInput(text)
 }
 
 func (t *T) Load(page *rod.Page, baseURL string, path string) {
