@@ -18,10 +18,10 @@ Finally iterate with in-app developer tools like a DOM and web inspector agent c
 - In-app agent chat with a DOM inspector
 
 <p align="center">
-  <img src="docs/screenshots/setup.png" width="820" alt="Setup"/>
-  <img src="docs/screenshots/inbox.png" width="820" alt="Agent inbox and navigation"/>
-  <img src="docs/screenshots/chat.png" width="820" alt="Agent chat with an attached DOM inspector screenshot"/>
-  <img src="docs/screenshots/review.png" width="820" alt="Code review diff with an inline comment"/>
+  <img src="docs/screenshots/setup.png" width="200" alt="Setup"/>
+  <img src="docs/screenshots/inbox.png" width="200" alt="Agent inbox and navigation"/>
+  <img src="docs/screenshots/chat.png" width="200" alt="Agent chat with an attached DOM inspector screenshot"/>
+  <img src="docs/screenshots/review.png" width="200" alt="Code review diff with an inline comment"/>
 </p>
 
 ## Install
