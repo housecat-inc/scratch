@@ -291,16 +291,14 @@ templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
 templ chatRow(r chatRowProps) {
 	<details class={ "chat-row", "row-" + r.Kind, templ.KV("row-failed", r.Failed) } data-key={ r.Key }>
 		<summary>
-			if r.Live && r.Preserve {
-				<span id={ r.Key + "-spinner" } hx-preserve="true" class="chat-spinner"></span>
-			} else if r.Live {
+			if r.Live {
 				<span class="chat-spinner"></span>
 			} else {
 				<span class="chat-row-icon">
 					@rowIcon(r.Kind, r.Failed)
 				</span>
 			}
-			if r.Live && r.Kind == "thinking" {
+			if r.Shimmer || (r.Live && r.Kind == "thinking") {
 				<span class="chat-row-label chat-shimmer">{ r.Label }</span>
 			} else {
 				<span class="chat-row-label">{ r.Label }</span>
@@ -312,6 +310,7 @@ templ chatRow(r chatRowProps) {
 		if r.Detail != "" {
 			<pre class="chat-row-detail">{ r.Detail }</pre>
 		}
+		{ children... }
 	</details>
 }
 
@@ -378,7 +377,9 @@ templ ChatForm(f ChatFormProps) {
 }
 
 templ chatFormBody(f ChatFormProps) {
-	<p class="chat-elicit-message">{ f.Message }</p>
+	if !f.HideMessage {
+		<p class="chat-elicit-message">{ f.Message }</p>
+	}
 	for _, field := range f.Fields {
 		<label class="chat-elicit-field">
 			<span>{ field.Label }</span>

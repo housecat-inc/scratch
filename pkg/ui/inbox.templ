@@ -249,9 +249,9 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 		<div
 			id="wf-body"
 			class="chat-messages mail-chat-messages"
-			if d.Running && d.Form == nil {
+			if d.Running && !d.Awaiting {
 				hx-get={ threadInboxDetailURL("workflow", d.ID) }
-				hx-trigger="load delay:400ms"
+				hx-trigger="load delay:600ms"
 				hx-select="#wf-body"
 				hx-target="#wf-body"
 				hx-swap="outerHTML"
@@ -260,55 +260,59 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 			for i, item := range d.Items {
 				@workflowItem(i, item)
 			}
-			if d.Form != nil {
-				@ChatTurn("user") {
-					@ChatForm(*d.Form)
-				}
-			}
 		</div>
 	</div>
 }
 
 templ workflowItem(i int, item WorkflowItemProps) {
-	switch item.Kind {
-		case "form":
-			@ChatTurn("user") {
-				if item.Form != nil {
-					@ChatForm(*item.Form)
-				} else {
-					<div class="chat-bubble">{ item.Answer }</div>
-				}
+	@ChatTurn("assistant") {
+		@chatRow(chatRowProps{
+			Failed:  item.Failed,
+			Key:     "wf-step-" + strconv.Itoa(i),
+			Kind:    "tool",
+			Label:   item.Title,
+			Shimmer: item.Running,
+			Summary: item.Duration,
+		}) {
+			@workflowStepDetail(item)
+		}
+	}
+	if item.Kind == "response" && item.Detail != "" {
+		@ChatTurn("assistant") {
+			<div class="chat-md">
+				@Markdown(item.Detail)
+			</div>
+		}
+	}
+	if item.Kind == "form" {
+		@ChatTurn("user") {
+			if item.Form != nil {
+				@ChatForm(*item.Form)
+			} else if item.Answer != "" {
+				<div class="chat-bubble">{ item.Answer }</div>
 			}
-		case "response":
-			@ChatTurn("assistant") {
-				@chatRow(chatRowProps{
-					Failed:   item.Failed,
-					Key:      "wf-step-" + strconv.Itoa(i),
-					Kind:     "tool",
-					Label:    item.Title,
-					Live:     item.Running,
-					Preserve: true,
-					Summary:  item.Summary,
-				})
-				if item.Detail != "" {
-					<div class="chat-md">
-						@Markdown(item.Detail)
-					</div>
-				}
-			}
-		default:
-			@ChatTurn("assistant") {
-				@chatRow(chatRowProps{
-					Detail:   item.Detail,
-					Failed:   item.Failed,
-					Key:      "wf-step-" + strconv.Itoa(i),
-					Kind:     "tool",
-					Label:    item.Title,
-					Live:     item.Running,
-					Preserve: true,
-					Summary:  item.Summary,
-				})
-			}
+		}
+	}
+}
+
+templ workflowStepDetail(item WorkflowItemProps) {
+	if item.Input != "" {
+		<div class="wf-io">
+			<span class="wf-io-label">Input</span>
+			<pre class="wf-io-value">{ item.Input }</pre>
+		</div>
+	}
+	if item.Kind != "response" && item.Detail != "" {
+		<div class="wf-io">
+			<span class="wf-io-label">Output</span>
+			<pre class="wf-io-value">{ item.Detail }</pre>
+		</div>
+	}
+	if item.Kind == "form" && item.Answer != "" {
+		<div class="wf-io">
+			<span class="wf-io-label">Answer</span>
+			<pre class="wf-io-value">{ item.Answer }</pre>
+		</div>
 	}
 }
 

@@ -27,13 +27,21 @@ func newEngine(t *testing.T) *Engine {
 
 func waitForm(t *testing.T, e *Engine, id string) *elicit.Prompt {
 	t.Helper()
-	var run RunView
+	var prompt *elicit.Prompt
 	require.Eventually(t, func() bool {
-		var err error
-		run, err = e.Run(id)
-		return err == nil && run.Form != nil
+		run, err := e.Run(id)
+		if err != nil || !run.Blocked {
+			return false
+		}
+		for _, s := range run.Steps {
+			if s.Pending && s.Form != nil {
+				prompt = s.Form
+				return true
+			}
+		}
+		return false
 	}, 5*time.Second, 20*time.Millisecond)
-	return run.Form
+	return prompt
 }
 
 func TestGreetAccept(t *testing.T) {
@@ -54,7 +62,7 @@ func TestGreetAccept(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond)
 
 	r.Equal("Hi Ada", run.Result)
-	r.Nil(run.Form)
+	r.False(run.Blocked)
 	r.Len(run.Steps, 2)
 	r.Equal(KindForm, run.Steps[0].Kind)
 	r.Equal(StepDone, run.Steps[0].Status)
@@ -117,7 +125,7 @@ func TestGreetProgressWhileRunning(t *testing.T) {
 	last := run.Steps[len(run.Steps)-1]
 	r.Equal("Generate greeting", last.Title)
 	r.Equal(KindResponse, last.Kind)
-	r.Nil(run.Form)
+	r.False(run.Blocked)
 	release <- struct{}{}
 }
 

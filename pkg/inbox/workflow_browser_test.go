@@ -24,7 +24,7 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 		{
 			Act: []Step{
 				Click("[data-new-workflow]"),
-				TextContains(".chat-elicit-message", "What should I call you?"),
+				TextContains(".chat-row-label", "What should I call you?"),
 				Type("[name=f_name]", "Ada"),
 				Click("#elicit-accept"),
 			},
@@ -39,7 +39,7 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 		{
 			Act: []Step{
 				Click("[data-new-workflow]"),
-				TextContains(".chat-elicit-message", "What should I call you?"),
+				TextContains(".chat-row-label", "What should I call you?"),
 				Click("#elicit-decline"),
 			},
 			Assert: []Step{

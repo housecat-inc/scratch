@@ -73,7 +73,7 @@ type InboxThreadDetail struct {
 
 type InboxWorkflowDetail struct {
 	Archived bool
-	Form     *ChatFormProps
+	Awaiting bool
 	ID       int64
 	Items    []WorkflowItemProps
 	Running  bool
@@ -83,14 +83,16 @@ type InboxWorkflowDetail struct {
 }
 
 type WorkflowItemProps struct {
-	Answer  string
-	Detail  string
-	Failed  bool
-	Form    *ChatFormProps
-	Kind    string
-	Running bool
-	Summary string
-	Title   string
+	Answer   string
+	Detail   string
+	Duration string
+	Failed   bool
+	Form     *ChatFormProps
+	Input    string
+	Kind     string
+	Running  bool
+	Summary  string
+	Title    string
 }
 
 type ReaderHeaderProps struct {

@@ -29,7 +29,7 @@ func (e *Engine) greet(ctx dbos.DBOSContext, _ GreetInput) (string, error) {
 	if action != elicit.ActionAccept {
 		return "", nil
 	}
-	greeting, err := act(ctx, "respond/greeting", "Generate greeting", func(stepCtx context.Context) (string, error) {
+	greeting, err := act(ctx, "respond/greeting", "Generate greeting", strings.TrimSpace(name.Name), func(stepCtx context.Context) (string, error) {
 		return e.greeter.Greet(stepCtx, strings.TrimSpace(name.Name))
 	})
 	if err != nil {

@@ -25,6 +25,7 @@ type ChatFormProps struct {
 	Disabled      bool
 	ElicitationID string
 	Fields        []ChatFormFieldProps
+	HideMessage   bool
 	Message       string
 	MessageID     int64
 	Plain         bool
@@ -75,14 +76,14 @@ type ChatPartProps struct {
 }
 
 type chatRowProps struct {
-	Detail   string
-	Failed   bool
-	Key      string
-	Kind     string
-	Label    string
-	Live     bool
-	Preserve bool
-	Summary  string
+	Detail  string
+	Failed  bool
+	Key     string
+	Kind    string
+	Label   string
+	Live    bool
+	Shimmer bool
+	Summary string
 }
 
 type ChatPlanEntryProps struct {

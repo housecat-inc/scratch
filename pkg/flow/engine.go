@@ -55,26 +55,30 @@ func New(deps Deps) *Engine {
 }
 
 type StepView struct {
-	Answer  string
-	Detail  string
-	Failed  bool
-	Form    *elicit.Prompt
-	Kind    string
-	Status  string
-	Summary string
-	Title   string
-	Values  map[string]string
+	Answer   string
+	Detail   string
+	Duration string
+	Failed   bool
+	Form     *elicit.Prompt
+	Input    string
+	Kind     string
+	Pending  bool
+	Status   string
+	Summary  string
+	Title    string
+	Values   map[string]string
 }
 
 type RunView struct {
-	Form   *elicit.Prompt
-	ID     string
-	Result string
-	Status string
-	Steps  []StepView
+	Blocked bool
+	ID      string
+	Result  string
+	Status  string
+	Steps   []StepView
 }
 
 type stepBegin struct {
+	Input string `json:"input"`
 	Name  string `json:"name"`
 	Title string `json:"title"`
 }
@@ -85,9 +89,9 @@ func (v RunView) Running() bool {
 
 func (v RunView) Done() bool { return v.Status == string(dbos.WorkflowStatusSuccess) }
 
-func act(ctx dbos.DBOSContext, name, title string, fn func(context.Context) (string, error)) (string, error) {
+func act(ctx dbos.DBOSContext, name, title, input string, fn func(context.Context) (string, error)) (string, error) {
 	if _, err := dbos.RunAsStep(ctx, func(context.Context) (stepBegin, error) {
-		return stepBegin{Name: name, Title: title}, nil
+		return stepBegin{Input: input, Name: name, Title: title}, nil
 	}, dbos.WithStepName("begin/"+name)); err != nil {
 		return "", errors.Wrap(err, "begin "+name)
 	}
@@ -107,7 +111,7 @@ func (e *Engine) Status(id string) (string, error) {
 func (e *Engine) Await(id string, timeout time.Duration) {
 	deadline := timeout
 	for waited := time.Duration(0); waited < deadline; waited += 25 * time.Millisecond {
-		if run, err := e.Run(id); err == nil && (run.Form != nil || !run.Running()) {
+		if run, err := e.Run(id); err == nil && (run.Blocked || !run.Running()) {
 			return
 		}
 		time.Sleep(25 * time.Millisecond)
@@ -129,6 +133,7 @@ func (e *Engine) Run(id string) (RunView, error) {
 	var awaiting []elicit.Prompt
 	var pending []stepBegin
 	titles := map[string]string{}
+	inputs := map[string]string{}
 
 	for _, s := range steps {
 		switch {
@@ -136,6 +141,7 @@ func (e *Engine) Run(id string) (RunView, error) {
 			if b, err := decode[stepBegin](s.Output); err == nil {
 				pending = append(pending, b)
 				titles[b.Name] = b.Title
+				inputs[b.Name] = b.Input
 			}
 		case strings.HasPrefix(s.StepName, "elicit/"):
 			prompt, err := decode[elicit.Prompt](s.Output)
@@ -149,12 +155,16 @@ func (e *Engine) Run(id string) (RunView, error) {
 			}
 			reply, _ := decode[elicit.Reply](s.Output)
 			prompt := awaiting[0]
-			sv := StepView{Kind: KindForm, Status: StepDone, Title: prompt.Message}
+			sv := StepView{
+				Answer:   summarizeReply(prompt, reply),
+				Duration: stepDuration(s),
+				Kind:     KindForm,
+				Status:   StepDone,
+				Title:    prompt.Message,
+			}
 			if reply.Action == elicit.ActionAccept {
 				sv.Form = &prompt
 				sv.Values = replyValues(reply)
-			} else {
-				sv.Answer = summarizeReply(prompt, reply)
 			}
 			view.Steps = append(view.Steps, sv)
 			awaiting = awaiting[1:]
@@ -162,10 +172,12 @@ func (e *Engine) Run(id string) (RunView, error) {
 			pending = dropPending(pending, s.StepName)
 			body, _ := decode[string](s.Output)
 			view.Steps = append(view.Steps, StepView{
-				Detail: body,
-				Kind:   KindResponse,
-				Status: stepStatus(s),
-				Title:  stepDisplayTitle(titles, s.StepName),
+				Detail:   body,
+				Duration: stepDuration(s),
+				Input:    inputs[s.StepName],
+				Kind:     KindResponse,
+				Status:   stepStatus(s),
+				Title:    stepDisplayTitle(titles, s.StepName),
 			})
 		case strings.HasPrefix(s.StepName, "DBOS."):
 			continue
@@ -173,22 +185,32 @@ func (e *Engine) Run(id string) (RunView, error) {
 			pending = dropPending(pending, s.StepName)
 			detail, _ := decode[string](s.Output)
 			view.Steps = append(view.Steps, StepView{
-				Detail:  detail,
-				Failed:  s.Error != nil,
-				Kind:    KindTool,
-				Status:  stepStatus(s),
-				Summary: firstLine(detail),
-				Title:   stepDisplayTitle(titles, s.StepName),
+				Detail:   detail,
+				Duration: stepDuration(s),
+				Failed:   s.Error != nil,
+				Input:    inputs[s.StepName],
+				Kind:     KindTool,
+				Status:   stepStatus(s),
+				Summary:  firstLine(detail),
+				Title:    stepDisplayTitle(titles, s.StepName),
 			})
 		}
 	}
 
 	if view.Running() && len(awaiting) > 0 {
 		prompt := awaiting[len(awaiting)-1]
-		view.Form = &prompt
+		view.Blocked = true
+		view.Steps = append(view.Steps, StepView{
+			Form:    &prompt,
+			Kind:    KindForm,
+			Pending: true,
+			Status:  StepRunning,
+			Title:   prompt.Message,
+		})
 	} else if view.Running() {
 		for _, b := range pending {
 			view.Steps = append(view.Steps, StepView{
+				Input:  b.Input,
 				Kind:   beginKind(b.Name),
 				Status: StepRunning,
 				Title:  b.Title,
@@ -196,6 +218,17 @@ func (e *Engine) Run(id string) (RunView, error) {
 		}
 	}
 	return view, nil
+}
+
+func stepDuration(s dbos.StepInfo) string {
+	if s.StartedAt.IsZero() || s.CompletedAt.IsZero() {
+		return ""
+	}
+	d := s.CompletedAt.Sub(s.StartedAt)
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 func dropPending(pending []stepBegin, name string) []stepBegin {
