@@ -1437,7 +1437,7 @@ textarea {
 
 @media (max-width: 760px) {
   .mail-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 56px auto minmax(0, 1fr) 68px;
   }
 

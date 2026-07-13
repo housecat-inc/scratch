@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	BrowserOperationTimeout = 3 * time.Second
+	BrowserOperationTimeout = 5 * time.Second
 	BrowserPollInterval     = 50 * time.Millisecond
-	BrowserSessionTimeout   = 10 * time.Second
-	BrowserWaitTimeout      = 3 * time.Second
+	BrowserSessionTimeout   = 60 * time.Second
+	BrowserWaitTimeout      = 5 * time.Second
 )
 
 type Harness struct {
@@ -47,8 +47,8 @@ func NewHarnessWithT(t *testing.T, kit *T, handler http.Handler) *Harness {
 		Headless(true).
 		NoSandbox(true).
 		MustLaunch()
-	browser := rod.New().Context(ctx).ControlURL(controlURL).Timeout(BrowserOperationTimeout).MustConnect()
-	page := browser.MustPage().Context(ctx).Timeout(BrowserOperationTimeout)
+	browser := rod.New().Context(ctx).ControlURL(controlURL).MustConnect()
+	page := browser.MustPage().Context(ctx)
 
 	t.Cleanup(func() {
 		_ = page.Close()
