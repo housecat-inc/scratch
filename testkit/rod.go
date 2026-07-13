@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
+	"github.com/go-rod/rod/lib/proto"
 )
 
 var keys = map[string]input.Key{
@@ -92,7 +93,14 @@ func (t *T) ElementTextContains(page *rod.Page, selector string, expected string
 
 func (t *T) Click(page *rod.Page, selector string) {
 	t.t.Helper()
-	page.Timeout(BrowserOperationTimeout).MustElement(selector).MustClick()
+
+	t.R.Eventually(func() bool {
+		el, err := page.Timeout(BrowserOperationTimeout).Element(selector)
+		if err != nil {
+			return false
+		}
+		return el.Click(proto.InputMouseButtonLeft, 1) == nil
+	}, BrowserWaitTimeout, BrowserPollInterval)
 }
 
 func (t *T) ElementAbsent(page *rod.Page, selector string) {
