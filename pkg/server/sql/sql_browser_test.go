@@ -19,8 +19,10 @@ func TestSQLBrowser(t *testing.T) {
 				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "SQL"),
 				testkit.ClassContainsStep[*testkit.Harness](`a[href="/sql/"]`, "active"),
 				testkit.TextContainsStep[*testkit.Harness](".tree-pane", "widgets"),
+				testkit.VisibleStep[*testkit.Harness](".cm-editor"),
+				func(t *testing.T, h *testkit.Harness) { h.ElementHidden("#sql-editor") },
 			},
-			Name: "renders sql browser in tool shell",
+			Name: "mounts a single codemirror editor",
 			Path: "/sql/",
 		},
 		{
