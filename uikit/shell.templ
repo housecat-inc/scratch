@@ -12,6 +12,11 @@ templ Shell(p ShellProps) {
 		</header>
 		<div class="mail-body">
 			<aside class="mail-sidebar">
+				if p.SidebarTop != nil {
+					<div class="mail-sidebar-top">
+						@p.SidebarTop
+					</div>
+				}
 				<nav class="mail-labels" aria-label="Primary">
 					for _, item := range p.Nav {
 						if item.Group != "" {

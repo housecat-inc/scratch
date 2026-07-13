@@ -20,6 +20,7 @@ templ InboxPage(p InboxProps) {
 				BrandHref: "/",
 				Footer: MailComposer(p),
 				Nav: inboxNavItems(p),
+				SidebarTop: InboxCompose(),
 			}) {
 				if p.Task != nil {
 					@InboxTaskReader(*p.Task)
@@ -39,8 +40,24 @@ templ InboxPage(p InboxProps) {
 
 templ InboxActions(p InboxProps) {
 	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
-	@createButton("task", "New task", taskIcon())
-	@createWorkflowButton()
+}
+
+templ InboxCompose() {
+	<div class="mail-compose-actions">
+		@composeButton("task", "New task", taskIcon())
+		@createWorkflowButton()
+	</div>
+}
+
+templ composeButton(mode, label string, icon templ.Component) {
+	<form class="mail-compose-btn-form" method="post" action="/compose">
+		<input type="hidden" name="mode" value={ mode }/>
+		<input type="hidden" name="create_only" value="true"/>
+		<button class="mail-compose-btn" type="submit">
+			@icon
+			<span>{ label }</span>
+		</button>
+	</form>
 }
 
 templ InboxHead(title string) {
@@ -362,14 +379,14 @@ templ createButton(mode, label string, icon templ.Component) {
 }
 
 templ createWorkflowButton() {
-	<form class="mail-create-combo" method="post" action="/compose">
+	<form class="mail-compose-combo" method="post" action="/compose">
 		<input type="hidden" name="mode" value="workflow"/>
 		<input type="hidden" name="create_only" value="true"/>
-		<button class="mail-create-btn" type="submit" data-new-workflow>
+		<button class="mail-compose-btn" type="submit" data-new-workflow>
 			@workflowIcon()
 			<span>New workflow</span>
 		</button>
-		<span class="mail-create-select-wrap">
+		<span class="mail-create-select-wrap mail-model-select-wrap">
 			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type">
 				for _, typ := range workflowTypeOptions() {
 					<option value={ typ }>{ workflowTypeLabel(typ) }</option>
