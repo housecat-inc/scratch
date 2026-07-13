@@ -25,7 +25,7 @@ func TestSQLBrowser(t *testing.T) {
 		},
 		{
 			Act: []testkit.BrowserStep[*testkit.Harness]{
-				testkit.ClickStep[*testkit.Harness](".sql-load"),
+				testkit.ClickStep[*testkit.Harness]("[data-sql]"),
 			},
 			Assert: []testkit.BrowserStep[*testkit.Harness]{
 				testkit.TextContainsStep[*testkit.Harness]("#sql-results", "alpha"),

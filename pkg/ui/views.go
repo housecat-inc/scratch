@@ -160,12 +160,13 @@ type SQLColumn struct {
 }
 
 type SQLProps struct {
-	Error  string
-	Path   string
-	Query  string
-	Result *SQLResult
-	Saved  []db.SQLQuery
-	Tables []SQLTable
+	DBFiles []string
+	Error   string
+	Path    string
+	Query   string
+	Result  *SQLResult
+	Saved   []db.SQLQuery
+	Tables  []SQLTable
 }
 
 type SQLCell struct {

@@ -56,15 +56,49 @@
     if (run) runQuery();
   }
 
+  function openSaveModal() {
+    var modal = document.getElementById("sql-save-modal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    var name = document.getElementById("sql-save-name");
+    if (name) { name.focus(); name.select(); }
+  }
+
+  function closeSaveModal() {
+    var modal = document.getElementById("sql-save-modal");
+    if (modal) modal.classList.add("hidden");
+  }
+
   document.addEventListener("click", function (e) {
-    var el = e.target.closest(".sql-load");
-    if (!el) return;
-    e.preventDefault();
-    loadSQL(el.getAttribute("data-sql") || "", true);
+    if (e.target.closest("[data-sql-save-open]")) {
+      e.preventDefault();
+      openSaveModal();
+      return;
+    }
+    if (e.target.closest("[data-sql-save-close]")) {
+      e.preventDefault();
+      closeSaveModal();
+      return;
+    }
+    var loader = e.target.closest("[data-sql]");
+    if (loader) {
+      e.preventDefault();
+      loadSQL(loader.getAttribute("data-sql") || "", true);
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeSaveModal();
   });
 
   document.addEventListener("htmx:configRequest", function () {
     if (editor) editor.save();
+  });
+
+  document.addEventListener("htmx:afterRequest", function (e) {
+    if (e.target && e.target.id === "sql-save-confirm" && e.detail.successful) {
+      closeSaveModal();
+    }
   });
 
   var back = document.getElementById("sql-back-btn");

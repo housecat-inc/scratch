@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -64,7 +65,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	path := s.resolvePath(r.URL.Query().Get("path"))
-	vm := ui.SQLProps{Path: path, Query: "SELECT 1;"}
+	vm := ui.SQLProps{DBFiles: s.dbFiles(path), Path: path, Query: "SELECT 1;"}
 	tables, err := s.tables(r.Context(), path)
 	if err != nil {
 		vm.Error = err.Error()
@@ -139,6 +140,30 @@ func (s *Server) handleDeleteQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.handleListQueries(w, r)
+}
+
+func (s *Server) dbFiles(current string) []string {
+	set := map[string]bool{}
+	if s.deps.DefaultPath != "" {
+		set[s.deps.DefaultPath] = true
+	}
+	if current != "" {
+		set[current] = true
+	}
+	dir := filepath.Dir(s.deps.DefaultPath)
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".db") {
+				set[filepath.Join(dir, e.Name())] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for p := range set {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *Server) resolvePath(path string) string {
