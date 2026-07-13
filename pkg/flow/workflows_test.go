@@ -3,6 +3,7 @@ package flow
 import (
 	"context"
 	"log/slog"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,13 +13,19 @@ import (
 )
 
 type fakeDrafter struct {
+	drafts  *atomic.Int32
 	pr      PullRequest
 	summary string
 }
 
 func (f fakeDrafter) Context(context.Context) (string, error) { return f.summary, nil }
 
-func (f fakeDrafter) Draft(context.Context, string) (PullRequest, error) { return f.pr, nil }
+func (f fakeDrafter) Draft(context.Context, string) (PullRequest, error) {
+	if f.drafts != nil {
+		f.drafts.Add(1)
+	}
+	return f.pr, nil
+}
 
 func TestUpdateClaudeWorkflow(t *testing.T) {
 	r := require.New(t)
@@ -107,4 +114,48 @@ func TestCreatePRWorkflow(t *testing.T) {
 	r.Equal("Collect changes", run.Steps[0].Title)
 	r.Equal("Draft release notes", run.Steps[1].Title)
 	r.Contains(run.Steps[len(run.Steps)-1].Detail, "Add thing")
+}
+
+func TestCreatePREditReusesDraft(t *testing.T) {
+	r := require.New(t)
+	wf, err := workflow.New(t.TempDir() + "/flow.db")
+	r.NoError(err)
+	drafts := &atomic.Int32{}
+	e := New(Deps{
+		DBOS:    wf.Ctx(),
+		Drafter: fakeDrafter{drafts: drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
+		Log:     slog.Default(),
+	})
+	r.NoError(wf.Launch())
+	t.Cleanup(func() { wf.Close() })
+
+	r.NoError(e.Start("create-pr", "pr-edit"))
+	form := waitForm(t, e, "pr-edit")
+	r.NoError(e.Resolve("pr-edit", form.ElicitationID, elicit.ActionAccept, map[string]string{
+		"body":  "- Add thing",
+		"title": "Add thing",
+	}))
+
+	var run RunView
+	r.Eventually(func() bool {
+		run, err = e.Run("pr-edit")
+		return err == nil && run.Done()
+	}, 5*time.Second, 20*time.Millisecond)
+	r.Equal("Add thing", run.Result)
+	r.Equal(int32(1), drafts.Load())
+
+	forkedID, err := e.EditForm("pr-edit", form.ElicitationID, elicit.ActionAccept, map[string]string{
+		"body":  "- Add a better thing",
+		"title": "Add a better thing",
+	})
+	r.NoError(err)
+
+	var forked RunView
+	r.Eventually(func() bool {
+		forked, err = e.Run(forkedID)
+		return err == nil && forked.Done()
+	}, 5*time.Second, 20*time.Millisecond)
+	r.Equal("Add a better thing", forked.Result)
+	r.Contains(forked.Steps[len(forked.Steps)-1].Detail, "Add a better thing")
+	r.Equal(int32(1), drafts.Load())
 }

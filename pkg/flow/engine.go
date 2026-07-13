@@ -370,6 +370,47 @@ func (e *Engine) Resolve(id, elicitationID, action string, values map[string]str
 	return nil
 }
 
+func (e *Engine) Fork(id, elicitationID string) (string, error) {
+	steps, err := dbos.GetWorkflowSteps(e.ctx, id, dbos.WithStepsLoadOutput(true))
+	if err != nil {
+		return "", errors.Wrap(err, "get workflow steps")
+	}
+	startStep := -1
+	for _, s := range steps {
+		if !strings.HasPrefix(s.StepName, "elicit/") {
+			continue
+		}
+		if p, err := decode[elicit.Prompt](s.Output); err == nil && p.ElicitationID == elicitationID {
+			startStep = s.StepID
+			break
+		}
+	}
+	if startStep < 0 {
+		return "", ErrFormNotFound
+	}
+	handle, err := dbos.ForkWorkflow[string](e.ctx, dbos.ForkWorkflowInput{
+		OriginalWorkflowID: id,
+		StartStep:          uint(startStep),
+	})
+	if err != nil {
+		return "", errors.Wrap(err, "fork workflow")
+	}
+	return handle.GetWorkflowID(), nil
+}
+
+func (e *Engine) EditForm(id, elicitationID, action string, values map[string]string) (string, error) {
+	forkedID, err := e.Fork(id, elicitationID)
+	if err != nil {
+		return "", err
+	}
+	key := strings.TrimPrefix(elicitationID, id+"/")
+	e.Await(forkedID, 2*time.Second)
+	if err := e.Resolve(forkedID, forkedID+"/"+key, action, values); err != nil {
+		return "", err
+	}
+	return forkedID, nil
+}
+
 func (e *Engine) awaitConsumed(id string, elicitCount int, timeout time.Duration) {
 	for waited := time.Duration(0); waited < timeout; waited += 25 * time.Millisecond {
 		steps, err := dbos.GetWorkflowSteps(e.ctx, id)

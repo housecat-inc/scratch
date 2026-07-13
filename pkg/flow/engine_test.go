@@ -129,6 +129,43 @@ func TestGreetProgressWhileRunning(t *testing.T) {
 	release <- struct{}{}
 }
 
+func TestGreetEditForm(t *testing.T) {
+	r := require.New(t)
+	e := newEngine(t)
+
+	r.NoError(e.Start("greet", "greet-edit"))
+	form := waitForm(t, e, "greet-edit")
+	r.NoError(e.Resolve("greet-edit", form.ElicitationID, elicit.ActionAccept, map[string]string{"name": "Ada"}))
+
+	var run RunView
+	r.Eventually(func() bool {
+		var err error
+		run, err = e.Run("greet-edit")
+		return err == nil && run.Done()
+	}, 5*time.Second, 20*time.Millisecond)
+	r.Equal("Hi Ada", run.Result)
+
+	forkedID, err := e.EditForm("greet-edit", form.ElicitationID, elicit.ActionAccept, map[string]string{"name": "Grace"})
+	r.NoError(err)
+	r.NotEqual("greet-edit", forkedID)
+
+	var forked RunView
+	r.Eventually(func() bool {
+		forked, err = e.Run(forkedID)
+		return err == nil && forked.Done()
+	}, 5*time.Second, 20*time.Millisecond)
+
+	r.Equal("Hi Grace", forked.Result)
+	r.Len(forked.Steps, 2)
+	r.Equal(KindForm, forked.Steps[0].Kind)
+	r.Equal("Grace", forked.Steps[0].Values["name"])
+	r.Equal("Hi Grace", forked.Steps[1].Detail)
+
+	original, err := e.Run("greet-edit")
+	r.NoError(err)
+	r.Equal("Hi Ada", original.Result)
+}
+
 func TestResolveUnknownForm(t *testing.T) {
 	r := require.New(t)
 	e := newEngine(t)
