@@ -103,7 +103,6 @@ func (s *Server) Handler() http.Handler {
 	return logging(mux)
 }
 
-
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	vm := ui.OverviewProps{Home: s.deps.Home}
 	repos, err := s.deps.ListRepos()

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
 	"github.com/housecat-inc/scratch/uikit"
@@ -16,31 +17,11 @@ import (
 )
 
 templ CodeSubnav(p CodeSubnavProps) {
-	<div class="bg-white border-b border-slate-200">
-		<div class="max-w-2xl mx-auto flex">
-			@subnavLink(fmt.Sprintf("/code/%s/commits", p.Repo.Slug()), "commits", p.Active, "Commits", 0)
-			@subnavLink(fmt.Sprintf("/code/%s", p.Repo.Slug()), "diffs", p.Active, "Diffs", 0)
-			@subnavLink(fmt.Sprintf("/code/%s/comments", p.Repo.Slug()), "comments", p.Active, "Comments", p.Comments)
-		</div>
-	</div>
-}
-
-templ subnavLink(href, name, active, label string, badge int) {
-	if name == active {
-		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-2 text-xs font-medium text-slate-900 border-b-2 border-slate-900">
-			{ label }
-			if badge > 0 {
-				<span class="text-slate-400 tabular-nums">{ strconv.Itoa(badge) }</span>
-			}
-		</a>
-	} else {
-		<a href={ templ.SafeURL(href) } class="flex-1 text-center py-2 text-xs font-medium text-slate-500 hover:text-slate-900">
-			{ label }
-			if badge > 0 {
-				<span class="text-slate-400 tabular-nums">{ strconv.Itoa(badge) }</span>
-			}
-		</a>
-	}
+	@uikit.Tabs(uikit.TabsProps{Tabs: []uikit.Tab{
+		{Active: p.Active == "commits", Href: fmt.Sprintf("/code/%s/commits", p.Repo.Slug()), Label: "Commits"},
+		{Active: p.Active == "diffs", Href: fmt.Sprintf("/code/%s", p.Repo.Slug()), Label: "Diffs"},
+		{Active: p.Active == "comments", Count: p.Comments, Href: fmt.Sprintf("/code/%s/comments", p.Repo.Slug()), Label: "Comments"},
+	}})
 }
 
 templ OverviewPage(p OverviewProps) {
@@ -134,28 +115,23 @@ templ overviewItem(r repo.Repo) {
 templ CommitsPage(p CommitsProps) {
 	@CodeLayout(fmt.Sprintf("%s · commits", p.Repo.Slug()), CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo}) {
 		if p.Error != "" {
-			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
+			<div class="mail-empty">{ p.Error }</div>
+		} else if len(p.Commits) == 0 {
+			<div class="mail-empty">No commits ahead of { p.Repo.Base }.</div>
+		} else {
+			<div class="mail-list">
+				for _, c := range p.Commits {
+					@uikit.ListRow(uikit.ListRowProps{
+						Href:    fmt.Sprintf("/code/%s/commits/%s", p.Repo.Slug(), c.SHA),
+						Kind:    "commit",
+						Labels:  []string{shortSHA(c.SHA)},
+						Subject: c.Subject,
+						What:    c.Author,
+						When:    c.Date.Format("2006-01-02 15:04"),
+					})
+				}
+			</div>
 		}
-		if len(p.Commits) == 0 {
-			<p class="text-slate-500 text-sm">No commits ahead of { p.Repo.Base }.</p>
-		}
-		<ul class="space-y-2">
-			for _, c := range p.Commits {
-				<li>
-					@AppCard("transition hover:shadow-md overflow-hidden") {
-						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits/%s", p.Repo.Slug(), c.SHA)) } class="block active:bg-accent">
-							@card.Content() {
-								<div class="flex items-baseline justify-between gap-2">
-									<div class="font-medium truncate">{ c.Subject }</div>
-									<code class="text-xs text-muted-foreground tabular-nums flex-shrink-0">{ shortSHA(c.SHA) }</code>
-								</div>
-								<div class="text-muted-foreground text-xs mt-1 truncate">{ c.Author } · { c.Date.Format("2006-01-02 15:04") }</div>
-							}
-						</a>
-					}
-				</li>
-			}
-		</ul>
 	}
 }
 
@@ -167,13 +143,10 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 			@uikit.Shell(uikit.ShellProps{
 				AppName: "scratch",
 				BrandHref: "/",
-				MainClass: "mail-tool-main",
 				Nav: toolNavItems("code"),
 			}) {
 				@CodeSubnav(subnav)
-				<div class="mail-tool-body max-w-2xl mx-auto w-full px-4 py-4">
-					{ children... }
-				</div>
+				{ children... }
 			}
 		</body>
 	</html>
@@ -187,11 +160,10 @@ templ DiffPage(p DiffProps) {
 			@uikit.Shell(uikit.ShellProps{
 				AppName: "scratch",
 				BrandHref: "/",
-				MainClass: "mail-tool-main",
 				Nav: toolNavItems("code"),
 			}) {
 				@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
-				<div class="mail-tool-body max-w-2xl mx-auto w-full px-3 py-3">
+				<div class="mail-tool-body">
 					if p.Commit.SHA != "" {
 						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits", p.Repo.Slug())) } class="block bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 active:bg-accent">
 							<div class="flex items-baseline justify-between gap-2">
@@ -253,30 +225,19 @@ templ diffHead(slug string) {
 templ CommentListPage(p CommentListProps) {
 	@CodeLayout(fmt.Sprintf("%s · comments", p.Repo.Slug()), CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo}) {
 		if p.Error != "" {
-			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
-		}
-		if len(p.Files) == 0 {
-			<p class="text-slate-500 text-sm">No comments yet.</p>
-		}
-		for _, f := range p.Files {
-			@CommentListFile(f)
+			<div class="mail-empty">{ p.Error }</div>
+		} else if len(p.Files) == 0 {
+			<div class="mail-empty">No comments yet.</div>
+		} else {
+			<div class="mail-list">
+				for _, f := range p.Files {
+					for _, c := range f.Comments {
+						@CommentCardItem(CommentItemProps{Anchor: c.Anchor(), Comment: c, Slug: f.Slug, View: "list"})
+					}
+				}
+			</div>
 		}
 	}
-}
-
-templ CommentListFile(p CommentListFileProps) {
-	<details class="group bg-white rounded-lg border border-slate-200 mb-2 overflow-hidden" open>
-		<summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100">
-			<svg class="w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
-			<span class="font-mono text-xs truncate flex-1 min-w-0 text-slate-700">{ p.Path }</span>
-			<span class="text-xs text-slate-500 flex-shrink-0 tabular-nums">{ strconv.Itoa(len(p.Comments)) }</span>
-		</summary>
-		<div>
-			for _, c := range p.Comments {
-				@CommentCardItem(CommentItemProps{Anchor: c.Anchor(), Comment: c, Slug: p.Slug, View: "list"})
-			}
-		</div>
-	</details>
 }
 
 templ FileBlock(f FileProps) {
@@ -492,65 +453,80 @@ templ CommentItem(p CommentItemProps) {
 }
 
 templ CommentCardItem(p CommentItemProps) {
-	<details id={ "comment-" + p.Comment.ID } class={ "group/comment border-b border-slate-100 last:border-b-0 text-xs", templ.KV("opacity-60", p.Comment.Resolved) }>
-		<summary class="cursor-pointer list-none flex items-center gap-2 px-3 py-1 group-open/comment:items-start group-open/comment:py-2">
-			<svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90 group-open/comment:mt-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
-			<a href={ templ.SafeURL(fmt.Sprintf("/code/%s#comment-thread-%s", p.Slug, p.Anchor)) } onclick="event.stopPropagation()"
-				class="text-slate-400 hover:text-slate-700 tabular-nums flex-shrink-0 font-mono"
-				title="View in diff">
-				L{ strconv.Itoa(p.Comment.Line) }
-				if p.Comment.Side == "old" {
-					<span class="text-red-600">−</span>
-				} else {
-					<span class="text-green-600">+</span>
-				}
-			</a>
-			<div class="flex-1 min-w-0 font-sans">
-				<div class="truncate group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">{ p.Comment.Body }</div>
-				if p.Comment.Resolved && p.Comment.ResolvedBody != "" {
-					<div class="truncate text-slate-500 italic group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">↩ { p.Comment.ResolvedBody }</div>
-				}
-			</div>
-			@CommentIcons(p)
-		</summary>
-	</details>
+	<div id={ "comment-" + p.Comment.ID }>
+		@uikit.ListRow(uikit.ListRowProps{
+			Actions:  CommentActions(p),
+			Archived: p.Comment.Resolved,
+			Href:     fmt.Sprintf("/code/%s#comment-thread-%s", p.Slug, p.Anchor),
+			ID:       p.Comment.ID,
+			Kind:     "comment",
+			Labels:   []string{commentLineLabel(p.Comment)},
+			Subject:  p.Comment.Body,
+			What:     p.Comment.Path,
+			When:     p.Comment.CreatedAt.Format("Jan 2"),
+		})
+	</div>
+}
+
+func commentLineLabel(c db.Comment) string {
+	marker := "+"
+	if c.Side == "old" {
+		marker = "−"
+	}
+	return "L" + strconv.Itoa(c.Line) + marker
 }
 
 templ CommentIcons(p CommentItemProps) {
-	<div class="flex items-center flex-shrink-0" onclick="event.stopPropagation()">
-		<button type="button" title="Edit"
-			class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
-			hx-get={ fmt.Sprintf("/code/%s/comments/%s/edit?view=%s", p.Slug, p.Comment.ID, p.View) }
-			hx-target={ "#comment-" + p.Comment.ID }
-			hx-swap="outerHTML">
-			<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3l9-9z"></path></svg>
-		</button>
-		<button type="button"
-			if p.Comment.Resolved {
-				title="Reopen"
-			} else {
-				title="Resolve"
-			}
-			class={ "p-1.5 rounded hover:bg-slate-100", resolveBtnColor(p.Comment.Resolved) }
-			hx-post={ fmt.Sprintf("/code/%s/comments/%s/resolve", p.Slug, p.Comment.ID) }
-			hx-vals={ fmt.Sprintf(`{"view":"%s"}`, p.View) }
-			hx-target={ "#comment-" + p.Comment.ID }
-			hx-swap="outerHTML">
-			if p.Comment.Resolved {
-				<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 119 3M3 5v3h3"></path></svg>
-			} else {
-				<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"></path></svg>
-			}
-		</button>
-		<button type="button" title="Delete"
-			class="p-1.5 text-slate-400 hover:text-red-700 rounded hover:bg-slate-100"
-			hx-delete={ fmt.Sprintf("/code/%s/comments/%s", p.Slug, p.Comment.ID) }
-			hx-target={ "#comment-" + p.Comment.ID }
-			hx-swap="delete"
-			hx-confirm="Delete this comment?">
-			<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4M7 4V2h2v2"></path></svg>
-		</button>
-	</div>
+	@uikit.ActionIcons() {
+		@CommentActions(p)
+	}
+}
+
+templ CommentActions(p CommentItemProps) {
+	@uikit.ActionIcon(uikit.ActionIconProps{
+		Icon:  "edit",
+		Label: "Edit",
+		Attrs: templ.Attributes{
+			"hx-get":    fmt.Sprintf("/code/%s/comments/%s/edit?view=%s", p.Slug, p.Comment.ID, p.View),
+			"hx-target": "#comment-" + p.Comment.ID,
+			"hx-swap":   "outerHTML",
+		},
+	})
+	@uikit.ActionIcon(uikit.ActionIconProps{
+		Icon:  resolveIcon(p.Comment.Resolved),
+		Label: resolveLabel(p.Comment.Resolved),
+		Attrs: templ.Attributes{
+			"hx-post":   fmt.Sprintf("/code/%s/comments/%s/resolve", p.Slug, p.Comment.ID),
+			"hx-vals":   fmt.Sprintf(`{"view":"%s"}`, p.View),
+			"hx-target": "#comment-" + p.Comment.ID,
+			"hx-swap":   "outerHTML",
+		},
+	})
+	@uikit.ActionIcon(uikit.ActionIconProps{
+		Danger: true,
+		Icon:   "trash",
+		Label:  "Delete",
+		Attrs: templ.Attributes{
+			"hx-delete":  fmt.Sprintf("/code/%s/comments/%s", p.Slug, p.Comment.ID),
+			"hx-target":  "#comment-" + p.Comment.ID,
+			"hx-swap":    "delete",
+			"hx-confirm": "Delete this comment?",
+		},
+	})
+}
+
+func resolveIcon(resolved bool) string {
+	if resolved {
+		return "reopen"
+	}
+	return "check"
+}
+
+func resolveLabel(resolved bool) string {
+	if resolved {
+		return "Reopen"
+	}
+	return "Resolve"
 }
 
 templ EditCommentForm(p EditCommentFormProps) {
@@ -640,13 +616,6 @@ func statusColor(s git.FileStatus) string {
 		return "text-blue-700"
 	}
 	return "text-slate-500"
-}
-
-func resolveBtnColor(resolved bool) string {
-	if resolved {
-		return "text-emerald-600 hover:text-emerald-800"
-	}
-	return "text-slate-400 hover:text-emerald-700"
 }
 
 func isImagePath(path string) bool {

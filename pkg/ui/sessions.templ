@@ -3,25 +3,22 @@ package ui
 import (
 	"fmt"
 
-	"github.com/templui/templui/components/badge"
 	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
 )
 
-func stepHeaderClass(done bool) string {
-	if done {
-		return "flex flex-row items-start justify-between gap-2 space-y-0 pb-6"
-	}
-	return "flex flex-row items-start justify-between gap-2 space-y-0"
-}
-
 templ SetupPage(v SessionsProps) {
 	@Layout("Setup", "setup") {
-		<ol class="space-y-2">
+		<div class="setup-list">
+			<div class="setup-group-title">Claude Code</div>
 			@InstallCard(v)
 			@LoginCard(v)
+			<div class="setup-group-title">Codex</div>
+			@CodexInstallRow(v)
+			@CodexLoginRow(v)
+			<div class="setup-group-title">Workspace</div>
 			@ConfigureCard(v)
-		</ol>
+		</div>
 	}
 }
 
@@ -31,65 +28,24 @@ templ SessionsPage(v SessionsProps) {
 	}
 }
 
-templ InstallCard(v SessionsProps) {
-	@stepCard("card-install", v.Oob, "1", v.Installed, true, "Install", installHint(v)) {
-		if !v.Installed {
-			@button.Button(button.Props{
-				Attributes: hxAction("post", "/install", "#card-install"),
-			}) {
-				Install
-			}
-		} else {
-			@button.Button(button.Props{
-				Variant:    button.VariantOutline,
-				Attributes: hxAction("post", "/install", "#card-install"),
-			}) {
-				Update
-			}
-			if v.ClaudeVersion != "" {
-				<span class="text-xs text-muted-foreground font-mono">v{ v.ClaudeVersion }</span>
-			}
-		}
-		if v.InstallError != "" {
-			@stepError(v.InstallError)
-		}
-	}
-}
-
-func installHint(v SessionsProps) string {
-	if !v.Installed {
-		return "Run claude.ai/install.sh"
-	}
-	return ""
-}
-
-templ stepCard(id string, oob bool, num string, done, open bool, title, hint string) {
-	<li id={ id }
+templ setupRow(id string, oob, done bool, title, hint string) {
+	<div id={ id }
 		if oob {
 			hx-swap-oob="true"
 		}
+		class={ "setup-row", templ.KV("is-done", done) }
 	>
-		@AppCard() {
-			@card.Header(card.HeaderProps{Class: stepHeaderClass(done)}) {
-				<div class="flex-1 min-w-0 space-y-1.5">
-					@AppTitle() {
-						{ title }
-					}
-					if !done && hint != "" {
-						@card.Description() {
-							{ hint }
-						}
-					}
-				</div>
-				@stepBadge(num, done)
+		<span class="setup-check" aria-hidden="true">
+			@doneIcon(done)
+		</span>
+		<div class="setup-body">
+			<div class="setup-title">{ title }</div>
+			if hint != "" {
+				<div class="setup-hint">{ hint }</div>
 			}
-			if open {
-				@card.Content(card.ContentProps{Class: "flex flex-wrap items-center gap-2"}) {
-					{ children... }
-				}
-			}
-		}
-	</li>
+		</div>
+		{ children... }
+	</div>
 }
 
 templ stepError(msg string) {
@@ -105,24 +61,39 @@ func hxAction(method, url, target string) templ.Attributes {
 	}
 }
 
-templ stepBadge(num string, done bool) {
-	if done {
-		@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "bg-emerald-100 text-emerald-900"}) {
-			done
+templ InstallCard(v SessionsProps) {
+	@setupRow("card-install", v.Oob, v.Installed, "Install Claude Code", claudeInstallHint(v)) {
+		if !v.Installed {
+			@button.Button(button.Props{Size: button.SizeSm, Attributes: hxAction("post", "/install", "#card-install")}) {
+				Install
+			}
+		} else {
+			@button.Button(button.Props{Size: button.SizeSm, Variant: button.VariantOutline, Attributes: hxAction("post", "/install", "#card-install")}) {
+				Update
+			}
 		}
-	} else {
-		@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
-			step { num }
+		if v.InstallError != "" {
+			@stepError(v.InstallError)
 		}
 	}
 }
 
+func claudeInstallHint(v SessionsProps) string {
+	if !v.Installed {
+		return "claude + tmux · claude.ai/install.sh"
+	}
+	if v.ClaudeVersion != "" {
+		return "claude v" + v.ClaudeVersion
+	}
+	return "Installed"
+}
 
 templ LoginCard(v SessionsProps) {
-	@stepCard("card-login", v.Oob, "2", v.Authenticated, !v.Authenticated, "Pay", "Connect Anthropic subscription") {
+	@setupRow("card-login", v.Oob, v.Authenticated, "Sign in", "Anthropic subscription") {
 		if !v.Authenticated {
 			if v.LoginURL != "" {
 				@button.Button(button.Props{
+					Size:       button.SizeSm,
 					Variant:    button.VariantSecondary,
 					Href:       v.LoginURL,
 					Target:     "_blank",
@@ -131,6 +102,7 @@ templ LoginCard(v SessionsProps) {
 					Open claude.com →
 				}
 				@button.Button(button.Props{
+					Size:    button.SizeSm,
 					Variant: button.VariantOutline,
 					Type:    button.TypeButton,
 					Attributes: templ.Attributes{
@@ -143,12 +115,12 @@ templ LoginCard(v SessionsProps) {
 				<form hx-post="/login/code" hx-target="#card-login" hx-swap="outerHTML" class="flex gap-2 mt-2 basis-full">
 					<input type="text" name="code" placeholder="paste code" autocomplete="off" autofocus required
 						class="flex-1 px-3 py-2 text-sm border border-input rounded-md bg-background shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 outline-none"/>
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
+					@button.Button(button.Props{Size: button.SizeSm, Type: button.TypeSubmit}) {
 						Submit
 					}
 				</form>
 			} else if v.Installed {
-				@button.Button(button.Props{Attributes: hxAction("post", "/login", "#card-login")}) {
+				@button.Button(button.Props{Size: button.SizeSm, Attributes: hxAction("post", "/login", "#card-login")}) {
 					Connect
 				}
 			}
@@ -159,21 +131,89 @@ templ LoginCard(v SessionsProps) {
 	}
 }
 
+templ CodexInstallRow(v SessionsProps) {
+	@setupRow("card-codex-install", false, v.CodexInstalled, "Install Codex", codexInstallHint(v)) {
+		if !v.CodexInstalled {
+			@button.Button(button.Props{
+				Size:       button.SizeSm,
+				Variant:    button.VariantOutline,
+				Href:       "https://github.com/openai/codex",
+				Target:     "_blank",
+				Attributes: templ.Attributes{"rel": "noopener"},
+			}) {
+				Get Codex
+			}
+		}
+	}
+}
+
+func codexInstallHint(v SessionsProps) string {
+	if !v.CodexInstalled {
+		return "codex CLI not installed"
+	}
+	if v.CodexVersion != "" {
+		return "codex v" + v.CodexVersion
+	}
+	return "Installed"
+}
+
+templ CodexLoginRow(v SessionsProps) {
+	@setupRow("card-codex-login", false, v.CodexAuthenticated, "Sign in", codexLoginHint(v)) {
+		if !v.CodexAuthenticated {
+			if v.CodexLoginURL != "" {
+				@button.Button(button.Props{
+					Size:       button.SizeSm,
+					Variant:    button.VariantSecondary,
+					Href:       v.CodexLoginURL,
+					Target:     "_blank",
+					Attributes: templ.Attributes{"rel": "noopener"},
+				}) {
+					Open auth.openai.com →
+				}
+				<code class="setup-cmd">{ v.CodexLoginCode }</code>
+				<span class="setup-hint basis-full inline-flex items-center gap-1"
+					hx-get="/codex/login" hx-trigger="every 3s" hx-target="#card-codex-login" hx-swap="outerHTML">
+					Waiting for authorization…
+				</span>
+			} else if v.CodexInstalled {
+				@button.Button(button.Props{Size: button.SizeSm, Attributes: hxAction("post", "/codex/login", "#card-codex-login")}) {
+					Connect
+				}
+			}
+		}
+		if v.CodexLoginError != "" {
+			@stepError(v.CodexLoginError)
+		}
+	}
+}
+
+func codexLoginHint(v SessionsProps) string {
+	switch {
+	case v.CodexAuthenticated:
+		return "OpenAI subscription"
+	case v.CodexLoginURL != "":
+		return "Enter this code at auth.openai.com"
+	case !v.CodexInstalled:
+		return "Install Codex first"
+	}
+	return "OpenAI subscription"
+}
+
 templ ConfigureCard(v SessionsProps) {
-	@stepCard("card-configure", v.Oob, "3", configureDone(v), !configureDone(v), "Configure", configureHint(v)) {
+	@setupRow("card-configure", v.Oob, configureDone(v), "Configure", configureHint(v)) {
 		if !v.Configured && v.Authenticated {
-			@button.Button(button.Props{Attributes: hxAction("post", "/configure", "#card-configure")}) {
+			@button.Button(button.Props{Size: button.SizeSm, Attributes: hxAction("post", "/configure", "#card-configure")}) {
 				Configure
 			}
 		} else if v.Configured {
 			if v.AgentsDirty {
-				@button.Button(button.Props{Href: "/"}) {
-					Commit &amp; Push from Sessions →
+				@button.Button(button.Props{Size: button.SizeSm, Href: "/"}) {
+					Commit &amp; Push →
 				}
 			}
 			if v.AgentsBehind > 0 {
-				@button.Button(button.Props{Href: "/"}) {
-					Pull from Sessions →
+				@button.Button(button.Props{Size: button.SizeSm, Href: "/"}) {
+					Pull →
 				}
 			}
 		}
@@ -187,12 +227,16 @@ func configureDone(v SessionsProps) bool {
 	return v.Configured && !v.AgentsDirty && v.AgentsBehind <= 0
 }
 
+func sessionsReady(v SessionsProps) bool {
+	return v.Installed && v.Authenticated
+}
+
 func configureHint(v SessionsProps) string {
 	switch {
 	case !v.Authenticated:
 		return ""
 	case !v.Configured:
-		return "Write claude markdown and settings in $HOME"
+		return "Write AGENTS.md and settings in $HOME"
 	case v.AgentsDirty:
 		return "Local changes in ./scratch"
 	case v.AgentsBehind > 0:
@@ -208,7 +252,7 @@ templ SessionsCard(v SessionsProps) {
 			hx-swap-oob="true"
 		}
 	>
-		if !v.Configured {
+		if !sessionsReady(v) {
 			@AppCard("bg-amber-50 border-amber-200") {
 				@card.Content() {
 					<p class="text-sm text-foreground">Finish <a href="/setup" class="text-blue-700 underline">Setup</a> to start sessions.</p>

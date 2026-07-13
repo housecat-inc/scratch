@@ -15,7 +15,7 @@ func TestSetupBrowser(t *testing.T) {
 				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "Code review"),
 				testkit.ClassContainsStep[*testkit.Harness](`a[href="/setup"]`, "active"),
 				testkit.TextContainsStep[*testkit.Harness]("#card-install", "Install"),
-				testkit.TextContainsStep[*testkit.Harness]("#card-login", "Pay"),
+				testkit.TextContainsStep[*testkit.Harness]("#card-login", "Sign in"),
 				testkit.TextContainsStep[*testkit.Harness]("#card-configure", "Configure"),
 			},
 			Name: "renders setup in tool shell",

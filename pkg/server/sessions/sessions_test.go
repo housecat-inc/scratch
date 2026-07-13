@@ -30,17 +30,36 @@ func (f *fakeLogin) SubmitCode(code string) error {
 }
 func (f *fakeLogin) URL() string { return f.url }
 
-type fakeDeps struct {
-	agents        agents.State
-	authenticated bool
-	claudeVersion string
-	configured    bool
-	installed     bool
+type fakeCodexLogin struct {
+	closed bool
+	code   string
+	done   bool
+	err    error
+	url    string
+}
 
-	configureErr error
-	installErr   error
-	loginErr     error
-	login        *fakeLogin
+func (f *fakeCodexLogin) Close() error { f.closed = true; return nil }
+func (f *fakeCodexLogin) Code() string { return f.code }
+func (f *fakeCodexLogin) Done() bool   { return f.done }
+func (f *fakeCodexLogin) Err() error   { return f.err }
+func (f *fakeCodexLogin) URL() string  { return f.url }
+
+type fakeDeps struct {
+	agents             agents.State
+	authenticated      bool
+	claudeVersion      string
+	codexAuthenticated bool
+	codexInstalled     bool
+	codexVersion       string
+	configured         bool
+	installed          bool
+
+	configureErr  error
+	installErr    error
+	loginErr      error
+	login         *fakeLogin
+	codexLogin    *fakeCodexLogin
+	codexLoginErr error
 
 	configureCalls int
 	installCalls   int
@@ -60,9 +79,12 @@ type fakeDeps struct {
 
 func (f *fakeDeps) deps() Deps {
 	return Deps{
-		AgentsStatus:  func() (agents.State, error) { return f.agents, nil },
-		Authenticated: func() (bool, error) { return f.authenticated, nil },
-		ClaudeVersion: func() string { return f.claudeVersion },
+		AgentsStatus:       func() (agents.State, error) { return f.agents, nil },
+		Authenticated:      func() (bool, error) { return f.authenticated, nil },
+		ClaudeVersion:      func() string { return f.claudeVersion },
+		CodexAuthenticated: func() (bool, error) { return f.codexAuthenticated, nil },
+		CodexInstalled:     func() bool { return f.codexInstalled },
+		CodexVersion:       func() string { return f.codexVersion },
 		Configure: func() error {
 			f.configureCalls++
 			if f.configureErr != nil {
@@ -100,6 +122,12 @@ func (f *fakeDeps) deps() Deps {
 				return f.slugForPrompt(prompt)
 			}
 			return ""
+		},
+		StartCodexLogin: func() (CodexLogin, error) {
+			if f.codexLoginErr != nil {
+				return nil, f.codexLoginErr
+			}
+			return f.codexLogin, nil
 		},
 		StartLogin: func() (Login, error) {
 			f.loginCalls++
@@ -142,31 +170,56 @@ func TestSetupPage(t *testing.T) {
 		name     string
 	}{
 		{
-			name: "fresh state shows install active, others pending",
+			name: "fresh state groups claude and codex steps",
 			fake: fakeDeps{},
 			mustHave: []string{
 				"scratch",
-				">Install<", ">Pay<", ">Configure<",
+				">Claude Code<", ">Codex<", ">Workspace<",
+				"Install Claude Code", "Install Codex", ">Configure<",
 				`id="card-install"`,
 				`id="card-login"`,
 				`id="card-configure"`,
+				`id="card-codex-install"`,
+				`id="card-codex-login"`,
 				`hx-post="/install"`,
 			},
 			mustMiss: []string{`hx-post="/configure"`, `hx-post="/login"`},
 		},
 		{
-			name: "installed shows update button and version, activates step 2",
+			name: "installed shows update button and version, activates sign in",
 			fake: fakeDeps{installed: true, claudeVersion: "2.1.139"},
 			mustHave: []string{
 				`hx-post="/install"`,
 				">Update<",
-				"v2.1.139",
+				"claude v2.1.139",
 				`hx-post="/login"`,
 			},
 			mustMiss: []string{`hx-post="/configure"`},
 		},
 		{
-			name: "authenticated checks step 2, activates step 3",
+			name: "codex install row reports version and marks done",
+			fake: fakeDeps{installed: true, codexInstalled: true, codexVersion: "0.5.2"},
+			mustHave: []string{
+				`id="card-codex-install"`, "codex v0.5.2",
+			},
+		},
+		{
+			name: "codex not installed prompts to get codex",
+			fake: fakeDeps{installed: true},
+			mustHave: []string{
+				`id="card-codex-install"`, "codex CLI not installed", ">Get Codex<",
+			},
+		},
+		{
+			name: "codex authenticated marks sign in done",
+			fake: fakeDeps{installed: true, codexInstalled: true, codexAuthenticated: true},
+			mustHave: []string{
+				`id="card-codex-login"`,
+			},
+			mustMiss: []string{">codex login<"},
+		},
+		{
+			name: "authenticated checks sign in, activates configure",
 			fake: fakeDeps{installed: true, authenticated: true},
 			mustHave: []string{
 				`hx-post="/configure"`,
@@ -260,6 +313,25 @@ func TestSessionsPageOmitsAgentsHints(t *testing.T) {
 	for _, miss := range []string{"Local changes in ./scratch", "Upstream changes to ./scratch", ">Commit & Push<", ">Pull<"} {
 		a.NotContains(body, miss)
 	}
+}
+
+func TestSessionsRouteWithoutRoot(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	fd := fakeDeps{installed: true, configured: true, authenticated: true}
+	s, err := NewServer(fd.deps())
+	r.NoError(err)
+
+	mux := http.NewServeMux()
+	s.Register(mux, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/sessions", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	a.Contains(rec.Body.String(), "New session")
 }
 
 func TestSessionStartRedirectsWhenRequested(t *testing.T) {
@@ -386,6 +458,38 @@ func TestLoginFlow(t *testing.T) {
 	a.Contains(rec.Body.String(), `id="card-configure" hx-swap-oob="true"`)
 }
 
+func TestCodexLoginFlow(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	fl := &fakeCodexLogin{url: "https://auth.openai.com/codex/device", code: "32LO-RHYUX"}
+	fd := fakeDeps{installed: true, codexInstalled: true, codexLogin: fl}
+	s, err := NewServer(fd.deps())
+	r.NoError(err)
+
+	req := httptest.NewRequest(http.MethodPost, "/codex/login", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	a.Contains(body, "32LO-RHYUX")
+	a.Contains(body, "auth.openai.com/codex/device")
+	a.Contains(body, `hx-get="/codex/login"`, "polls while waiting")
+
+	fl.done = true
+
+	req = httptest.NewRequest(http.MethodGet, "/codex/login", nil)
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	a.Equal(http.StatusOK, rec.Code)
+	poll := rec.Body.String()
+	a.True(fl.closed, "completed login is closed")
+	a.NotContains(poll, `hx-get="/codex/login"`, "stops polling once signed in")
+	a.Contains(poll, `id="card-codex-login"`)
+}
+
 func TestLoginCodeInvalid(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
@@ -435,14 +539,14 @@ func TestSessionsPageGate(t *testing.T) {
 		name     string
 	}{
 		{
-			name:     "unconfigured points back to setup",
-			fake:     fakeDeps{installed: true, authenticated: true},
+			name:     "not signed in points back to setup",
+			fake:     fakeDeps{installed: true},
 			mustHave: []string{`href="/setup"`, "Finish"},
 			mustMiss: []string{`hx-post="/sessions"`},
 		},
 		{
-			name: "configured shows session form with default dir",
-			fake: fakeDeps{installed: true, configured: true, authenticated: true},
+			name: "installed and signed in shows form without full configure",
+			fake: fakeDeps{installed: true, authenticated: true},
 			mustHave: []string{
 				`hx-post="/sessions"`,
 				`value="` + mustHome(t) + `"`,
@@ -450,7 +554,7 @@ func TestSessionsPageGate(t *testing.T) {
 				`name="prompt"`,
 				`hx-get="/sessions/picker?dir=` + mustHome(t) + `"`,
 			},
-			mustMiss: []string{`name="name"`},
+			mustMiss: []string{`name="name"`, "Finish"},
 		},
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/agents"
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode"
+	"github.com/housecat-inc/scratch/pkg/harness/codexcode"
 	"github.com/housecat-inc/scratch/pkg/ui"
 )
 
@@ -21,6 +22,9 @@ type Deps struct {
 	AgentsStatus       func() (agents.State, error)
 	Authenticated      func() (bool, error)
 	ClaudeVersion      func() string
+	CodexAuthenticated func() (bool, error)
+	CodexInstalled     func() bool
+	CodexVersion       func() string
 	Configure          func() error
 	Configured         func() (bool, error)
 	Install            func() error
@@ -30,6 +34,7 @@ type Deps struct {
 	SessionLastMessage func(id string) string
 	SessionQR          func(id string) ([]byte, error)
 	SlugForPrompt      func(prompt string) string
+	StartCodexLogin    func() (CodexLogin, error)
 	StartLogin         func() (Login, error)
 	StartSession       func(name, dir, prompt string) (*claudecode.Session, error)
 	StopSession        func(id string) error
@@ -41,11 +46,21 @@ type Login interface {
 	URL() string
 }
 
+type CodexLogin interface {
+	Close() error
+	Code() string
+	Done() bool
+	Err() error
+	URL() string
+}
+
 type Server struct {
-	deps  Deps
-	home  string
-	login Login
-	mu    sync.Mutex
+	codexLogin CodexLogin
+	deps       Deps
+	dir        string
+	home       string
+	login      Login
+	mu         sync.Mutex
 }
 
 func DefaultDeps() Deps {
@@ -60,6 +75,15 @@ func DefaultDeps() Deps {
 			v, err := claudecode.Version()
 			if err != nil {
 				slog.Warn("claude version failed", "error", err.Error())
+			}
+			return v
+		},
+		CodexAuthenticated: codexcode.Authenticated,
+		CodexInstalled:     codexcode.Installed,
+		CodexVersion: func() string {
+			v, err := codexcode.Version()
+			if err != nil {
+				slog.Warn("codex version failed", "error", err.Error())
 			}
 			return v
 		},
@@ -79,6 +103,9 @@ func DefaultDeps() Deps {
 		},
 		SlugForPrompt: func(prompt string) string {
 			return claudecode.SlugForPrompt(mgr.ClaudeBin, prompt)
+		},
+		StartCodexLogin: func() (CodexLogin, error) {
+			return codexcode.StartDeviceLogin()
 		},
 		StartLogin: func() (Login, error) {
 			return claudecode.StartLogin()
@@ -107,12 +134,16 @@ func listSubdirs(dir string) ([]string, error) {
 	return out, nil
 }
 
-func NewServer(deps Deps) (*Server, error) {
+func NewServer(deps Deps, workdir ...string) (*Server, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, errors.Wrap(err, "user home dir")
 	}
-	return &Server{deps: deps, home: home}, nil
+	dir := home
+	if len(workdir) > 0 && workdir[0] != "" {
+		dir = workdir[0]
+	}
+	return &Server{deps: deps, dir: dir, home: home}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -125,9 +156,12 @@ func (s *Server) Register(mux *http.ServeMux, includeRoot bool) {
 	if includeRoot {
 		mux.HandleFunc("GET /{$}", s.handleSessions)
 	}
+	mux.HandleFunc("GET /sessions", s.handleSessions)
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /sw.js", s.handleServiceWorker)
 	mux.HandleFunc("GET /setup", s.handleSetup)
+	mux.HandleFunc("GET /codex/login", s.handleCodexLoginPoll)
+	mux.HandleFunc("POST /codex/login", s.handleCodexLogin)
 	mux.HandleFunc("POST /configure", s.handleConfigure)
 	mux.HandleFunc("POST /install", s.handleInstall)
 	mux.HandleFunc("POST /login", s.handleLogin)
@@ -222,10 +256,10 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePicker(w http.ResponseWriter, r *http.Request) {
 	dir := strings.TrimSpace(r.URL.Query().Get("dir"))
 	if dir == "" {
-		dir = s.home
+		dir = s.dir
 	}
 	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(s.home, dir)
+		dir = filepath.Join(s.dir, dir)
 	}
 	dir = filepath.Clean(dir)
 
@@ -266,6 +300,46 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 	oob := vm
 	oob.Oob = true
 	s.render(w, r, primary, ui.LoginCard(oob))
+}
+
+func (s *Server) handleCodexLogin(w http.ResponseWriter, r *http.Request) {
+	vm := s.viewModel()
+	vm.Nav = "setup"
+
+	s.mu.Lock()
+	existing := s.codexLogin
+	s.mu.Unlock()
+	if existing != nil {
+		s.render(w, r, ui.CodexLoginRow(vm))
+		return
+	}
+	if s.deps.StartCodexLogin == nil {
+		vm.CodexLoginError = "codex login is not available"
+		s.render(w, r, ui.CodexLoginRow(vm))
+		return
+	}
+
+	l, err := s.deps.StartCodexLogin()
+	if err != nil {
+		slog.Error("start codex login failed", "error", err.Error())
+		vm.CodexLoginError = err.Error()
+		s.render(w, r, ui.CodexLoginRow(vm))
+		return
+	}
+	s.mu.Lock()
+	s.codexLogin = l
+	s.mu.Unlock()
+
+	slog.Info("codex login started", "url", l.URL())
+	vm = s.viewModel()
+	vm.Nav = "setup"
+	s.render(w, r, ui.CodexLoginRow(vm))
+}
+
+func (s *Server) handleCodexLoginPoll(w http.ResponseWriter, r *http.Request) {
+	vm := s.viewModel()
+	vm.Nav = "setup"
+	s.render(w, r, ui.CodexLoginRow(vm))
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -361,7 +435,7 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	dir := strings.TrimSpace(r.FormValue("dir"))
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	if dir == "" {
-		dir = s.home
+		dir = s.dir
 	}
 	vm.SessionDir = dir
 
@@ -437,9 +511,20 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, comps ...templ.C
 }
 
 func (s *Server) viewModel() ui.SessionsProps {
-	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.home}
+	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.dir}
 	if vm.Installed && s.deps.ClaudeVersion != nil {
 		vm.ClaudeVersion = s.deps.ClaudeVersion()
+	}
+	if s.deps.CodexInstalled != nil {
+		vm.CodexInstalled = s.deps.CodexInstalled()
+	}
+	if vm.CodexInstalled && s.deps.CodexVersion != nil {
+		vm.CodexVersion = s.deps.CodexVersion()
+	}
+	if s.deps.CodexAuthenticated != nil {
+		if ok, err := s.deps.CodexAuthenticated(); err == nil {
+			vm.CodexAuthenticated = ok
+		}
 	}
 	if dir, err := agents.Dir(); err == nil {
 		vm.AgentsDir = dir
@@ -461,6 +546,21 @@ func (s *Server) viewModel() ui.SessionsProps {
 	s.mu.Lock()
 	if s.login != nil {
 		vm.LoginURL = s.login.URL()
+	}
+	if s.codexLogin != nil {
+		switch {
+		case vm.CodexAuthenticated || (s.codexLogin.Done() && s.codexLogin.Err() == nil):
+			_ = s.codexLogin.Close()
+			s.codexLogin = nil
+			vm.CodexAuthenticated = true
+		case s.codexLogin.Done():
+			vm.CodexLoginError = "codex login did not complete"
+			_ = s.codexLogin.Close()
+			s.codexLogin = nil
+		default:
+			vm.CodexLoginCode = s.codexLogin.Code()
+			vm.CodexLoginURL = s.codexLogin.URL()
+		}
 	}
 	s.mu.Unlock()
 
