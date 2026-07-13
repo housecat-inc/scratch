@@ -13,11 +13,12 @@ templ SQLPage(v SQLProps) {
 		@SQLHead()
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:   toolActions(),
-				AppName:   "scratch",
-				BrandHref: "/",
-				MainClass: "mail-files-main",
-				Nav:       toolNavItems("sql"),
+				Actions:    toolActions(),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				MainClass:  "mail-files-main",
+				Nav:        toolNavItems("sql"),
+				SidebarTop: ComposeActions(),
 			}) {
 				<div id="sql-wrap" class="mail-tool-content flex flex-col flex-1 min-h-0">
 					<header class="mail-mainbar gap-2">
@@ -229,6 +230,4 @@ templ SQLResults(r *SQLResult) {
 
 templ toolActions() {
 	@uikit.NewChatAction(uikit.NewChatActionProps{})
-	@createButton("task", "New task", taskIcon())
-	@createWorkflowButton()
 }

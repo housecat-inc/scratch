@@ -141,9 +141,11 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 		@Head(title)
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				AppName: "scratch",
-				BrandHref: "/",
-				Nav: toolNavItems("code"),
+				Actions:    toolActions(),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				Nav:        toolNavItems("code"),
+				SidebarTop: ComposeActions(),
 			}) {
 				@CodeSubnav(subnav)
 				{ children... }
@@ -158,9 +160,11 @@ templ DiffPage(p DiffProps) {
 		@diffHead(p.Repo.Slug())
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				AppName: "scratch",
-				BrandHref: "/",
-				Nav: toolNavItems("code"),
+				Actions:    toolActions(),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				Nav:        toolNavItems("code"),
+				SidebarTop: ComposeActions(),
 			}) {
 				@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
 				<div class="mail-tool-body">

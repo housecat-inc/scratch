@@ -20,7 +20,7 @@ templ InboxPage(p InboxProps) {
 				BrandHref: "/",
 				Footer: MailComposer(p),
 				Nav: inboxNavItems(p),
-				SidebarTop: InboxCompose(),
+				SidebarTop: ComposeActions(),
 			}) {
 				if p.Task != nil {
 					@InboxTaskReader(*p.Task)
@@ -42,7 +42,7 @@ templ InboxActions(p InboxProps) {
 	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 }
 
-templ InboxCompose() {
+templ ComposeActions() {
 	<div class="mail-compose-actions">
 		@composeButton("task", "Task", "New task")
 		@createWorkflowButton()

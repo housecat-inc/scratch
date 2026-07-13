@@ -83,10 +83,12 @@ templ Layout(title, nav string) {
 		@Head(title)
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				AppName: "scratch",
-				BrandHref: "/",
-				MainClass: "mail-tool-main",
-				Nav: toolNavItems(nav),
+				Actions:    toolActions(),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				MainClass:  "mail-tool-main",
+				Nav:        toolNavItems(nav),
+				SidebarTop: ComposeActions(),
 			}) {
 				<div class="mail-tool-content">
 					<header class="mail-mainbar">

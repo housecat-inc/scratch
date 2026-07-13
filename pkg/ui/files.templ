@@ -8,10 +8,12 @@ templ FilesPage(v FilesProps) {
 		@FilesHead()
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				AppName:   "scratch",
-				BrandHref: "/",
-				MainClass: "mail-files-main",
-				Nav:       toolNavItems("files"),
+				Actions:    toolActions(),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				MainClass:  "mail-files-main",
+				Nav:        toolNavItems("files"),
+				SidebarTop: ComposeActions(),
 			}) {
 				<div id="files-wrap" class="flex flex-1 min-h-0">
 					<aside class="tree-pane w-full md:w-72 md:flex-shrink-0 bg-white md:border-r border-slate-200 flex flex-col min-h-0">
