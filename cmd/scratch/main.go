@@ -83,14 +83,9 @@ func newRootCmd() *cobra.Command {
 			defer chatSvc.Close()
 
 			flows := flow.New(flow.Deps{
-				DBOS:    workflows.Ctx(),
-				Log:     logger,
-				Publish: chatSvc.Publish,
-				Store:   store,
-				Tasks:   store,
+				DBOS: workflows.Ctx(),
+				Log:  logger,
 			})
-			chatSvc.RegisterAgent("contact", flows.Agent())
-			chatSvc.SetResolver(flows)
 			if err := workflows.Launch(); err != nil {
 				return errors.Wrap(err, "launch workflows")
 			}
@@ -116,7 +111,7 @@ func newRootCmd() *cobra.Command {
 			}
 			todoSvc := todo.NewService(store)
 			chatSrv := chat.NewServer(chatSvc, logger)
-			inboxSrv := inbox.NewServer(todoSvc, chatSvc, logger)
+			inboxSrv := inbox.NewServer(todoSvc, chatSvc, flows, logger)
 
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(

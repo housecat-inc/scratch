@@ -25,6 +25,8 @@ templ InboxPage(p InboxProps) {
 					@InboxTaskReader(*p.Task)
 				} else if p.Draft != nil {
 					@InboxDraftReader(*p.Draft)
+				} else if p.Workflow != nil {
+					@InboxWorkflowReader(*p.Workflow)
 				} else if p.Thread != nil {
 					@InboxThreadReader(*p.Thread)
 				} else {
@@ -85,7 +87,8 @@ templ MailShell(p InboxProps) {
 }
 
 templ MailComposer(p InboxProps) {
-	if p.Thread != nil {
+	if p.Workflow != nil {
+	} else if p.Thread != nil {
 		@ChatComposer(threadComposerProps(*p.Thread))
 	} else {
 		@ChatComposer(composeComposerProps(p))
@@ -229,6 +232,93 @@ templ InboxThreadReader(d InboxThreadDetail) {
 	</div>
 }
 
+templ InboxWorkflowReader(d InboxWorkflowDetail) {
+	@ReaderHeader(ReaderHeaderProps{
+		BackHref: "/inbox/workflows",
+		Description: workflowStatusLabel(d.Status),
+		Title: d.Title,
+	}) {
+		if d.Archived {
+			@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
+			@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow permanently")
+		} else {
+			@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
+		}
+		@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
+	}
+	<div class="mail-reader-body">
+		<div
+			id="wf-body"
+			class="wf-body"
+			if d.Running && d.Form == nil {
+				hx-get={ threadInboxDetailURL("workflow", d.ID) }
+				hx-trigger="load delay:400ms"
+				hx-select="#wf-body"
+				hx-target="#wf-body"
+				hx-swap="outerHTML"
+			}
+		>
+			<ol class="wf-steps">
+				for _, step := range d.Steps {
+					@workflowStep(step)
+				}
+			</ol>
+			if d.Form != nil {
+				@workflowForm(*d.Form)
+			}
+		</div>
+	</div>
+}
+
+templ workflowStep(s WorkflowStepProps) {
+	<li class={ "wf-step", "wf-" + s.Status }>
+		<span class="wf-step-icon">
+			switch s.Status {
+				case "done":
+					@doneIcon(true)
+				case "failed":
+					@workflowIcon()
+				default:
+					<span class="wf-spinner"></span>
+			}
+		</span>
+		<div class="wf-step-main">
+			<span class="wf-step-title">{ s.Title }</span>
+			if s.Detail != "" {
+				<pre class="wf-step-detail">{ s.Detail }</pre>
+			}
+		</div>
+	</li>
+}
+
+templ workflowForm(f ChatFormProps) {
+	<form id="elicit-form" class="chat-elicit wf-form" method="post" action={ templ.SafeURL(f.Action) }>
+		<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
+		<p class="chat-elicit-message">{ f.Message }</p>
+		for _, field := range f.Fields {
+			<label class="chat-elicit-field">
+				<span>{ field.Label }</span>
+				switch field.Type {
+					case "select":
+						<select name={ "f_" + field.Name }>
+							for _, option := range field.Options {
+								<option value={ option } selected?={ option == field.Value }>{ option }</option>
+							}
+						</select>
+					case "checkbox":
+						<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" }/>
+					default:
+						<input type={ field.Type } name={ "f_" + field.Name } value={ field.Value } required?={ field.Required }/>
+				}
+			</label>
+		}
+		<div class="chat-elicit-actions">
+			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
+			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
+		</div>
+	</form>
+}
+
 templ ReaderHeader(p ReaderHeaderProps) {
 	<header class="mail-reader-head">
 		<a class="gm-icon-btn" href={ templ.SafeURL(p.BackHref) } aria-label="Back">
@@ -278,7 +368,7 @@ templ createWorkflowButton() {
 	<form class="mail-create-combo" method="post" action="/compose">
 		<input type="hidden" name="mode" value="workflow"/>
 		<input type="hidden" name="create_only" value="true"/>
-		<button class="mail-create-btn" type="submit">
+		<button class="mail-create-btn" type="submit" data-new-workflow>
 			@workflowIcon()
 			<span>New workflow</span>
 		</button>
@@ -426,15 +516,30 @@ func showRowKindLabel(view string) bool {
 
 func workflowTypeLabel(typ string) string {
 	switch typ {
-	case "contact":
-		return "Contact chat"
+	case "greet":
+		return "Greet"
 	default:
 		return agentLabel(typ)
 	}
 }
 
+func workflowStatusLabel(status string) string {
+	switch status {
+	case "SUCCESS":
+		return "Completed"
+	case "ERROR":
+		return "Failed"
+	case "CANCELLED":
+		return "Cancelled"
+	case "ENQUEUED", "PENDING":
+		return "Running"
+	default:
+		return status
+	}
+}
+
 func workflowTypeOptions() []string {
-	return []string{"contact"}
+	return []string{"greet"}
 }
 
 func chatIcon() templ.Component {

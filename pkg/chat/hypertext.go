@@ -510,11 +510,16 @@ func summaryLine(text string) string {
 }
 
 func toFormProps(threadID, messageID int64, prompt elicit.Prompt) ui.ChatFormProps {
+	form := FormProps(fmt.Sprintf("/chat/%d/elicitations", threadID), prompt)
+	form.MessageID = messageID
+	return form
+}
+
+func FormProps(action string, prompt elicit.Prompt) ui.ChatFormProps {
 	form := ui.ChatFormProps{
-		Action:        fmt.Sprintf("/chat/%d/elicitations", threadID),
+		Action:        action,
 		ElicitationID: prompt.ElicitationID,
 		Message:       prompt.Message,
-		MessageID:     messageID,
 	}
 	schema := prompt.RequestedSchema
 	if schema == nil {

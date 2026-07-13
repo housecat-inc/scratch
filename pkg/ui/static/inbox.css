@@ -1546,3 +1546,86 @@ textarea {
     display: none;
   }
 }
+
+.wf-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.wf-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wf-step {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.wf-step.wf-running {
+  background: var(--gm-surface-2, #f5f5f7);
+}
+
+.wf-step-icon {
+  align-items: center;
+  color: var(--gm-muted, #6b7280);
+  display: flex;
+  flex: 0 0 auto;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.wf-step.wf-done .wf-step-icon {
+  color: var(--gm-accent, #16a34a);
+}
+
+.wf-step-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wf-step-title {
+  font-weight: 600;
+}
+
+.wf-step-detail {
+  background: var(--gm-surface-2, #f5f5f7);
+  border-radius: 8px;
+  color: var(--gm-muted, #374151);
+  font-size: 13px;
+  margin: 0;
+  overflow-x: auto;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+
+.wf-spinner {
+  animation: wf-spin 0.8s linear infinite;
+  border: 2px solid var(--gm-border, #d1d5db);
+  border-radius: 50%;
+  border-top-color: var(--gm-accent, #2563eb);
+  height: 14px;
+  width: 14px;
+}
+
+@keyframes wf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wf-form {
+  max-width: 560px;
+}

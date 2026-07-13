@@ -9,7 +9,7 @@ import (
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 )
 
-func Form[T any](ctx dbos.DBOSContext, p Prompter, key, message string, defaults T, timeout time.Duration) (T, string, error) {
+func Form[T any](ctx dbos.DBOSContext, key, message string, defaults T, timeout time.Duration) (T, string, error) {
 	var out T
 	schema, err := SchemaFor(defaults)
 	if err != nil {
@@ -27,10 +27,10 @@ func Form[T any](ctx dbos.DBOSContext, p Prompter, key, message string, defaults
 		Topic:           "elicit/" + key,
 		WorkflowID:      workflowID,
 	}
-	if _, err := dbos.RunAsStep(ctx, func(context.Context) (string, error) {
-		return "", p.Prompt(prompt)
-	}, dbos.WithStepName("elicit/"+key)); err != nil {
-		return out, "", errors.Wrap(err, "prompt")
+	if _, err := dbos.RunAsStep(ctx, func(context.Context) (Prompt, error) {
+		return prompt, nil
+	}, dbos.WithStepName(prompt.Topic)); err != nil {
+		return out, "", errors.Wrap(err, "record prompt")
 	}
 
 	reply, err := dbos.Recv[Reply](ctx, prompt.Topic, timeout)

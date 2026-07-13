@@ -45,11 +45,10 @@ func TestChatAgent(t *testing.T) {
 		want  string
 	}{
 		{agent: "codex", name: "known chat agent", want: "codex"},
-		{agent: "contact", name: "workflow agent"},
 		{agent: "missing", name: "unknown agent"},
 		{agent: "", name: "default"},
 	}
-	agents := []string{"claude", "codex", "contact", "echo"}
+	agents := []string{"claude", "codex", "echo"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
@@ -61,7 +60,7 @@ func TestChatAgent(t *testing.T) {
 func TestChatAgentOptions(t *testing.T) {
 	a := assert.New(t)
 
-	a.Equal([]string{"claude", "codex", "echo"}, chatAgentOptions([]string{"claude", "codex", "contact", "echo"}))
+	a.Equal([]string{"claude", "codex", "echo"}, chatAgentOptions([]string{"claude", "codex", "echo"}))
 }
 
 func TestChatModel(t *testing.T) {
@@ -107,7 +106,7 @@ func TestArchiveFilter(t *testing.T) {
 
 func TestLegacyTaskPagesAreNotMounted(t *testing.T) {
 	a := assert.New(t)
-	srv := NewServer(nil, nil, nil).Handler()
+	srv := NewServer(nil, nil, nil, nil).Handler()
 
 	for _, path := range []string{"/tasks", "/tasks/1"} {
 		rec := httptest.NewRecorder()
@@ -169,9 +168,9 @@ func TestWorkflowAgent(t *testing.T) {
 		typ  string
 		want string
 	}{
-		{name: "default", want: "contact"},
-		{name: "contact", typ: "contact", want: "contact"},
-		{name: "unknown", typ: "other", want: "contact"},
+		{name: "default", want: "greet"},
+		{name: "greet", typ: "greet", want: "greet"},
+		{name: "unknown", typ: "other", want: "greet"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

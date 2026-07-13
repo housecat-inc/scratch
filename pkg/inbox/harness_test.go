@@ -8,8 +8,10 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ts"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/housecat-inc/scratch/testkit"
 )
 
@@ -17,6 +19,7 @@ type Harness struct {
 	*testkit.Harness
 	Chat  *chat.Service
 	Clock *ts.MockTime
+	Flows *flow.Engine
 	Logs  *testkit.LogRecorder
 	Store *db.DB
 	Tasks *todo.Service
@@ -44,18 +47,25 @@ func runBrowser(t *testing.T, cases []testkit.BrowserCase[*Harness]) {
 			kit.R.NoError(err)
 			t.Cleanup(func() { store.Close() })
 
+			workflows, err := workflow.New(t.TempDir() + "/workflows.db")
+			kit.R.NoError(err)
+			flows := flow.New(flow.Deps{DBOS: workflows.Ctx(), Greeter: flow.HeuristicGreeter(), Log: slog.New(logs)})
+			kit.R.NoError(workflows.Launch())
+			t.Cleanup(func() { workflows.Close() })
+
 			chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.New(logs))
 			t.Cleanup(chatSvc.Close)
 			taskSvc := todo.NewService(store)
 
 			mux := http.NewServeMux()
 			mux.Handle("/chat/", chat.NewServer(chatSvc, slog.New(logs)).Handler())
-			mux.Handle("/", NewServer(taskSvc, chatSvc, slog.New(logs)).Handler())
+			mux.Handle("/", NewServer(taskSvc, chatSvc, flows, slog.New(logs)).Handler())
 
 			return &Harness{
 				Harness: testkit.NewHarnessWithT(t, kit, mux),
 				Chat:    chatSvc,
 				Clock:   clock,
+				Flows:   flows,
 				Logs:    logs,
 				Store:   store,
 				Tasks:   taskSvc,

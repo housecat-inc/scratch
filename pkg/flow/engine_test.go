@@ -1,0 +1,95 @@
+package flow
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/housecat-inc/scratch/pkg/elicit"
+	"github.com/housecat-inc/scratch/pkg/workflow"
+	"github.com/stretchr/testify/require"
+)
+
+func newEngine(t *testing.T) *Engine {
+	t.Helper()
+	wf, err := workflow.New(t.TempDir() + "/flow.db")
+	require.NoError(t, err)
+	engine := New(Deps{
+		DBOS:    wf.Ctx(),
+		Greeter: GreeterFunc(func(_ context.Context, name string) (string, error) { return "Hi " + name, nil }),
+		Log:     slog.Default(),
+	})
+	require.NoError(t, wf.Launch())
+	t.Cleanup(func() { wf.Close() })
+	return engine
+}
+
+func waitForm(t *testing.T, e *Engine, id string) *elicit.Prompt {
+	t.Helper()
+	var run RunView
+	require.Eventually(t, func() bool {
+		var err error
+		run, err = e.Run(id)
+		return err == nil && run.Form != nil
+	}, 5*time.Second, 20*time.Millisecond)
+	return run.Form
+}
+
+func TestGreetAccept(t *testing.T) {
+	r := require.New(t)
+	e := newEngine(t)
+
+	r.NoError(e.Start("greet-1"))
+	form := waitForm(t, e, "greet-1")
+	r.Equal("What should I call you?", form.Message)
+
+	r.NoError(e.Resolve("greet-1", form.ElicitationID, elicit.ActionAccept, map[string]string{"name": "Ada"}))
+
+	var run RunView
+	r.Eventually(func() bool {
+		var err error
+		run, err = e.Run("greet-1")
+		return err == nil && run.Done()
+	}, 5*time.Second, 20*time.Millisecond)
+
+	r.Equal("Hi Ada", run.Result)
+	r.Nil(run.Form)
+	r.Len(run.Steps, 2)
+	r.Equal(StepDone, run.Steps[0].Status)
+	r.Contains(run.Steps[0].Detail, "Ada")
+	r.Equal("Generate greeting", run.Steps[1].Title)
+	r.Equal("Hi Ada", run.Steps[1].Detail)
+}
+
+func TestGreetDecline(t *testing.T) {
+	r := require.New(t)
+	e := newEngine(t)
+
+	r.NoError(e.Start("greet-2"))
+	form := waitForm(t, e, "greet-2")
+
+	r.NoError(e.Resolve("greet-2", form.ElicitationID, elicit.ActionDecline, nil))
+
+	var run RunView
+	r.Eventually(func() bool {
+		var err error
+		run, err = e.Run("greet-2")
+		return err == nil && run.Done()
+	}, 5*time.Second, 20*time.Millisecond)
+
+	r.Empty(run.Result)
+	r.Len(run.Steps, 1)
+	r.Equal("Declined", run.Steps[0].Detail)
+}
+
+func TestResolveUnknownForm(t *testing.T) {
+	r := require.New(t)
+	e := newEngine(t)
+
+	r.NoError(e.Start("greet-3"))
+	waitForm(t, e, "greet-3")
+
+	err := e.Resolve("greet-3", "greet-3/missing", elicit.ActionAccept, map[string]string{"name": "Ada"})
+	r.ErrorIs(err, ErrFormNotFound)
+}

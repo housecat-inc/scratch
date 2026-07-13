@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -12,6 +13,8 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/elicit"
+	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/server/httperr"
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/todo"
@@ -20,15 +23,16 @@ import (
 
 type Server struct {
 	chat  *chat.Service
+	flows *flow.Engine
 	log   *slog.Logger
 	tasks *todo.Service
 }
 
-func NewServer(tasks *todo.Service, chat *chat.Service, log *slog.Logger) *Server {
+func NewServer(tasks *todo.Service, chat *chat.Service, flows *flow.Engine, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Server{chat: chat, log: log, tasks: tasks}
+	return &Server{chat: chat, flows: flows, log: log, tasks: tasks}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -55,6 +59,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/tasks/{id}/trash", s.handleTrashTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/resolve", s.handleResolveWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
@@ -161,25 +166,17 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, "/inbox/tasks/"+strconv.FormatInt(task.ID, 10), http.StatusSeeOther)
 	case "workflow":
-		thread, err := s.chat.CreateThread(workflowAgent(r.FormValue("workflow_type")), createTitle(prompt, "New workflow", createOnly))
+		workflowType := workflowAgent(r.FormValue("workflow_type"))
+		thread, workflowID, err := s.chat.CreateWorkflowThread(workflowType, workflowTitle(workflowType))
 		if err != nil {
 			s.fail(w, err)
 			return
 		}
-		attachmentIDs, err := s.composeAttachments(r, thread.ID)
-		if err != nil {
+		if err := s.flows.Start(workflowID); err != nil {
 			s.fail(w, err)
 			return
 		}
-		if (prompt != "" || len(attachmentIDs) > 0) && !createOnly {
-			if prompt == "" {
-				prompt = "See attached files."
-			}
-			if _, err := s.chat.Send(thread.ID, prompt, attachmentIDs...); err != nil {
-				s.fail(w, err)
-				return
-			}
-		}
+		s.flows.Await(workflowID, 2*time.Second)
 		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
 	default:
 		thread, err := s.chat.CreateThreadWithModel(agent, model, createTitle(prompt, "New chat", createOnly))
@@ -450,12 +447,18 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 			return ui.InboxProps{}, err
 		}
 		props.Task = &detail
-	case "chat", "workflow":
+	case "chat":
 		detail, err := s.chatDetail(selected.ID, selected.Kind)
 		if err != nil {
 			return ui.InboxProps{}, err
 		}
 		props.Thread = &detail
+	case "workflow":
+		detail, err := s.workflowDetail(selected.ID)
+		if err != nil {
+			return ui.InboxProps{}, err
+		}
+		props.Workflow = &detail
 	}
 	return props, nil
 }
@@ -479,16 +482,20 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 		}
 	}
 	for _, thread := range threads {
-		kind := "chat"
-		agent := s.chat.AgentName(thread)
-		if isWorkflowAgent(agent) {
-			kind = "workflow"
+		if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
+			item := threadItem(thread, "workflow", "", s.workflowSnippet(workflowID))
+			addCounts(&counts, item)
+			if includeItem(view, filter, item) {
+				all = append(all, item)
+			}
+			continue
 		}
+		agent := s.chat.AgentName(thread)
 		prompt, err := s.threadPrompt(thread.ID)
 		if err != nil {
 			return nil, ui.InboxCounts{}, errors.Wrap(err, "first thread prompt")
 		}
-		item := threadItem(thread, kind, agent, prompt)
+		item := threadItem(thread, "chat", agent, prompt)
 		addCounts(&counts, item)
 		if includeItem(view, filter, item) {
 			all = append(all, item)
@@ -530,6 +537,99 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 		Streaming:   view.Streaming,
 		Title:       title,
 	}, nil
+}
+
+func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		return ui.InboxWorkflowDetail{}, err
+	}
+	workflowID := s.chat.ThreadWorkflowID(thread)
+	run, err := s.flows.Run(workflowID)
+	if errors.Is(err, flow.ErrRunNotFound) {
+		run = flow.RunView{ID: workflowID, Status: "PENDING"}
+	} else if err != nil {
+		return ui.InboxWorkflowDetail{}, err
+	}
+	title := thread.Title
+	if title == "" {
+		title = "New workflow"
+	}
+	detail := ui.InboxWorkflowDetail{
+		Archived: thread.State == db.ThreadStateArchived,
+		ID:       id,
+		Running:  run.Running(),
+		Starred:  thread.Starred,
+		Status:   run.Status,
+		Title:    title,
+	}
+	for _, step := range run.Steps {
+		detail.Steps = append(detail.Steps, ui.WorkflowStepProps{
+			Detail: step.Detail,
+			Status: step.Status,
+			Title:  step.Title,
+		})
+	}
+	if run.Form != nil {
+		form := chat.FormProps(fmt.Sprintf("/inbox/workflows/%d/resolve", id), *run.Form)
+		detail.Form = &form
+	}
+	return detail, nil
+}
+
+func (s *Server) workflowSnippet(workflowID string) string {
+	status, err := s.flows.Status(workflowID)
+	if err != nil {
+		return ""
+	}
+	switch status {
+	case "SUCCESS":
+		return "Completed"
+	case "ERROR":
+		return "Failed"
+	case "CANCELLED":
+		return "Cancelled"
+	default:
+		return "Running"
+	}
+}
+
+func (s *Server) handleResolveWorkflow(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	workflowID := s.chat.ThreadWorkflowID(thread)
+	if workflowID == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	values := map[string]string{}
+	for key := range r.PostForm {
+		if name, ok := strings.CutPrefix(key, "f_"); ok {
+			values[name] = r.PostForm.Get(key)
+		}
+	}
+	err = s.flows.Resolve(workflowID, r.PostForm.Get("elicitation_id"), r.PostForm.Get("action"), values)
+	switch {
+	case err == nil, errors.Is(err, flow.ErrFormResolved):
+		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	case elicit.IsInvalid(err):
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+	case errors.Is(err, flow.ErrFormNotFound):
+		http.Error(w, "form not found", http.StatusNotFound)
+	default:
+		s.fail(w, err)
+	}
 }
 
 func (s *Server) taskDetail(id int64) (ui.InboxTaskDetail, error) {
@@ -608,17 +708,13 @@ func includeTaskFilter(filter string, item ui.InboxItem) bool {
 	}
 }
 
-func isWorkflowAgent(agent string) bool {
-	return agent == "contact" || strings.HasPrefix(agent, "workflow")
-}
-
 func chatAgent(agent string, agents []string) string {
 	agent = strings.TrimSpace(agent)
-	if agent == "" || isWorkflowAgent(agent) {
+	if agent == "" {
 		return ""
 	}
 	for _, known := range agents {
-		if agent == known && !isWorkflowAgent(known) {
+		if agent == known {
 			return agent
 		}
 	}
@@ -628,7 +724,7 @@ func chatAgent(agent string, agents []string) string {
 func chatAgentOptions(agents []string) []string {
 	out := make([]string, 0, len(agents))
 	for _, agent := range agents {
-		if agent == "" || isWorkflowAgent(agent) {
+		if agent == "" {
 			continue
 		}
 		out = append(out, agent)
@@ -642,10 +738,19 @@ func chatModel(agent, model string) string {
 
 func workflowAgent(typ string) string {
 	switch strings.TrimSpace(typ) {
-	case "", "contact":
-		return "contact"
+	case "", "greet":
+		return "greet"
 	default:
-		return "contact"
+		return "greet"
+	}
+}
+
+func workflowTitle(typ string) string {
+	switch typ {
+	case "greet":
+		return "Greet"
+	default:
+		return "Workflow"
 	}
 }
 
