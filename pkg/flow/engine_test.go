@@ -60,7 +60,7 @@ func TestGreetAccept(t *testing.T) {
 	r.Equal(StepDone, run.Steps[0].Status)
 	r.Equal("Ada", run.Steps[0].Values["name"])
 	r.Equal(KindResponse, run.Steps[1].Kind)
-	r.Equal("Greeting", run.Steps[1].Title)
+	r.Equal("Generate greeting", run.Steps[1].Title)
 	r.Equal("Hi Ada", run.Steps[1].Detail)
 }
 
@@ -109,9 +109,14 @@ func TestGreetProgressWhileRunning(t *testing.T) {
 	var run RunView
 	r.Eventually(func() bool {
 		run, err = e.Run("greet-p")
-		return err == nil && run.Progress != ""
+		if err != nil || len(run.Steps) == 0 {
+			return false
+		}
+		return run.Steps[len(run.Steps)-1].Status == StepRunning
 	}, 5*time.Second, 20*time.Millisecond)
-	r.Equal("Generating greeting", run.Progress)
+	last := run.Steps[len(run.Steps)-1]
+	r.Equal("Generate greeting", last.Title)
+	r.Equal(KindResponse, last.Kind)
 	r.Nil(run.Form)
 	release <- struct{}{}
 }

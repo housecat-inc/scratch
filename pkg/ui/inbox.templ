@@ -265,16 +265,6 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 					@ChatForm(*d.Form)
 				}
 			}
-			if d.Progress != "" {
-				@ChatTurn("assistant") {
-					@chatRow(chatRowProps{
-						Key:   "wf-progress",
-						Kind:  "tool",
-						Label: d.Progress,
-						Live:  true,
-					})
-				}
-			}
 		</div>
 	</div>
 }
@@ -291,19 +281,32 @@ templ workflowItem(i int, item WorkflowItemProps) {
 			}
 		case "response":
 			@ChatTurn("assistant") {
-				<div class="chat-md">
-					@Markdown(item.Detail)
-				</div>
+				@chatRow(chatRowProps{
+					Failed:   item.Failed,
+					Key:      "wf-step-" + strconv.Itoa(i),
+					Kind:     "tool",
+					Label:    item.Title,
+					Live:     item.Running,
+					Preserve: true,
+					Summary:  item.Summary,
+				})
+				if item.Detail != "" {
+					<div class="chat-md">
+						@Markdown(item.Detail)
+					</div>
+				}
 			}
 		default:
 			@ChatTurn("assistant") {
 				@chatRow(chatRowProps{
-					Detail:  item.Detail,
-					Failed:  item.Failed,
-					Key:     "wf-step-" + strconv.Itoa(i),
-					Kind:    "tool",
-					Label:   item.Title,
-					Summary: item.Summary,
+					Detail:   item.Detail,
+					Failed:   item.Failed,
+					Key:      "wf-step-" + strconv.Itoa(i),
+					Kind:     "tool",
+					Label:    item.Title,
+					Live:     item.Running,
+					Preserve: true,
+					Summary:  item.Summary,
 				})
 			}
 	}

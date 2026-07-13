@@ -75,13 +75,14 @@ type ChatPartProps struct {
 }
 
 type chatRowProps struct {
-	Detail  string
-	Failed  bool
-	Key     string
-	Kind    string
-	Label   string
-	Live    bool
-	Summary string
+	Detail   string
+	Failed   bool
+	Key      string
+	Kind     string
+	Label    string
+	Live     bool
+	Preserve bool
+	Summary  string
 }
 
 type ChatPlanEntryProps struct {

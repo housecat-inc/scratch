@@ -557,7 +557,6 @@ func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 	detail := ui.InboxWorkflowDetail{
 		Archived: thread.State == db.ThreadStateArchived,
 		ID:       id,
-		Progress: run.Progress,
 		Running:  run.Running(),
 		Starred:  thread.Starred,
 		Status:   run.Status,
@@ -569,6 +568,7 @@ func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 			Detail:  step.Detail,
 			Failed:  step.Failed,
 			Kind:    step.Kind,
+			Running: step.Status == flow.StepRunning,
 			Summary: step.Summary,
 			Title:   step.Title,
 		}

@@ -291,7 +291,9 @@ templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
 templ chatRow(r chatRowProps) {
 	<details class={ "chat-row", "row-" + r.Kind, templ.KV("row-failed", r.Failed) } data-key={ r.Key }>
 		<summary>
-			if r.Live {
+			if r.Live && r.Preserve {
+				<span id={ r.Key + "-spinner" } hx-preserve="true" class="chat-spinner"></span>
+			} else if r.Live {
 				<span class="chat-spinner"></span>
 			} else {
 				<span class="chat-row-icon">

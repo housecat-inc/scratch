@@ -29,14 +29,9 @@ func (e *Engine) greet(ctx dbos.DBOSContext, _ GreetInput) (string, error) {
 	if action != elicit.ActionAccept {
 		return "", nil
 	}
-	if _, err := dbos.RunAsStep(ctx, func(context.Context) (string, error) {
-		return "Generating greeting", nil
-	}, dbos.WithStepName("begin/greeting")); err != nil {
-		return "", errors.Wrap(err, "begin greeting")
-	}
-	greeting, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (string, error) {
+	greeting, err := act(ctx, "respond/greeting", "Generate greeting", func(stepCtx context.Context) (string, error) {
 		return e.greeter.Greet(stepCtx, strings.TrimSpace(name.Name))
-	}, dbos.WithStepName("respond/greeting"))
+	})
 	if err != nil {
 		return "", errors.Wrap(err, "generate greeting")
 	}

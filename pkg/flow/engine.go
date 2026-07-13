@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -66,12 +67,16 @@ type StepView struct {
 }
 
 type RunView struct {
-	Form     *elicit.Prompt
-	ID       string
-	Progress string
-	Result   string
-	Status   string
-	Steps    []StepView
+	Form   *elicit.Prompt
+	ID     string
+	Result string
+	Status string
+	Steps  []StepView
+}
+
+type stepBegin struct {
+	Name  string `json:"name"`
+	Title string `json:"title"`
 }
 
 func (v RunView) Running() bool {
@@ -79,6 +84,15 @@ func (v RunView) Running() bool {
 }
 
 func (v RunView) Done() bool { return v.Status == string(dbos.WorkflowStatusSuccess) }
+
+func act(ctx dbos.DBOSContext, name, title string, fn func(context.Context) (string, error)) (string, error) {
+	if _, err := dbos.RunAsStep(ctx, func(context.Context) (stepBegin, error) {
+		return stepBegin{Name: name, Title: title}, nil
+	}, dbos.WithStepName("begin/"+name)); err != nil {
+		return "", errors.Wrap(err, "begin "+name)
+	}
+	return dbos.RunAsStep(ctx, fn, dbos.WithStepName(name))
+}
 
 func (e *Engine) Start(id string) error {
 	_, err := dbos.RunWorkflow(e.ctx, e.greet, GreetInput{}, dbos.WithWorkflowID(id))
@@ -113,12 +127,16 @@ func (e *Engine) Run(id string) (RunView, error) {
 
 	view := RunView{ID: id, Result: output, Status: status}
 	var awaiting []elicit.Prompt
-	progress := ""
+	var pending []stepBegin
+	titles := map[string]string{}
 
 	for _, s := range steps {
 		switch {
 		case strings.HasPrefix(s.StepName, "begin/"):
-			progress, _ = decode[string](s.Output)
+			if b, err := decode[stepBegin](s.Output); err == nil {
+				pending = append(pending, b)
+				titles[b.Name] = b.Title
+			}
 		case strings.HasPrefix(s.StepName, "elicit/"):
 			prompt, err := decode[elicit.Prompt](s.Output)
 			if err != nil {
@@ -141,18 +159,18 @@ func (e *Engine) Run(id string) (RunView, error) {
 			view.Steps = append(view.Steps, sv)
 			awaiting = awaiting[1:]
 		case strings.HasPrefix(s.StepName, "respond/"):
-			progress = ""
+			pending = dropPending(pending, s.StepName)
 			body, _ := decode[string](s.Output)
 			view.Steps = append(view.Steps, StepView{
 				Detail: body,
 				Kind:   KindResponse,
 				Status: stepStatus(s),
-				Title:  stepTitle(s.StepName),
+				Title:  stepDisplayTitle(titles, s.StepName),
 			})
 		case strings.HasPrefix(s.StepName, "DBOS."):
 			continue
 		default:
-			progress = ""
+			pending = dropPending(pending, s.StepName)
 			detail, _ := decode[string](s.Output)
 			view.Steps = append(view.Steps, StepView{
 				Detail:  detail,
@@ -160,7 +178,7 @@ func (e *Engine) Run(id string) (RunView, error) {
 				Kind:    KindTool,
 				Status:  stepStatus(s),
 				Summary: firstLine(detail),
-				Title:   stepTitle(s.StepName),
+				Title:   stepDisplayTitle(titles, s.StepName),
 			})
 		}
 	}
@@ -169,12 +187,39 @@ func (e *Engine) Run(id string) (RunView, error) {
 		prompt := awaiting[len(awaiting)-1]
 		view.Form = &prompt
 	} else if view.Running() {
-		if progress == "" {
-			progress = "Working…"
+		for _, b := range pending {
+			view.Steps = append(view.Steps, StepView{
+				Kind:   beginKind(b.Name),
+				Status: StepRunning,
+				Title:  b.Title,
+			})
 		}
-		view.Progress = progress
 	}
 	return view, nil
+}
+
+func dropPending(pending []stepBegin, name string) []stepBegin {
+	out := pending[:0]
+	for _, b := range pending {
+		if b.Name != name {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+func stepDisplayTitle(titles map[string]string, name string) string {
+	if t, ok := titles[name]; ok && t != "" {
+		return t
+	}
+	return stepTitle(name)
+}
+
+func beginKind(name string) string {
+	if strings.HasPrefix(name, "respond/") {
+		return KindResponse
+	}
+	return KindTool
 }
 
 func replyValues(reply elicit.Reply) map[string]string {
