@@ -144,6 +144,13 @@ func (t *T) Type(page *rod.Page, selector string, text string) {
 	page.Timeout(BrowserOperationTimeout).MustElement(selector).MustInput(text)
 }
 
+func (t *T) Fill(page *rod.Page, selector string, text string) {
+	t.t.Helper()
+	el := page.Timeout(BrowserOperationTimeout).MustElement(selector)
+	el.MustSelectAllText()
+	el.MustInput(text)
+}
+
 func (t *T) Load(page *rod.Page, baseURL string, path string) {
 	t.t.Helper()
 

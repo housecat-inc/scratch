@@ -6,15 +6,15 @@ import (
 	"github.com/housecat-inc/scratch/testkit"
 )
 
-func filledFormValue(name, want string) Step {
+func editableFormValue(name, want string) Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
 		h.R.Eventually(func() bool {
 			v, err := h.Page.Eval(`(name) => {
-				const el = document.querySelector('.chat-elicit-filled [name="' + name + '"]');
+				const el = document.querySelector('.chat-elicit-editable [name="' + name + '"]');
 				return el ? (el.value + '|' + el.disabled) : "";
 			}`, name)
-			return err == nil && v.Value.Str() == want+"|true"
+			return err == nil && v.Value.Str() == want+"|false"
 		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
@@ -29,7 +29,7 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 				Click("#elicit-accept"),
 			},
 			Assert: []Step{
-				filledFormValue("f_name", "Ada"),
+				editableFormValue("f_name", "Ada"),
 				TextContains(".chat-turn.role-assistant .chat-md", "Ada"),
 				TextContains(".mail-reader-head", "Completed"),
 			},
@@ -47,6 +47,41 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 				TextContains(".mail-reader-head", "Completed"),
 			},
 			Name: "declining the name form ends the workflow",
+			Path: "/",
+		},
+		{
+			Act: []Step{
+				Click("[data-new-workflow]"),
+				Type("[name=f_name]", "Ada"),
+				Click("#elicit-accept"),
+				TextContains(".chat-turn.role-assistant .chat-md", "Ada"),
+				Fill(".chat-elicit-editable [name=f_name]", "Grace"),
+				Click("#elicit-edit"),
+			},
+			Assert: []Step{
+				editableFormValue("f_name", "Grace"),
+				TextContains(".chat-turn.role-assistant .chat-md", "Grace"),
+				TextContains(".mail-reader-head", "Completed"),
+			},
+			Name: "editing the name reruns the greeting with a new value",
+			Path: "/",
+		},
+		{
+			Act: []Step{
+				Click("[data-new-workflow]"),
+				Type("[name=f_name]", "Ada"),
+				Click("#elicit-accept"),
+				TextContains(".chat-turn.role-assistant .chat-md", "Ada"),
+				Click("#elicit-fork"),
+				TextContains(".chat-row-label", "What should I call you?"),
+				Type("[name=f_name]", "Bob"),
+				Click("#elicit-accept"),
+			},
+			Assert: []Step{
+				TextContains(".chat-turn.role-assistant .chat-md", "Bob"),
+				TextContains(".mail-reader-head", "Completed"),
+			},
+			Name: "forking the name form branches into a new runnable workflow",
 			Path: "/",
 		},
 	})

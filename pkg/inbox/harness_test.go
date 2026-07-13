@@ -103,6 +103,7 @@ var ElementAbsent = func(selector string) Step {
 		h.ElementAbsent(selector)
 	}
 }
+var Fill = testkit.FillStep[*Harness]
 var Press = testkit.PressStep[*Harness]
 var TextContains = testkit.TextContainsStep[*Harness]
 var Type = testkit.TypeStep[*Harness]

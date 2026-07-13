@@ -398,6 +398,20 @@ func (e *Engine) Fork(id, elicitationID string) (string, error) {
 	return handle.GetWorkflowID(), nil
 }
 
+func (e *Engine) Cancel(id string) error {
+	status, _, err := e.workflow(id)
+	if errors.Is(err, ErrRunNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if status != string(dbos.WorkflowStatusPending) && status != string(dbos.WorkflowStatusEnqueued) {
+		return nil
+	}
+	return errors.Wrap(dbos.CancelWorkflow(e.ctx, id), "cancel workflow")
+}
+
 func (e *Engine) EditForm(id, elicitationID, action string, values map[string]string) (string, error) {
 	forkedID, err := e.Fork(id, elicitationID)
 	if err != nil {

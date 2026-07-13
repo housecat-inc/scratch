@@ -95,6 +95,13 @@ func PressStep[H interface{ Press(string, string) }](selector, key string) Brows
 	}
 }
 
+func FillStep[H interface{ Fill(string, string) }](selector, text string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.Fill(selector, text)
+	}
+}
+
 func TextContainsStep[H interface{ ElementTextContains(string, string) }](selector, expected string) BrowserStep[H] {
 	return func(t *testing.T, h H) {
 		t.Helper()

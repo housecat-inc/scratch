@@ -23,8 +23,10 @@ type ChatFormFieldProps struct {
 type ChatFormProps struct {
 	Action        string
 	Disabled      bool
+	Editable      bool
 	ElicitationID string
 	Fields        []ChatFormFieldProps
+	ForkAction    string
 	HideMessage   bool
 	Message       string
 	MessageID     int64

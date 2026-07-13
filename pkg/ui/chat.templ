@@ -358,7 +358,12 @@ templ rowIcon(kind string, failed bool) {
 }
 
 templ ChatForm(f ChatFormProps) {
-	if f.Disabled {
+	if f.Editable {
+		<form class="chat-elicit chat-elicit-editable" method="post" action={ templ.SafeURL(f.Action) }>
+			<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
+			@chatFormBody(f)
+		</form>
+	} else if f.Disabled {
 		<div class="chat-elicit chat-elicit-filled">
 			@chatFormBody(f)
 		</div>
@@ -405,7 +410,12 @@ templ chatFormBody(f ChatFormProps) {
 			}
 		</label>
 	}
-	if !f.Disabled {
+	if f.Editable {
+		<div class="chat-elicit-actions">
+			<button id="elicit-edit" name="action" value="accept" type="submit">Save &amp; re-run</button>
+			<button id="elicit-fork" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate>Fork</button>
+		</div>
+	} else if !f.Disabled {
 		<div class="chat-elicit-actions">
 			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
 			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
