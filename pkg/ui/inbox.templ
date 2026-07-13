@@ -44,18 +44,17 @@ templ InboxActions(p InboxProps) {
 
 templ InboxCompose() {
 	<div class="mail-compose-actions">
-		@composeButton("task", "Task", "New task", taskIcon())
+		@composeButton("task", "Task", "New task")
 		@createWorkflowButton()
 	</div>
 }
 
-templ composeButton(mode, label, aria string, icon templ.Component) {
+templ composeButton(mode, label, aria string) {
 	<form class="mail-compose-btn-form" method="post" action="/compose">
 		<input type="hidden" name="mode" value={ mode }/>
 		<input type="hidden" name="create_only" value="true"/>
 		<button class="mail-compose-btn" type="submit" title={ aria } aria-label={ aria }>
 			@plusIcon()
-			@icon
 			<span>{ label }</span>
 		</button>
 	</form>
@@ -385,7 +384,6 @@ templ createWorkflowButton() {
 		<input type="hidden" name="create_only" value="true"/>
 		<button class="mail-compose-btn" type="submit" data-new-workflow title="New workflow" aria-label="New workflow">
 			@plusIcon()
-			@workflowIcon()
 			<span>Flow</span>
 		</button>
 		<span class="mail-create-select-wrap mail-model-select-wrap">
