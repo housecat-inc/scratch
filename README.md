@@ -18,17 +18,10 @@ Finally iterate with in-app developer tools like a DOM and web inspector agent c
 - In-app agent chat with a DOM inspector
 
 <p align="center">
+  <img src="docs/screenshots/setup.png" width="820" alt="Setup"/>
   <img src="docs/screenshots/inbox.png" width="820" alt="Agent inbox and navigation"/>
   <img src="docs/screenshots/chat.png" width="820" alt="Agent chat with an attached DOM inspector screenshot"/>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/setup.png" width="130" alt="Setup"/>
-  <img src="docs/screenshots/sessions.png" width="130" alt="Sessions"/>
-  <img src="docs/screenshots/diff.png" width="130" alt="Diffs"/>
-  <img src="docs/screenshots/comments.png" width="130" alt="Comments"/>
-  <img src="docs/screenshots/files.png" width="130" alt="Files"/>
-  <img src="docs/screenshots/claude-code-mobile.jpeg" width="130" alt="Claude Code mobile"/>
+  <img src="docs/screenshots/review.png" width="820" alt="Code review diff with an inline comment"/>
 </p>
 
 ## Install
