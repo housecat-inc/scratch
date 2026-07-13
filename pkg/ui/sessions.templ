@@ -281,11 +281,11 @@ templ SessionsCard(v SessionsProps) {
 						}
 					}
 					@card.Content() {
-						<fieldset class="space-y-4 p-0 m-0 border-0">
+						<fieldset class="space-y-4 p-0 m-0 border-0 min-w-0">
 							<div class="space-y-2">
 								<label class="block text-sm font-medium text-foreground">Working directory</label>
 								<div class="flex items-center gap-2">
-									<span id="dir-text" class="flex-1 font-mono text-sm text-foreground truncate bg-muted px-3 py-2 border border-border rounded-md">{ v.SessionDir }</span>
+									<span id="dir-text" class="flex-1 min-w-0 font-mono text-sm text-foreground truncate bg-muted px-3 py-2 border border-border rounded-md">{ v.SessionDir }</span>
 									@button.Button(button.Props{
 										Variant: button.VariantOutline,
 										Type:    button.TypeButton,
