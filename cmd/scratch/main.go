@@ -22,6 +22,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/housecat-inc/scratch/pkg/workflow"
+	"github.com/housecat-inc/scratch/pkg/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -49,14 +50,11 @@ func newRootCmd() *cobra.Command {
 			logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 			slog.SetDefault(logger)
 
-			home, err := os.UserHomeDir()
+			ws, err := workspace.Resolve()
 			if err != nil {
-				return errors.Wrap(err, "user home dir")
+				return err
 			}
-			workdir, err := os.Getwd()
-			if err != nil {
-				return errors.Wrap(err, "working dir")
-			}
+			home, workdir := ws.Home, ws.Dir
 			sessionsSrv, err := sessions.NewServer(sessions.DefaultDeps(), workdir)
 			if err != nil {
 				return errors.Wrap(err, "new sessions server")
@@ -137,7 +135,7 @@ func newRootCmd() *cobra.Command {
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 			srv.Mux.Handle("/", inboxSrv.Handler())
 
-			slog.Info("listening", "addr", addr, "agent", agent.Author())
+			slog.Info("listening", "addr", addr, "agent", agent.Author(), "dir", ws.Dir, "branch", ws.Branch)
 			return srv.Run()
 		},
 	}

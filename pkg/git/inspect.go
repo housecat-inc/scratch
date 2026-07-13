@@ -24,6 +24,14 @@ func Branch(dir string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+func Toplevel(dir string) (string, error) {
+	out, err := outputIn(dir, "git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 func CommitLog(dir, base, head string) ([]Commit, error) {
 	if head == "" {
 		head = "HEAD"
