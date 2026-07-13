@@ -3,15 +3,13 @@ import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { SQLite, sql } from "@codemirror/lang-sql";
 import { acceptCompletion, autocompletion, completionKeymap } from "@codemirror/autocomplete";
-import { LanguageServerClient, WebSocketTransport, languageServerPlugin } from "codemirror-languageserver";
+import { languageServer } from "codemirror-languageserver";
 
 window.CMSQL = {
   Compartment,
   EditorState,
   EditorView,
-  LanguageServerClient,
   SQLite,
-  WebSocketTransport,
   acceptCompletion,
   autocompletion,
   completionKeymap,
@@ -19,7 +17,7 @@ window.CMSQL = {
   history,
   historyKeymap,
   keymap,
-  languageServerPlugin,
+  languageServer,
   lineNumbers,
   sql,
 };

@@ -73,16 +73,12 @@
 
   try {
     var wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    var client = new CM.LanguageServerClient({
-      transport: new CM.WebSocketTransport(wsProto + "//" + window.location.host + "/sql/lsp" + query),
+    var lsp = CM.languageServer({
+      serverUri: wsProto + "//" + window.location.host + "/sql/lsp" + query,
       rootUri: "file:///",
-      workspaceFolders: null,
-      autoClose: true,
-    });
-    var lsp = CM.languageServerPlugin.of({
-      client: client,
       documentUri: "file:///query.sql",
       languageId: "sql",
+      workspaceFolders: null,
     });
     view.dispatch({ effects: lspCompartment.reconfigure(lsp) });
   } catch (err) {
