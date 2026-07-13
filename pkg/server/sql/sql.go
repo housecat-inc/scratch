@@ -1,11 +1,13 @@
 package sql
 
 import (
+	"bufio"
 	"context"
 	stdsql "database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,21 +30,27 @@ const (
 )
 
 type Deps struct {
+	AutoInstall bool
+	BinDir      string
 	DefaultPath string
 	Store       db.SQLQueryStore
 }
 
 func DefaultDeps(home string, store db.SQLQueryStore) Deps {
 	return Deps{
+		AutoInstall: true,
+		BinDir:      filepath.Join(home, ".config", "scratch", "bin"),
 		DefaultPath: filepath.Join(home, ".config", "scratch", "scratch.db"),
 		Store:       store,
 	}
 }
 
 type Server struct {
-	conns map[string]*stdsql.DB
-	deps  Deps
-	mu    sync.Mutex
+	conns   map[string]*stdsql.DB
+	deps    Deps
+	mu      sync.Mutex
+	sqlsBin string
+	sqlsMu  sync.Mutex
 }
 
 func NewServer(deps Deps) (*Server, error) {
@@ -55,6 +63,7 @@ func NewServer(deps Deps) (*Server, error) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handlePage)
+	mux.HandleFunc("GET /lsp", s.handleLSP)
 	mux.HandleFunc("GET /queries", s.handleListQueries)
 	mux.HandleFunc("GET /schema", s.handleSchema)
 	mux.HandleFunc("POST /queries", s.handleSaveQuery)
@@ -331,6 +340,14 @@ type statusRecorder struct {
 func (r *statusRecorder) WriteHeader(code int) {
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("hijack not supported")
+	}
+	return h.Hijack()
 }
 
 func logging(next http.Handler) http.Handler {

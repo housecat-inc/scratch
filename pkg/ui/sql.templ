@@ -65,6 +65,7 @@ templ SQLPage(v SQLProps) {
 							<form id="sql-run-form" hx-post="/sql/query" hx-target="#sql-results" hx-swap="innerHTML" hx-indicator="#sql-running" class="border-b border-slate-200">
 								<input type="hidden" name="path" value={ v.Path }/>
 								<textarea id="sql-editor" name="sql" spellcheck="false">{ v.Query }</textarea>
+								<div id="sql-cm" class="sql-cm"></div>
 							</form>
 							<div id="sql-results" class="flex-1 min-h-0 overflow-auto bg-white">
 								@SQLResults(v.Result)
@@ -75,6 +76,7 @@ templ SQLPage(v SQLProps) {
 				@SQLSaveModal()
 			}
 			<script src="/static/sql.js"></script>
+			<script type="module" src="/static/sql-lsp.js"></script>
 		</body>
 	</html>
 }
@@ -127,23 +129,19 @@ templ SQLHead() {
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="/static/htmx.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css"/>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css"/>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
 		<style>
 			html, body { height: 100%; }
-			#sql-editor + .CodeMirror { height: 160px; font-size: 14px; }
-			.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+			#sql-editor { display: block; width: 100%; height: 180px; resize: none; border: 0; outline: none; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+			.sql-cm { flex-shrink: 0; }
+			.sql-cm .cm-editor { height: 180px; }
+			.sql-cm .cm-editor.cm-focused { outline: none; }
+			.sql-cm .cm-scroller { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 			.sql-table { border-collapse: collapse; font-size: 12px; width: 100%; }
 			.sql-table th, .sql-table td { border: 1px solid #e2e8f0; padding: 3px 8px; text-align: left; white-space: pre; vertical-align: top; }
 			.sql-table th { background: #f8fafc; position: sticky; top: 0; }
 			.sql-table td.is-null { color: #94a3b8; font-style: italic; }
 			@media (max-width: 767px) {
-				#sql-editor + .CodeMirror { font-size: 16px; }
+				#sql-editor { font-size: 16px; }
 				#sql-wrap:not(.show-editor) .editor-pane { display: none; }
 				#sql-wrap.show-editor .tree-pane { display: none; }
 			}
