@@ -17,6 +17,10 @@ const (
 	StepDone    = "done"
 	StepFailed  = "failed"
 	StepRunning = "running"
+
+	KindForm     = "form"
+	KindResponse = "response"
+	KindTool     = "tool"
 )
 
 var (
@@ -50,9 +54,13 @@ func New(deps Deps) *Engine {
 }
 
 type StepView struct {
-	Detail string
-	Status string
-	Title  string
+	Answer  string
+	Detail  string
+	Failed  bool
+	Kind    string
+	Status  string
+	Summary string
+	Title   string
 }
 
 type RunView struct {
@@ -101,12 +109,7 @@ func (e *Engine) Run(id string) (RunView, error) {
 	sort.SliceStable(steps, func(i, j int) bool { return steps[i].StepID < steps[j].StepID })
 
 	view := RunView{ID: id, Result: output, Status: status}
-	type pending struct {
-		prompt elicit.Prompt
-		step   *StepView
-	}
-	var awaiting []pending
-	var rendered []*StepView
+	var awaiting []elicit.Prompt
 
 	for _, s := range steps {
 		switch {
@@ -115,33 +118,73 @@ func (e *Engine) Run(id string) (RunView, error) {
 			if err != nil {
 				continue
 			}
-			sv := &StepView{Status: StepRunning, Title: prompt.Message}
-			rendered = append(rendered, sv)
-			awaiting = append(awaiting, pending{prompt: prompt, step: sv})
+			awaiting = append(awaiting, prompt)
 		case s.StepName == "DBOS.recv":
 			if len(awaiting) == 0 {
 				continue
 			}
 			reply, _ := decode[elicit.Reply](s.Output)
-			awaiting[0].step.Detail = summarizeReply(awaiting[0].prompt, reply)
-			awaiting[0].step.Status = StepDone
+			view.Steps = append(view.Steps, StepView{
+				Answer: summarizeReply(awaiting[0], reply),
+				Kind:   KindForm,
+				Status: StepDone,
+				Title:  awaiting[0].Message,
+			})
 			awaiting = awaiting[1:]
-		case s.StepName == "greeting":
-			greeting, _ := decode[string](s.Output)
-			rendered = append(rendered, &StepView{Detail: greeting, Status: StepDone, Title: "Generate greeting"})
+		case strings.HasPrefix(s.StepName, "respond/"):
+			body, _ := decode[string](s.Output)
+			view.Steps = append(view.Steps, StepView{
+				Detail: body,
+				Kind:   KindResponse,
+				Status: stepStatus(s),
+				Title:  stepTitle(s.StepName),
+			})
+		case strings.HasPrefix(s.StepName, "DBOS."):
+			continue
+		default:
+			detail, _ := decode[string](s.Output)
+			view.Steps = append(view.Steps, StepView{
+				Detail:  detail,
+				Failed:  s.Error != nil,
+				Kind:    KindTool,
+				Status:  stepStatus(s),
+				Summary: firstLine(detail),
+				Title:   stepTitle(s.StepName),
+			})
 		}
 	}
 
 	if view.Running() && len(awaiting) > 0 {
-		last := awaiting[len(awaiting)-1]
-		prompt := last.prompt
+		prompt := awaiting[len(awaiting)-1]
 		view.Form = &prompt
-		last.step.Status = StepRunning
-	}
-	for _, s := range rendered {
-		view.Steps = append(view.Steps, *s)
 	}
 	return view, nil
+}
+
+func stepStatus(s dbos.StepInfo) string {
+	if s.Error != nil {
+		return StepFailed
+	}
+	return StepDone
+}
+
+func stepTitle(name string) string {
+	if i := strings.IndexByte(name, '/'); i >= 0 {
+		name = name[i+1:]
+	}
+	name = strings.ReplaceAll(name, "_", " ")
+	if name == "" {
+		return name
+	}
+	return strings.ToUpper(name[:1]) + name[1:]
+}
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
+	if len(line) > 80 {
+		return line[:80] + "…"
+	}
+	return line
 }
 
 func (e *Engine) Resolve(id, elicitationID, action string, values map[string]string) error {

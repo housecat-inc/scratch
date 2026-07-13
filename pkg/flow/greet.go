@@ -31,7 +31,7 @@ func (e *Engine) greet(ctx dbos.DBOSContext, _ GreetInput) (string, error) {
 	}
 	greeting, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (string, error) {
 		return e.greeter.Greet(stepCtx, strings.TrimSpace(name.Name))
-	}, dbos.WithStepName("greeting"))
+	}, dbos.WithStepName("respond/greeting"))
 	if err != nil {
 		return "", errors.Wrap(err, "generate greeting")
 	}

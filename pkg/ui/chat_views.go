@@ -26,6 +26,7 @@ type ChatFormProps struct {
 	Fields        []ChatFormFieldProps
 	Message       string
 	MessageID     int64
+	Plain         bool
 }
 
 type ChatAttachmentProps struct {

@@ -87,8 +87,7 @@ templ MailShell(p InboxProps) {
 }
 
 templ MailComposer(p InboxProps) {
-	if p.Workflow != nil {
-	} else if p.Thread != nil {
+	if p.Thread != nil {
 		@ChatComposer(threadComposerProps(*p.Thread))
 	} else {
 		@ChatComposer(composeComposerProps(p))
@@ -246,10 +245,10 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 		}
 		@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
 	}
-	<div class="mail-reader-body">
+	<div class="mail-reader-body mail-chat-body">
 		<div
 			id="wf-body"
-			class="wf-body"
+			class="chat-messages mail-chat-messages"
 			if d.Running && d.Form == nil {
 				hx-get={ threadInboxDetailURL("workflow", d.ID) }
 				hx-trigger="load delay:400ms"
@@ -258,65 +257,42 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 				hx-swap="outerHTML"
 			}
 		>
-			<ol class="wf-steps">
-				for _, step := range d.Steps {
-					@workflowStep(step)
-				}
-			</ol>
+			for i, item := range d.Items {
+				@workflowItem(i, item)
+			}
 			if d.Form != nil {
-				@workflowForm(*d.Form)
+				@ChatTurn("user") {
+					@ChatForm(*d.Form)
+				}
 			}
 		</div>
 	</div>
 }
 
-templ workflowStep(s WorkflowStepProps) {
-	<li class={ "wf-step", "wf-" + s.Status }>
-		<span class="wf-step-icon">
-			switch s.Status {
-				case "done":
-					@doneIcon(true)
-				case "failed":
-					@workflowIcon()
-				default:
-					<span class="wf-spinner"></span>
+templ workflowItem(i int, item WorkflowItemProps) {
+	switch item.Kind {
+		case "form":
+			@ChatTurn("user") {
+				<div class="chat-bubble">{ item.Answer }</div>
 			}
-		</span>
-		<div class="wf-step-main">
-			<span class="wf-step-title">{ s.Title }</span>
-			if s.Detail != "" {
-				<pre class="wf-step-detail">{ s.Detail }</pre>
+		case "response":
+			@ChatTurn("assistant") {
+				<div class="chat-md">
+					@Markdown(item.Detail)
+				</div>
 			}
-		</div>
-	</li>
-}
-
-templ workflowForm(f ChatFormProps) {
-	<form id="elicit-form" class="chat-elicit wf-form" method="post" action={ templ.SafeURL(f.Action) }>
-		<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
-		<p class="chat-elicit-message">{ f.Message }</p>
-		for _, field := range f.Fields {
-			<label class="chat-elicit-field">
-				<span>{ field.Label }</span>
-				switch field.Type {
-					case "select":
-						<select name={ "f_" + field.Name }>
-							for _, option := range field.Options {
-								<option value={ option } selected?={ option == field.Value }>{ option }</option>
-							}
-						</select>
-					case "checkbox":
-						<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" }/>
-					default:
-						<input type={ field.Type } name={ "f_" + field.Name } value={ field.Value } required?={ field.Required }/>
-				}
-			</label>
-		}
-		<div class="chat-elicit-actions">
-			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
-			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
-		</div>
-	</form>
+		default:
+			@ChatTurn("assistant") {
+				@chatRow(chatRowProps{
+					Detail:  item.Detail,
+					Failed:  item.Failed,
+					Key:     "wf-step-" + strconv.Itoa(i),
+					Kind:    "tool",
+					Label:   item.Title,
+					Summary: item.Summary,
+				})
+			}
+	}
 }
 
 templ ReaderHeader(p ReaderHeaderProps) {
@@ -568,40 +544,8 @@ func currentBackFallback(action string) string {
 	return "/inbox/tasks"
 }
 
-func composeMode(p InboxProps) string {
-	if p.Draft != nil {
-		return "chat"
-	}
-	switch p.View {
-	case "chats":
-		return "chat"
-	case "tasks":
-		return "task"
-	case "workflows":
-		return "workflow"
-	default:
-		return "auto"
-	}
-}
-
-func composePlaceholder(p InboxProps) string {
-	switch composeMode(p) {
-	case "chat":
-		return "Message Codex..."
-	case "task":
-		return "Create task..."
-	case "workflow":
-		return "Start workflow..."
-	default:
-		return "Message Codex, create task, or start workflow..."
-	}
-}
-
 func composeComposerProps(p InboxProps) ChatComposerProps {
-	hidden := []ChatComposerHiddenProps{
-		{Name: "view", Value: p.View},
-		{Name: "mode", Value: composeMode(p)},
-	}
+	var hidden []ChatComposerHiddenProps
 	if p.Draft != nil {
 		hidden = append(hidden,
 			ChatComposerHiddenProps{Name: "agent", Value: p.Draft.Agent},
@@ -610,9 +554,9 @@ func composeComposerProps(p InboxProps) ChatComposerProps {
 	}
 	return ChatComposerProps{
 		Action:      "/compose",
-		FileName:   "file",
-		Hidden:     hidden,
-		Placeholder: composePlaceholder(p),
+		FileName:    "file",
+		Hidden:      hidden,
+		Placeholder: "Chat with agent",
 	}
 }
 
@@ -801,10 +745,7 @@ func taskStatusLabel(item InboxItem) string {
 }
 
 func threadComposePlaceholder(d InboxThreadDetail) string {
-	if d.Kind == "workflow" {
-		return "Message the workflow..."
-	}
-	return "Message " + agentLabel(d.Agent) + "..."
+	return "Chat with agent"
 }
 
 func threadInboxActionURL(kind string, id int64, action string) string {

@@ -56,9 +56,11 @@ func TestGreetAccept(t *testing.T) {
 	r.Equal("Hi Ada", run.Result)
 	r.Nil(run.Form)
 	r.Len(run.Steps, 2)
+	r.Equal(KindForm, run.Steps[0].Kind)
 	r.Equal(StepDone, run.Steps[0].Status)
-	r.Contains(run.Steps[0].Detail, "Ada")
-	r.Equal("Generate greeting", run.Steps[1].Title)
+	r.Contains(run.Steps[0].Answer, "Ada")
+	r.Equal(KindResponse, run.Steps[1].Kind)
+	r.Equal("Greeting", run.Steps[1].Title)
 	r.Equal("Hi Ada", run.Steps[1].Detail)
 }
 
@@ -80,7 +82,8 @@ func TestGreetDecline(t *testing.T) {
 
 	r.Empty(run.Result)
 	r.Len(run.Steps, 1)
-	r.Equal("Declined", run.Steps[0].Detail)
+	r.Equal(KindForm, run.Steps[0].Kind)
+	r.Equal("Declined", run.Steps[0].Answer)
 }
 
 func TestResolveUnknownForm(t *testing.T) {

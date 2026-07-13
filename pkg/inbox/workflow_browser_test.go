@@ -16,8 +16,8 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 				Click("#elicit-accept"),
 			},
 			Assert: []Step{
-				TextContains(".wf-steps", "Generate greeting"),
-				TextContains(".wf-steps", "Ada"),
+				TextContains(".chat-turn.role-user .chat-bubble", "Ada"),
+				TextContains(".chat-turn.role-assistant .chat-md", "Ada"),
 				TextContains(".mail-reader-head", "Completed"),
 			},
 			Name: "greet workflow prompts for a name then shows a greeting",
@@ -30,7 +30,7 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 				Click("#elicit-decline"),
 			},
 			Assert: []Step{
-				TextContains(".wf-steps", "Declined"),
+				TextContains(".chat-turn.role-user .chat-bubble", "Declined"),
 				TextContains(".mail-reader-head", "Completed"),
 			},
 			Name: "declining the name form ends the workflow",

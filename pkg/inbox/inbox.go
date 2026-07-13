@@ -146,10 +146,9 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		model = chatModel(agent, model)
 	}
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
-	mode := strings.TrimSpace(r.FormValue("mode"))
+	mode := resolveComposeMode(strings.TrimSpace(r.FormValue("mode")))
 	createOnly := r.FormValue("create_only") == "true"
 	hasFiles := composeHasFiles(r)
-	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"), hasFiles)
 	if prompt == "" && !createOnly && !hasFiles {
 		s.redirectBack(w, r)
 		return
@@ -564,14 +563,18 @@ func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 		Title:    title,
 	}
 	for _, step := range run.Steps {
-		detail.Steps = append(detail.Steps, ui.WorkflowStepProps{
-			Detail: step.Detail,
-			Status: step.Status,
-			Title:  step.Title,
+		detail.Items = append(detail.Items, ui.WorkflowItemProps{
+			Answer:  step.Answer,
+			Detail:  step.Detail,
+			Failed:  step.Failed,
+			Kind:    step.Kind,
+			Summary: step.Summary,
+			Title:   step.Title,
 		})
 	}
 	if run.Form != nil {
 		form := chat.FormProps(fmt.Sprintf("/inbox/workflows/%d/resolve", id), *run.Form)
+		form.Plain = true
 		detail.Form = &form
 	}
 	return detail, nil
@@ -770,26 +773,13 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
-func resolveComposeMode(mode, prompt, view string, hasFiles bool) (string, string) {
-	if mode == "auto" || mode == "" {
-		for _, prefix := range []string{"chat", "task", "workflow"} {
-			if rest, ok := strings.CutPrefix(strings.ToLower(prompt), prefix+":"); ok {
-				return prefix, strings.TrimSpace(prompt[len(prompt)-len(rest):])
-			}
-		}
-		if hasFiles {
-			return "chat", prompt
-		}
-		switch view {
-		case "tasks":
-			return "task", prompt
-		case "workflows":
-			return "workflow", prompt
-		default:
-			return "chat", prompt
-		}
+func resolveComposeMode(mode string) string {
+	switch mode {
+	case "task", "workflow":
+		return mode
+	default:
+		return "chat"
 	}
-	return mode, prompt
 }
 
 func taskItem(task db.Task) ui.InboxItem {

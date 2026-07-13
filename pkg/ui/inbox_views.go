@@ -75,17 +75,20 @@ type InboxWorkflowDetail struct {
 	Archived bool
 	Form     *ChatFormProps
 	ID       int64
+	Items    []WorkflowItemProps
 	Running  bool
 	Starred  bool
 	Status   string
-	Steps    []WorkflowStepProps
 	Title    string
 }
 
-type WorkflowStepProps struct {
-	Detail string
-	Status string
-	Title  string
+type WorkflowItemProps struct {
+	Answer  string
+	Detail  string
+	Failed  bool
+	Kind    string
+	Summary string
+	Title   string
 }
 
 type ReaderHeaderProps struct {

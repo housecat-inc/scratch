@@ -140,29 +140,39 @@ templ ChatMessage(m ChatMessageProps) {
 				}
 			}
 			if m.Form != nil {
-				@chatForm(*m.Form)
+				@ChatForm(*m.Form)
 			}
 			if m.Status == "streaming" && m.Form == nil {
 				<span class="chat-cursor"></span>
 			}
 		} else {
-			if len(m.Attachments) > 0 {
-				<div class="chat-bubble-attachments">
-					for _, a := range m.Attachments {
-						<a class="chat-attachment-chip" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
-							if a.IsImage {
-								@imageIcon()
-								<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
-							} else {
-								@paperclipIcon()
-							}
-							<span class="chat-chip-name">{ a.Name }</span>
-						</a>
-					}
-				</div>
-			}
-			<div class="chat-bubble">{ m.Body }</div>
+			@userBubble(m)
 		}
+	</div>
+}
+
+templ userBubble(m ChatMessageProps) {
+	if len(m.Attachments) > 0 {
+		<div class="chat-bubble-attachments">
+			for _, a := range m.Attachments {
+				<a class="chat-attachment-chip" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
+					if a.IsImage {
+						@imageIcon()
+						<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
+					} else {
+						@paperclipIcon()
+					}
+					<span class="chat-chip-name">{ a.Name }</span>
+				</a>
+			}
+		</div>
+	}
+	<div class="chat-bubble">{ m.Body }</div>
+}
+
+templ ChatTurn(role string) {
+	<div class={ "chat-turn", "role-" + role }>
+		{ children... }
 	</div>
 }
 
@@ -346,12 +356,23 @@ templ rowIcon(kind string, failed bool) {
 	}
 }
 
-templ chatForm(f ChatFormProps) {
-	<form id="elicit-form" class="chat-elicit" hx-post={ f.Action } hx-swap="none">
-		<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
-		<input type="hidden" name="message_id" value={ itoa64(f.MessageID) }/>
-		<p class="chat-elicit-message">{ f.Message }</p>
-		for _, field := range f.Fields {
+templ ChatForm(f ChatFormProps) {
+	if f.Plain {
+		<form id="elicit-form" class="chat-elicit" method="post" action={ templ.SafeURL(f.Action) }>
+			@chatFormBody(f)
+		</form>
+	} else {
+		<form id="elicit-form" class="chat-elicit" hx-post={ f.Action } hx-swap="none">
+			<input type="hidden" name="message_id" value={ itoa64(f.MessageID) }/>
+			@chatFormBody(f)
+		</form>
+	}
+}
+
+templ chatFormBody(f ChatFormProps) {
+	<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
+	<p class="chat-elicit-message">{ f.Message }</p>
+	for _, field := range f.Fields {
 			<label class="chat-elicit-field">
 				<span>{ field.Label }</span>
 				switch field.Type {
@@ -377,5 +398,4 @@ templ chatForm(f ChatFormProps) {
 			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
 			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
 		</div>
-	</form>
 }
