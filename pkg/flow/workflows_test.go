@@ -1,161 +1,143 @@
 package flow
 
 import (
-	"context"
-	"log/slog"
-	"sync/atomic"
 	"testing"
-	"time"
 
-	"github.com/housecat-inc/scratch/pkg/elicit"
-	"github.com/housecat-inc/scratch/pkg/workflow"
-	"github.com/stretchr/testify/require"
+	"github.com/housecat-inc/scratch/testkit"
 )
 
-type fakeDrafter struct {
-	drafts  *atomic.Int32
-	pr      PullRequest
-	summary string
-}
-
-func (f fakeDrafter) Context(context.Context) (string, error) { return f.summary, nil }
-
-func (f fakeDrafter) Draft(context.Context, string) (PullRequest, error) {
-	if f.drafts != nil {
-		f.drafts.Add(1)
-	}
-	return f.pr, nil
+func TestGreetWorkflow(t *testing.T) {
+	runCases(t, []testkit.Case[*Harness]{
+		{
+			Name: "accept prompts for a name then greets",
+			Act: []Step{
+				Start("greet", "greet-accept"),
+				ExpectForm("What should I call you?"),
+				Accept(map[string]string{"name": "Ada"}),
+			},
+			Assert: []Step{
+				ExpectResult("Hi Ada"),
+				ExpectStepCount(2),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal(KindForm, s.Kind)
+					h.Equal(StepDone, s.Status)
+					h.Equal("Ada", s.Values["name"])
+				}),
+				ExpectStep(1, func(h *Harness, s StepView) {
+					h.Equal(KindResponse, s.Kind)
+					h.Equal("Generate greeting", s.Title)
+					h.Equal("Hi Ada", s.Detail)
+				}),
+			},
+		},
+		{
+			Name: "decline ends the workflow",
+			Act: []Step{
+				Start("greet", "greet-decline"),
+				ExpectForm("What should I call you?"),
+				Decline(),
+			},
+			Assert: []Step{
+				ExpectResult(""),
+				ExpectStepCount(1),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal(KindForm, s.Kind)
+					h.Equal("Declined", s.Answer)
+				}),
+			},
+		},
+		{
+			Name: "edit reruns from the name form with a new value",
+			Act: []Step{
+				Start("greet", "greet-edit"),
+				Accept(map[string]string{"name": "Ada"}),
+				ExpectResult("Hi Ada"),
+				Edit("name", map[string]string{"name": "Grace"}),
+			},
+			Assert: []Step{
+				ExpectResult("Hi Grace"),
+				ExpectStepCount(2),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal("Grace", s.Values["name"])
+				}),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.Equal("Hi Grace", s.Detail)
+				}),
+				ExpectRunResult("greet-edit", "Hi Ada"),
+			},
+		},
+	})
 }
 
 func TestUpdateClaudeWorkflow(t *testing.T) {
-	r := require.New(t)
-	wf, err := workflow.New(t.TempDir() + "/flow.db")
-	r.NoError(err)
-	e := New(Deps{
-		DBOS: wf.Ctx(),
-		Log:  slog.Default(),
-		Updater: UpdaterFuncs{
-			VersionFn: func(context.Context) (string, error) { return "claude 1.0", nil },
-			UpdateFn:  func(context.Context) (string, error) { return "Updated to claude 2.0", nil },
+	runCases(t, []testkit.Case[*Harness]{
+		{
+			Name: "accept runs the update",
+			Act: []Step{
+				Start("update-claude", "update-accept"),
+				ExpectForm("Update Claude Code to the latest version?"),
+				Accept(nil),
+			},
+			Assert: []Step{
+				ExpectResult("Updated to claude 2.0"),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal("Check installed version", s.Title)
+				}),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.Equal(KindResponse, s.Kind)
+				}),
+			},
+		},
+		{
+			Name: "decline skips the update",
+			Act: []Step{
+				Start("update-claude", "update-decline"),
+				ExpectForm("Update Claude Code to the latest version?"),
+				Decline(),
+			},
+			Assert: []Step{ExpectResult("")},
 		},
 	})
-	r.NoError(wf.Launch())
-	t.Cleanup(func() { wf.Close() })
-
-	r.NoError(e.Start("update-claude", "u1"))
-	form := waitForm(t, e, "u1")
-	r.Equal("Update Claude Code to the latest version?", form.Message)
-	r.NoError(e.Resolve("u1", form.ElicitationID, elicit.ActionAccept, nil))
-
-	var run RunView
-	r.Eventually(func() bool {
-		run, err = e.Run("u1")
-		return err == nil && run.Done()
-	}, 5*time.Second, 20*time.Millisecond)
-	r.Equal("Updated to claude 2.0", run.Result)
-	r.Equal("Check installed version", run.Steps[0].Title)
-	r.Equal(KindResponse, run.Steps[len(run.Steps)-1].Kind)
-}
-
-func TestUpdateClaudeDecline(t *testing.T) {
-	r := require.New(t)
-	wf, err := workflow.New(t.TempDir() + "/flow.db")
-	r.NoError(err)
-	e := New(Deps{
-		DBOS: wf.Ctx(),
-		Log:  slog.Default(),
-		Updater: UpdaterFuncs{
-			VersionFn: func(context.Context) (string, error) { return "claude 1.0", nil },
-			UpdateFn:  func(context.Context) (string, error) { return "should not run", nil },
-		},
-	})
-	r.NoError(wf.Launch())
-	t.Cleanup(func() { wf.Close() })
-
-	r.NoError(e.Start("update-claude", "u2"))
-	form := waitForm(t, e, "u2")
-	r.NoError(e.Resolve("u2", form.ElicitationID, elicit.ActionDecline, nil))
-
-	var run RunView
-	r.Eventually(func() bool {
-		run, err = e.Run("u2")
-		return err == nil && run.Done()
-	}, 5*time.Second, 20*time.Millisecond)
-	r.Empty(run.Result)
 }
 
 func TestCreatePRWorkflow(t *testing.T) {
-	r := require.New(t)
-	wf, err := workflow.New(t.TempDir() + "/flow.db")
-	r.NoError(err)
-	e := New(Deps{
-		DBOS:    wf.Ctx(),
-		Drafter: fakeDrafter{pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
-		Log:     slog.Default(),
+	runCases(t, []testkit.Case[*Harness]{
+		{
+			Name: "accept drafts and finalizes the pull request",
+			Act: []Step{
+				Start("create-pr", "pr-accept"),
+				ExpectForm("Review the pull request"),
+				Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
+			},
+			Assert: []Step{
+				ExpectResult("Add thing"),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal("Collect changes", s.Title)
+				}),
+				ExpectStep(1, func(h *Harness, s StepView) {
+					h.Equal("Draft release notes", s.Title)
+				}),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.R.Contains(s.Detail, "Add thing")
+				}),
+			},
+		},
+		{
+			Name: "edit the review reuses the cached draft",
+			Act: []Step{
+				Start("create-pr", "pr-edit"),
+				Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
+				ExpectResult("Add thing"),
+				ExpectDrafts(1),
+				Edit("review", map[string]string{"body": "- Add a better thing", "title": "Add a better thing"}),
+			},
+			Assert: []Step{
+				ExpectResult("Add a better thing"),
+				ExpectDrafts(1),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.R.Contains(s.Detail, "Add a better thing")
+				}),
+			},
+		},
 	})
-	r.NoError(wf.Launch())
-	t.Cleanup(func() { wf.Close() })
-
-	r.NoError(e.Start("create-pr", "pr1"))
-	form := waitForm(t, e, "pr1")
-	r.Equal("Review the pull request", form.Message)
-
-	r.NoError(e.Resolve("pr1", form.ElicitationID, elicit.ActionAccept, map[string]string{
-		"body":  "- Add thing",
-		"title": "Add thing",
-	}))
-
-	var run RunView
-	r.Eventually(func() bool {
-		run, err = e.Run("pr1")
-		return err == nil && run.Done()
-	}, 5*time.Second, 20*time.Millisecond)
-	r.Equal("Add thing", run.Result)
-	r.Equal("Collect changes", run.Steps[0].Title)
-	r.Equal("Draft release notes", run.Steps[1].Title)
-	r.Contains(run.Steps[len(run.Steps)-1].Detail, "Add thing")
-}
-
-func TestCreatePREditReusesDraft(t *testing.T) {
-	r := require.New(t)
-	wf, err := workflow.New(t.TempDir() + "/flow.db")
-	r.NoError(err)
-	drafts := &atomic.Int32{}
-	e := New(Deps{
-		DBOS:    wf.Ctx(),
-		Drafter: fakeDrafter{drafts: drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
-		Log:     slog.Default(),
-	})
-	r.NoError(wf.Launch())
-	t.Cleanup(func() { wf.Close() })
-
-	r.NoError(e.Start("create-pr", "pr-edit"))
-	form := waitForm(t, e, "pr-edit")
-	r.NoError(e.Resolve("pr-edit", form.ElicitationID, elicit.ActionAccept, map[string]string{
-		"body":  "- Add thing",
-		"title": "Add thing",
-	}))
-
-	var run RunView
-	r.Eventually(func() bool {
-		run, err = e.Run("pr-edit")
-		return err == nil && run.Done()
-	}, 5*time.Second, 20*time.Millisecond)
-	r.Equal("Add thing", run.Result)
-	r.Equal(int32(1), drafts.Load())
-
-	forkedID, err := e.EditForm("pr-edit", form.ElicitationID, elicit.ActionAccept, map[string]string{
-		"body":  "- Add a better thing",
-		"title": "Add a better thing",
-	})
-	r.NoError(err)
-
-	var forked RunView
-	r.Eventually(func() bool {
-		forked, err = e.Run(forkedID)
-		return err == nil && forked.Done()
-	}, 5*time.Second, 20*time.Millisecond)
-	r.Equal("Add a better thing", forked.Result)
-	r.Contains(forked.Steps[len(forked.Steps)-1].Detail, "Add a better thing")
-	r.Equal(int32(1), drafts.Load())
 }

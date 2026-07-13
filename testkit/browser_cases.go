@@ -5,25 +5,36 @@ import (
 	"testing"
 )
 
-type BrowserCase[H any] struct {
-	Act     []BrowserStep[H]
-	Assert  []BrowserStep[H]
+type Case[H any] struct {
+	Act     []Step[H]
+	Assert  []Step[H]
 	Console []string
 	Name    string
 	Path    string
-	Seed    []BrowserStep[H]
+	Seed    []Step[H]
 }
 
-type BrowserCaseRunner[H any] struct {
+type CaseRunner[H any] struct {
 	BeforeAct     func(H)
 	ConsoleErrors func(H) []string
 	Load          func(H, string)
-	Setup         func(*testing.T, *T, BrowserCase[H]) H
+	Setup         func(*testing.T, *T, Case[H]) H
 }
 
-type BrowserStep[H any] func(*testing.T, H)
+type Step[H any] func(*testing.T, H)
 
-func RunBrowserCases[H any](t *testing.T, cases []BrowserCase[H], runner BrowserCaseRunner[H]) {
+type BrowserCase[H any] = Case[H]
+
+type BrowserCaseRunner[H any] = CaseRunner[H]
+
+type BrowserStep[H any] = Step[H]
+
+func RunBrowserCases[H any](t *testing.T, cases []Case[H], runner CaseRunner[H]) {
+	t.Helper()
+	RunCases(t, cases, runner)
+}
+
+func RunCases[H any](t *testing.T, cases []Case[H], runner CaseRunner[H]) {
 	t.Helper()
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
@@ -34,7 +45,9 @@ func RunBrowserCases[H any](t *testing.T, cases []BrowserCase[H], runner Browser
 				step(t, h)
 			}
 
-			runner.Load(h, tc.Path)
+			if runner.Load != nil {
+				runner.Load(h, tc.Path)
+			}
 
 			if runner.BeforeAct != nil {
 				runner.BeforeAct(h)
