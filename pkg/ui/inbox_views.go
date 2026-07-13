@@ -76,6 +76,7 @@ type InboxWorkflowDetail struct {
 	Form     *ChatFormProps
 	ID       int64
 	Items    []WorkflowItemProps
+	Progress string
 	Running  bool
 	Starred  bool
 	Status   string
@@ -86,6 +87,7 @@ type WorkflowItemProps struct {
 	Answer  string
 	Detail  string
 	Failed  bool
+	Form    *ChatFormProps
 	Kind    string
 	Summary string
 	Title   string

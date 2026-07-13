@@ -265,6 +265,16 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 					@ChatForm(*d.Form)
 				}
 			}
+			if d.Progress != "" {
+				@ChatTurn("assistant") {
+					@chatRow(chatRowProps{
+						Key:   "wf-progress",
+						Kind:  "tool",
+						Label: d.Progress,
+						Live:  true,
+					})
+				}
+			}
 		</div>
 	</div>
 }
@@ -273,7 +283,11 @@ templ workflowItem(i int, item WorkflowItemProps) {
 	switch item.Kind {
 		case "form":
 			@ChatTurn("user") {
-				<div class="chat-bubble">{ item.Answer }</div>
+				if item.Form != nil {
+					@ChatForm(*item.Form)
+				} else {
+					<div class="chat-bubble">{ item.Answer }</div>
+				}
 			}
 		case "response":
 			@ChatTurn("assistant") {

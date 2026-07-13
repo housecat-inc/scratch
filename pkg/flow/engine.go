@@ -57,18 +57,21 @@ type StepView struct {
 	Answer  string
 	Detail  string
 	Failed  bool
+	Form    *elicit.Prompt
 	Kind    string
 	Status  string
 	Summary string
 	Title   string
+	Values  map[string]string
 }
 
 type RunView struct {
-	Form   *elicit.Prompt
-	ID     string
-	Result string
-	Status string
-	Steps  []StepView
+	Form     *elicit.Prompt
+	ID       string
+	Progress string
+	Result   string
+	Status   string
+	Steps    []StepView
 }
 
 func (v RunView) Running() bool {
@@ -110,9 +113,12 @@ func (e *Engine) Run(id string) (RunView, error) {
 
 	view := RunView{ID: id, Result: output, Status: status}
 	var awaiting []elicit.Prompt
+	progress := ""
 
 	for _, s := range steps {
 		switch {
+		case strings.HasPrefix(s.StepName, "begin/"):
+			progress, _ = decode[string](s.Output)
 		case strings.HasPrefix(s.StepName, "elicit/"):
 			prompt, err := decode[elicit.Prompt](s.Output)
 			if err != nil {
@@ -124,14 +130,18 @@ func (e *Engine) Run(id string) (RunView, error) {
 				continue
 			}
 			reply, _ := decode[elicit.Reply](s.Output)
-			view.Steps = append(view.Steps, StepView{
-				Answer: summarizeReply(awaiting[0], reply),
-				Kind:   KindForm,
-				Status: StepDone,
-				Title:  awaiting[0].Message,
-			})
+			prompt := awaiting[0]
+			sv := StepView{Kind: KindForm, Status: StepDone, Title: prompt.Message}
+			if reply.Action == elicit.ActionAccept {
+				sv.Form = &prompt
+				sv.Values = replyValues(reply)
+			} else {
+				sv.Answer = summarizeReply(prompt, reply)
+			}
+			view.Steps = append(view.Steps, sv)
 			awaiting = awaiting[1:]
 		case strings.HasPrefix(s.StepName, "respond/"):
+			progress = ""
 			body, _ := decode[string](s.Output)
 			view.Steps = append(view.Steps, StepView{
 				Detail: body,
@@ -142,6 +152,7 @@ func (e *Engine) Run(id string) (RunView, error) {
 		case strings.HasPrefix(s.StepName, "DBOS."):
 			continue
 		default:
+			progress = ""
 			detail, _ := decode[string](s.Output)
 			view.Steps = append(view.Steps, StepView{
 				Detail:  detail,
@@ -157,8 +168,31 @@ func (e *Engine) Run(id string) (RunView, error) {
 	if view.Running() && len(awaiting) > 0 {
 		prompt := awaiting[len(awaiting)-1]
 		view.Form = &prompt
+	} else if view.Running() {
+		if progress == "" {
+			progress = "Working…"
+		}
+		view.Progress = progress
 	}
 	return view, nil
+}
+
+func replyValues(reply elicit.Reply) map[string]string {
+	if reply.Action != elicit.ActionAccept {
+		return nil
+	}
+	var values map[string]any
+	if json.Unmarshal([]byte(reply.Content), &values) != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for name, value := range values {
+		if value == nil {
+			continue
+		}
+		out[name] = fmt.Sprintf("%v", value)
+	}
+	return out
 }
 
 func stepStatus(s dbos.StepInfo) string {

@@ -6,6 +6,19 @@ import (
 	"github.com/housecat-inc/scratch/testkit"
 )
 
+func filledFormValue(name, want string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			v, err := h.Page.Eval(`(name) => {
+				const el = document.querySelector('.chat-elicit-filled [name="' + name + '"]');
+				return el ? (el.value + '|' + el.disabled) : "";
+			}`, name)
+			return err == nil && v.Value.Str() == want+"|true"
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+	}
+}
+
 func TestWorkflowGreetBrowser(t *testing.T) {
 	runBrowser(t, []testkit.BrowserCase[*Harness]{
 		{
@@ -16,7 +29,7 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 				Click("#elicit-accept"),
 			},
 			Assert: []Step{
-				TextContains(".chat-turn.role-user .chat-bubble", "Ada"),
+				filledFormValue("f_name", "Ada"),
 				TextContains(".chat-turn.role-assistant .chat-md", "Ada"),
 				TextContains(".mail-reader-head", "Completed"),
 			},

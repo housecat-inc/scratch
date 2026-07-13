@@ -357,12 +357,18 @@ templ rowIcon(kind string, failed bool) {
 }
 
 templ ChatForm(f ChatFormProps) {
-	if f.Plain {
+	if f.Disabled {
+		<div class="chat-elicit chat-elicit-filled">
+			@chatFormBody(f)
+		</div>
+	} else if f.Plain {
 		<form id="elicit-form" class="chat-elicit" method="post" action={ templ.SafeURL(f.Action) }>
+			<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
 			@chatFormBody(f)
 		</form>
 	} else {
 		<form id="elicit-form" class="chat-elicit" hx-post={ f.Action } hx-swap="none">
+			<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
 			<input type="hidden" name="message_id" value={ itoa64(f.MessageID) }/>
 			@chatFormBody(f)
 		</form>
@@ -370,32 +376,34 @@ templ ChatForm(f ChatFormProps) {
 }
 
 templ chatFormBody(f ChatFormProps) {
-	<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
 	<p class="chat-elicit-message">{ f.Message }</p>
 	for _, field := range f.Fields {
-			<label class="chat-elicit-field">
-				<span>{ field.Label }</span>
-				switch field.Type {
-					case "select":
-						<select name={ "f_" + field.Name }>
-							for _, option := range field.Options {
-								<option value={ option } selected?={ option == field.Value }>{ option }</option>
-							}
-						</select>
-					case "checkbox":
-						<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" }/>
-					default:
-						<input
-							type={ field.Type }
-							name={ "f_" + field.Name }
-							value={ field.Value }
-							required?={ field.Required }
-						/>
-				}
-			</label>
-		}
+		<label class="chat-elicit-field">
+			<span>{ field.Label }</span>
+			switch field.Type {
+				case "select":
+					<select name={ "f_" + field.Name } disabled?={ f.Disabled }>
+						for _, option := range field.Options {
+							<option value={ option } selected?={ option == field.Value }>{ option }</option>
+						}
+					</select>
+				case "checkbox":
+					<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" } disabled?={ f.Disabled }/>
+				default:
+					<input
+						type={ field.Type }
+						name={ "f_" + field.Name }
+						value={ field.Value }
+						required?={ field.Required }
+						disabled?={ f.Disabled }
+					/>
+			}
+		</label>
+	}
+	if !f.Disabled {
 		<div class="chat-elicit-actions">
 			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
 			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
 		</div>
+	}
 }

@@ -22,6 +22,7 @@ type ChatFormFieldProps struct {
 
 type ChatFormProps struct {
 	Action        string
+	Disabled      bool
 	ElicitationID string
 	Fields        []ChatFormFieldProps
 	Message       string

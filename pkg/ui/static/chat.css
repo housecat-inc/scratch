@@ -863,6 +863,24 @@ body.chat-selecting * {
   color: #64748b;
 }
 
+.chat-elicit-filled {
+  background: #f8fafc;
+  margin-top: 0;
+}
+
+.chat-elicit-filled .chat-elicit-message {
+  color: #475569;
+  font-weight: 600;
+}
+
+.chat-elicit-filled input:disabled,
+.chat-elicit-filled select:disabled {
+  background: #fff;
+  color: #0f172a;
+  opacity: 1;
+  -webkit-text-fill-color: #0f172a;
+}
+
 #chat-alert {
   background: #d1495b;
   border-radius: 0.5rem;

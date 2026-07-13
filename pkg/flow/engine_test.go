@@ -58,7 +58,7 @@ func TestGreetAccept(t *testing.T) {
 	r.Len(run.Steps, 2)
 	r.Equal(KindForm, run.Steps[0].Kind)
 	r.Equal(StepDone, run.Steps[0].Status)
-	r.Contains(run.Steps[0].Answer, "Ada")
+	r.Equal("Ada", run.Steps[0].Values["name"])
 	r.Equal(KindResponse, run.Steps[1].Kind)
 	r.Equal("Greeting", run.Steps[1].Title)
 	r.Equal("Hi Ada", run.Steps[1].Detail)
@@ -84,6 +84,36 @@ func TestGreetDecline(t *testing.T) {
 	r.Len(run.Steps, 1)
 	r.Equal(KindForm, run.Steps[0].Kind)
 	r.Equal("Declined", run.Steps[0].Answer)
+}
+
+func TestGreetProgressWhileRunning(t *testing.T) {
+	r := require.New(t)
+	release := make(chan struct{})
+	wf, err := workflow.New(t.TempDir() + "/flow.db")
+	r.NoError(err)
+	e := New(Deps{
+		DBOS: wf.Ctx(),
+		Greeter: GreeterFunc(func(_ context.Context, name string) (string, error) {
+			<-release
+			return "Hi " + name, nil
+		}),
+		Log: slog.Default(),
+	})
+	r.NoError(wf.Launch())
+	t.Cleanup(func() { close(release); wf.Close() })
+
+	r.NoError(e.Start("greet-p"))
+	form := waitForm(t, e, "greet-p")
+	r.NoError(e.Resolve("greet-p", form.ElicitationID, elicit.ActionAccept, map[string]string{"name": "Ada"}))
+
+	var run RunView
+	r.Eventually(func() bool {
+		run, err = e.Run("greet-p")
+		return err == nil && run.Progress != ""
+	}, 5*time.Second, 20*time.Millisecond)
+	r.Equal("Generating greeting", run.Progress)
+	r.Nil(run.Form)
+	release <- struct{}{}
 }
 
 func TestResolveUnknownForm(t *testing.T) {

@@ -557,20 +557,32 @@ func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 	detail := ui.InboxWorkflowDetail{
 		Archived: thread.State == db.ThreadStateArchived,
 		ID:       id,
+		Progress: run.Progress,
 		Running:  run.Running(),
 		Starred:  thread.Starred,
 		Status:   run.Status,
 		Title:    title,
 	}
 	for _, step := range run.Steps {
-		detail.Items = append(detail.Items, ui.WorkflowItemProps{
+		item := ui.WorkflowItemProps{
 			Answer:  step.Answer,
 			Detail:  step.Detail,
 			Failed:  step.Failed,
 			Kind:    step.Kind,
 			Summary: step.Summary,
 			Title:   step.Title,
-		})
+		}
+		if step.Kind == flow.KindForm && step.Form != nil {
+			form := chat.FormProps("", *step.Form)
+			form.Disabled = true
+			for i := range form.Fields {
+				if v, ok := step.Values[form.Fields[i].Name]; ok {
+					form.Fields[i].Value = v
+				}
+			}
+			item.Form = &form
+		}
+		detail.Items = append(detail.Items, item)
 	}
 	if run.Form != nil {
 		form := chat.FormProps(fmt.Sprintf("/inbox/workflows/%d/resolve", id), *run.Form)
