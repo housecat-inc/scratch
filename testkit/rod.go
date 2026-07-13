@@ -138,7 +138,13 @@ func (t *T) Type(page *rod.Page, selector string, text string) {
 
 func (t *T) Load(page *rod.Page, baseURL string, path string) {
 	t.t.Helper()
-	page.MustNavigate(baseURL + path).MustWaitLoad()
+
+	url := baseURL + path
+	t.R.Eventually(func() bool {
+		err := page.Navigate(url)
+		return err == nil || !strings.Contains(err.Error(), "net::ERR_ABORTED")
+	}, BrowserWaitTimeout, BrowserPollInterval)
+	page.MustWaitLoad()
 }
 
 func (t *T) Screenshot(page *rod.Page, name string) {
