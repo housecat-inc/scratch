@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -144,8 +145,45 @@ func (s *Service) CreateThreadWithLabel(agent, model, label, title string) (db.T
 	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
 }
 
+func (s *Service) CreateWorkflowThread(workflow, title string) (db.Thread, string, error) {
+	anchor, err := json.Marshal(map[string]string{"workflow": workflow})
+	if err != nil {
+		return db.Thread{}, "", errors.Wrap(err, "marshal anchor")
+	}
+	thread, err := s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
+	if err != nil {
+		return db.Thread{}, "", err
+	}
+	workflowID := fmt.Sprintf("%s-%d", workflow, thread.ID)
+	full, err := json.Marshal(map[string]string{"workflow": workflow, "workflow_id": workflowID})
+	if err != nil {
+		return db.Thread{}, "", errors.Wrap(err, "marshal anchor")
+	}
+	if err := s.store.SetThreadAnchor(thread.ID, string(full)); err != nil {
+		return db.Thread{}, "", err
+	}
+	thread.Anchor = string(full)
+	return thread, workflowID, nil
+}
+
 func (s *Service) DeleteThread(threadID int64) error {
 	return s.store.DeleteThread(threadID)
+}
+
+func (s *Service) ThreadWorkflowID(thread db.Thread) string {
+	var anchor struct {
+		WorkflowID string `json:"workflow_id"`
+	}
+	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
+	return anchor.WorkflowID
+}
+
+func (s *Service) WorkflowName(thread db.Thread) string {
+	var anchor struct {
+		Workflow string `json:"workflow"`
+	}
+	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
+	return anchor.Workflow
 }
 
 func (s *Service) Publish(threadID int64) {

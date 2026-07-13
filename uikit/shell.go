@@ -19,13 +19,14 @@ type NavItem struct {
 }
 
 type ShellProps struct {
-	Actions   templ.Component
-	AppName   string
-	BrandHref string
-	Class     string
-	Footer    templ.Component
-	MainClass string
-	Nav       []NavItem
+	Actions    templ.Component
+	AppName    string
+	BrandHref  string
+	Class      string
+	Footer     templ.Component
+	MainClass  string
+	Nav        []NavItem
+	SidebarTop templ.Component
 }
 
 func countLabel(count int) string {

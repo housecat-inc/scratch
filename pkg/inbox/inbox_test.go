@@ -11,29 +11,18 @@ import (
 
 func TestResolveComposeMode(t *testing.T) {
 	tests := []struct {
-		name       string
-		hasFiles   bool
-		mode       string
-		prompt     string
-		view       string
-		wantMode   string
-		wantPrompt string
+		mode string
+		want string
 	}{
-		{name: "explicit chat", mode: "chat", prompt: "hello", view: "tasks", wantMode: "chat", wantPrompt: "hello"},
-		{name: "prefix task", mode: "auto", prompt: "task: follow up", view: "inbox", wantMode: "task", wantPrompt: "follow up"},
-		{name: "prefix workflow", mode: "auto", prompt: "workflow: add contact", view: "inbox", wantMode: "workflow", wantPrompt: "add contact"},
-		{name: "tasks view", mode: "auto", prompt: "follow up", view: "tasks", wantMode: "task", wantPrompt: "follow up"},
-		{name: "workflows view", mode: "auto", prompt: "add contact", view: "workflows", wantMode: "workflow", wantPrompt: "add contact"},
-		{name: "inbox defaults chat", mode: "auto", prompt: "hello", view: "inbox", wantMode: "chat", wantPrompt: "hello"},
-		{name: "attachments default chat", mode: "auto", prompt: "fix this", view: "tasks", wantMode: "chat", wantPrompt: "fix this", hasFiles: true},
-		{name: "attachment prefix task", mode: "auto", prompt: "task: follow up", view: "tasks", wantMode: "task", wantPrompt: "follow up", hasFiles: true},
+		{mode: "", want: "chat"},
+		{mode: "chat", want: "chat"},
+		{mode: "task", want: "task"},
+		{mode: "workflow", want: "workflow"},
+		{mode: "other", want: "chat"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := assert.New(t)
-			mode, prompt := resolveComposeMode(tt.mode, tt.prompt, tt.view, tt.hasFiles)
-			a.Equal(tt.wantMode, mode)
-			a.Equal(tt.wantPrompt, prompt)
+		t.Run(tt.mode, func(t *testing.T) {
+			assert.New(t).Equal(tt.want, resolveComposeMode(tt.mode))
 		})
 	}
 }
@@ -45,11 +34,10 @@ func TestChatAgent(t *testing.T) {
 		want  string
 	}{
 		{agent: "codex", name: "known chat agent", want: "codex"},
-		{agent: "contact", name: "workflow agent"},
 		{agent: "missing", name: "unknown agent"},
 		{agent: "", name: "default"},
 	}
-	agents := []string{"claude", "codex", "contact", "echo"}
+	agents := []string{"claude", "codex", "echo"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
@@ -61,7 +49,7 @@ func TestChatAgent(t *testing.T) {
 func TestChatAgentOptions(t *testing.T) {
 	a := assert.New(t)
 
-	a.Equal([]string{"claude", "codex", "echo"}, chatAgentOptions([]string{"claude", "codex", "contact", "echo"}))
+	a.Equal([]string{"claude", "codex", "echo"}, chatAgentOptions([]string{"claude", "codex", "echo"}))
 }
 
 func TestChatModel(t *testing.T) {
@@ -107,7 +95,7 @@ func TestArchiveFilter(t *testing.T) {
 
 func TestLegacyTaskPagesAreNotMounted(t *testing.T) {
 	a := assert.New(t)
-	srv := NewServer(nil, nil, nil).Handler()
+	srv := NewServer(nil, nil, nil, nil).Handler()
 
 	for _, path := range []string{"/tasks", "/tasks/1"} {
 		rec := httptest.NewRecorder()
@@ -169,9 +157,9 @@ func TestWorkflowAgent(t *testing.T) {
 		typ  string
 		want string
 	}{
-		{name: "default", want: "contact"},
-		{name: "contact", typ: "contact", want: "contact"},
-		{name: "unknown", typ: "other", want: "contact"},
+		{name: "default", want: "greet"},
+		{name: "greet", typ: "greet", want: "greet"},
+		{name: "unknown", typ: "other", want: "greet"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

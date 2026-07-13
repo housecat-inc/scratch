@@ -12,9 +12,9 @@ templ NewChatAction(p NewChatActionProps) {
 		if p.Label != "" {
 			<input type="hidden" name="chat_label" value={ p.Label }/>
 		}
-		<button class="mail-create-btn" type="submit" data-new-chat>
-			@Icon("chat")
-			<span>New chat</span>
+		<button class="mail-create-btn" type="submit" data-new-chat title="New chat" aria-label="New chat">
+			@Icon("plus")
+			<span>Chat</span>
 		</button>
 		if len(p.Options) > 0 {
 			<span class="mail-create-select-wrap mail-model-select-wrap">

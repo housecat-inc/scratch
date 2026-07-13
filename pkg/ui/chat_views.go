@@ -22,10 +22,13 @@ type ChatFormFieldProps struct {
 
 type ChatFormProps struct {
 	Action        string
+	Disabled      bool
 	ElicitationID string
 	Fields        []ChatFormFieldProps
+	HideMessage   bool
 	Message       string
 	MessageID     int64
+	Plain         bool
 }
 
 type ChatAttachmentProps struct {
@@ -79,6 +82,7 @@ type chatRowProps struct {
 	Kind    string
 	Label   string
 	Live    bool
+	Shimmer bool
 	Summary string
 }
 

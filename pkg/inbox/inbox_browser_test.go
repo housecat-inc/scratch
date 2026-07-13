@@ -38,10 +38,10 @@ func TestInboxTasksBrowser(t *testing.T) {
 				Click("#chat-send"),
 			},
 			Assert: []Step{
+				ChatThreadCount(1),
 				TextContains(".mail-reader-title", "buy milk"),
-				TextContains(".mail-reader-labels", "Active"),
 			},
-			Name: "creates a task from the footer",
+			Name: "footer composer always starts a chat",
 			Path: "/inbox/tasks",
 		},
 		{

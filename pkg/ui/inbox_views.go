@@ -40,6 +40,7 @@ type InboxProps struct {
 	Task          *InboxTaskDetail
 	Thread        *InboxThreadDetail
 	View          string
+	Workflow      *InboxWorkflowDetail
 }
 
 type InboxSelection struct {
@@ -68,6 +69,30 @@ type InboxThreadDetail struct {
 	Starred     bool
 	Streaming   bool
 	Title       string
+}
+
+type InboxWorkflowDetail struct {
+	Archived bool
+	Awaiting bool
+	ID       int64
+	Items    []WorkflowItemProps
+	Running  bool
+	Starred  bool
+	Status   string
+	Title    string
+}
+
+type WorkflowItemProps struct {
+	Answer   string
+	Detail   string
+	Duration string
+	Failed   bool
+	Form     *ChatFormProps
+	Input    string
+	Kind     string
+	Running  bool
+	Summary  string
+	Title    string
 }
 
 type ReaderHeaderProps struct {

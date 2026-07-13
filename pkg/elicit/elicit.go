@@ -23,10 +23,6 @@ type Prompt struct {
 	WorkflowID      string             `json:"workflowId"`
 }
 
-type Prompter interface {
-	Prompt(p Prompt) error
-}
-
 type Reply struct {
 	Action  string
 	Content string
