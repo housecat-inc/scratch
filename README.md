@@ -10,10 +10,17 @@ Finally iterate with in-app developer tools like a DOM and web inspector agent c
 
 ## Features
 
-- Claude Code Remote Control setup
+- Agent inbox for chats, tasks, and workflows
 - Agent skills management
-- Code review and comments
+- Claude Code Remote Control setup
 - Claude Desktop and Mobile integration
+- Code review and comments
+- In-app agent chat with a DOM inspector
+
+<p align="center">
+  <img src="docs/screenshots/inbox.png" width="820" alt="Agent inbox and navigation"/>
+  <img src="docs/screenshots/chat.png" width="820" alt="Agent chat with an attached DOM inspector screenshot"/>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/setup.png" width="130" alt="Setup"/>
