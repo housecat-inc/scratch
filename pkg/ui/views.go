@@ -154,6 +154,38 @@ type PickerProps struct {
 	Parent  string
 }
 
+type SQLColumn struct {
+	Name string
+	Type string
+}
+
+type SQLProps struct {
+	Error  string
+	Path   string
+	Query  string
+	Result *SQLResult
+	Saved  []db.SQLQuery
+	Tables []SQLTable
+}
+
+type SQLCell struct {
+	Null  bool
+	Value string
+}
+
+type SQLResult struct {
+	Columns   []string
+	Elapsed   string
+	Error     string
+	Rows      [][]SQLCell
+	Truncated bool
+}
+
+type SQLTable struct {
+	Columns []SQLColumn
+	Name    string
+}
+
 type SessionProps struct {
 	Dir         string
 	ID          string

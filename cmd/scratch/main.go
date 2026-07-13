@@ -19,6 +19,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/server/code"
 	"github.com/housecat-inc/scratch/pkg/server/files"
 	"github.com/housecat-inc/scratch/pkg/server/sessions"
+	sqlsrv "github.com/housecat-inc/scratch/pkg/server/sql"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/housecat-inc/scratch/pkg/workflow"
@@ -109,6 +110,10 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return errors.Wrap(err, "new files server")
 			}
+			sqlSrv, err := sqlsrv.NewServer(sqlsrv.DefaultDeps(home, store))
+			if err != nil {
+				return errors.Wrap(err, "new sql server")
+			}
 			todoSvc := todo.NewService(store)
 			chatSrv := chat.NewServer(chatSvc, logger)
 			inboxSrv := inbox.NewServer(todoSvc, chatSvc, logger)
@@ -132,6 +137,7 @@ func newRootCmd() *cobra.Command {
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			srv.Mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
 			srv.Mux.Handle("/files/", http.StripPrefix("/files", filesSrv.Handler()))
+			srv.Mux.Handle("/sql/", http.StripPrefix("/sql", sqlSrv.Handler()))
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 			srv.Mux.Handle("/", inboxSrv.Handler())
 

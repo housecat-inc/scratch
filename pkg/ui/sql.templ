@@ -1,0 +1,197 @@
+package ui
+
+import (
+	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/uikit"
+	"strconv"
+)
+
+templ SQLPage(v SQLProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@SQLHead()
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				AppName:   "scratch",
+				BrandHref: "/",
+				MainClass: "mail-files-main",
+				Nav:       toolNavItems("sql"),
+			}) {
+				<div id="sql-wrap" class="flex flex-1 min-h-0">
+					<aside class="tree-pane w-full md:w-72 md:flex-shrink-0 bg-white md:border-r border-slate-200 flex flex-col min-h-0">
+						<header class="mail-mainbar">
+							<form method="get" action="/sql/" class="flex items-center gap-1 w-full">
+								<input name="path" value={ v.Path } spellcheck="false" autocapitalize="off" autocomplete="off" class="font-mono text-xs flex-1 min-w-0 px-2 py-1 rounded border border-slate-200 bg-slate-50"/>
+								<button type="submit" class="px-2 py-1 text-xs rounded bg-slate-900 text-white">Open</button>
+							</form>
+						</header>
+						if v.Error != "" {
+							<div class="px-3 py-2 text-xs text-destructive break-all flex-shrink-0">{ v.Error }</div>
+						}
+						<div class="flex-1 min-h-0 overflow-auto">
+							<div class="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wide text-slate-400">Tables</div>
+							@SQLTableList(v.Tables, v.Path)
+							<div class="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wide text-slate-400">Saved</div>
+							<div id="sql-query-list">
+								@SQLQueryList(v.Saved)
+							</div>
+						</div>
+					</aside>
+					<main class="editor-pane flex-1 flex flex-col min-w-0 w-full min-h-0">
+						<header class="mail-mainbar gap-2">
+							<button id="sql-back-btn" type="button" class="md:hidden -ml-1 rounded text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" aria-label="Back to tables">
+								<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"></path></svg>
+								<span>Tables</span>
+							</button>
+							<form id="sql-run-form" hx-post="/sql/query" hx-target="#sql-results" hx-swap="innerHTML" hx-indicator="#sql-running" class="contents">
+								<input type="hidden" name="path" value={ v.Path }/>
+								<input id="sql-save-name" name="name" placeholder="Name to save" spellcheck="false" autocomplete="off" class="hidden sm:block font-mono text-xs w-40 px-2 py-1 rounded border border-slate-200 bg-slate-50"/>
+								<button type="button" id="sql-save-btn" hx-post="/sql/queries" hx-include="#sql-editor, #sql-save-name" hx-target="#sql-query-list" hx-swap="innerHTML" class="px-2 py-1 text-xs rounded border border-slate-200 hover:bg-slate-50">Save</button>
+								<span id="sql-running" class="htmx-indicator text-xs text-slate-400">running…</span>
+								<button type="submit" class="px-3 py-1 text-xs rounded bg-slate-900 text-white">Run ▸</button>
+							</form>
+						</header>
+						<div class="border-b border-slate-200">
+							<textarea id="sql-editor" name="sql" form="sql-run-form" spellcheck="false">{ v.Query }</textarea>
+						</div>
+						<div id="sql-results" class="flex-1 min-h-0 overflow-auto bg-white">
+							@SQLResults(v.Result)
+						</div>
+					</main>
+				</div>
+			}
+			<script src="/static/sql.js"></script>
+		</body>
+	</html>
+}
+
+templ SQLHead() {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+		<meta name="color-scheme" content="light"/>
+		<title>SQL · scratch</title>
+		<link rel="manifest" href="/manifest.webmanifest"/>
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		<meta name="apple-mobile-web-app-title" content="scratch"/>
+		<meta name="mobile-web-app-capable" content="yes"/>
+		<meta name="application-name" content="scratch"/>
+		<meta name="theme-color" content="#0f172a"/>
+		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
+		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
+		@InboxCSS()
+		@ChatCSS()
+		@TempluiCSS()
+		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		<script src="/static/htmx.min.js"></script>
+		<script src="/static/register-sw.js" defer></script>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css"/>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css"/>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+		<style>
+			html, body { height: 100%; }
+			#sql-editor + .CodeMirror { height: 160px; font-size: 14px; }
+			.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+			.sql-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+			.sql-table th, .sql-table td { border: 1px solid #e2e8f0; padding: 3px 8px; text-align: left; white-space: pre; vertical-align: top; }
+			.sql-table th { background: #f8fafc; position: sticky; top: 0; }
+			.sql-table td.is-null { color: #94a3b8; font-style: italic; }
+			@media (max-width: 767px) {
+				#sql-editor + .CodeMirror { font-size: 16px; }
+				#sql-wrap:not(.show-editor) .editor-pane { display: none; }
+				#sql-wrap.show-editor .tree-pane { display: none; }
+			}
+		</style>
+	</head>
+}
+
+templ SQLTableList(tables []SQLTable, path string) {
+	<ul>
+		for _, t := range tables {
+			<li>
+				<button type="button" class="sql-load w-full text-left flex items-center gap-2 md:gap-1 px-3 py-2 md:py-0.5 hover:bg-slate-50 active:bg-slate-100 text-slate-700" data-sql={ tableSelect(t.Name) }>
+					<span class="font-mono text-base md:text-xs truncate">{ t.Name }</span>
+					<span class="ml-auto text-[10px] text-slate-400">{ strconv.Itoa(len(t.Columns)) }</span>
+				</button>
+			</li>
+		}
+		if len(tables) == 0 {
+			<li class="px-3 py-2 md:py-0.5 text-sm md:text-xs text-slate-400 italic">no tables</li>
+		}
+	</ul>
+}
+
+templ SQLQueryList(saved []db.SQLQuery) {
+	if len(saved) == 0 {
+		<div class="px-3 py-1 text-xs text-slate-400 italic">none saved</div>
+	}
+	for _, q := range saved {
+		@uikit.ListRow(uikit.ListRowProps{
+			Href:      "#",
+			ID:        q.ID,
+			Kind:      "sql",
+			LinkAttrs: templ.Attributes{"class": "gm-row-link sql-load", "data-sql": q.SQL},
+			Subject:   q.Name,
+			Actions:   sqlDeleteAction(q.ID),
+		})
+	}
+}
+
+templ sqlDeleteAction(id string) {
+	@uikit.ActionIcon(uikit.ActionIconProps{
+		Danger: true,
+		Icon:   "trash",
+		Label:  "Delete query",
+		Attrs: templ.Attributes{
+			"hx-delete":  "/sql/queries/" + id,
+			"hx-target":  "#sql-query-list",
+			"hx-swap":    "innerHTML",
+			"hx-confirm": "Delete this saved query?",
+		},
+	})
+}
+
+templ SQLResults(r *SQLResult) {
+	if r == nil {
+		<div class="p-4 text-xs text-slate-400 italic">Run a query to see results.</div>
+	} else if r.Error != "" {
+		<div class="m-3 rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-mono text-destructive whitespace-pre-wrap">{ r.Error }</div>
+	} else {
+		<div class="px-3 py-1 text-[11px] text-slate-400 flex items-center gap-2">
+			<span>{ strconv.Itoa(len(r.Rows)) } rows</span>
+			<span>·</span>
+			<span>{ r.Elapsed }</span>
+			if r.Truncated {
+				<span class="text-amber-600">· truncated</span>
+			}
+		</div>
+		<div class="overflow-auto">
+			<table class="sql-table">
+				<thead>
+					<tr>
+						for _, c := range r.Columns {
+							<th>{ c }</th>
+						}
+					</tr>
+				</thead>
+				<tbody>
+					for _, row := range r.Rows {
+						<tr>
+							for _, cell := range row {
+								if cell.Null {
+									<td class="is-null">NULL</td>
+								} else {
+									<td>{ cell.Value }</td>
+								}
+							}
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
