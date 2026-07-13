@@ -49,10 +49,6 @@ func newRootCmd() *cobra.Command {
 			logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 			slog.SetDefault(logger)
 
-			sessionsSrv, err := sessions.NewServer(sessions.DefaultDeps())
-			if err != nil {
-				return errors.Wrap(err, "new sessions server")
-			}
 			home, err := os.UserHomeDir()
 			if err != nil {
 				return errors.Wrap(err, "user home dir")
@@ -60,6 +56,10 @@ func newRootCmd() *cobra.Command {
 			workdir, err := os.Getwd()
 			if err != nil {
 				return errors.Wrap(err, "working dir")
+			}
+			sessionsSrv, err := sessions.NewServer(sessions.DefaultDeps(), workdir)
+			if err != nil {
+				return errors.Wrap(err, "new sessions server")
 			}
 			dbPath := filepath.Join(home, ".config", "scratch", "scratch.db")
 			store, err := db.New(dbPath)

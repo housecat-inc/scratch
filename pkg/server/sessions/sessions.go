@@ -57,6 +57,7 @@ type CodexLogin interface {
 type Server struct {
 	codexLogin CodexLogin
 	deps       Deps
+	dir        string
 	home       string
 	login      Login
 	mu         sync.Mutex
@@ -133,12 +134,16 @@ func listSubdirs(dir string) ([]string, error) {
 	return out, nil
 }
 
-func NewServer(deps Deps) (*Server, error) {
+func NewServer(deps Deps, workdir ...string) (*Server, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, errors.Wrap(err, "user home dir")
 	}
-	return &Server{deps: deps, home: home}, nil
+	dir := home
+	if len(workdir) > 0 && workdir[0] != "" {
+		dir = workdir[0]
+	}
+	return &Server{deps: deps, dir: dir, home: home}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -251,10 +256,10 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePicker(w http.ResponseWriter, r *http.Request) {
 	dir := strings.TrimSpace(r.URL.Query().Get("dir"))
 	if dir == "" {
-		dir = s.home
+		dir = s.dir
 	}
 	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(s.home, dir)
+		dir = filepath.Join(s.dir, dir)
 	}
 	dir = filepath.Clean(dir)
 
@@ -430,7 +435,7 @@ func (s *Server) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	dir := strings.TrimSpace(r.FormValue("dir"))
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	if dir == "" {
-		dir = s.home
+		dir = s.dir
 	}
 	vm.SessionDir = dir
 
@@ -506,7 +511,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, comps ...templ.C
 }
 
 func (s *Server) viewModel() ui.SessionsProps {
-	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.home}
+	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.dir}
 	if vm.Installed && s.deps.ClaudeVersion != nil {
 		vm.ClaudeVersion = s.deps.ClaudeVersion()
 	}
