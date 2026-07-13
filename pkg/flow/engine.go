@@ -32,25 +32,38 @@ var (
 
 type Deps struct {
 	DBOS    dbos.DBOSContext
+	Drafter PRDrafter
 	Greeter Greeter
 	Log     *slog.Logger
+	Updater Updater
+	Workdir string
 }
 
 type Engine struct {
 	ctx     dbos.DBOSContext
+	drafter PRDrafter
 	greeter Greeter
 	log     *slog.Logger
+	updater Updater
 }
 
 func New(deps Deps) *Engine {
+	if deps.Drafter == nil {
+		deps.Drafter = DefaultPRDrafter(deps.Workdir)
+	}
 	if deps.Greeter == nil {
 		deps.Greeter = DefaultGreeter()
 	}
 	if deps.Log == nil {
 		deps.Log = slog.Default()
 	}
-	e := &Engine{ctx: deps.DBOS, greeter: deps.Greeter, log: deps.Log}
+	if deps.Updater == nil {
+		deps.Updater = DefaultUpdater()
+	}
+	e := &Engine{ctx: deps.DBOS, drafter: deps.Drafter, greeter: deps.Greeter, log: deps.Log, updater: deps.Updater}
 	dbos.RegisterWorkflow(deps.DBOS, e.greet, dbos.WithWorkflowName("greet"))
+	dbos.RegisterWorkflow(deps.DBOS, e.updateClaude, dbos.WithWorkflowName("update-claude"))
+	dbos.RegisterWorkflow(deps.DBOS, e.createPR, dbos.WithWorkflowName("create-pr"))
 	return e
 }
 
@@ -98,9 +111,17 @@ func act(ctx dbos.DBOSContext, name, title, input string, fn func(context.Contex
 	return dbos.RunAsStep(ctx, fn, dbos.WithStepName(name))
 }
 
-func (e *Engine) Start(id string) error {
-	_, err := dbos.RunWorkflow(e.ctx, e.greet, GreetInput{}, dbos.WithWorkflowID(id))
-	return errors.Wrap(err, "start greet")
+func (e *Engine) Start(name, id string) error {
+	var err error
+	switch name {
+	case "update-claude":
+		_, err = dbos.RunWorkflow(e.ctx, e.updateClaude, UpdateInput{}, dbos.WithWorkflowID(id))
+	case "create-pr":
+		_, err = dbos.RunWorkflow(e.ctx, e.createPR, PRInput{}, dbos.WithWorkflowID(id))
+	default:
+		_, err = dbos.RunWorkflow(e.ctx, e.greet, GreetInput{}, dbos.WithWorkflowID(id))
+	}
+	return errors.Wrapf(err, "start %s", name)
 }
 
 func (e *Engine) Status(id string) (string, error) {

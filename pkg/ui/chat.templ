@@ -392,6 +392,8 @@ templ chatFormBody(f ChatFormProps) {
 					</select>
 				case "checkbox":
 					<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" } disabled?={ f.Disabled }/>
+				case "textarea":
+					<textarea class="chat-elicit-textarea" name={ "f_" + field.Name } rows="8" required?={ field.Required } disabled?={ f.Disabled }>{ field.Value }</textarea>
 				default:
 					<input
 						type={ field.Type }

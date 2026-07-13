@@ -171,7 +171,7 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		if err := s.flows.Start(workflowID); err != nil {
+		if err := s.flows.Start(workflowType, workflowID); err != nil {
 			s.fail(w, err)
 			return
 		}
@@ -756,8 +756,10 @@ func chatModel(agent, model string) string {
 
 func workflowAgent(typ string) string {
 	switch strings.TrimSpace(typ) {
-	case "", "greet":
-		return "greet"
+	case "create-pr":
+		return "create-pr"
+	case "update-claude":
+		return "update-claude"
 	default:
 		return "greet"
 	}
@@ -765,10 +767,12 @@ func workflowAgent(typ string) string {
 
 func workflowTitle(typ string) string {
 	switch typ {
-	case "greet":
-		return "Greet"
+	case "create-pr":
+		return "Create pull request"
+	case "update-claude":
+		return "Update Claude Code"
 	default:
-		return "Workflow"
+		return "Greet"
 	}
 }
 

@@ -83,8 +83,9 @@ func newRootCmd() *cobra.Command {
 			defer chatSvc.Close()
 
 			flows := flow.New(flow.Deps{
-				DBOS: workflows.Ctx(),
-				Log:  logger,
+				DBOS:    workflows.Ctx(),
+				Log:     logger,
+				Workdir: workdir,
 			})
 			if err := workflows.Launch(); err != nil {
 				return errors.Wrap(err, "launch workflows")

@@ -867,6 +867,17 @@ body.chat-selecting * {
   padding: 0.4rem 0.6rem;
 }
 
+.chat-elicit-textarea {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 0.4rem 0.6rem;
+  resize: vertical;
+  width: 100%;
+}
+
 .chat-elicit-actions {
   display: flex;
   gap: 0.5rem;

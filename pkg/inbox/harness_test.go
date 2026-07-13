@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"testing"
@@ -27,6 +28,21 @@ type Harness struct {
 
 type Step = testkit.BrowserStep[*Harness]
 
+type stubUpdater struct{}
+
+func (stubUpdater) Version(context.Context) (string, error) { return "claude 2.1.0", nil }
+func (stubUpdater) Update(context.Context) (string, error)  { return "Updated to claude 2.2.0", nil }
+
+type stubDrafter struct{}
+
+func (stubDrafter) Context(context.Context) (string, error) {
+	return "Commits:\nabc123 Add a widget", nil
+}
+
+func (stubDrafter) Draft(context.Context, string) (flow.PullRequest, error) {
+	return flow.PullRequest{Body: "- Add a widget", Title: "Add a widget"}, nil
+}
+
 func runBrowser(t *testing.T, cases []testkit.BrowserCase[*Harness]) {
 	testkit.RunBrowserCases(t, cases, testkit.BrowserCaseRunner[*Harness]{
 		BeforeAct: func(h *Harness) {
@@ -49,7 +65,13 @@ func runBrowser(t *testing.T, cases []testkit.BrowserCase[*Harness]) {
 
 			workflows, err := workflow.New(t.TempDir() + "/workflows.db")
 			kit.R.NoError(err)
-			flows := flow.New(flow.Deps{DBOS: workflows.Ctx(), Greeter: flow.HeuristicGreeter(), Log: slog.New(logs)})
+			flows := flow.New(flow.Deps{
+				DBOS:    workflows.Ctx(),
+				Drafter: stubDrafter{},
+				Greeter: flow.HeuristicGreeter(),
+				Log:     slog.New(logs),
+				Updater: stubUpdater{},
+			})
 			kit.R.NoError(workflows.Launch())
 			t.Cleanup(func() { workflows.Close() })
 

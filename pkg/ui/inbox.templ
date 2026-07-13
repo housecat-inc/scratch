@@ -44,16 +44,17 @@ templ InboxActions(p InboxProps) {
 
 templ InboxCompose() {
 	<div class="mail-compose-actions">
-		@composeButton("task", "New task", taskIcon())
+		@composeButton("task", "Task", "New task", taskIcon())
 		@createWorkflowButton()
 	</div>
 }
 
-templ composeButton(mode, label string, icon templ.Component) {
+templ composeButton(mode, label, aria string, icon templ.Component) {
 	<form class="mail-compose-btn-form" method="post" action="/compose">
 		<input type="hidden" name="mode" value={ mode }/>
 		<input type="hidden" name="create_only" value="true"/>
-		<button class="mail-compose-btn" type="submit">
+		<button class="mail-compose-btn" type="submit" title={ aria } aria-label={ aria }>
+			@plusIcon()
 			@icon
 			<span>{ label }</span>
 		</button>
@@ -382,9 +383,10 @@ templ createWorkflowButton() {
 	<form class="mail-compose-combo" method="post" action="/compose">
 		<input type="hidden" name="mode" value="workflow"/>
 		<input type="hidden" name="create_only" value="true"/>
-		<button class="mail-compose-btn" type="submit" data-new-workflow>
+		<button class="mail-compose-btn" type="submit" data-new-workflow title="New workflow" aria-label="New workflow">
+			@plusIcon()
 			@workflowIcon()
-			<span>New workflow</span>
+			<span>Flow</span>
 		</button>
 		<span class="mail-create-select-wrap mail-model-select-wrap">
 			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type">
@@ -530,8 +532,12 @@ func showRowKindLabel(view string) bool {
 
 func workflowTypeLabel(typ string) string {
 	switch typ {
+	case "create-pr":
+		return "Create pull request"
 	case "greet":
 		return "Greet"
+	case "update-claude":
+		return "Update Claude Code"
 	default:
 		return agentLabel(typ)
 	}
@@ -553,7 +559,7 @@ func workflowStatusLabel(status string) string {
 }
 
 func workflowTypeOptions() []string {
-	return []string{"greet"}
+	return []string{"greet", "update-claude", "create-pr"}
 }
 
 func chatIcon() templ.Component {
@@ -814,4 +820,8 @@ func unarchiveIcon() templ.Component {
 
 func workflowIcon() templ.Component {
 	return lucideIcon(`<circle cx="12" cy="4.5" r="2.5"></circle><circle cx="4.5" cy="12" r="2.5"></circle><circle cx="19.5" cy="12" r="2.5"></circle><circle cx="12" cy="19.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><path d="M7 12h10"></path><path d="m13.8 17.7 3.9-3.9"></path>`)
+}
+
+func plusIcon() templ.Component {
+	return lucideIcon(`<path d="M12 5v14"></path><path d="M5 12h14"></path>`)
 }

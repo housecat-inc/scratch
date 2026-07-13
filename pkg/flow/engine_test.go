@@ -48,7 +48,7 @@ func TestGreetAccept(t *testing.T) {
 	r := require.New(t)
 	e := newEngine(t)
 
-	r.NoError(e.Start("greet-1"))
+	r.NoError(e.Start("greet", "greet-1"))
 	form := waitForm(t, e, "greet-1")
 	r.Equal("What should I call you?", form.Message)
 
@@ -76,7 +76,7 @@ func TestGreetDecline(t *testing.T) {
 	r := require.New(t)
 	e := newEngine(t)
 
-	r.NoError(e.Start("greet-2"))
+	r.NoError(e.Start("greet", "greet-2"))
 	form := waitForm(t, e, "greet-2")
 
 	r.NoError(e.Resolve("greet-2", form.ElicitationID, elicit.ActionDecline, nil))
@@ -110,7 +110,7 @@ func TestGreetProgressWhileRunning(t *testing.T) {
 	r.NoError(wf.Launch())
 	t.Cleanup(func() { close(release); wf.Close() })
 
-	r.NoError(e.Start("greet-p"))
+	r.NoError(e.Start("greet", "greet-p"))
 	form := waitForm(t, e, "greet-p")
 	r.NoError(e.Resolve("greet-p", form.ElicitationID, elicit.ActionAccept, map[string]string{"name": "Ada"}))
 
@@ -133,7 +133,7 @@ func TestResolveUnknownForm(t *testing.T) {
 	r := require.New(t)
 	e := newEngine(t)
 
-	r.NoError(e.Start("greet-3"))
+	r.NoError(e.Start("greet", "greet-3"))
 	waitForm(t, e, "greet-3")
 
 	err := e.Resolve("greet-3", "greet-3/missing", elicit.ActionAccept, map[string]string{"name": "Ada"})

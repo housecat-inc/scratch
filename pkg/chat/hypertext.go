@@ -558,6 +558,10 @@ func toFieldProps(name string, prop *jsonschema.Schema, required bool) ui.ChatFo
 	if prop.Format == "email" {
 		field.Type = "email"
 	}
+	switch name {
+	case "body", "description", "notes":
+		field.Type = "textarea"
+	}
 	for _, option := range prop.Enum {
 		if s, ok := option.(string); ok {
 			field.Options = append(field.Options, s)
