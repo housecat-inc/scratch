@@ -96,6 +96,31 @@ func TestWebhookRouteUnknownWorkflowIs404(t *testing.T) {
 	r.Equal(http.StatusNotFound, resp.StatusCode)
 }
 
+func TestWebhookRouteRejectsOversizedBody(t *testing.T) {
+	r := require.New(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	store, err := db.New(":memory:")
+	r.NoError(err)
+	t.Cleanup(func() { store.Close() })
+	workflows, err := workflow.New(t.TempDir() + "/wf.db")
+	r.NoError(err)
+	flows := flow.New(flow.Deps{DBOS: workflows.Ctx(), Greeter: flow.HeuristicGreeter(), Log: log})
+	r.NoError(workflows.Launch())
+	t.Cleanup(func() { workflows.Close() })
+	chatSvc := chat.NewService(store, chat.EchoAgent{}, log)
+	t.Cleanup(chatSvc.Close)
+
+	srv := httptest.NewServer(NewServer(todo.NewService(store), chatSvc, flows, log).Handler())
+	t.Cleanup(srv.Close)
+
+	body := `{"event":"` + strings.Repeat("a", 128<<10) + `"}`
+	resp, err := srv.Client().Post(srv.URL+"/webhooks/whatever", "application/json", strings.NewReader(body))
+	r.NoError(err)
+	resp.Body.Close()
+	r.Equal(http.StatusBadRequest, resp.StatusCode)
+}
+
 func get(t *testing.T, srv *httptest.Server, path string) string {
 	t.Helper()
 	resp, err := srv.Client().Get(srv.URL + path)

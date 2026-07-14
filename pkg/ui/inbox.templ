@@ -155,6 +155,7 @@ templ ScheduleRowPrimary(sc WorkflowScheduleView) {
 }
 
 templ ScheduleRowActions(sc WorkflowScheduleView) {
+	@scheduleButton(sc.Name, "trigger", "Run now", sendIcon())
 	if sc.Paused {
 		@scheduleButton(sc.Name, "resume", "Resume", playIcon())
 	} else {
@@ -163,7 +164,7 @@ templ ScheduleRowActions(sc WorkflowScheduleView) {
 }
 
 templ scheduleButton(name, action, label string, icon templ.Component) {
-	<form method="post" action={ templ.SafeURL("/inbox/schedules/" + name + "/" + action) }>
+	<form method="post" action={ templ.SafeURL("/inbox/schedules/" + url.PathEscape(name) + "/" + action) }>
 		<input type="hidden" name="back" value="/inbox/workflows"/>
 		<button type="submit" class="gm-row-action" title={ label } aria-label={ label } data-schedule-btn={ action } onclick="event.stopPropagation()">
 			@icon

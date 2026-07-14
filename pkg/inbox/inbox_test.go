@@ -97,9 +97,10 @@ func TestArchiveFilter(t *testing.T) {
 func TestScheduleLastFired(t *testing.T) {
 	a := assert.New(t)
 	now := time.Now()
+	fired := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.Local)
 
 	a.Equal("", scheduleLastFired(time.Time{}))
-	a.Equal("last at "+now.Local().Format("3:04 PM"), scheduleLastFired(now))
+	a.Equal("last at "+fired.Format("3:04 PM"), scheduleLastFired(fired))
 }
 
 func TestLegacyTaskPagesAreNotMounted(t *testing.T) {

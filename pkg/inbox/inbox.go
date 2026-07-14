@@ -849,9 +849,11 @@ func (s *Server) handleForkWorkflow(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(forked.ID, 10), http.StatusSeeOther)
 }
 
+const maxWebhookBody = 64 << 10
+
 func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	var payload flow.WebhookPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxWebhookBody)).Decode(&payload); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
