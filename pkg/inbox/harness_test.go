@@ -104,6 +104,12 @@ var ElementAbsent = func(selector string) Step {
 	}
 }
 var Fill = testkit.FillStep[*Harness]
+var Hover = func(selector string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.Page.MustElement(selector).MustHover()
+	}
+}
 var Press = testkit.PressStep[*Harness]
 var TextContains = testkit.TextContainsStep[*Harness]
 var Type = testkit.TypeStep[*Harness]

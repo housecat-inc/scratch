@@ -837,6 +837,7 @@ body.chat-selecting * {
   margin-top: 0.6rem;
   max-width: 52rem;
   padding: 0.75rem;
+  position: relative;
   width: min(100%, 52rem);
 }
 
@@ -849,7 +850,6 @@ body.chat-selecting * {
   align-items: center;
   display: flex;
   justify-content: flex-end;
-  min-height: 2rem;
 }
 
 .chat-elicit-message {
@@ -876,14 +876,19 @@ body.chat-selecting * {
   background: #fff;
   border: 1px solid #d8dee9;
   border-radius: 0.4rem;
+  box-sizing: border-box;
+  display: block;
   font-size: 0.95rem;
   padding: 0.4rem 0.6rem;
+  width: 100%;
 }
 
 .chat-elicit-textarea {
   background: #fff;
   border: 1px solid #d8dee9;
   border-radius: 0.4rem;
+  box-sizing: border-box;
+  display: block;
   font-size: 0.9rem;
   line-height: 1.5;
   padding: 0.4rem 0.6rem;
@@ -916,6 +921,22 @@ body.chat-selecting * {
   justify-content: center;
   padding: 0;
   width: 2rem;
+}
+
+.chat-elicit-editable .chat-elicit-header {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.chat-elicit-editable:focus-within .chat-elicit-header,
+.chat-elicit-editable:hover .chat-elicit-header {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .chat-elicit-editable .chat-elicit-actions button:hover {
@@ -994,7 +1015,9 @@ body.chat-selecting * {
 .chat-elicit-editable select:disabled,
 .chat-elicit-editable textarea:disabled {
   background: #fff;
+  border-color: transparent;
   color: #0f172a;
+  cursor: default;
   opacity: 1;
   -webkit-text-fill-color: #0f172a;
 }
