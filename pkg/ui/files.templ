@@ -27,46 +27,45 @@ templ FilesPage(v FilesProps) {
 					Editor: FilesEditorPane(),
 				})
 			}
+			<script src="/static/cm-files.bundle.js"></script>
 			<script src="/static/files.js"></script>
 		</body>
 	</html>
 }
 
 templ FilesHeadExtras() {
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css"/>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js"></script>
 	<style>
 		html, body { height: 100%; }
-		.CodeMirror { height: 100%; font-size: 14px; }
-		.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-		.CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }
+		#editor-area { height: 100%; }
+		#editor-area .cm-editor { height: 100%; }
+		#editor-area .cm-editor.cm-focused { outline: none; }
+		#editor-area .cm-scroller { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 		@media (max-width: 767px) {
-			.CodeMirror { font-size: 16px; }
+			#editor-area .cm-content { font-size: 16px; }
 		}
 	</style>
 }
 
 templ FilesTreePane(v FilesProps) {
 	<header class="mail-mainbar">
-		<nav class="flex items-center gap-0.5 font-mono text-xs overflow-x-auto whitespace-nowrap" aria-label="Directory">
-			for i, c := range v.Crumbs {
-				if i > 1 {
-					<span class="text-slate-300">/</span>
+		<div class="relative">
+			<button type="button" data-files-browse class="inline-flex items-center gap-1.5 px-2 py-1 -ml-2 rounded hover:bg-slate-100 text-slate-700" title="Browse folders" aria-label="Browse folders">
+				<svg class="w-4 h-4 flex-shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></svg>
+				<span class="font-mono text-sm truncate max-w-[12rem]">{ dirName(v.Dir) }</span>
+				<svg class="w-3 h-3 flex-shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+			</button>
+			<div id="files-browse-menu" class="hidden absolute left-0 z-40 mt-1 w-72 max-h-80 overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+				<div class="px-3 py-1 font-mono text-[11px] text-slate-400 truncate" title={ v.Dir }>{ v.Dir }</div>
+				if v.Parent != "" {
+					<a href={ templ.SafeURL(filesDirHref(v.Parent)) } class="block px-3 py-1.5 font-mono text-sm text-slate-500 hover:bg-slate-50">../</a>
 				}
-				<a href={ templ.SafeURL(filesDirHref(c.Dir)) } class="px-1 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900">{ c.Name }</a>
-			}
-		</nav>
+				for _, e := range v.Entries {
+					if e.Dir {
+						<a href={ templ.SafeURL(filesChildDirHref(v.Dir, e.Name)) } class="block px-3 py-1.5 font-mono text-sm text-slate-700 hover:bg-slate-50 truncate">{ e.Name }/</a>
+					}
+				}
+			</div>
+		</div>
 	</header>
 	if v.Error != "" {
 		<div class="px-3 py-2 text-xs text-destructive break-all flex-shrink-0">{ v.Error }</div>

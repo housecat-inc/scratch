@@ -131,16 +131,11 @@ type FileTreeProps struct {
 	Entries []FileEntry
 }
 
-type FileCrumb struct {
-	Dir  string
-	Name string
-}
-
 type FilesProps struct {
-	Crumbs  []FileCrumb
 	Dir     string
 	Entries []FileEntry
 	Error   string
+	Parent  string
 	Root    string
 	Shell   ToolShellProps
 }

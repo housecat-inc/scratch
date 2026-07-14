@@ -47,9 +47,9 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	base := s.base(r)
 	entries, err := s.readDir(base, "")
 	vm := ui.FilesProps{
-		Crumbs:  pathCrumbs(base),
 		Dir:     base,
 		Entries: entries,
+		Parent:  parentDir(base),
 		Root:    rootLabel(base),
 		Shell:   s.shell(),
 	}
@@ -71,17 +71,13 @@ func (s *Server) base(r *http.Request) string {
 	return abs
 }
 
-func pathCrumbs(dir string) []ui.FileCrumb {
-	crumbs := []ui.FileCrumb{{Dir: "/", Name: "/"}}
-	cur := "/"
-	for part := range strings.SplitSeq(strings.TrimPrefix(filepath.Clean(dir), "/"), "/") {
-		if part == "" {
-			continue
-		}
-		cur = filepath.Join(cur, part)
-		crumbs = append(crumbs, ui.FileCrumb{Dir: cur, Name: part})
+func parentDir(dir string) string {
+	dir = filepath.Clean(dir)
+	parent := filepath.Dir(dir)
+	if parent == dir {
+		return ""
 	}
-	return crumbs
+	return parent
 }
 
 func (s *Server) shell() ui.ToolShellProps {
@@ -127,7 +123,6 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("X-CM-Mode", cmMode(abs))
 	_, _ = w.Write(data)
 }
 
@@ -225,36 +220,6 @@ func safeJoin(root, rel string) (string, error) {
 		return "", errors.New("path escapes root")
 	}
 	return absAbs, nil
-}
-
-func cmMode(path string) string {
-	switch filepath.Ext(path) {
-	case ".bash", ".sh":
-		return "text/x-sh"
-	case ".css":
-		return "text/css"
-	case ".go":
-		return "text/x-go"
-	case ".html", ".htm":
-		return "text/html"
-	case ".js", ".mjs":
-		return "text/javascript"
-	case ".json":
-		return "application/json"
-	case ".md", ".markdown":
-		return "text/x-markdown"
-	case ".py":
-		return "text/x-python"
-	case ".templ":
-		return "text/html"
-	case ".ts", ".tsx":
-		return "text/typescript"
-	case ".xml":
-		return "application/xml"
-	case ".yaml", ".yml":
-		return "text/x-yaml"
-	}
-	return "text/plain"
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, c templ.Component) {

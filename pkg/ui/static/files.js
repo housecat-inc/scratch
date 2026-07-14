@@ -1,11 +1,7 @@
 const wrap = document.getElementById('files-wrap');
-const editor = CodeMirror(document.getElementById('editor-area'), {
-  lineNumbers: true,
-  fixedGutter: false,
-  lineWrapping: true,
-  theme: 'neat',
-  keyMap: 'sublime',
-  mode: 'text/plain',
+const editor = window.CMFILES.create(document.getElementById('editor-area'), () => {
+  if (currentPath === null) return;
+  setDirty(editor.getValue() !== savedValue);
 });
 let currentPath = null;
 let savedValue = '';
@@ -35,7 +31,7 @@ function highlightTreeEntry(path) {
 }
 function showEditor() {
   wrap.classList.add('show-editor');
-  setTimeout(() => editor.refresh(), 0);
+  setTimeout(() => editor.focus(), 0);
 }
 function showTree(opts) {
   wrap.classList.remove('show-editor');
@@ -46,10 +42,20 @@ function showTree(opts) {
 
 backBtn.addEventListener('click', () => showTree());
 
-editor.on('change', () => {
-  if (currentPath === null) return;
-  setDirty(editor.getValue() !== savedValue);
-});
+const browseBtn = document.querySelector('[data-files-browse]');
+const browseMenu = document.getElementById('files-browse-menu');
+if (browseBtn && browseMenu) {
+  browseBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    browseMenu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', e => {
+    if (!browseMenu.contains(e.target) && !browseBtn.contains(e.target)) browseMenu.classList.add('hidden');
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') browseMenu.classList.add('hidden');
+  });
+}
 
 async function openFile(path, opts) {
   opts = opts || {};
@@ -63,16 +69,12 @@ async function openFile(path, opts) {
   try {
     const res = await fetch(apiUrl('read', path));
     if (!res.ok) throw new Error(await res.text());
-    const mode = res.headers.get('X-CM-Mode') || 'text/plain';
     const content = await res.text();
     currentPath = path;
     savedValue = content;
-    editor.setOption('mode', mode);
-    editor.setValue(content);
-    editor.clearHistory();
+    editor.load(path, content);
     pathLabel.textContent = path;
     setDirty(false);
-    editor.refresh();
     if (!opts.fromHistory) {
       history.pushState({path}, '', urlForPath(path));
     }
