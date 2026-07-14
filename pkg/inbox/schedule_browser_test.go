@@ -32,6 +32,7 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 				Hover("[data-id=heartbeat]"),
 			},
 			Assert: []Step{
+				ElementAbsent("[data-id=heartbeat] .gm-row-kind-icon"),
 				TextContains("[data-id=heartbeat] .gm-row-label", "Scheduled"),
 				TextContains("[data-id=heartbeat] .gm-row-labels", "Active"),
 				TextContains("[data-id=heartbeat] .gm-row-subject-text", "0 * * * * *"),

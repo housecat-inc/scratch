@@ -141,7 +141,6 @@ templ ScheduleRow(sc WorkflowScheduleView) {
 		ID: sc.Name,
 		Kind: "workflow",
 		Labels: scheduleRowLabels(sc),
-		Primary: ScheduleRowPrimary(),
 		Subject: sc.Cron,
 		What: sc.Name,
 		When: sc.LastFired,
@@ -154,12 +153,6 @@ templ ScheduleRowActions(sc WorkflowScheduleView) {
 	} else {
 		@scheduleButton(sc.Name, "pause", "Pause", pauseIcon())
 	}
-}
-
-templ ScheduleRowPrimary() {
-	<span class="gm-row-kind-icon" title="Scheduled workflow" aria-label="Scheduled workflow" role="img">
-		@workflowIcon()
-	</span>
 }
 
 templ scheduleButton(name, action, label string, icon templ.Component) {
