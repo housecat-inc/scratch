@@ -1,6 +1,7 @@
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { SQLite, sql } from "@codemirror/lang-sql";
 import { acceptCompletion, autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { languageServer } from "codemirror-languageserver";
@@ -13,6 +14,7 @@ window.CMSQL = {
   acceptCompletion,
   autocompletion,
   completionKeymap,
+  defaultHighlightStyle,
   defaultKeymap,
   history,
   historyKeymap,
@@ -20,4 +22,5 @@ window.CMSQL = {
   languageServer,
   lineNumbers,
   sql,
+  syntaxHighlighting,
 };

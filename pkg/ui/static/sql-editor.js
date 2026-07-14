@@ -38,6 +38,7 @@
         ]),
         CM.keymap.of([].concat(CM.defaultKeymap, CM.historyKeymap, CM.completionKeymap)),
         sqlCompartment.of(CM.sql({ dialect: CM.SQLite })),
+        CM.syntaxHighlighting(CM.defaultHighlightStyle),
         CM.autocompletion(),
         heightTheme,
         sync,
