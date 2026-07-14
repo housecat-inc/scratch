@@ -648,6 +648,9 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 	if !s.messageStreaming(messageID) {
 		return
 	}
+	if s.eventAlreadyStored(messageID, ev) {
+		return
+	}
 	if _, err := s.store.AddMessageEvent(messageID, ev.Type, ev.Data); err != nil {
 		s.log.Error("chat.event", "error", err.Error())
 	}
@@ -677,6 +680,27 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 		}
 	}
 	s.broker.Publish(threadID, messageID)
+}
+
+func (s *Service) eventAlreadyStored(messageID int64, ev Event) bool {
+	events, err := s.store.ListMessageEvents(messageID, 0)
+	if err != nil {
+		s.log.Error("chat.events", "error", err.Error())
+		return false
+	}
+	if ev.Type == EventDelta {
+		if len(events) == 0 {
+			return false
+		}
+		last := events[len(events)-1]
+		return last.Type == ev.Type && last.Data == ev.Data
+	}
+	for _, stored := range events {
+		if stored.Type == ev.Type && stored.Data == ev.Data {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {

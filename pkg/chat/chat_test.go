@@ -82,6 +82,31 @@ func TestSendEcho(t *testing.T) {
 	a.Equal("hello there", prompt)
 }
 
+func TestSendDeduplicatesReplayedEvents(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	svc := newTestService(t, duplicateEventAgent{})
+	thread, err := svc.CreateThread("", "")
+	r.NoError(err)
+
+	_, err = svc.Send(thread.ID, "hello")
+	r.NoError(err)
+
+	view := waitComplete(t, svc, thread.ID)
+	r.Len(view.Messages, 2)
+	asst := view.Messages[1]
+	a.Equal("helloagain", asst.Body)
+
+	events, err := svc.store.ListMessageEvents(asst.ID, 0)
+	r.NoError(err)
+	r.Len(events, 4)
+	a.Equal(EventDelta, events[0].Type)
+	a.Equal(EventToolCall, events[1].Type)
+	a.Equal(EventToolCallUpdate, events[2].Type)
+	a.Equal(EventDelta, events[3].Type)
+}
+
 func TestSendPreservesThreadLabel(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
@@ -391,6 +416,22 @@ func TestTruncate(t *testing.T) {
 
 type blockingAgent struct {
 	release chan struct{}
+}
+
+type duplicateEventAgent struct{}
+
+func (duplicateEventAgent) Author() string { return "agent:duplicate" }
+
+func (duplicateEventAgent) Run(ctx context.Context, turn Turn, emit func(Event)) (string, error) {
+	emit(DeltaEvent("hello"))
+	emit(DeltaEvent("hello"))
+	emit(Event{Data: `{"status":"in_progress","title":"Run","toolCallId":"tool-1"}`, Type: EventToolCall})
+	emit(Event{Data: `{"status":"in_progress","title":"Run","toolCallId":"tool-1"}`, Type: EventToolCall})
+	emit(Event{Data: `{"status":"completed","title":"Run","toolCallId":"tool-1"}`, Type: EventToolCallUpdate})
+	emit(Event{Data: `{"status":"completed","title":"Run","toolCallId":"tool-1"}`, Type: EventToolCallUpdate})
+	emit(DeltaEvent("again"))
+	emit(DeltaEvent("again"))
+	return "", nil
 }
 
 func (blockingAgent) Author() string { return "agent:block" }
