@@ -523,6 +523,12 @@
     scroller.scrollTo(0, scroller.scrollHeight);
   };
 
+  const openPanel = (panel) => {
+    applyPanelMode(panel, "open");
+    const scroller = panel.querySelector("[data-chat-scroller]");
+    if (scroller) requestAnimationFrame(() => scroller.scrollTo(0, scroller.scrollHeight));
+  };
+
   const initPopout = (panel) => {
     if (panel.dataset.chatPanelInitialized === "true") return;
     panel.dataset.chatPanelInitialized = "true";
@@ -530,12 +536,16 @@
     panel.addEventListener("click", async (e) => {
       const minimize = e.target.closest("[data-chat-minimize]");
       if (minimize) {
-        applyPanelMode(panel, panel.classList.contains("minimized") ? "open" : "minimized");
+        if (panel.classList.contains("minimized")) {
+          openPanel(panel);
+        } else {
+          applyPanelMode(panel, "minimized");
+        }
         return;
       }
       const restore = e.target.closest("[data-chat-restore]");
       if (restore) {
-        applyPanelMode(panel, "open");
+        openPanel(panel);
         return;
       }
       const fullscreen = e.target.closest("[data-chat-fullscreen]");
@@ -553,7 +563,7 @@
         return;
       }
       if (panel.classList.contains("minimized") && e.target.closest(".floating-chat-head")) {
-        applyPanelMode(panel, "open");
+        openPanel(panel);
       }
     });
   };
