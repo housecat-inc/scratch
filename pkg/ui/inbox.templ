@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,8 @@ templ InboxPage(p InboxProps) {
 					@InboxTaskReader(*p.Task)
 				} else if p.Draft != nil {
 					@InboxDraftReader(*p.Draft)
+				} else if p.Schedule != nil {
+					@InboxScheduleReader(*p.Schedule)
 				} else if p.Workflow != nil {
 					@InboxWorkflowReader(*p.Workflow)
 				} else if p.Thread != nil {
@@ -134,7 +137,7 @@ templ InboxListView(p InboxProps) {
 templ ScheduleRow(sc WorkflowScheduleView) {
 	@uikit.ListRow(uikit.ListRowProps{
 		Actions: ScheduleRowActions(sc),
-		Href: "/inbox/workflows",
+		Href: scheduleInboxURL(sc.Name),
 		ID: sc.Name,
 		Kind: "workflow",
 		Labels: scheduleRowLabels(sc),
@@ -280,6 +283,25 @@ templ InboxThreadReader(d InboxThreadDetail) {
 	</div>
 }
 
+templ InboxScheduleReader(d InboxScheduleDetail) {
+	@ReaderHeader(ReaderHeaderProps{
+		BackHref: "/inbox/workflows",
+		Description: d.Cron,
+		Labels: []string{"Scheduled", scheduleStatusLabel(WorkflowScheduleView{Paused: d.Paused})},
+		Title: d.Name,
+	})
+	<div class="mail-reader-body mail-chat-body">
+		<div id="wf-body" class="chat-messages mail-chat-messages">
+			if len(d.Runs) == 0 {
+				<div class="mail-empty">No executions yet.</div>
+			}
+			for i, run := range d.Runs {
+				@scheduleRunItem(i, run)
+			}
+		</div>
+	</div>
+}
+
 templ InboxWorkflowReader(d InboxWorkflowDetail) {
 	<div
 		id="wf-reader"
@@ -312,6 +334,22 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 			</div>
 		</div>
 	</div>
+}
+
+templ scheduleRunItem(i int, run ScheduleRunProps) {
+	@ChatTurn("assistant") {
+		@chatRow(chatRowProps{
+			Failed:  run.Status == "ERROR",
+			Detail:  run.ID,
+			Key:     "schedule-run-" + strconv.Itoa(i),
+			Kind:    "tool",
+			Label:   "Execution " + run.CreatedAt,
+			Summary: workflowStatusLabel(run.Status),
+		})
+	}
+	for j, item := range run.Items {
+		@workflowItem(j, item)
+	}
 }
 
 templ workflowItem(i int, item WorkflowItemProps) {
@@ -578,6 +616,8 @@ func workflowTypeLabel(typ string) string {
 		return "Log stream"
 	case "update-claude":
 		return "Update Claude Code"
+	case "webhook":
+		return "Webhook"
 	default:
 		return agentLabel(typ)
 	}
@@ -592,6 +632,10 @@ func scheduleStatusLabel(sc WorkflowScheduleView) string {
 
 func scheduleRowLabels(sc WorkflowScheduleView) []string {
 	return []string{"Scheduled", scheduleStatusLabel(sc)}
+}
+
+func scheduleInboxURL(name string) string {
+	return "/inbox/schedules/" + url.PathEscape(name)
 }
 
 func workflowStatusLabel(status string) string {
@@ -610,7 +654,7 @@ func workflowStatusLabel(status string) string {
 }
 
 func workflowTypeOptions() []string {
-	return []string{"greet", "update-claude", "create-pr", "countdown", "fan-out", "stream", "deploy"}
+	return []string{"greet", "update-claude", "create-pr", "countdown", "fan-out", "stream", "deploy", "webhook"}
 }
 
 func chatIcon() templ.Component {
@@ -732,6 +776,9 @@ func inboxViewHref(view string) string {
 func inboxTitle(p InboxProps) string {
 	if p.Draft != nil {
 		return p.Draft.Title
+	}
+	if p.Schedule != nil {
+		return p.Schedule.Name
 	}
 	switch p.View {
 	case "chats":

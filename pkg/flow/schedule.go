@@ -14,11 +14,20 @@ const (
 	heartbeatName = "heartbeat"
 )
 
+var ErrScheduleNotFound = errors.New("schedule not found")
+
 type ScheduleView struct {
 	Cron      string
 	LastFired string
 	Name      string
 	Paused    bool
+	Status    string
+}
+
+type ScheduleRunView struct {
+	CreatedAt string
+	ID        string
+	Steps     []StepView
 	Status    string
 }
 
@@ -71,6 +80,39 @@ func (e *Engine) PauseSchedule(name string) error {
 
 func (e *Engine) ResumeSchedule(name string) error {
 	return errors.Wrap(dbos.ResumeSchedule(e.ctx, name), "resume schedule")
+}
+
+func (e *Engine) ScheduleRuns(name string) ([]ScheduleRunView, error) {
+	schedule, err := dbos.GetSchedule(e.ctx, name)
+	if err != nil {
+		return nil, errors.Wrap(err, "get schedule")
+	}
+	if schedule == nil {
+		return nil, ErrScheduleNotFound
+	}
+	runs, err := dbos.ListWorkflows(
+		e.ctx,
+		dbos.WithLimit(25),
+		dbos.WithSortDesc(),
+		dbos.WithWorkflowIDPrefix("sched-"+name+"-"),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "list schedule runs")
+	}
+	views := make([]ScheduleRunView, 0, len(runs))
+	for _, run := range runs {
+		view, err := e.Run(run.ID)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, ScheduleRunView{
+			CreatedAt: run.CreatedAt.Format("15:04:05"),
+			ID:        run.ID,
+			Steps:     view.Steps,
+			Status:    view.Status,
+		})
+	}
+	return views, nil
 }
 
 func (e *Engine) TriggerSchedule(name string) (string, error) {

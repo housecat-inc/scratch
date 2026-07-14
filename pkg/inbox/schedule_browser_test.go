@@ -2,6 +2,7 @@ package inbox
 
 import (
 	"testing"
+	"time"
 
 	"github.com/housecat-inc/scratch/testkit"
 )
@@ -10,6 +11,15 @@ func SeedSchedule() Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
 		h.R.NoError(h.Flows.EnsureSchedules())
+	}
+}
+
+func SeedScheduleRun() Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		runID, err := h.Flows.TriggerSchedule("heartbeat")
+		h.R.NoError(err)
+		h.Flows.Await(runID, 5*time.Second)
 	}
 }
 
@@ -45,6 +55,22 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 				Visible("[data-schedule-btn=resume]"),
 			},
 			Name: "pausing a schedule flips the label to paused",
+			Path: "/inbox/workflows",
+		},
+		{
+			Act: []Step{
+				SeedSchedule(),
+				SeedScheduleRun(),
+				Load("/inbox/workflows"),
+				Click("[data-id=heartbeat] .gm-row-link"),
+			},
+			Assert: []Step{
+				TextContains(".mail-reader-title h1", "heartbeat"),
+				TextContains(".mail-reader-labels", "Scheduled"),
+				TextContains("#wf-body", "Execution"),
+				TextContains("#wf-body", "beat at"),
+			},
+			Name: "clicking a schedule opens the execution feed",
 			Path: "/inbox/workflows",
 		},
 	})

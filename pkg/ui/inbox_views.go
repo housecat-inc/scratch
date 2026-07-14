@@ -36,6 +36,7 @@ type InboxProps struct {
 	Counts        InboxCounts
 	Draft         *InboxDraftDetail
 	Items         []InboxItem
+	Schedule      *InboxScheduleDetail
 	Schedules     []WorkflowScheduleView
 	Selected      InboxSelection
 	Task          *InboxTaskDetail
@@ -52,9 +53,26 @@ type WorkflowScheduleView struct {
 	Status    string
 }
 
+type InboxScheduleDetail struct {
+	Cron      string
+	LastFired string
+	Name      string
+	Paused    bool
+	Runs      []ScheduleRunProps
+	Status    string
+}
+
+type ScheduleRunProps struct {
+	CreatedAt string
+	ID        string
+	Items     []WorkflowItemProps
+	Status    string
+}
+
 type InboxSelection struct {
 	ID   int64
 	Kind string
+	Name string
 }
 
 type InboxDraftDetail struct {

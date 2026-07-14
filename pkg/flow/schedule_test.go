@@ -40,4 +40,11 @@ func TestScheduleLifecycle(t *testing.T) {
 	run, err := e.Run(runID)
 	r.NoError(err)
 	r.True(run.Done())
+
+	runs, err := e.ScheduleRuns(heartbeatName)
+	r.NoError(err)
+	r.NotEmpty(runs)
+	r.Equal(runID, runs[0].ID)
+	r.Equal("SUCCESS", runs[0].Status)
+	r.NotEmpty(runs[0].Steps)
 }

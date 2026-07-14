@@ -47,6 +47,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /starred", s.handleStarred)
 	mux.HandleFunc("GET /inbox/chats/{id}", s.handleChat)
 	mux.HandleFunc("GET /inbox/tasks/{id}", s.handleTask)
+	mux.HandleFunc("GET /inbox/schedules/{name}", s.handleSchedule)
 	mux.HandleFunc("GET /inbox/workflows/{id}", s.handleWorkflow)
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
@@ -352,6 +353,10 @@ func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{})
 }
 
+func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
+	s.renderPage(w, r, "workflows", ui.InboxSelection{Kind: "schedule", Name: r.PathValue("name")})
+}
+
 func composeHasFiles(r *http.Request) bool {
 	if r.MultipartForm == nil {
 		return false
@@ -394,7 +399,7 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
-	if db.IsTaskNotFound(err) || db.IsThreadNotFound(err) {
+	if db.IsTaskNotFound(err) || db.IsThreadNotFound(err) || errors.Is(err, flow.ErrScheduleNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -470,6 +475,12 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 			return ui.InboxProps{}, err
 		}
 		props.Workflow = &detail
+	case "schedule":
+		detail, err := s.scheduleDetail(selected.Name)
+		if err != nil {
+			return ui.InboxProps{}, err
+		}
+		props.Schedule = &detail
 	}
 	return props, nil
 }
@@ -576,37 +587,84 @@ func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 		Title:    title,
 	}
 	for _, step := range run.Steps {
-		item := ui.WorkflowItemProps{
-			Answer:   step.Answer,
-			Detail:   step.Detail,
-			Duration: step.Duration,
-			Failed:   step.Failed,
-			Input:    step.Input,
-			Kind:     step.Kind,
-			Running:  step.Status == flow.StepRunning,
-			Summary:  step.Summary,
-			Title:    step.Title,
-		}
-		if step.Kind == flow.KindForm && step.Form != nil {
-			form := chat.FormProps(fmt.Sprintf("/inbox/workflows/%d/resolve", id), *step.Form)
-			form.HideMessage = true
-			if step.Pending {
-				form.Plain = true
-			} else {
-				form.Action = fmt.Sprintf("/inbox/workflows/%d/edit", id)
-				form.Editable = true
-				form.ForkAction = fmt.Sprintf("/inbox/workflows/%d/fork", id)
-				for i := range form.Fields {
-					if v, ok := step.Values[form.Fields[i].Name]; ok {
-						form.Fields[i].Value = v
-					}
-				}
-			}
-			item.Form = &form
-		}
-		detail.Items = append(detail.Items, item)
+		detail.Items = append(detail.Items, s.workflowItemProps(id, step))
 	}
 	return detail, nil
+}
+
+func (s *Server) scheduleDetail(name string) (ui.InboxScheduleDetail, error) {
+	schedules, err := s.schedules()
+	if err != nil {
+		return ui.InboxScheduleDetail{}, err
+	}
+	var schedule ui.WorkflowScheduleView
+	found := false
+	for _, sc := range schedules {
+		if sc.Name == name {
+			schedule = sc
+			found = true
+			break
+		}
+	}
+	if !found {
+		return ui.InboxScheduleDetail{}, flow.ErrScheduleNotFound
+	}
+	runs, err := s.flows.ScheduleRuns(name)
+	if err != nil {
+		return ui.InboxScheduleDetail{}, err
+	}
+	detail := ui.InboxScheduleDetail{
+		Cron:      schedule.Cron,
+		LastFired: schedule.LastFired,
+		Name:      schedule.Name,
+		Paused:    schedule.Paused,
+		Status:    schedule.Status,
+	}
+	for _, run := range runs {
+		item := ui.ScheduleRunProps{
+			CreatedAt: run.CreatedAt,
+			ID:        run.ID,
+			Status:    run.Status,
+		}
+		for _, step := range run.Steps {
+			item.Items = append(item.Items, s.workflowItemProps(0, step))
+		}
+		detail.Runs = append(detail.Runs, item)
+	}
+	return detail, nil
+}
+
+func (s *Server) workflowItemProps(threadID int64, step flow.StepView) ui.WorkflowItemProps {
+	item := ui.WorkflowItemProps{
+		Answer:   step.Answer,
+		Detail:   step.Detail,
+		Duration: step.Duration,
+		Failed:   step.Failed,
+		Input:    step.Input,
+		Kind:     step.Kind,
+		Running:  step.Status == flow.StepRunning,
+		Summary:  step.Summary,
+		Title:    step.Title,
+	}
+	if threadID == 0 || step.Kind != flow.KindForm || step.Form == nil {
+		return item
+	}
+	form := chat.FormProps(fmt.Sprintf("/inbox/workflows/%d/resolve", threadID), *step.Form)
+	form.HideMessage = true
+	if step.Pending {
+		form.Plain = true
+	} else {
+		form.Action = fmt.Sprintf("/inbox/workflows/%d/edit", threadID)
+		form.Editable = true
+		form.ForkAction = fmt.Sprintf("/inbox/workflows/%d/fork", threadID)
+		for i := range form.Fields {
+			if v, ok := step.Values[form.Fields[i].Name]; ok {
+				form.Fields[i].Value = v
+			}
+		}
+	}
+	item.Form = &form
+	return item
 }
 
 func (s *Server) schedules() ([]ui.WorkflowScheduleView, error) {
