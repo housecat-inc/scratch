@@ -30,9 +30,6 @@ type ShellProps struct {
 }
 
 func countLabel(count int) string {
-	if count <= 0 {
-		return ""
-	}
 	return strconv.Itoa(count)
 }
 
