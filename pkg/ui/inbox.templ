@@ -137,11 +137,11 @@ templ ScheduleRow(sc WorkflowScheduleView) {
 		Href: "/inbox/workflows",
 		ID: sc.Name,
 		Kind: "workflow",
-		Labels: []string{"Scheduled"},
+		Labels: scheduleRowLabels(sc),
 		Primary: ScheduleRowPrimary(),
-		Subject: scheduleRowSubject(sc),
+		Subject: sc.Cron,
 		What: sc.Name,
-		When: scheduleStatusLabel(sc),
+		When: sc.LastFired,
 	})
 }
 
@@ -590,11 +590,8 @@ func scheduleStatusLabel(sc WorkflowScheduleView) string {
 	return "Active"
 }
 
-func scheduleRowSubject(sc WorkflowScheduleView) string {
-	if sc.LastFired == "" {
-		return sc.Cron
-	}
-	return sc.Cron + " · last fired " + sc.LastFired
+func scheduleRowLabels(sc WorkflowScheduleView) []string {
+	return []string{"Scheduled", scheduleStatusLabel(sc)}
 }
 
 func workflowStatusLabel(status string) string {

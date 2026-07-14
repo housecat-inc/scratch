@@ -23,8 +23,9 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 			},
 			Assert: []Step{
 				TextContains("[data-id=heartbeat] .gm-row-label", "Scheduled"),
+				TextContains("[data-id=heartbeat] .gm-row-labels", "Active"),
+				TextContains("[data-id=heartbeat] .gm-row-subject-text", "0 * * * * *"),
 				TextContains("[data-id=heartbeat] .gm-row-what", "heartbeat"),
-				TextContains("[data-id=heartbeat] .gm-row-date", "Active"),
 				Visible("[data-schedule-btn=pause]"),
 			},
 			Name: "schedule row lists the heartbeat schedule as active",
@@ -40,7 +41,7 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 				Hover("[data-id=heartbeat]"),
 			},
 			Assert: []Step{
-				TextContains("[data-id=heartbeat] .gm-row-date", "Paused"),
+				TextContains("[data-id=heartbeat] .gm-row-labels", "Paused"),
 				Visible("[data-schedule-btn=resume]"),
 			},
 			Name: "pausing a schedule flips the label to paused",
