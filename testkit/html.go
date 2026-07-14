@@ -1,6 +1,8 @@
 package testkit
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -16,6 +18,7 @@ type HTML struct {
 	*T
 	Client *http.Client
 	Doc    *goquery.Document
+	Header http.Header
 	Server *httptest.Server
 	Status int
 }
@@ -155,6 +158,8 @@ func (h *HTML) dispatch(el *goquery.Selection) {
 func (h *HTML) applySwap(target *goquery.Selection, swap string, body string) {
 	switch strings.Fields(swap + " ")[0] {
 	case "none":
+	case "delete":
+		target.Remove()
 	case "outerHTML":
 		target.ReplaceWithHtml(body)
 	default:
@@ -176,6 +181,14 @@ func (h *HTML) collectValues(el *goquery.Selection) url.Values {
 			h.Doc.Find(strings.TrimSpace(selector)).Each(func(_ int, node *goquery.Selection) {
 				addFieldValue(values, node)
 			})
+		}
+	}
+	if vals, ok := el.Attr("hx-vals"); ok {
+		var parsed map[string]any
+		if json.Unmarshal([]byte(vals), &parsed) == nil {
+			for key, value := range parsed {
+				values.Set(key, fmt.Sprint(value))
+			}
 		}
 	}
 	return values
@@ -201,6 +214,7 @@ func (h *HTML) do(method string, path string, body io.Reader, hx bool) string {
 	h.R.NoError(err)
 	defer resp.Body.Close()
 
+	h.Header = resp.Header
 	h.Status = resp.StatusCode
 	out, err := io.ReadAll(resp.Body)
 	h.R.NoError(err)

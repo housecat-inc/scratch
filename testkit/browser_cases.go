@@ -9,6 +9,7 @@ type Case[H any] struct {
 	Act     []Step[H]
 	Assert  []Step[H]
 	Console []string
+	Data    any
 	Name    string
 	Path    string
 	Seed    []Step[H]
