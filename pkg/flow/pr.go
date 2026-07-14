@@ -3,6 +3,7 @@ package flow
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"os/exec"
 	"strings"
 	"time"
@@ -41,6 +42,7 @@ func (e *Engine) createPR(ctx dbos.DBOSContext, _ PRInput) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "draft")
 	}
+	draft = normalizePullRequest(draft)
 
 	pr, action, err := elicit.Form(ctx, "review", "Review the pull request", draft, prTimeout)
 	if err != nil {
@@ -155,6 +157,12 @@ func heuristicPR(summary string) PullRequest {
 		body = append(body, "- "+commitSubject(line))
 	}
 	return PullRequest{Body: strings.Join(body, "\n"), Title: title}
+}
+
+func normalizePullRequest(pr PullRequest) PullRequest {
+	pr.Body = html.UnescapeString(pr.Body)
+	pr.Title = html.UnescapeString(pr.Title)
+	return pr
 }
 
 func commitSubject(line string) string {

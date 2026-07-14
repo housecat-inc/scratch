@@ -208,3 +208,15 @@ func TestForkUsesCurrentApplicationVersion(t *testing.T) {
 	r.NotEmpty(run.Steps)
 	r.NotNil(run.Steps[len(run.Steps)-1].Form)
 }
+
+func TestNormalizePullRequestUnescapesHTMLEntities(t *testing.T) {
+	r := require.New(t)
+
+	pr := normalizePullRequest(PullRequest{
+		Body:  "- Add edit &amp; fork actions",
+		Title: "Add edit &amp; fork actions",
+	})
+
+	r.Equal("- Add edit & fork actions", pr.Body)
+	r.Equal("Add edit & fork actions", pr.Title)
+}

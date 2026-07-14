@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -573,9 +574,9 @@ func toFieldProps(name string, prop *jsonschema.Schema, required bool) ui.ChatFo
 	if len(prop.Default) > 0 {
 		var s string
 		if err := json.Unmarshal(prop.Default, &s); err == nil {
-			field.Value = s
+			field.Value = html.UnescapeString(s)
 		} else {
-			field.Value = string(prop.Default)
+			field.Value = html.UnescapeString(string(prop.Default))
 		}
 	}
 	return field
