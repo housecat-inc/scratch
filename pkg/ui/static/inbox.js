@@ -57,6 +57,12 @@
     syncModel();
   });
 
+  document.addEventListener("change", (event) => {
+    const select = event.target.closest("[data-submit-on-change]");
+    if (!select) return;
+    select.form?.requestSubmit();
+  });
+
   document.addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-trash-trigger]");
     if (trigger) {

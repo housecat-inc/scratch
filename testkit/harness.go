@@ -94,6 +94,10 @@ func (h *Harness) ElementVisible(selector string) {
 	h.T.ElementVisible(h.Page, selector)
 }
 
+func (h *Harness) Fill(selector string, text string) {
+	h.T.Fill(h.Page, selector, text)
+}
+
 func (h *Harness) Load(path string) {
 	h.T.Load(h.Page, h.Server.URL, path)
 }

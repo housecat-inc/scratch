@@ -59,6 +59,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/tasks/{id}/trash", s.handleTrashTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/edit", s.handleEditWorkflow)
+	mux.HandleFunc("POST /inbox/workflows/{id}/fork", s.handleForkWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/resolve", s.handleResolveWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
@@ -581,7 +583,9 @@ func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 			if step.Pending {
 				form.Plain = true
 			} else {
-				form.Disabled = true
+				form.Action = fmt.Sprintf("/inbox/workflows/%d/edit", id)
+				form.Editable = true
+				form.ForkAction = fmt.Sprintf("/inbox/workflows/%d/fork", id)
 				for i := range form.Fields {
 					if v, ok := step.Values[form.Fields[i].Name]; ok {
 						form.Fields[i].Value = v
@@ -631,15 +635,17 @@ func (s *Server) handleResolveWorkflow(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-	values := map[string]string{}
-	for key := range r.PostForm {
-		if name, ok := strings.CutPrefix(key, "f_"); ok {
-			values[name] = r.PostForm.Get(key)
-		}
-	}
-	err = s.flows.Resolve(workflowID, r.PostForm.Get("elicitation_id"), r.PostForm.Get("action"), values)
+	action := r.PostForm.Get("action")
+	elicitationID := r.PostForm.Get("elicitation_id")
+	values := formValues(r)
+	err = s.flows.Resolve(workflowID, elicitationID, action, values)
 	switch {
 	case err == nil, errors.Is(err, flow.ErrFormResolved):
+		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	case errors.Is(err, flow.ErrFormStale):
+		if !s.recoverStaleWorkflowForm(w, id, workflowID, elicitationID, action, values) {
+			return
+		}
 		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 	case elicit.IsInvalid(err):
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
@@ -648,6 +654,127 @@ func (s *Server) handleResolveWorkflow(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.fail(w, err)
 	}
+}
+
+func (s *Server) recoverStaleWorkflowForm(w http.ResponseWriter, threadID int64, workflowID, elicitationID, action string, values map[string]string) bool {
+	forkedID, err := s.flows.EditForm(workflowID, elicitationID, action, values)
+	switch {
+	case err == nil:
+	case elicit.IsInvalid(err):
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return false
+	case errors.Is(err, flow.ErrFormNotFound):
+		http.Error(w, "form not found", http.StatusNotFound)
+		return false
+	default:
+		s.fail(w, err)
+		return false
+	}
+	if err := s.flows.Cancel(workflowID); err != nil {
+		s.log.Warn("cancel stale workflow", "id", workflowID, "err", err)
+	}
+	if err := s.chat.SetThreadWorkflowID(threadID, forkedID); err != nil {
+		s.fail(w, err)
+		return false
+	}
+	return true
+}
+
+func (s *Server) handleEditWorkflow(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	workflowID := s.chat.ThreadWorkflowID(thread)
+	if workflowID == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	forkedID, err := s.flows.EditForm(workflowID, r.PostForm.Get("elicitation_id"), elicit.ActionAccept, formValues(r))
+	switch {
+	case err == nil:
+	case elicit.IsInvalid(err):
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	case errors.Is(err, flow.ErrFormNotFound):
+		http.Error(w, "form not found", http.StatusNotFound)
+		return
+	default:
+		s.fail(w, err)
+		return
+	}
+	if err := s.flows.Cancel(workflowID); err != nil {
+		s.log.Warn("cancel superseded workflow", "id", workflowID, "err", err)
+	}
+	if err := s.chat.SetThreadWorkflowID(id, forkedID); err != nil {
+		s.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+}
+
+func (s *Server) handleForkWorkflow(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	workflowID := s.chat.ThreadWorkflowID(thread)
+	if workflowID == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	forkedID, err := s.flows.Fork(workflowID, r.PostForm.Get("elicitation_id"))
+	switch {
+	case err == nil:
+	case errors.Is(err, flow.ErrFormNotFound):
+		http.Error(w, "form not found", http.StatusNotFound)
+		return
+	default:
+		s.fail(w, err)
+		return
+	}
+	forked, err := s.chat.CreateForkedWorkflowThread(s.chat.WorkflowName(thread), forkedID, forkTitle(thread.Title))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.flows.Await(forkedID, 2*time.Second)
+	http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(forked.ID, 10), http.StatusSeeOther)
+}
+
+func formValues(r *http.Request) map[string]string {
+	values := map[string]string{}
+	for key := range r.PostForm {
+		if name, ok := strings.CutPrefix(key, "f_"); ok {
+			values[name] = r.PostForm.Get(key)
+		}
+	}
+	return values
+}
+
+func forkTitle(title string) string {
+	if strings.TrimSpace(title) == "" {
+		title = "Workflow"
+	}
+	return title + " (fork)"
 }
 
 func (s *Server) taskDetail(id int64) (ui.InboxTaskDetail, error) {

@@ -103,7 +103,28 @@ var ElementAbsent = func(selector string) Step {
 		h.ElementAbsent(selector)
 	}
 }
+var Fill = testkit.FillStep[*Harness]
+var Hover = func(selector string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.Page.MustElement(selector).MustHover()
+	}
+}
 var Press = testkit.PressStep[*Harness]
+var SelectOption = func(selector, value string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		ok, err := h.Page.Eval(`(selector, value) => {
+			const select = document.querySelector(selector);
+			if (!select) return false;
+			select.value = value;
+			select.dispatchEvent(new Event("change", { bubbles: true }));
+			return true;
+		}`, selector, value)
+		h.R.NoError(err)
+		h.R.True(ok.Value.Bool())
+	}
+}
 var TextContains = testkit.TextContainsStep[*Harness]
 var Type = testkit.TypeStep[*Harness]
 var Visible = testkit.VisibleStep[*Harness]

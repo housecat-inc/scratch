@@ -10,12 +10,13 @@ import (
 )
 
 type NavItem struct {
-	Active bool
-	Count  int
-	Group  string
-	Href   string
-	Icon   string
-	Label  string
+	Active    bool
+	Count     int
+	Group     string
+	Href      string
+	Icon      string
+	Label     string
+	ShowCount bool
 }
 
 type ShellProps struct {
@@ -30,9 +31,6 @@ type ShellProps struct {
 }
 
 func countLabel(count int) string {
-	if count <= 0 {
-		return ""
-	}
 	return strconv.Itoa(count)
 }
 

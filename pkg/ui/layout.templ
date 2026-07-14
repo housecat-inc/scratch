@@ -105,11 +105,11 @@ templ Layout(title, nav string) {
 
 func toolNavItems(active string) []uikit.NavItem {
 	return []uikit.NavItem{
-		{Active: active == "inbox", Href: "/", Icon: "inbox", Label: "Inbox"},
-		{Active: active == "starred", Href: "/starred", Icon: "star", Label: "Starred"},
-		{Group: "More", Active: active == "chats", Href: "/inbox/chats", Icon: "chat", Label: "Chats"},
-		{Active: active == "tasks", Href: "/inbox/tasks", Icon: "task", Label: "Tasks"},
-		{Active: active == "workflows", Href: "/inbox/workflows", Icon: "play", Label: "Workflows"},
+		{Active: active == "inbox", Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
+		{Active: active == "starred", Href: "/starred", Icon: "star", Label: "Starred", ShowCount: true},
+		{Group: "More", Active: active == "chats", Href: "/inbox/chats", Icon: "chat", Label: "Chats", ShowCount: true},
+		{Active: active == "tasks", Href: "/inbox/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
+		{Active: active == "workflows", Href: "/inbox/workflows", Icon: "play", Label: "Workflows", ShowCount: true},
 		{Group: "Tools", Active: active == "setup", Href: "/setup", Icon: "settings", Label: "Setup"},
 		{Active: active == "sessions", Href: "/sessions", Icon: "chat", Label: "Sessions"},
 		{Active: active == "code", Href: "/code/", Icon: "code", Label: "Code review"},

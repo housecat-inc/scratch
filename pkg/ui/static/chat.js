@@ -58,7 +58,10 @@
     document.body.insertAdjacentHTML("beforeend", html);
     const panel = document.getElementById("floating-chat");
     if (!panel) return null;
+    panel.classList.add("no-anim");
     applyPanelMode(panel, mode);
+    void panel.offsetWidth;
+    requestAnimationFrame(() => panel.classList.remove("no-anim"));
     window.htmx?.process(panel);
     initAll(panel);
     panel.querySelector("[data-chat-input]")?.focus();
@@ -300,6 +303,40 @@
     initCapture(form, input, upload, addDraftFiles, setComposeMode);
   };
 
+  const initEditableElicit = (form) => {
+    if (form.dataset.elicitEditableInitialized === "true") return;
+    form.dataset.elicitEditableInitialized = "true";
+    const fields = Array.from(form.querySelectorAll("input[name^='f_'], select[name^='f_'], textarea[name^='f_']"));
+    const original = fields.map((field) => ({
+      checked: field.checked,
+      field,
+      value: field.value,
+    }));
+    const lock = () => {
+      form.classList.remove("editing");
+      for (const { checked, field, value } of original) {
+        if ("checked" in field) field.checked = checked;
+        field.value = value;
+        field.disabled = true;
+      }
+    };
+    const unlock = () => {
+      form.classList.add("editing");
+      for (const field of fields) field.disabled = false;
+      fields.find((field) => field.matches("input, select, textarea"))?.focus();
+    };
+    form.addEventListener("click", (e) => {
+      if (!e.target.closest("[data-elicit-edit]") || form.classList.contains("editing")) return;
+      e.preventDefault();
+      unlock();
+    });
+    form.addEventListener("click", (e) => {
+      if (!e.target.closest("[data-elicit-cancel]")) return;
+      e.preventDefault();
+      lock();
+    });
+  };
+
   const initCapture = (form, input, upload, addDraftFiles, setComposeMode) => {
     const snap = form.querySelector("[data-chat-snap]");
     if (!snap) return;
@@ -481,6 +518,12 @@
     scroller.scrollTo(0, scroller.scrollHeight);
   };
 
+  const openPanel = (panel) => {
+    applyPanelMode(panel, "open");
+    const scroller = panel.querySelector("[data-chat-scroller]");
+    if (scroller) requestAnimationFrame(() => scroller.scrollTo(0, scroller.scrollHeight));
+  };
+
   const initPopout = (panel) => {
     if (panel.dataset.chatPanelInitialized === "true") return;
     panel.dataset.chatPanelInitialized = "true";
@@ -488,12 +531,16 @@
     panel.addEventListener("click", async (e) => {
       const minimize = e.target.closest("[data-chat-minimize]");
       if (minimize) {
-        applyPanelMode(panel, panel.classList.contains("minimized") ? "open" : "minimized");
+        if (panel.classList.contains("minimized")) {
+          openPanel(panel);
+        } else {
+          applyPanelMode(panel, "minimized");
+        }
         return;
       }
       const restore = e.target.closest("[data-chat-restore]");
       if (restore) {
-        applyPanelMode(panel, "open");
+        openPanel(panel);
         return;
       }
       const fullscreen = e.target.closest("[data-chat-fullscreen]");
@@ -511,7 +558,7 @@
         return;
       }
       if (panel.classList.contains("minimized") && e.target.closest(".floating-chat-head")) {
-        applyPanelMode(panel, "open");
+        openPanel(panel);
       }
     });
   };
@@ -521,20 +568,18 @@
     form.dataset.chatNewInitialized = "true";
     const select = form.querySelector('[name="provider_model"]');
     if (!select) return;
-    const stored = storageGet(providerModelKey);
-    if (stored && Array.from(select.options).some((option) => option.value === stored)) {
-      select.value = stored;
-    }
     select.addEventListener("change", () => storageSet(providerModelKey, select.value));
     form.addEventListener("submit", () => storageSet(providerModelKey, select.value));
   };
 
   const initAll = (root = document) => {
     if (root.matches?.("[data-chat-form]")) initComposer(root);
+    if (root.matches?.(".chat-elicit-editable")) initEditableElicit(root);
     if (root.matches?.("[data-chat-messages]")) initMessages(root);
     if (root.matches?.("[data-chat-popout-new]")) initNewChatAction(root);
     if (root.matches?.("[data-chat-popout]")) initPopout(root);
     root.querySelectorAll("[data-chat-form]").forEach(initComposer);
+    root.querySelectorAll(".chat-elicit-editable").forEach(initEditableElicit);
     root.querySelectorAll("[data-chat-messages]").forEach(initMessages);
     root.querySelectorAll("[data-chat-popout-new]").forEach(initNewChatAction);
     root.querySelectorAll("[data-chat-popout]").forEach(initPopout);

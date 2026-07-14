@@ -22,6 +22,30 @@ func TestInboxTasksBrowser(t *testing.T) {
 		},
 		{
 			Act: []Step{
+				SelectOption(`[name="provider_model"]`, "echo:default"),
+			},
+			Assert: []Step{
+				ChatThreadCount(1),
+				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				TextContains("#floating-chat", "New chat"),
+			},
+			Name: "provider selection opens a floating chat",
+			Path: "/",
+		},
+		{
+			Act: []Step{
+				SelectOption(`[name="provider_model"]`, "codex:default"),
+			},
+			Assert: []Step{
+				ChatThreadCount(1),
+				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
+				TextContains("#floating-chat", "New chat"),
+			},
+			Name: "default provider selection opens a floating chat",
+			Path: "/",
+		},
+		{
+			Act: []Step{
 				Type("#chat-input", "hello from draft"),
 				Click("#chat-send"),
 			},

@@ -639,21 +639,29 @@ body.chat-selecting * {
 }
 
 .floating-chat {
+  align-content: start;
   background: #fff;
   border: 1px solid #cbd5e1;
   border-radius: 0.55rem 0.55rem 0 0;
   bottom: 0;
   box-shadow: 0 18px 46px rgba(15, 23, 42, 0.28);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: min(42rem, calc(100vh - 5rem));
   overflow: hidden;
   position: fixed;
   right: 1.25rem;
   transform-origin: bottom right;
-  transition: height 180ms ease, width 180ms ease, grid-template-rows 180ms ease, inset 180ms ease, border-radius 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  transition: height 180ms ease, width 180ms ease, inset 180ms ease, border-radius 180ms ease, box-shadow 180ms ease, transform 180ms ease;
   width: min(46rem, calc(100vw - 2.5rem));
   z-index: 90;
+}
+
+.floating-chat.no-anim,
+.floating-chat.no-anim .floating-chat-body,
+.floating-chat.no-anim .floating-chat-compose {
+  transition: none;
 }
 
 .floating-chat.fullscreen {
@@ -665,7 +673,7 @@ body.chat-selecting * {
 
 .floating-chat.minimized {
   cursor: pointer;
-  grid-template-rows: auto 0fr 0fr;
+  grid-template-rows: auto minmax(0, 0fr) minmax(0, 0fr);
   height: 3.05rem;
   width: min(22rem, calc(100vw - 2.5rem));
 }
@@ -680,9 +688,7 @@ body.chat-selecting * {
 
 .floating-chat.minimized .floating-chat-body,
 .floating-chat.minimized .floating-chat-compose {
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
+  display: none;
 }
 
 .floating-chat.minimized [data-chat-restore] {
@@ -837,7 +843,19 @@ body.chat-selecting * {
   margin-top: 0.6rem;
   max-width: 52rem;
   padding: 0.75rem;
+  position: relative;
   width: min(100%, 52rem);
+}
+
+.chat-elicit-editable {
+  background: #f8fafc;
+  margin-top: 0;
+}
+
+.chat-elicit-header {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .chat-elicit-message {
@@ -864,14 +882,19 @@ body.chat-selecting * {
   background: #fff;
   border: 1px solid #d8dee9;
   border-radius: 0.4rem;
+  box-sizing: border-box;
+  display: block;
   font-size: 0.95rem;
   padding: 0.4rem 0.6rem;
+  width: 100%;
 }
 
 .chat-elicit-textarea {
   background: #fff;
   border: 1px solid #d8dee9;
   border-radius: 0.4rem;
+  box-sizing: border-box;
+  display: block;
   font-size: 0.9rem;
   line-height: 1.5;
   padding: 0.4rem 0.6rem;
@@ -894,12 +917,88 @@ body.chat-selecting * {
   padding: 0.45rem 0.9rem;
 }
 
+.chat-elicit-editable .chat-elicit-actions button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  display: inline-flex;
+  height: 2rem;
+  justify-content: center;
+  padding: 0;
+  width: 2rem;
+}
+
+.chat-elicit-editable .chat-elicit-header {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: -0.15rem;
+  top: -0.15rem;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.chat-elicit-editable:focus-within .chat-elicit-header,
+.chat-elicit-editable:hover .chat-elicit-header {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-elicit-editable .chat-elicit-actions button:hover {
+  background: #f1f5f9;
+  color: #111827;
+}
+
+.chat-elicit-editable .chat-elicit-actions svg {
+  height: 1.2rem;
+  width: 1.2rem;
+}
+
+.chat-elicit-editable.editing {
+  background: #fff;
+}
+
+.chat-elicit-editable.editing .chat-elicit-header {
+  display: none;
+}
+
+.chat-elicit-edit-controls {
+  display: none;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.chat-elicit-editable.editing .chat-elicit-edit-controls {
+  display: flex;
+}
+
+.chat-elicit-edit-controls button {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 650;
+  padding: 0.45rem 0.9rem;
+}
+
 #elicit-accept {
   background: #0f172a;
   color: #fff;
 }
 
+#elicit-submit {
+  background: #0f172a;
+  color: #fff;
+}
+
 #elicit-decline {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  color: #64748b;
+}
+
+#elicit-cancel {
   background: #fff;
   border: 1px solid #d8dee9;
   color: #64748b;
@@ -916,9 +1015,15 @@ body.chat-selecting * {
 }
 
 .chat-elicit-filled input:disabled,
-.chat-elicit-filled select:disabled {
+.chat-elicit-filled select:disabled,
+.chat-elicit-filled textarea:disabled,
+.chat-elicit-editable input:disabled,
+.chat-elicit-editable select:disabled,
+.chat-elicit-editable textarea:disabled {
   background: #fff;
+  border-color: transparent;
   color: #0f172a;
+  cursor: default;
   opacity: 1;
   -webkit-text-fill-color: #0f172a;
 }

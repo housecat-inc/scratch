@@ -27,6 +27,7 @@ const (
 var (
 	ErrFormNotFound = errors.New("form not found")
 	ErrFormResolved = errors.New("form already resolved")
+	ErrFormStale    = errors.New("form workflow is stale")
 	ErrRunNotFound  = errors.New("workflow run not found")
 )
 
@@ -366,11 +367,69 @@ func (e *Engine) Resolve(id, elicitationID, action string, values map[string]str
 	if err := dbos.Send(e.ctx, id, reply, prompt.Topic); err != nil {
 		return errors.Wrap(err, "send reply")
 	}
-	e.awaitConsumed(id, elicitCount, 2*time.Second)
+	if !e.awaitConsumed(id, elicitCount, 2*time.Second) && e.staleApplicationVersion(id) {
+		return ErrFormStale
+	}
 	return nil
 }
 
-func (e *Engine) awaitConsumed(id string, elicitCount int, timeout time.Duration) {
+func (e *Engine) Fork(id, elicitationID string) (string, error) {
+	steps, err := dbos.GetWorkflowSteps(e.ctx, id, dbos.WithStepsLoadOutput(true))
+	if err != nil {
+		return "", errors.Wrap(err, "get workflow steps")
+	}
+	startStep := -1
+	for _, s := range steps {
+		if !strings.HasPrefix(s.StepName, "elicit/") {
+			continue
+		}
+		if p, err := decode[elicit.Prompt](s.Output); err == nil && p.ElicitationID == elicitationID {
+			startStep = s.StepID
+			break
+		}
+	}
+	if startStep < 0 {
+		return "", ErrFormNotFound
+	}
+	handle, err := dbos.ForkWorkflow[string](e.ctx, dbos.ForkWorkflowInput{
+		ApplicationVersion: e.ctx.GetApplicationVersion(),
+		OriginalWorkflowID: id,
+		StartStep:          uint(startStep),
+	})
+	if err != nil {
+		return "", errors.Wrap(err, "fork workflow")
+	}
+	return handle.GetWorkflowID(), nil
+}
+
+func (e *Engine) Cancel(id string) error {
+	status, _, err := e.workflow(id)
+	if errors.Is(err, ErrRunNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if status != string(dbos.WorkflowStatusPending) && status != string(dbos.WorkflowStatusEnqueued) {
+		return nil
+	}
+	return errors.Wrap(dbos.CancelWorkflow(e.ctx, id), "cancel workflow")
+}
+
+func (e *Engine) EditForm(id, elicitationID, action string, values map[string]string) (string, error) {
+	forkedID, err := e.Fork(id, elicitationID)
+	if err != nil {
+		return "", err
+	}
+	key := strings.TrimPrefix(elicitationID, id+"/")
+	e.Await(forkedID, 2*time.Second)
+	if err := e.Resolve(forkedID, forkedID+"/"+key, action, values); err != nil {
+		return "", err
+	}
+	return forkedID, nil
+}
+
+func (e *Engine) awaitConsumed(id string, elicitCount int, timeout time.Duration) bool {
 	for waited := time.Duration(0); waited < timeout; waited += 25 * time.Millisecond {
 		steps, err := dbos.GetWorkflowSteps(e.ctx, id)
 		if err == nil {
@@ -381,14 +440,23 @@ func (e *Engine) awaitConsumed(id string, elicitCount int, timeout time.Duration
 				}
 			}
 			if recv >= elicitCount {
-				return
+				return true
 			}
 		}
 		if status, _, err := e.workflow(id); err == nil && status != string(dbos.WorkflowStatusPending) && status != string(dbos.WorkflowStatusEnqueued) {
-			return
+			return true
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
+	return false
+}
+
+func (e *Engine) staleApplicationVersion(id string) bool {
+	runs, err := dbos.ListWorkflows(e.ctx, dbos.WithWorkflowIDs([]string{id}))
+	if err != nil || len(runs) == 0 {
+		return false
+	}
+	return runs[0].ApplicationVersion != "" && runs[0].ApplicationVersion != e.ctx.GetApplicationVersion()
 }
 
 func (e *Engine) workflow(id string) (status, output string, err error) {

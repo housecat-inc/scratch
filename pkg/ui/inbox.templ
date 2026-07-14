@@ -387,7 +387,8 @@ templ createWorkflowButton() {
 			<span>Flow</span>
 		</button>
 		<span class="mail-create-select-wrap mail-model-select-wrap">
-			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type">
+			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type" data-submit-on-change>
+				<option value="" selected disabled hidden>Workflow type</option>
 				for _, typ := range workflowTypeOptions() {
 					<option value={ typ }>{ workflowTypeLabel(typ) }</option>
 				}
@@ -644,11 +645,11 @@ func inboxBackPath(kind string) string {
 
 func inboxNavItems(p InboxProps) []uikit.NavItem {
 	return []uikit.NavItem{
-		{Active: p.View == "inbox", Count: p.Counts.Inbox, Href: "/", Icon: "inbox", Label: "Inbox"},
-		{Active: p.View == "starred", Count: p.Counts.Starred, Href: "/starred", Icon: "star", Label: "Starred"},
-		{Group: "More", Active: p.View == "chats", Count: p.Counts.Chats, Href: "/inbox/chats", Icon: "chat", Label: "Chats"},
-		{Active: p.View == "tasks", Count: p.Counts.Tasks, Href: "/inbox/tasks", Icon: "task", Label: "Tasks"},
-		{Active: p.View == "workflows", Count: p.Counts.Workflows, Href: "/inbox/workflows", Icon: "play", Label: "Workflows"},
+		{Active: p.View == "inbox", Count: p.Counts.Inbox, Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
+		{Active: p.View == "starred", Count: p.Counts.Starred, Href: "/starred", Icon: "star", Label: "Starred", ShowCount: true},
+		{Group: "More", Active: p.View == "chats", Count: p.Counts.Chats, Href: "/inbox/chats", Icon: "chat", Label: "Chats", ShowCount: true},
+		{Active: p.View == "tasks", Count: p.Counts.Tasks, Href: "/inbox/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
+		{Active: p.View == "workflows", Count: p.Counts.Workflows, Href: "/inbox/workflows", Icon: "play", Label: "Workflows", ShowCount: true},
 		{Group: "Tools", Href: "/setup", Icon: "settings", Label: "Setup"},
 		{Href: "/sessions", Icon: "chat", Label: "Sessions"},
 		{Href: "/code/", Icon: "code", Label: "Code review"},

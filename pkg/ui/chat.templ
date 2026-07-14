@@ -242,6 +242,14 @@ templ restoreIcon() {
 	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"></path></svg>
 }
 
+templ editIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+}
+
+templ forkIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><circle cx="18" cy="6" r="3"></circle><path d="M18 9a9 9 0 0 1-12 0"></path><path d="M12 15V9"></path></svg>
+}
+
 templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
 	switch part.Kind {
 		case "text":
@@ -358,7 +366,12 @@ templ rowIcon(kind string, failed bool) {
 }
 
 templ ChatForm(f ChatFormProps) {
-	if f.Disabled {
+	if f.Editable {
+		<form class="chat-elicit chat-elicit-editable" method="post" action={ templ.SafeURL(f.Action) }>
+			<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
+			@chatFormBody(f)
+		</form>
+	} else if f.Disabled {
 		<div class="chat-elicit chat-elicit-filled">
 			@chatFormBody(f)
 		</div>
@@ -380,32 +393,50 @@ templ chatFormBody(f ChatFormProps) {
 	if !f.HideMessage {
 		<p class="chat-elicit-message">{ f.Message }</p>
 	}
+	if f.Editable {
+		<div class="chat-elicit-header">
+			<div class="chat-elicit-actions">
+				<button class="gm-icon-btn" type="button" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
+					@editIcon()
+				</button>
+				<button class="gm-icon-btn" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate title="Fork" aria-label="Fork" data-elicit-fork>
+					@forkIcon()
+				</button>
+			</div>
+		</div>
+	}
 	for _, field := range f.Fields {
 		<label class="chat-elicit-field">
 			<span>{ field.Label }</span>
 			switch field.Type {
 				case "select":
-					<select name={ "f_" + field.Name } disabled?={ f.Disabled }>
+					<select name={ "f_" + field.Name } disabled?={ f.Disabled || f.Editable }>
 						for _, option := range field.Options {
 							<option value={ option } selected?={ option == field.Value }>{ option }</option>
 						}
 					</select>
 				case "checkbox":
-					<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" } disabled?={ f.Disabled }/>
+					<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" } disabled?={ f.Disabled || f.Editable }/>
 				case "textarea":
-					<textarea class="chat-elicit-textarea" name={ "f_" + field.Name } rows="8" required?={ field.Required } disabled?={ f.Disabled }>{ field.Value }</textarea>
+					<textarea class="chat-elicit-textarea" name={ "f_" + field.Name } rows="8" required?={ field.Required } disabled?={ f.Disabled || f.Editable }>{ field.Value }</textarea>
 				default:
 					<input
 						type={ field.Type }
 						name={ "f_" + field.Name }
 						value={ field.Value }
 						required?={ field.Required }
-						disabled?={ f.Disabled }
+						disabled?={ f.Disabled || f.Editable }
 					/>
 			}
 		</label>
 	}
-	if !f.Disabled {
+	if f.Editable {
+		<div class="chat-elicit-edit-controls">
+			<button name="action" value="accept" type="submit" data-elicit-submit>Submit</button>
+			<button type="button" data-elicit-cancel>Cancel</button>
+		</div>
+	}
+	if !f.Editable && !f.Disabled {
 		<div class="chat-elicit-actions">
 			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
 			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>

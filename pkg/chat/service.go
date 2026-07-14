@@ -166,6 +166,31 @@ func (s *Service) CreateWorkflowThread(workflow, title string) (db.Thread, strin
 	return thread, workflowID, nil
 }
 
+func (s *Service) CreateForkedWorkflowThread(workflow, workflowID, title string) (db.Thread, error) {
+	anchor, err := json.Marshal(map[string]string{"workflow": workflow, "workflow_id": workflowID})
+	if err != nil {
+		return db.Thread{}, errors.Wrap(err, "marshal anchor")
+	}
+	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
+}
+
+func (s *Service) SetThreadWorkflowID(threadID int64, workflowID string) error {
+	thread, err := s.store.GetThread(threadID)
+	if err != nil {
+		return err
+	}
+	anchor := map[string]any{}
+	if err := json.Unmarshal([]byte(thread.Anchor), &anchor); err != nil {
+		anchor = map[string]any{}
+	}
+	anchor["workflow_id"] = workflowID
+	data, err := json.Marshal(anchor)
+	if err != nil {
+		return errors.Wrap(err, "marshal anchor")
+	}
+	return s.store.SetThreadAnchor(threadID, string(data))
+}
+
 func (s *Service) DeleteThread(threadID int64) error {
 	return s.store.DeleteThread(threadID)
 }
