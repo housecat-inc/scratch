@@ -66,11 +66,12 @@ func runBrowser(t *testing.T, cases []testkit.BrowserCase[*Harness]) {
 			workflows, err := workflow.New(t.TempDir() + "/workflows.db")
 			kit.R.NoError(err)
 			flows := flow.New(flow.Deps{
-				DBOS:    workflows.Ctx(),
-				Drafter: stubDrafter{},
-				Greeter: flow.HeuristicGreeter(),
-				Log:     slog.New(logs),
-				Updater: stubUpdater{},
+				DBOS:      workflows.Ctx(),
+				Drafter:   stubDrafter{},
+				Greeter:   flow.HeuristicGreeter(),
+				Log:       slog.New(logs),
+				StageStep: 700 * time.Millisecond,
+				Updater:   stubUpdater{},
 			})
 			kit.R.NoError(workflows.Launch())
 			t.Cleanup(func() { workflows.Close() })

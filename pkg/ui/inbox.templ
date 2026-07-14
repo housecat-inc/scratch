@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,8 @@ templ InboxPage(p InboxProps) {
 					@InboxTaskReader(*p.Task)
 				} else if p.Draft != nil {
 					@InboxDraftReader(*p.Draft)
+				} else if p.Schedule != nil {
+					@InboxScheduleReader(*p.Schedule)
 				} else if p.Workflow != nil {
 					@InboxWorkflowReader(*p.Workflow)
 				} else if p.Thread != nil {
@@ -113,17 +116,60 @@ templ InboxListView(p InboxProps) {
 				</nav>
 			}
 		</div>
-		<span>{ strconv.Itoa(len(p.Items)) }</span>
+		<span>{ strconv.Itoa(inboxListCount(p)) }</span>
 	</header>
-	if len(p.Items) == 0 {
+	if len(p.Items) == 0 && (p.View != "workflows" || len(p.Schedules) == 0) {
 		<div class="mail-empty">Nothing here.</div>
 	} else {
 		<div class="mail-list">
+			if p.View == "workflows" {
+				for _, sc := range p.Schedules {
+					@ScheduleRow(sc)
+				}
+			}
 			for _, item := range p.Items {
 				@InboxRow(item, p.View, p.ArchiveFilter)
 			}
 		</div>
 	}
+}
+
+templ ScheduleRow(sc WorkflowScheduleView) {
+	@uikit.ListRow(uikit.ListRowProps{
+		Actions: ScheduleRowActions(sc),
+		Href: scheduleInboxURL(sc.Name),
+		ID: sc.Name,
+		Kind: "workflow",
+		Labels: scheduleRowLabels(sc),
+		Primary: ScheduleRowPrimary(sc),
+		Subject: sc.Cron,
+		What: sc.Name,
+		When: sc.LastFired,
+	})
+}
+
+templ ScheduleRowPrimary(sc WorkflowScheduleView) {
+	<button type="button" class="gm-star" title="Star" aria-label="Star" onclick="event.stopPropagation()">
+		@starIcon(false)
+	</button>
+}
+
+templ ScheduleRowActions(sc WorkflowScheduleView) {
+	@scheduleButton(sc.Name, "trigger", "Run now", sendIcon())
+	if sc.Paused {
+		@scheduleButton(sc.Name, "resume", "Resume", playIcon())
+	} else {
+		@scheduleButton(sc.Name, "pause", "Pause", pauseIcon())
+	}
+}
+
+templ scheduleButton(name, action, label string, icon templ.Component) {
+	<form method="post" action={ templ.SafeURL("/inbox/schedules/" + url.PathEscape(name) + "/" + action) }>
+		<input type="hidden" name="back" value="/inbox/workflows"/>
+		<button type="submit" class="gm-row-action" title={ label } aria-label={ label } data-schedule-btn={ action } onclick="event.stopPropagation()">
+			@icon
+		</button>
+	</form>
 }
 
 templ archiveFilterTab(view, active, value, label string) {
@@ -238,37 +284,73 @@ templ InboxThreadReader(d InboxThreadDetail) {
 	</div>
 }
 
-templ InboxWorkflowReader(d InboxWorkflowDetail) {
+templ InboxScheduleReader(d InboxScheduleDetail) {
 	@ReaderHeader(ReaderHeaderProps{
 		BackHref: "/inbox/workflows",
-		Description: workflowStatusLabel(d.Status),
-		Title: d.Title,
-	}) {
-		if d.Archived {
-			@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
-			@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow permanently")
-		} else {
-			@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
-		}
-		@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
-	}
+		Description: d.Cron,
+		Labels: []string{"Scheduled", scheduleStatusLabel(WorkflowScheduleView{Paused: d.Paused})},
+		Title: d.Name,
+	})
 	<div class="mail-reader-body mail-chat-body">
-		<div
-			id="wf-body"
-			class="chat-messages mail-chat-messages"
-			if d.Running && !d.Awaiting {
-				hx-get={ threadInboxDetailURL("workflow", d.ID) }
-				hx-trigger="load delay:600ms"
-				hx-select="#wf-body"
-				hx-target="#wf-body"
-				hx-swap="outerHTML"
+		<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
+			if len(d.Runs) == 0 {
+				<div class="mail-empty">No executions yet.</div>
 			}
-		>
-			for i, item := range d.Items {
-				@workflowItem(i, item)
+			for i, run := range d.Runs {
+				@scheduleRunItem(i, run)
 			}
 		</div>
 	</div>
+}
+
+templ InboxWorkflowReader(d InboxWorkflowDetail) {
+	<div
+		id="wf-reader"
+		if d.Running && !d.Awaiting {
+			hx-get={ threadInboxDetailURL("workflow", d.ID) }
+			hx-trigger="every 600ms"
+			hx-select="#wf-reader"
+			hx-target="#wf-reader"
+			hx-swap="outerHTML"
+		}
+	>
+		@ReaderHeader(ReaderHeaderProps{
+			BackHref: "/inbox/workflows",
+			Description: workflowStatusLabel(d.Status),
+			Title: d.Title,
+		}) {
+			if d.Archived {
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
+				@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow permanently")
+			} else {
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
+			}
+			@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
+		}
+		<div class="mail-reader-body mail-chat-body">
+			<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
+				for i, item := range d.Items {
+					@workflowItem(i, item)
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ scheduleRunItem(i int, run ScheduleRunProps) {
+	@ChatTurn("assistant") {
+		@chatRow(chatRowProps{
+			Failed:  run.Status == "ERROR",
+			Detail:  run.ID,
+			Key:     "schedule-run-" + strconv.Itoa(i),
+			Kind:    "tool",
+			Label:   "Execution " + run.CreatedAt,
+			Summary: workflowStatusLabel(run.Status),
+		})
+	}
+	for j, item := range run.Items {
+		@workflowItem(j, item)
+	}
 }
 
 templ workflowItem(i int, item WorkflowItemProps) {
@@ -288,6 +370,9 @@ templ workflowItem(i int, item WorkflowItemProps) {
 		@ChatTurn("assistant") {
 			<div class="chat-md">
 				@Markdown(item.Detail)
+				if item.Copy != "" {
+					<button type="button" class="mail-copy-btn" data-copy={ item.Copy } onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied'">Copy</button>
+				}
 			</div>
 		}
 	}
@@ -521,15 +606,40 @@ func showRowKindLabel(view string) bool {
 
 func workflowTypeLabel(typ string) string {
 	switch typ {
+	case "countdown":
+		return "Countdown"
 	case "create-pr":
 		return "Create pull request"
+	case "deploy":
+		return "Deploy"
+	case "fan-out":
+		return "Parallel jobs"
 	case "greet":
 		return "Greet"
+	case "stream":
+		return "Log stream"
 	case "update-claude":
 		return "Update Claude Code"
+	case "webhook":
+		return "Webhook"
 	default:
 		return agentLabel(typ)
 	}
+}
+
+func scheduleStatusLabel(sc WorkflowScheduleView) string {
+	if sc.Paused {
+		return "Paused"
+	}
+	return "Active"
+}
+
+func scheduleRowLabels(sc WorkflowScheduleView) []string {
+	return []string{"Scheduled", scheduleStatusLabel(sc)}
+}
+
+func scheduleInboxURL(name string) string {
+	return "/inbox/schedules/" + url.PathEscape(name)
 }
 
 func workflowStatusLabel(status string) string {
@@ -548,7 +658,7 @@ func workflowStatusLabel(status string) string {
 }
 
 func workflowTypeOptions() []string {
-	return []string{"greet", "update-claude", "create-pr"}
+	return []string{"greet", "update-claude", "create-pr", "countdown", "fan-out", "stream", "deploy", "webhook"}
 }
 
 func chatIcon() templ.Component {
@@ -671,6 +781,9 @@ func inboxTitle(p InboxProps) string {
 	if p.Draft != nil {
 		return p.Draft.Title
 	}
+	if p.Schedule != nil {
+		return p.Schedule.Name
+	}
 	switch p.View {
 	case "chats":
 		return "Chats"
@@ -687,6 +800,21 @@ func inboxTitle(p InboxProps) string {
 
 func inboxIcon() templ.Component {
 	return lucideIcon(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
+}
+
+func inboxListCount(p InboxProps) int {
+	if p.View == "workflows" {
+		return len(p.Items) + len(p.Schedules)
+	}
+	return len(p.Items)
+}
+
+func pauseIcon() templ.Component {
+	return lucideIcon(`<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect>`)
+}
+
+func playIcon() templ.Component {
+	return lucideIcon(`<polygon points="6 3 20 12 6 21 6 3"></polygon>`)
 }
 
 func popoutIcon() templ.Component {

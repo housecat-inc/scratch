@@ -32,25 +32,44 @@ var (
 )
 
 type Deps struct {
-	DBOS    dbos.DBOSContext
-	Drafter PRDrafter
-	Greeter Greeter
-	Log     *slog.Logger
-	Updater Updater
-	Workdir string
+	CountdownStep  time.Duration
+	CountdownTicks int
+	DBOS           dbos.DBOSContext
+	Drafter        PRDrafter
+	FanoutJobs     int
+	Greeter        Greeter
+	Log            *slog.Logger
+	StageStep      time.Duration
+	Updater        Updater
+	WebhookTimeout time.Duration
+	Workdir        string
 }
 
 type Engine struct {
-	ctx     dbos.DBOSContext
-	drafter PRDrafter
-	greeter Greeter
-	log     *slog.Logger
-	updater Updater
+	countdownStep  time.Duration
+	countdownTicks int
+	ctx            dbos.DBOSContext
+	drafter        PRDrafter
+	fanoutJobs     int
+	greeter        Greeter
+	log            *slog.Logger
+	stageStep      time.Duration
+	updater        Updater
+	webhookTimeout time.Duration
 }
 
 func New(deps Deps) *Engine {
+	if deps.CountdownStep == 0 {
+		deps.CountdownStep = defaultCountdownStep
+	}
+	if deps.CountdownTicks == 0 {
+		deps.CountdownTicks = defaultCountdownTicks
+	}
 	if deps.Drafter == nil {
 		deps.Drafter = DefaultPRDrafter(deps.Workdir)
+	}
+	if deps.FanoutJobs == 0 {
+		deps.FanoutJobs = defaultFanoutJobs
 	}
 	if deps.Greeter == nil {
 		deps.Greeter = DefaultGreeter()
@@ -58,18 +77,46 @@ func New(deps Deps) *Engine {
 	if deps.Log == nil {
 		deps.Log = slog.Default()
 	}
+	if deps.StageStep == 0 {
+		deps.StageStep = defaultStageStep
+	}
 	if deps.Updater == nil {
 		deps.Updater = DefaultUpdater()
 	}
-	e := &Engine{ctx: deps.DBOS, drafter: deps.Drafter, greeter: deps.Greeter, log: deps.Log, updater: deps.Updater}
+	if deps.WebhookTimeout == 0 {
+		deps.WebhookTimeout = defaultWebhookTimeout
+	}
+	e := &Engine{
+		countdownStep:  deps.CountdownStep,
+		countdownTicks: deps.CountdownTicks,
+		ctx:            deps.DBOS,
+		drafter:        deps.Drafter,
+		fanoutJobs:     deps.FanoutJobs,
+		greeter:        deps.Greeter,
+		log:            deps.Log,
+		stageStep:      deps.StageStep,
+		updater:        deps.Updater,
+		webhookTimeout: deps.WebhookTimeout,
+	}
+	if _, err := dbos.RegisterQueue(deps.DBOS, fanoutQueue, dbos.WithWorkerConcurrency(fanoutQueueWorkers)); err != nil {
+		deps.Log.Error("register fanout queue", "err", err)
+	}
 	dbos.RegisterWorkflow(deps.DBOS, e.greet, dbos.WithWorkflowName("greet"))
 	dbos.RegisterWorkflow(deps.DBOS, e.updateClaude, dbos.WithWorkflowName("update-claude"))
 	dbos.RegisterWorkflow(deps.DBOS, e.createPR, dbos.WithWorkflowName("create-pr"))
+	dbos.RegisterWorkflow(deps.DBOS, e.countdown, dbos.WithWorkflowName("countdown"))
+	dbos.RegisterWorkflow(deps.DBOS, e.deploy, dbos.WithWorkflowName("deploy"))
+	dbos.RegisterWorkflow(deps.DBOS, e.fanout, dbos.WithWorkflowName("fan-out"))
+	dbos.RegisterWorkflow(deps.DBOS, e.job, dbos.WithWorkflowName("demo-job"))
+	dbos.RegisterWorkflow(deps.DBOS, e.stream, dbos.WithWorkflowName("stream"))
+	dbos.RegisterWorkflow(deps.DBOS, e.webhook, dbos.WithWorkflowName("webhook"))
+	dbos.RegisterWorkflow(deps.DBOS, e.heartbeat)
 	return e
 }
 
 type StepView struct {
 	Answer   string
+	Copy     string
 	Detail   string
 	Duration string
 	Failed   bool
@@ -115,6 +162,16 @@ func act(ctx dbos.DBOSContext, name, title, input string, fn func(context.Contex
 func (e *Engine) Start(name, id string) error {
 	var err error
 	switch name {
+	case "countdown":
+		_, err = dbos.RunWorkflow(e.ctx, e.countdown, CountdownInput{}, dbos.WithWorkflowID(id))
+	case "deploy":
+		_, err = dbos.RunWorkflow(e.ctx, e.deploy, DeployInput{}, dbos.WithWorkflowID(id))
+	case "fan-out":
+		_, err = dbos.RunWorkflow(e.ctx, e.fanout, FanoutInput{}, dbos.WithWorkflowID(id))
+	case "stream":
+		_, err = dbos.RunWorkflow(e.ctx, e.stream, StreamInput{}, dbos.WithWorkflowID(id))
+	case "webhook":
+		_, err = dbos.RunWorkflow(e.ctx, e.webhook, WebhookInput{}, dbos.WithWorkflowID(id))
 	case "update-claude":
 		_, err = dbos.RunWorkflow(e.ctx, e.updateClaude, UpdateInput{}, dbos.WithWorkflowID(id))
 	case "create-pr":
@@ -154,10 +211,20 @@ func (e *Engine) Run(id string) (RunView, error) {
 	view := RunView{ID: id, Result: output, Status: status}
 	var awaiting []elicit.Prompt
 	var pending []stepBegin
+	var evented, streamed bool
 	titles := map[string]string{}
 	inputs := map[string]string{}
 
 	for _, s := range steps {
+		if s.ChildWorkflowID != "" {
+			continue
+		}
+		switch s.StepName {
+		case "DBOS.setEvent":
+			evented = true
+		case "DBOS.writeStream":
+			streamed = true
+		}
 		switch {
 		case strings.HasPrefix(s.StepName, "begin/"):
 			if b, err := decode[stepBegin](s.Output); err == nil {
@@ -193,14 +260,18 @@ func (e *Engine) Run(id string) (RunView, error) {
 		case strings.HasPrefix(s.StepName, "respond/"):
 			pending = dropPending(pending, s.StepName)
 			body, _ := decode[string](s.Output)
-			view.Steps = append(view.Steps, StepView{
+			sv := StepView{
 				Detail:   body,
 				Duration: stepDuration(s),
 				Input:    inputs[s.StepName],
 				Kind:     KindResponse,
 				Status:   stepStatus(s),
 				Title:    stepDisplayTitle(titles, s.StepName),
-			})
+			}
+			if s.StepName == "respond/webhook" {
+				sv.Copy = webhookCurl(id)
+			}
+			view.Steps = append(view.Steps, sv)
 		case strings.HasPrefix(s.StepName, "DBOS."):
 			continue
 		default:
@@ -239,7 +310,58 @@ func (e *Engine) Run(id string) (RunView, error) {
 			})
 		}
 	}
+	if streamed {
+		if step, ok := e.streamStep(id, view.Running()); ok {
+			view.Steps = append(view.Steps, step)
+		}
+	}
+	if evented {
+		view.Steps = append(view.Steps, e.eventSteps(id, view.Running())...)
+	}
 	return view, nil
+}
+
+func (e *Engine) streamStep(id string, running bool) (StepView, bool) {
+	lines, closed, err := dbos.ReadStream[string](e.ctx, id, streamKey, dbos.WithReadStreamSnapshot(0))
+	if err != nil || len(lines) == 0 {
+		return StepView{}, false
+	}
+	step := StepView{
+		Detail:  strings.Join(lines, "\n"),
+		Kind:    KindTool,
+		Status:  StepRunning,
+		Summary: lines[len(lines)-1],
+		Title:   "Log stream",
+	}
+	if closed || !running {
+		step.Status = StepDone
+	}
+	return step, true
+}
+
+func (e *Engine) eventSteps(id string, running bool) []StepView {
+	version, _ := dbos.GetEvent[string](e.ctx, id, eventVersionKey, 100*time.Millisecond)
+	if version == "" {
+		return nil
+	}
+	steps := []StepView{{
+		Detail: "Published with SetEvent as the deploy starts, so any caller can read it with GetEvent before the workflow finishes.",
+		Kind:   KindTool,
+		Status: StepDone,
+		Title:  "Release " + version + " — available immediately",
+	}}
+	stage, _ := dbos.GetEvent[string](e.ctx, id, eventStatusKey, 100*time.Millisecond)
+	status := StepRunning
+	if !running {
+		status = StepDone
+	}
+	steps = append(steps, StepView{
+		Detail: stage,
+		Kind:   KindTool,
+		Status: status,
+		Title:  "Live status",
+	})
+	return steps
 }
 
 func stepDuration(s dbos.StepInfo) string {

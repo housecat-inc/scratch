@@ -9,6 +9,7 @@ type Case[H any] struct {
 	Act     []Step[H]
 	Assert  []Step[H]
 	Console []string
+	Data    any
 	Name    string
 	Path    string
 	Seed    []Step[H]
@@ -81,10 +82,56 @@ func ClassContainsStep[H interface {
 	}
 }
 
+func AbsentStep[H interface{ ElementAbsent(string) }](selector string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementAbsent(selector)
+	}
+}
+
+func AttributeContainsStep[H interface {
+	ElementAttributeContains(string, string, string)
+}](selector, name, expected string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementAttributeContains(selector, name, expected)
+	}
+}
+
+func AttributeEqualsStep[H interface {
+	ElementAttributeEquals(string, string, string)
+}](selector, name, expected string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementAttributeEquals(selector, name, expected)
+	}
+}
+
 func ClickStep[H interface{ Click(string) }](selector string) BrowserStep[H] {
 	return func(t *testing.T, h H) {
 		t.Helper()
 		h.Click(selector)
+	}
+}
+
+func HiddenStep[H interface{ ElementHidden(string) }](selector string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementHidden(selector)
+	}
+}
+
+func SelectOptionStep[H interface{ SelectOption(string, string) }](selector, value string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.SelectOption(selector, value)
+	}
+}
+
+func PresentStep[H interface{ ElementPresent(string) }](selector string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementPresent(selector)
 	}
 }
 

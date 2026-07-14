@@ -207,6 +207,7 @@
     const clearTextDraft = () => storageRemove(draftKey);
 
     const resize = () => {
+      if (input.offsetParent === null) return;
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 200) + "px";
     };
@@ -522,6 +523,7 @@
 
   const openPanel = (panel) => {
     applyPanelMode(panel, "open");
+    panel.querySelectorAll("[data-chat-input]").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
     const scroller = panel.querySelector("[data-chat-scroller]");
     if (scroller) requestAnimationFrame(() => scroller.scrollTo(0, scroller.scrollHeight));
   };

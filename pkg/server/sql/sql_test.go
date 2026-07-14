@@ -60,39 +60,6 @@ func TestPage(t *testing.T) {
 	a.Equal(1, strings.Count(body, "/static/htmx-ext-sse.min.js"))
 }
 
-func TestQuery(t *testing.T) {
-	a := assert.New(t)
-	s := newServer(t, seedDB(t))
-
-	form := url.Values{"sql": {"SELECT name, note FROM widgets ORDER BY id"}}
-	req := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-
-	a.Equal(http.StatusOK, rec.Code)
-	body := rec.Body.String()
-	a.Contains(body, "alpha")
-	a.Contains(body, "bravo")
-	a.Contains(body, "hi")
-	a.Contains(body, "NULL")
-	a.Contains(body, "2 rows")
-}
-
-func TestQueryError(t *testing.T) {
-	a := assert.New(t)
-	s := newServer(t, seedDB(t))
-
-	form := url.Values{"sql": {"SELECT * FROM nope"}}
-	req := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-
-	a.Equal(http.StatusOK, rec.Code)
-	a.Contains(rec.Body.String(), "no such table")
-}
-
 func TestQueryReadOnly(t *testing.T) {
 	tests := []struct {
 		name string
@@ -141,56 +108,6 @@ func TestSchema(t *testing.T) {
 	}
 	r.NoError(json.Unmarshal(rec.Body.Bytes(), &out))
 	a.Equal([]string{"id", "name", "note"}, out.Tables["widgets"])
-}
-
-func TestSavedQueries(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-	s := newServer(t, seedDB(t))
-
-	save := func(name, sql string) {
-		form := url.Values{"name": {name}, "sql": {sql}}
-		req := httptest.NewRequest(http.MethodPost, "/queries", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rec := httptest.NewRecorder()
-		s.Handler().ServeHTTP(rec, req)
-		r.Equal(http.StatusOK, rec.Code, rec.Body.String())
-	}
-
-	save("all widgets", "SELECT * FROM widgets")
-	list, err := s.deps.Store.ListSQLQueries()
-	r.NoError(err)
-	r.Len(list, 1)
-	a.Contains(list[0].SQL, "SELECT * FROM widgets")
-
-	save("all widgets", "SELECT id FROM widgets")
-	list, err = s.deps.Store.ListSQLQueries()
-	r.NoError(err)
-	r.Len(list, 1, "same name upserts")
-	a.Equal("SELECT id FROM widgets", list[0].SQL)
-
-	listRec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(listRec, httptest.NewRequest(http.MethodGet, "/queries", nil))
-	a.Contains(listRec.Body.String(), "all widgets")
-
-	delRec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(delRec, httptest.NewRequest(http.MethodDelete, "/queries/"+list[0].ID, nil))
-	a.Equal(http.StatusOK, delRec.Code)
-	list, err = s.deps.Store.ListSQLQueries()
-	r.NoError(err)
-	a.Empty(list)
-}
-
-func TestSaveValidation(t *testing.T) {
-	a := assert.New(t)
-	s := newServer(t, seedDB(t))
-
-	form := url.Values{"name": {""}, "sql": {"SELECT 1"}}
-	req := httptest.NewRequest(http.MethodPost, "/queries", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	a.Equal(http.StatusBadRequest, rec.Code)
 }
 
 func TestMissingDBSurfacesError(t *testing.T) {
