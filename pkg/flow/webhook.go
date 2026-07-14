@@ -26,7 +26,7 @@ func (e *Engine) webhook(ctx dbos.DBOSContext, _ WebhookInput) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "workflow id")
 	}
-	if _, err := act(ctx, "respond/await", "Waiting for webhook", "", func(context.Context) (string, error) {
+	if _, err := act(ctx, "respond/webhook", "Waiting for webhook", "", func(context.Context) (string, error) {
 		return webhookInstructions(id), nil
 	}); err != nil {
 		return "", errors.Wrap(err, "await webhook")
@@ -58,8 +58,11 @@ func (e *Engine) DeliverWebhook(workflowID string, payload WebhookPayload, idemp
 }
 
 func webhookInstructions(id string) string {
-	return fmt.Sprintf("Waiting for an external callback. Deliver a payload with:\n\n"+
-		"```\ncurl -X POST localhost:8888/webhooks/%s \\\n"+
+	return "Waiting for an external callback. Deliver a payload with:\n\n```\n" + webhookCurl(id) + "\n```"
+}
+
+func webhookCurl(id string) string {
+	return fmt.Sprintf("curl -X POST localhost:8888/webhooks/%s \\\n"+
 		"  -H 'Idempotency-Key: abc123' \\\n"+
-		"  -d '{\"event\":\"deploy.finished\",\"message\":\"build 42 is live\"}'\n```", id)
+		"  -d '{\"event\":\"deploy.finished\",\"message\":\"build 42 is live\"}'", id)
 }

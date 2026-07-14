@@ -53,6 +53,10 @@ func TestWebhookRouteDeliversToWorkflow(t *testing.T) {
 		return strings.Contains(get(t, srv, page), "Waiting for an external callback")
 	}, 5*time.Second, 25*time.Millisecond)
 
+	waiting := get(t, srv, page)
+	r.Contains(waiting, "mail-copy-btn")
+	r.Contains(waiting, "/webhooks/"+workflowID)
+
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/webhooks/"+workflowID,
 		strings.NewReader(`{"event":"deploy.finished","message":"build 42 is live"}`))
 	r.NoError(err)

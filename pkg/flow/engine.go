@@ -116,6 +116,7 @@ func New(deps Deps) *Engine {
 
 type StepView struct {
 	Answer   string
+	Copy     string
 	Detail   string
 	Duration string
 	Failed   bool
@@ -259,14 +260,18 @@ func (e *Engine) Run(id string) (RunView, error) {
 		case strings.HasPrefix(s.StepName, "respond/"):
 			pending = dropPending(pending, s.StepName)
 			body, _ := decode[string](s.Output)
-			view.Steps = append(view.Steps, StepView{
+			sv := StepView{
 				Detail:   body,
 				Duration: stepDuration(s),
 				Input:    inputs[s.StepName],
 				Kind:     KindResponse,
 				Status:   stepStatus(s),
 				Title:    stepDisplayTitle(titles, s.StepName),
-			})
+			}
+			if s.StepName == "respond/webhook" {
+				sv.Copy = webhookCurl(id)
+			}
+			view.Steps = append(view.Steps, sv)
 		case strings.HasPrefix(s.StepName, "DBOS."):
 			continue
 		default:

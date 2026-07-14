@@ -639,6 +639,7 @@ func (s *Server) scheduleDetail(name string) (ui.InboxScheduleDetail, error) {
 func (s *Server) workflowItemProps(threadID int64, step flow.StepView) ui.WorkflowItemProps {
 	item := ui.WorkflowItemProps{
 		Answer:   step.Answer,
+		Copy:     step.Copy,
 		Detail:   step.Detail,
 		Duration: step.Duration,
 		Failed:   step.Failed,

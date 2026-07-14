@@ -1213,6 +1213,20 @@ textarea {
   padding: 1rem;
 }
 
+.mail-copy-btn {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  margin-top: 0.4rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.mail-copy-btn:hover {
+  background: #f8fafc;
+}
+
 .mail-card h2 {
   font-size: 0.92rem;
   margin: 0 0 0.7rem;

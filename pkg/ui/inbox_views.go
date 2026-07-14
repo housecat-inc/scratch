@@ -111,6 +111,7 @@ type InboxWorkflowDetail struct {
 
 type WorkflowItemProps struct {
 	Answer   string
+	Copy     string
 	Detail   string
 	Duration string
 	Failed   bool
