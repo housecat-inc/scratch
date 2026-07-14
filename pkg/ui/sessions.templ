@@ -8,7 +8,7 @@ import (
 )
 
 templ SetupPage(v SessionsProps) {
-	@Layout("Setup", "setup") {
+	@Layout("Setup", "setup", v.Shell) {
 		<div class="setup-list">
 			<div class="setup-group-title">Claude Code</div>
 			@InstallCard(v)
@@ -23,7 +23,7 @@ templ SetupPage(v SessionsProps) {
 }
 
 templ SessionsPage(v SessionsProps) {
-	@Layout("Sessions", "sessions") {
+	@Layout("Sessions", "sessions", v.Shell) {
 		@SessionsCard(v)
 	}
 }

@@ -25,7 +25,7 @@ templ CodeSubnav(p CodeSubnavProps) {
 }
 
 templ OverviewPage(p OverviewProps) {
-	@Layout("Code", "code") {
+	@Layout("Code", "code", p.Shell) {
 		if p.Error != "" {
 			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 		}
@@ -113,7 +113,7 @@ templ overviewItem(r repo.Repo) {
 }
 
 templ CommitsPage(p CommitsProps) {
-	@CodeLayout(fmt.Sprintf("%s · commits", p.Repo.Slug()), CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo}) {
+	@CodeLayout(fmt.Sprintf("%s · commits", p.Repo.Slug()), CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo, Shell: p.Shell}) {
 		if p.Error != "" {
 			<div class="mail-empty">{ p.Error }</div>
 		} else if len(p.Commits) == 0 {
@@ -141,9 +141,12 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 		@Head(title)
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				AppName: "scratch",
-				BrandHref: "/",
-				Nav: toolNavItems("code"),
+				Actions:    toolActions(subnav.Shell),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				Footer:     ToolComposer(),
+				Nav:        toolNavItems("code", subnav.Shell.Counts),
+				SidebarTop: ComposeActions(),
 			}) {
 				@CodeSubnav(subnav)
 				{ children... }
@@ -155,14 +158,19 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 templ DiffPage(p DiffProps) {
 	<!DOCTYPE html>
 	<html lang="en">
-		@diffHead(p.Repo.Slug())
+		@MailHead(p.Repo.Slug() + " · diff") {
+			@DiffHeadExtras()
+		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				AppName: "scratch",
-				BrandHref: "/",
-				Nav: toolNavItems("code"),
+				Actions:    toolActions(p.Shell),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				Footer:     ToolComposer(),
+				Nav:        toolNavItems("code", p.Shell.Counts),
+				SidebarTop: ComposeActions(),
 			}) {
-				@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
+				@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo, Shell: p.Shell})
 				<div class="mail-tool-body">
 					if p.Commit.SHA != "" {
 						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits", p.Repo.Slug())) } class="block bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 active:bg-accent">
@@ -188,42 +196,17 @@ templ DiffPage(p DiffProps) {
 	</html>
 }
 
-templ diffHead(slug string) {
-	<head>
-		<meta charset="utf-8"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-		<meta name="color-scheme" content="light"/>
-		<title>{ slug } · diff</title>
-		<link rel="manifest" href="/manifest.webmanifest"/>
-		<meta name="apple-mobile-web-app-capable" content="yes"/>
-		<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-		<meta name="apple-mobile-web-app-title" content="scratch"/>
-		<meta name="mobile-web-app-capable" content="yes"/>
-		<meta name="application-name" content="scratch"/>
-		<meta name="theme-color" content="#0f172a"/>
-		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
-		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
-		@ChatCSS()
-		@InboxCSS()
-		@TempluiCSS()
-		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
-		<script src="/static/register-sw.js" defer></script>
-		<script src="/static/ptr.js" defer></script>
-		<script src="/static/html2canvas.min.js" defer></script>
-		<script src="/static/chat.js" defer></script>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"/>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-		<style>
-			pre code.hljs { background: transparent !important; padding: 0 !important; display: inline !important; }
-		</style>
-		<script src="/static/code.js"></script>
-	</head>
+templ DiffHeadExtras() {
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"/>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+	<style>
+		pre code.hljs { background: transparent !important; padding: 0 !important; display: inline !important; }
+	</style>
+	<script src="/static/code.js"></script>
 }
 
 templ CommentListPage(p CommentListProps) {
-	@CodeLayout(fmt.Sprintf("%s · comments", p.Repo.Slug()), CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo}) {
+	@CodeLayout(fmt.Sprintf("%s · comments", p.Repo.Slug()), CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo, Shell: p.Shell}) {
 		if p.Error != "" {
 			<div class="mail-empty">{ p.Error }</div>
 		} else if len(p.Files) == 0 {

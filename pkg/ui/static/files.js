@@ -1,14 +1,11 @@
 const wrap = document.getElementById('files-wrap');
-const editor = CodeMirror(document.getElementById('editor-area'), {
-  lineNumbers: true,
-  fixedGutter: false,
-  lineWrapping: true,
-  theme: 'neat',
-  keyMap: 'sublime',
-  mode: 'text/plain',
+const editor = window.CMFILES.create(document.getElementById('editor-area'), () => {
+  if (currentPath === null) return;
+  setDirty(editor.getValue() !== savedValue);
 });
 let currentPath = null;
 let savedValue = '';
+const baseDir = document.getElementById('file-tree')?.dataset.dir || '';
 const saveBtn = document.getElementById('editor-save');
 const pathLabel = document.getElementById('editor-path');
 const statusLabel = document.getElementById('editor-status');
@@ -20,7 +17,11 @@ function setDirty(dirty) {
 }
 
 function urlForPath(path) {
-  return '/files/' + (path ? '?path=' + encodeURIComponent(path) : '');
+  const base = '/files/?dir=' + encodeURIComponent(baseDir);
+  return path ? base + '&path=' + encodeURIComponent(path) : base;
+}
+function apiUrl(action, path) {
+  return '/files/' + action + '?dir=' + encodeURIComponent(baseDir) + '&path=' + encodeURIComponent(path);
 }
 function highlightTreeEntry(path) {
   document.querySelectorAll('a[data-file].bg-slate-100').forEach(el => el.classList.remove('bg-slate-100', 'text-slate-900'));
@@ -30,7 +31,7 @@ function highlightTreeEntry(path) {
 }
 function showEditor() {
   wrap.classList.add('show-editor');
-  setTimeout(() => editor.refresh(), 0);
+  setTimeout(() => editor.focus(), 0);
 }
 function showTree(opts) {
   wrap.classList.remove('show-editor');
@@ -41,10 +42,20 @@ function showTree(opts) {
 
 backBtn.addEventListener('click', () => showTree());
 
-editor.on('change', () => {
-  if (currentPath === null) return;
-  setDirty(editor.getValue() !== savedValue);
-});
+const browseBtn = document.querySelector('[data-files-browse]');
+const browseMenu = document.getElementById('files-browse-menu');
+if (browseBtn && browseMenu) {
+  browseBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    browseMenu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', e => {
+    if (!browseMenu.contains(e.target) && !browseBtn.contains(e.target)) browseMenu.classList.add('hidden');
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') browseMenu.classList.add('hidden');
+  });
+}
 
 async function openFile(path, opts) {
   opts = opts || {};
@@ -56,18 +67,14 @@ async function openFile(path, opts) {
   showEditor();
   highlightTreeEntry(path);
   try {
-    const res = await fetch('/files/read?path=' + encodeURIComponent(path));
+    const res = await fetch(apiUrl('read', path));
     if (!res.ok) throw new Error(await res.text());
-    const mode = res.headers.get('X-CM-Mode') || 'text/plain';
     const content = await res.text();
     currentPath = path;
     savedValue = content;
-    editor.setOption('mode', mode);
-    editor.setValue(content);
-    editor.clearHistory();
+    editor.load(path, content);
     pathLabel.textContent = path;
     setDirty(false);
-    editor.refresh();
     if (!opts.fromHistory) {
       history.pushState({path}, '', urlForPath(path));
     }
@@ -99,7 +106,7 @@ async function saveFile() {
   saveBtn.disabled = true;
   statusLabel.textContent = 'saving…';
   try {
-    const res = await fetch('/files/save?path=' + encodeURIComponent(currentPath), {
+    const res = await fetch(apiUrl('save', currentPath), {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
       body: value,

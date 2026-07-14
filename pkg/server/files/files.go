@@ -18,7 +18,8 @@ import (
 const maxFileSize = 2 * 1024 * 1024
 
 type Deps struct {
-	Root string
+	Root  string
+	Shell func() ui.ToolShellProps
 }
 
 func DefaultDeps(root string) Deps {
@@ -43,26 +44,62 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.readDir("")
-	vm := ui.FilesProps{Entries: entries, Root: rootLabel(s.deps.Root)}
+	base := s.base(r)
+	entries, err := s.readDir(base, "")
+	vm := ui.FilesProps{
+		Dir:     base,
+		Entries: entries,
+		Parent:  parentDir(base),
+		Root:    rootLabel(base),
+		Shell:   s.shell(),
+	}
 	if err != nil {
 		vm.Error = err.Error()
 	}
 	s.render(w, r, ui.FilesPage(vm))
 }
 
+func (s *Server) base(r *http.Request) string {
+	dir := strings.TrimSpace(r.URL.Query().Get("dir"))
+	if dir == "" {
+		return s.deps.Root
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return s.deps.Root
+	}
+	return abs
+}
+
+func parentDir(dir string) string {
+	dir = filepath.Clean(dir)
+	parent := filepath.Dir(dir)
+	if parent == dir {
+		return ""
+	}
+	return parent
+}
+
+func (s *Server) shell() ui.ToolShellProps {
+	if s.deps.Shell == nil {
+		return ui.ToolShellProps{}
+	}
+	return s.deps.Shell()
+}
+
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
+	base := s.base(r)
 	rel := strings.TrimSpace(r.URL.Query().Get("path"))
-	entries, err := s.readDir(rel)
+	entries, err := s.readDir(base, rel)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.render(w, r, ui.FileTreeList(ui.FileTreeProps{Entries: entries}))
+	s.render(w, r, ui.FileTreeList(ui.FileTreeProps{Dir: base, Entries: entries}))
 }
 
 func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
-	abs, err := safeJoin(s.deps.Root, r.URL.Query().Get("path"))
+	abs, err := safeJoin(s.base(r), r.URL.Query().Get("path"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -86,12 +123,11 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("X-CM-Mode", cmMode(abs))
 	_, _ = w.Write(data)
 }
 
 func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
-	abs, err := safeJoin(s.deps.Root, r.URL.Query().Get("path"))
+	abs, err := safeJoin(s.base(r), r.URL.Query().Get("path"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -117,8 +153,8 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) readDir(rel string) ([]ui.FileEntry, error) {
-	abs, err := safeJoin(s.deps.Root, rel)
+func (s *Server) readDir(base, rel string) ([]ui.FileEntry, error) {
+	abs, err := safeJoin(base, rel)
 	if err != nil {
 		return nil, err
 	}
@@ -184,34 +220,6 @@ func safeJoin(root, rel string) (string, error) {
 		return "", errors.New("path escapes root")
 	}
 	return absAbs, nil
-}
-
-func cmMode(path string) string {
-	switch filepath.Ext(path) {
-	case ".bash", ".sh":
-		return "text/x-sh"
-	case ".css":
-		return "text/css"
-	case ".go":
-		return "text/x-go"
-	case ".html", ".htm":
-		return "text/html"
-	case ".js", ".mjs":
-		return "text/javascript"
-	case ".json":
-		return "application/json"
-	case ".md", ".markdown":
-		return "text/x-markdown"
-	case ".py":
-		return "text/x-python"
-	case ".ts", ".tsx":
-		return "text/typescript"
-	case ".xml":
-		return "application/xml"
-	case ".yaml", ".yml":
-		return "text/x-yaml"
-	}
-	return "text/plain"
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, c templ.Component) {

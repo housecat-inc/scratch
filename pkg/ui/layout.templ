@@ -49,7 +49,7 @@ templ InboxLayout(active string, tasks, chats int) {
 	</div>
 }
 
-templ Head(title string) {
+templ MailHead(title string) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
@@ -68,25 +68,44 @@ templ Head(title string) {
 		@ChatCSS()
 		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+		@ToolShellCSS()
+		<script src="/static/htmx.min.js"></script>
 		<script src="/static/htmx-ext-sse.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>
 		<script src="/static/ptr.js" defer></script>
 		<script src="/static/html2canvas.min.js" defer></script>
 		<script src="/static/chat.js" defer></script>
+		{ children... }
 	</head>
 }
 
-templ Layout(title, nav string) {
+templ Head(title string) {
+	@MailHead(title)
+}
+
+templ ToolShellCSS() {
+	<style>
+		.mail-shell svg { display: inline; vertical-align: baseline; }
+		@media (max-width: 767px) {
+			.split-pane:not(.show-editor) .editor-pane { display: none; }
+			.split-pane.show-editor .tree-pane { display: none; }
+		}
+	</style>
+}
+
+templ Layout(title, nav string, shells ...ToolShellProps) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@Head(title)
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				AppName: "scratch",
-				BrandHref: "/",
-				MainClass: "mail-tool-main",
-				Nav: toolNavItems(nav),
+				Actions:    toolActions(toolShell(shells)),
+				AppName:    "scratch",
+				BrandHref:  "/",
+				Footer:     ToolComposer(),
+				MainClass:  "mail-tool-main",
+				Nav:        toolNavItems(nav, toolShell(shells).Counts),
+				SidebarTop: ComposeActions(),
 			}) {
 				<div class="mail-tool-content">
 					<header class="mail-mainbar">
@@ -103,19 +122,38 @@ templ Layout(title, nav string) {
 	</html>
 }
 
-func toolNavItems(active string) []uikit.NavItem {
+func toolNavItems(active string, counts InboxCounts) []uikit.NavItem {
 	return []uikit.NavItem{
-		{Active: active == "inbox", Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
-		{Active: active == "starred", Href: "/starred", Icon: "star", Label: "Starred", ShowCount: true},
-		{Group: "More", Active: active == "chats", Href: "/inbox/chats", Icon: "chat", Label: "Chats", ShowCount: true},
-		{Active: active == "tasks", Href: "/inbox/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
-		{Active: active == "workflows", Href: "/inbox/workflows", Icon: "play", Label: "Workflows", ShowCount: true},
+		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
+		{Active: active == "starred", Count: counts.Starred, Href: "/starred", Icon: "star", Label: "Starred", ShowCount: true},
+		{Group: "More", Active: active == "chats", Count: counts.Chats, Href: "/inbox/chats", Icon: "chat", Label: "Chats", ShowCount: true},
+		{Active: active == "tasks", Count: counts.Tasks, Href: "/inbox/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
+		{Active: active == "workflows", Count: counts.Workflows, Href: "/inbox/workflows", Icon: "play", Label: "Workflows", ShowCount: true},
 		{Group: "Tools", Active: active == "setup", Href: "/setup", Icon: "settings", Label: "Setup"},
 		{Active: active == "sessions", Href: "/sessions", Icon: "chat", Label: "Sessions"},
 		{Active: active == "code", Href: "/code/", Icon: "code", Label: "Code review"},
 		{Active: active == "files", Href: "/files/", Icon: "file", Label: "Files"},
 		{Active: active == "sql", Href: "/sql/", Icon: "database", Label: "SQL"},
 	}
+}
+
+templ ToolComposer() {
+	@ChatComposer(ChatComposerProps{
+		Action:      "/compose",
+		FileName:    "file",
+		Placeholder: "Chat with agent",
+	})
+}
+
+templ toolActions(p ToolShellProps) {
+	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
+}
+
+func toolShell(shells []ToolShellProps) ToolShellProps {
+	if len(shells) == 0 {
+		return ToolShellProps{}
+	}
+	return shells[0]
 }
 
 templ inboxNavLink(href, name, active, label string, count int) {

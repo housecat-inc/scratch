@@ -1,42 +1,13 @@
 (function () {
-  var editor = null;
-  var schema = {};
+  var ta = document.getElementById("sql-editor");
 
-  function pathValue() {
+  window.sqlGetEditor = function () { return ta ? ta.value : ""; };
+  window.sqlSetEditor = function (text) { if (ta) ta.value = text || ""; };
+
+  window.sqlPath = function () {
     var el = document.querySelector('#sql-run-form input[name="path"]');
     return el ? el.value : "";
-  }
-
-  function loadSchema() {
-    fetch("/sql/schema?path=" + encodeURIComponent(pathValue()))
-      .then(function (r) { return r.ok ? r.json() : { tables: {} }; })
-      .then(function (data) {
-        schema = data.tables || {};
-        if (editor) editor.setOption("hintOptions", { tables: schema });
-      })
-      .catch(function () {});
-  }
-
-  function initEditor() {
-    var ta = document.getElementById("sql-editor");
-    if (!ta || !window.CodeMirror) return;
-    editor = CodeMirror.fromTextArea(ta, {
-      mode: "text/x-sqlite",
-      theme: "neat",
-      lineNumbers: true,
-      lineWrapping: true,
-      extraKeys: {
-        "Cmd-Enter": runQuery,
-        "Ctrl-Enter": runQuery,
-        "Ctrl-Space": "autocomplete",
-      },
-    });
-    editor.on("inputRead", function (cm, change) {
-      if (change.text[0] && /[\w.]/.test(change.text[0])) {
-        cm.showHint({ completeSingle: false, hint: CodeMirror.hint.sql, tables: schema });
-      }
-    });
-  }
+  };
 
   function runQuery() {
     var form = document.getElementById("sql-run-form");
@@ -44,13 +15,7 @@
   }
 
   function loadSQL(sql, run) {
-    if (editor) {
-      editor.setValue(sql);
-      editor.focus();
-    } else {
-      var ta = document.getElementById("sql-editor");
-      if (ta) ta.value = sql;
-    }
+    window.sqlSetEditor(sql);
     var wrap = document.getElementById("sql-wrap");
     if (wrap) wrap.classList.add("show-editor");
     if (run) runQuery();
@@ -92,7 +57,7 @@
   });
 
   document.addEventListener("htmx:configRequest", function () {
-    if (editor) editor.save();
+    if (ta && window.sqlGetEditor) ta.value = window.sqlGetEditor();
   });
 
   document.addEventListener("htmx:afterRequest", function (e) {
@@ -108,7 +73,4 @@
       if (wrap) wrap.classList.remove("show-editor");
     });
   }
-
-  initEditor();
-  loadSchema();
 })();

@@ -1,12 +1,5 @@
 package uikit
 
-templ ChatPluginScripts() {
-	<script src="/static/htmx.min.js"></script>
-	<script src="/static/htmx-ext-sse.min.js"></script>
-	<script src="/static/html2canvas.min.js" defer></script>
-	<script src="/static/chat.js" defer></script>
-}
-
 templ NewChatAction(p NewChatActionProps) {
 	<form class="mail-create-combo" method="get" action={ newChatAction(p.Action) } data-chat-popout-new>
 		if p.Label != "" {

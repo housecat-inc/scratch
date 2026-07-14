@@ -6,12 +6,14 @@ import (
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/git"
 	"github.com/housecat-inc/scratch/pkg/repo"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 type CodeSubnavProps struct {
 	Active   string
 	Comments int
 	Repo     repo.Repo
+	Shell    ToolShellProps
 }
 
 type CommentFormProps struct {
@@ -40,6 +42,7 @@ type CommentListProps struct {
 	Error    string
 	Files    []CommentListFileProps
 	Repo     repo.Repo
+	Shell    ToolShellProps
 }
 
 type CommentThreadProps struct {
@@ -53,6 +56,7 @@ type CommitsProps struct {
 	Comments int
 	Error    string
 	Repo     repo.Repo
+	Shell    ToolShellProps
 }
 
 type ContextProps struct {
@@ -82,6 +86,7 @@ type DiffProps struct {
 	Error    string
 	Files    []FileProps
 	Repo     repo.Repo
+	Shell    ToolShellProps
 }
 
 type EditCommentFormProps struct {
@@ -122,13 +127,17 @@ type FileProps struct {
 }
 
 type FileTreeProps struct {
+	Dir     string
 	Entries []FileEntry
 }
 
 type FilesProps struct {
+	Dir     string
 	Entries []FileEntry
 	Error   string
+	Parent  string
 	Root    string
+	Shell   ToolShellProps
 }
 
 type HunkProps struct {
@@ -144,6 +153,7 @@ type OverviewProps struct {
 	Error string
 	Home  string
 	Repos []repo.Repo
+	Shell ToolShellProps
 }
 
 type PickerProps struct {
@@ -166,6 +176,7 @@ type SQLProps struct {
 	Query   string
 	Result  *SQLResult
 	Saved   []db.SQLQuery
+	Shell   ToolShellProps
 	Tables  []SQLTable
 }
 
@@ -221,4 +232,10 @@ type SessionsProps struct {
 	SessionDir         string
 	SessionError       string
 	Sessions           []SessionProps
+	Shell              ToolShellProps
+}
+
+type ToolShellProps struct {
+	ChatOptions []uikit.SelectOption
+	Counts      InboxCounts
 }

@@ -1,11 +1,13 @@
 package sql
 
 import (
+	"bufio"
 	"context"
 	stdsql "database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,21 +30,28 @@ const (
 )
 
 type Deps struct {
+	AutoInstall bool
+	BinDir      string
 	DefaultPath string
+	Shell       func() ui.ToolShellProps
 	Store       db.SQLQueryStore
 }
 
 func DefaultDeps(home string, store db.SQLQueryStore) Deps {
 	return Deps{
+		AutoInstall: true,
+		BinDir:      filepath.Join(home, ".config", "scratch", "bin"),
 		DefaultPath: filepath.Join(home, ".config", "scratch", "scratch.db"),
 		Store:       store,
 	}
 }
 
 type Server struct {
-	conns map[string]*stdsql.DB
-	deps  Deps
-	mu    sync.Mutex
+	conns   map[string]*stdsql.DB
+	deps    Deps
+	mu      sync.Mutex
+	sqlsBin string
+	sqlsMu  sync.Mutex
 }
 
 func NewServer(deps Deps) (*Server, error) {
@@ -55,6 +64,7 @@ func NewServer(deps Deps) (*Server, error) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handlePage)
+	mux.HandleFunc("GET /lsp", s.handleLSP)
 	mux.HandleFunc("GET /queries", s.handleListQueries)
 	mux.HandleFunc("GET /schema", s.handleSchema)
 	mux.HandleFunc("POST /queries", s.handleSaveQuery)
@@ -65,7 +75,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	path := s.resolvePath(r.URL.Query().Get("path"))
-	vm := ui.SQLProps{DBFiles: s.dbFiles(path), Path: path, Query: "SELECT 1;"}
+	vm := ui.SQLProps{DBFiles: s.dbFiles(path), Path: path, Query: "SELECT 1;", Shell: s.shell()}
 	tables, err := s.tables(r.Context(), path)
 	if err != nil {
 		vm.Error = err.Error()
@@ -75,6 +85,13 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		vm.Saved = saved
 	}
 	s.render(w, r, ui.SQLPage(vm))
+}
+
+func (s *Server) shell() ui.ToolShellProps {
+	if s.deps.Shell == nil {
+		return ui.ToolShellProps{}
+	}
+	return s.deps.Shell()
 }
 
 func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
@@ -331,6 +348,14 @@ type statusRecorder struct {
 func (r *statusRecorder) WriteHeader(code int) {
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("hijack not supported")
+	}
+	return h.Hijack()
 }
 
 func logging(next http.Handler) http.Handler {

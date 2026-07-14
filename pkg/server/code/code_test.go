@@ -146,6 +146,8 @@ func TestDiffPage(t *testing.T) {
 	a.Contains(body, "direction=all")
 	a.Contains(body, "/static/chat.js")
 	a.Contains(body, "/static/htmx-ext-sse.min.js")
+	a.Equal(1, strings.Count(body, "/static/chat.js"))
+	a.Equal(1, strings.Count(body, "/static/htmx-ext-sse.min.js"))
 	a.Contains(body, `<span class="font-mono text-xs text-slate-400 truncate flex-1 min-w-0">…</span>`)
 }
 
