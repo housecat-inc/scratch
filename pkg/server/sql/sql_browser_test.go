@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
@@ -20,9 +21,11 @@ func TestSQLBrowser(t *testing.T) {
 				testkit.TextContainsStep[*testkit.Harness](".mail-brand", "scratch"),
 				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "SQL"),
 				testkit.ClassContainsStep[*testkit.Harness](`a[href="/sql/"]`, "active"),
+				testkit.TextContainsStep[*testkit.Harness]("#sql-query-list", "tasks"),
 				testkit.TextContainsStep[*testkit.Harness](".tree-pane", "widgets"),
 				testkit.VisibleStep[*testkit.Harness](".cm-editor"),
 				func(t *testing.T, h *testkit.Harness) { h.ElementHidden("#sql-editor") },
+				savedQueryTrashAlignedStep(),
 			},
 			Name: "mounts a single codemirror editor",
 			Path: "/sql/",
@@ -60,6 +63,8 @@ func TestSQLBrowser(t *testing.T) {
 			store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
 			kit.R.NoError(err)
 			t.Cleanup(func() { store.Close() })
+			_, err = store.SaveSQLQuery("tasks", "SELECT *\nFROM tasks;")
+			kit.R.NoError(err)
 			chatSvc := chat.NewService(store, chat.EchoAgent{}, slog.Default())
 			t.Cleanup(chatSvc.Close)
 			shell := func() ui.ToolShellProps {
@@ -82,4 +87,23 @@ func TestSQLBrowser(t *testing.T) {
 			return testkit.NewHarnessWithT(t, kit, mux)
 		},
 	})
+}
+
+func savedQueryTrashAlignedStep() testkit.BrowserStep[*testkit.Harness] {
+	return func(t *testing.T, h *testkit.Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			result, err := h.Page.Eval(`() => {
+				const row = document.querySelector("#sql-query-list li");
+				const icon = document.querySelector('#sql-query-list [aria-label="Delete query"] svg');
+				if (!row || !icon) return false;
+				const iconRect = icon.getBoundingClientRect();
+				const rowRect = row.getBoundingClientRect();
+				const iconCenter = iconRect.top + iconRect.height / 2;
+				const rowCenter = rowRect.top + rowRect.height / 2;
+				return iconRect.width > 0 && iconRect.width <= 20 && iconRect.height > 0 && iconRect.height <= 20 && Math.abs(rowCenter - iconCenter) <= 1;
+			}`)
+			return err == nil && result.Value.Bool()
+		}, 5*time.Second, 50*time.Millisecond)
+	}
 }

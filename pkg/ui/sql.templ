@@ -183,8 +183,8 @@ templ SQLQueryList(saved []db.SQLQuery) {
 				<button type="button" class="flex-1 min-w-0 text-left px-3 py-2 md:py-0.5 hover:bg-slate-50 active:bg-slate-100 text-slate-700" data-sql={ q.SQL }>
 					<span class="font-mono text-base md:text-xs truncate block">{ q.Name }</span>
 				</button>
-				<button type="button" class="px-2 py-1 text-slate-300 hover:text-destructive md:opacity-0 group-hover:opacity-100" title="Delete query" aria-label="Delete query" hx-delete={ "/sql/queries/" + q.ID } hx-target="#sql-query-list" hx-swap="innerHTML" hx-confirm="Delete this saved query?">
-					<span class="block w-3 h-3">
+				<button type="button" class="flex h-10 w-10 flex-shrink-0 items-center justify-center text-slate-300 hover:text-destructive md:h-5 md:w-7 md:opacity-0 group-hover:opacity-100" title="Delete query" aria-label="Delete query" hx-delete={ "/sql/queries/" + q.ID } hx-target="#sql-query-list" hx-swap="innerHTML" hx-confirm="Delete this saved query?">
+					<span class="inline-flex h-4 w-4 md:h-3 md:w-3 [&>svg]:h-full [&>svg]:w-full">
 						@uikit.Icon("trash")
 					</span>
 				</button>
