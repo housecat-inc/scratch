@@ -141,10 +141,17 @@ templ ScheduleRow(sc WorkflowScheduleView) {
 		ID: sc.Name,
 		Kind: "workflow",
 		Labels: scheduleRowLabels(sc),
+		Primary: ScheduleRowPrimary(sc),
 		Subject: sc.Cron,
 		What: sc.Name,
 		When: sc.LastFired,
 	})
+}
+
+templ ScheduleRowPrimary(sc WorkflowScheduleView) {
+	<button type="button" class="gm-star" title="Star" aria-label="Star" onclick="event.stopPropagation()">
+		@starIcon(false)
+	</button>
 }
 
 templ ScheduleRowActions(sc WorkflowScheduleView) {

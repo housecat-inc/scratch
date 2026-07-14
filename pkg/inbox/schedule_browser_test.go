@@ -57,7 +57,7 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 			},
 			Assert: []Step{
 				ElementAbsent("[data-id=heartbeat] .gm-row-kind-icon"),
-				ElementAbsent("[data-id=heartbeat] .gm-star"),
+				Visible("[data-id=heartbeat] .gm-star"),
 				TextContains("[data-id=heartbeat] .gm-row-label", "Scheduled"),
 				TextContains("[data-id=heartbeat] .gm-row-labels", "Active"),
 				TextContains("[data-id=heartbeat] .gm-row-subject-text", "0 * * * * *"),
