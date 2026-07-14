@@ -573,10 +573,6 @@
     form.dataset.chatNewInitialized = "true";
     const select = form.querySelector('[name="provider_model"]');
     if (!select) return;
-    const stored = storageGet(providerModelKey);
-    if (stored && Array.from(select.options).some((option) => option.value === stored)) {
-      select.value = stored;
-    }
     select.addEventListener("change", () => storageSet(providerModelKey, select.value));
     form.addEventListener("submit", () => storageSet(providerModelKey, select.value));
   };
