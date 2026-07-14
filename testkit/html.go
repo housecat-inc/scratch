@@ -156,6 +156,9 @@ func (h *HTML) dispatch(el *goquery.Selection) {
 }
 
 func (h *HTML) applySwap(target *goquery.Selection, swap string, body string) {
+	if strings.Contains(body, "hx-swap-oob") {
+		body = h.applyOOB(body)
+	}
 	switch strings.Fields(swap + " ")[0] {
 	case "none":
 	case "delete":
@@ -165,6 +168,33 @@ func (h *HTML) applySwap(target *goquery.Selection, swap string, body string) {
 	default:
 		target.SetHtml(body)
 	}
+}
+
+func (h *HTML) applyOOB(body string) string {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(body))
+	if err != nil {
+		return body
+	}
+	doc.Find("[hx-swap-oob]").Each(func(_ int, node *goquery.Selection) {
+		id, ok := node.Attr("id")
+		if !ok {
+			return
+		}
+		existing := h.Doc.Find("#" + id)
+		spec, _ := node.Attr("hx-swap-oob")
+		if strings.Fields(spec + " ")[0] == "innerHTML" {
+			inner, _ := node.Html()
+			existing.SetHtml(inner)
+		} else if outer, err := goquery.OuterHtml(node); err == nil {
+			existing.ReplaceWithHtml(outer)
+		}
+		node.Remove()
+	})
+	remaining, err := doc.Find("body").Html()
+	if err != nil {
+		return body
+	}
+	return remaining
 }
 
 func (h *HTML) collectValues(el *goquery.Selection) url.Values {
