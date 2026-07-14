@@ -49,6 +49,17 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 		},
 		{
 			Act: []Step{
+				SelectOption(`[name="workflow_type"]`, "greet"),
+			},
+			Assert: []Step{
+				TextContains(".mail-reader-title", "Greet"),
+				TextContains(".chat-row-label", "What should I call you?"),
+			},
+			Name: "greet workflow selection starts the greet workflow",
+			Path: "/",
+		},
+		{
+			Act: []Step{
 				Click("[data-new-workflow]"),
 				TextContains(".chat-row-label", "What should I call you?"),
 				Click("#elicit-decline"),
