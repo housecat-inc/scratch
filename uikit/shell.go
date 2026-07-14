@@ -10,12 +10,13 @@ import (
 )
 
 type NavItem struct {
-	Active bool
-	Count  int
-	Group  string
-	Href   string
-	Icon   string
-	Label  string
+	Active    bool
+	Count     int
+	Group     string
+	Href      string
+	Icon      string
+	Label     string
+	ShowCount bool
 }
 
 type ShellProps struct {
