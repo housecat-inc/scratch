@@ -113,15 +113,17 @@ templ InboxListView(p InboxProps) {
 				</nav>
 			}
 		</div>
-		<span>{ strconv.Itoa(len(p.Items)) }</span>
+		<span>{ strconv.Itoa(inboxListCount(p)) }</span>
 	</header>
-	if p.View == "workflows" && len(p.Schedules) > 0 {
-		@schedulesPanel(p.Schedules)
-	}
-	if len(p.Items) == 0 {
+	if len(p.Items) == 0 && (p.View != "workflows" || len(p.Schedules) == 0) {
 		<div class="mail-empty">Nothing here.</div>
 	} else {
 		<div class="mail-list">
+			if p.View == "workflows" {
+				for _, sc := range p.Schedules {
+					@ScheduleRow(sc)
+				}
+			}
 			for _, item := range p.Items {
 				@InboxRow(item, p.View, p.ArchiveFilter)
 			}
@@ -129,36 +131,40 @@ templ InboxListView(p InboxProps) {
 	}
 }
 
-templ schedulesPanel(schedules []WorkflowScheduleView) {
-	<section class="mail-card mail-schedules">
-		<h2 class="mail-schedules-title">Schedules</h2>
-		for _, sc := range schedules {
-			<div class="mail-schedule-row">
-				<div class="mail-schedule-info">
-					<span class="mail-schedule-name">{ sc.Name }</span>
-					<code class="mail-schedule-cron">{ sc.Cron }</code>
-					<span class={ "mail-schedule-status", templ.KV("paused", sc.Paused) }>{ scheduleStatusLabel(sc) }</span>
-					if sc.LastFired != "" {
-						<span class="mail-schedule-fired">last fired { sc.LastFired }</span>
-					}
-				</div>
-				<div class="mail-schedule-actions">
-					if sc.Paused {
-						@scheduleButton(sc.Name, "resume", "Resume")
-					} else {
-						@scheduleButton(sc.Name, "pause", "Pause")
-					}
-					@scheduleButton(sc.Name, "trigger", "Run now")
-				</div>
-			</div>
-		}
-	</section>
+templ ScheduleRow(sc WorkflowScheduleView) {
+	@uikit.ListRow(uikit.ListRowProps{
+		Actions: ScheduleRowActions(sc),
+		Href: "/inbox/workflows",
+		ID: sc.Name,
+		Kind: "workflow",
+		Labels: []string{"Scheduled"},
+		Primary: ScheduleRowPrimary(),
+		Subject: scheduleRowSubject(sc),
+		What: sc.Name,
+		When: scheduleStatusLabel(sc),
+	})
 }
 
-templ scheduleButton(name, action, label string) {
+templ ScheduleRowActions(sc WorkflowScheduleView) {
+	if sc.Paused {
+		@scheduleButton(sc.Name, "resume", "Resume", playIcon())
+	} else {
+		@scheduleButton(sc.Name, "pause", "Pause", pauseIcon())
+	}
+}
+
+templ ScheduleRowPrimary() {
+	<span class="gm-row-kind-icon" title="Scheduled workflow" aria-label="Scheduled workflow" role="img">
+		@workflowIcon()
+	</span>
+}
+
+templ scheduleButton(name, action, label string, icon templ.Component) {
 	<form method="post" action={ templ.SafeURL("/inbox/schedules/" + name + "/" + action) }>
 		<input type="hidden" name="back" value="/inbox/workflows"/>
-		<button type="submit" class="mail-schedule-btn" data-schedule-btn={ action }>{ label }</button>
+		<button type="submit" class="gm-row-action" title={ label } aria-label={ label } data-schedule-btn={ action } onclick="event.stopPropagation()">
+			@icon
+		</button>
 	</form>
 }
 
@@ -584,6 +590,13 @@ func scheduleStatusLabel(sc WorkflowScheduleView) string {
 	return "Active"
 }
 
+func scheduleRowSubject(sc WorkflowScheduleView) string {
+	if sc.LastFired == "" {
+		return sc.Cron
+	}
+	return sc.Cron + " · last fired " + sc.LastFired
+}
+
 func workflowStatusLabel(status string) string {
 	switch status {
 	case "SUCCESS":
@@ -739,6 +752,21 @@ func inboxTitle(p InboxProps) string {
 
 func inboxIcon() templ.Component {
 	return lucideIcon(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
+}
+
+func inboxListCount(p InboxProps) int {
+	if p.View == "workflows" {
+		return len(p.Items) + len(p.Schedules)
+	}
+	return len(p.Items)
+}
+
+func pauseIcon() templ.Component {
+	return lucideIcon(`<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect>`)
+}
+
+func playIcon() templ.Component {
+	return lucideIcon(`<polygon points="6 3 20 12 6 21 6 3"></polygon>`)
 }
 
 func popoutIcon() templ.Component {

@@ -19,24 +19,28 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 			Act: []Step{
 				SeedSchedule(),
 				Load("/inbox/workflows"),
+				Hover("[data-id=heartbeat]"),
 			},
 			Assert: []Step{
-				TextContains(".mail-schedules-title", "Schedules"),
-				TextContains(".mail-schedule-name", "heartbeat"),
-				TextContains(".mail-schedule-status", "Active"),
+				TextContains("[data-id=heartbeat] .gm-row-label", "Scheduled"),
+				TextContains("[data-id=heartbeat] .gm-row-what", "heartbeat"),
+				TextContains("[data-id=heartbeat] .gm-row-date", "Active"),
 				Visible("[data-schedule-btn=pause]"),
 			},
-			Name: "schedules panel lists the heartbeat schedule as active",
+			Name: "schedule row lists the heartbeat schedule as active",
 			Path: "/inbox/workflows",
 		},
 		{
 			Act: []Step{
 				SeedSchedule(),
 				Load("/inbox/workflows"),
+				Hover("[data-id=heartbeat]"),
 				Click("[data-schedule-btn=pause]"),
+				Load("/inbox/workflows"),
+				Hover("[data-id=heartbeat]"),
 			},
 			Assert: []Step{
-				TextContains(".mail-schedule-status", "Paused"),
+				TextContains("[data-id=heartbeat] .gm-row-date", "Paused"),
 				Visible("[data-schedule-btn=resume]"),
 			},
 			Name: "pausing a schedule flips the label to paused",
