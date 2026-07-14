@@ -81,10 +81,40 @@ func ClassContainsStep[H interface {
 	}
 }
 
+func AbsentStep[H interface{ ElementAbsent(string) }](selector string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementAbsent(selector)
+	}
+}
+
+func AttributeEqualsStep[H interface {
+	ElementAttributeEquals(string, string, string)
+}](selector, name, expected string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementAttributeEquals(selector, name, expected)
+	}
+}
+
 func ClickStep[H interface{ Click(string) }](selector string) BrowserStep[H] {
 	return func(t *testing.T, h H) {
 		t.Helper()
 		h.Click(selector)
+	}
+}
+
+func HiddenStep[H interface{ ElementHidden(string) }](selector string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementHidden(selector)
+	}
+}
+
+func SelectOptionStep[H interface{ SelectOption(string, string) }](selector, value string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.SelectOption(selector, value)
 	}
 }
 
