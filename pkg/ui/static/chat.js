@@ -300,6 +300,27 @@
     initCapture(form, input, upload, addDraftFiles, setComposeMode);
   };
 
+  const initEditableElicit = (form) => {
+    if (form.dataset.elicitEditableInitialized === "true") return;
+    form.dataset.elicitEditableInitialized = "true";
+    const fields = Array.from(form.querySelectorAll("input[name^='f_'], select[name^='f_'], textarea[name^='f_']"));
+    const unlock = () => {
+      form.classList.add("editing");
+      for (const field of fields) field.disabled = false;
+      fields.find((field) => field.matches("input, select, textarea"))?.focus();
+    };
+    form.addEventListener("click", (e) => {
+      if (!e.target.closest("[data-elicit-edit]") || form.classList.contains("editing")) return;
+      e.preventDefault();
+      unlock();
+    });
+    form.addEventListener("submit", (e) => {
+      if (!e.submitter?.matches("[data-elicit-edit]") || form.classList.contains("editing")) return;
+      e.preventDefault();
+      unlock();
+    });
+  };
+
   const initCapture = (form, input, upload, addDraftFiles, setComposeMode) => {
     const snap = form.querySelector("[data-chat-snap]");
     if (!snap) return;
@@ -531,10 +552,12 @@
 
   const initAll = (root = document) => {
     if (root.matches?.("[data-chat-form]")) initComposer(root);
+    if (root.matches?.(".chat-elicit-editable")) initEditableElicit(root);
     if (root.matches?.("[data-chat-messages]")) initMessages(root);
     if (root.matches?.("[data-chat-popout-new]")) initNewChatAction(root);
     if (root.matches?.("[data-chat-popout]")) initPopout(root);
     root.querySelectorAll("[data-chat-form]").forEach(initComposer);
+    root.querySelectorAll(".chat-elicit-editable").forEach(initEditableElicit);
     root.querySelectorAll("[data-chat-messages]").forEach(initMessages);
     root.querySelectorAll("[data-chat-popout-new]").forEach(initNewChatAction);
     root.querySelectorAll("[data-chat-popout]").forEach(initPopout);

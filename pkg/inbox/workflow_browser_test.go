@@ -14,7 +14,7 @@ func editableFormValue(name, want string) Step {
 				const el = document.querySelector('.chat-elicit-editable [name="' + name + '"]');
 				return el ? (el.value + '|' + el.disabled) : "";
 			}`, name)
-			return err == nil && v.Value.Str() == want+"|false"
+			return err == nil && v.Value.Str() == want+"|true"
 		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
@@ -55,6 +55,7 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 				Type("[name=f_name]", "Ada"),
 				Click("#elicit-accept"),
 				TextContains(".chat-turn.role-assistant .chat-md", "Ada"),
+				Click("#elicit-edit"),
 				Fill(".chat-elicit-editable [name=f_name]", "Grace"),
 				Click("#elicit-edit"),
 			},
