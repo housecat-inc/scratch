@@ -25,7 +25,7 @@ templ CodeSubnav(p CodeSubnavProps) {
 }
 
 templ OverviewPage(p OverviewProps) {
-	@Layout("Code", "code") {
+	@Layout("Code", "code", p.Shell) {
 		if p.Error != "" {
 			<div class="text-red-700 text-sm mb-4 break-all">{ p.Error }</div>
 		}
@@ -113,7 +113,7 @@ templ overviewItem(r repo.Repo) {
 }
 
 templ CommitsPage(p CommitsProps) {
-	@CodeLayout(fmt.Sprintf("%s · commits", p.Repo.Slug()), CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo}) {
+	@CodeLayout(fmt.Sprintf("%s · commits", p.Repo.Slug()), CodeSubnavProps{Active: "commits", Comments: p.Comments, Repo: p.Repo, Shell: p.Shell}) {
 		if p.Error != "" {
 			<div class="mail-empty">{ p.Error }</div>
 		} else if len(p.Commits) == 0 {
@@ -141,10 +141,11 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 		@Head(title)
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(),
+				Actions:    toolActions(subnav.Shell),
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Nav:        toolNavItems("code"),
+				Footer:     ToolComposer(),
+				Nav:        toolNavItems("code", subnav.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {
 				@CodeSubnav(subnav)
@@ -160,13 +161,14 @@ templ DiffPage(p DiffProps) {
 		@diffHead(p.Repo.Slug())
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(),
+				Actions:    toolActions(p.Shell),
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Nav:        toolNavItems("code"),
+				Footer:     ToolComposer(),
+				Nav:        toolNavItems("code", p.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {
-				@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo})
+				@CodeSubnav(CodeSubnavProps{Active: "diffs", Comments: p.Comments, Repo: p.Repo, Shell: p.Shell})
 				<div class="mail-tool-body">
 					if p.Commit.SHA != "" {
 						<a href={ templ.SafeURL(fmt.Sprintf("/code/%s/commits", p.Repo.Slug())) } class="block bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 active:bg-accent">
@@ -227,7 +229,7 @@ templ diffHead(slug string) {
 }
 
 templ CommentListPage(p CommentListProps) {
-	@CodeLayout(fmt.Sprintf("%s · comments", p.Repo.Slug()), CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo}) {
+	@CodeLayout(fmt.Sprintf("%s · comments", p.Repo.Slug()), CodeSubnavProps{Active: "comments", Comments: p.Comments, Repo: p.Repo, Shell: p.Shell}) {
 		if p.Error != "" {
 			<div class="mail-empty">{ p.Error }</div>
 		} else if len(p.Files) == 0 {

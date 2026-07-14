@@ -33,6 +33,7 @@ type Deps struct {
 	ListSubdirs        func(dir string) ([]string, error)
 	SessionLastMessage func(id string) string
 	SessionQR          func(id string) ([]byte, error)
+	Shell              func() ui.ToolShellProps
 	SlugForPrompt      func(prompt string) string
 	StartCodexLogin    func() (CodexLogin, error)
 	StartLogin         func() (Login, error)
@@ -511,7 +512,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, comps ...templ.C
 }
 
 func (s *Server) viewModel() ui.SessionsProps {
-	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.dir}
+	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.dir, Shell: s.shell()}
 	if vm.Installed && s.deps.ClaudeVersion != nil {
 		vm.ClaudeVersion = s.deps.ClaudeVersion()
 	}
@@ -583,4 +584,11 @@ func (s *Server) viewModel() ui.SessionsProps {
 		}
 	}
 	return vm
+}
+
+func (s *Server) shell() ui.ToolShellProps {
+	if s.deps.Shell == nil {
+		return ui.ToolShellProps{}
+	}
+	return s.deps.Shell()
 }

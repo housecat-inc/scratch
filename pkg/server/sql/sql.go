@@ -33,6 +33,7 @@ type Deps struct {
 	AutoInstall bool
 	BinDir      string
 	DefaultPath string
+	Shell       func() ui.ToolShellProps
 	Store       db.SQLQueryStore
 }
 
@@ -74,7 +75,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	path := s.resolvePath(r.URL.Query().Get("path"))
-	vm := ui.SQLProps{DBFiles: s.dbFiles(path), Path: path, Query: "SELECT 1;"}
+	vm := ui.SQLProps{DBFiles: s.dbFiles(path), Path: path, Query: "SELECT 1;", Shell: s.shell()}
 	tables, err := s.tables(r.Context(), path)
 	if err != nil {
 		vm.Error = err.Error()
@@ -84,6 +85,13 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		vm.Saved = saved
 	}
 	s.render(w, r, ui.SQLPage(vm))
+}
+
+func (s *Server) shell() ui.ToolShellProps {
+	if s.deps.Shell == nil {
+		return ui.ToolShellProps{}
+	}
+	return s.deps.Shell()
 }
 
 func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {

@@ -18,7 +18,8 @@ import (
 const maxFileSize = 2 * 1024 * 1024
 
 type Deps struct {
-	Root string
+	Root  string
+	Shell func() ui.ToolShellProps
 }
 
 func DefaultDeps(root string) Deps {
@@ -44,11 +45,18 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	entries, err := s.readDir("")
-	vm := ui.FilesProps{Entries: entries, Root: rootLabel(s.deps.Root)}
+	vm := ui.FilesProps{Entries: entries, Root: rootLabel(s.deps.Root), Shell: s.shell()}
 	if err != nil {
 		vm.Error = err.Error()
 	}
 	s.render(w, r, ui.FilesPage(vm))
+}
+
+func (s *Server) shell() ui.ToolShellProps {
+	if s.deps.Shell == nil {
+		return ui.ToolShellProps{}
+	}
+	return s.deps.Shell()
 }
 
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {

@@ -1,10 +1,11 @@
 package ui
 
 import (
+	"strconv"
+
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/uikit"
 	"github.com/templui/templui/components/button"
-	"strconv"
 )
 
 templ SQLPage(v SQLProps) {
@@ -13,11 +14,12 @@ templ SQLPage(v SQLProps) {
 		@SQLHead()
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(),
+				Actions:    toolActions(v.Shell),
 				AppName:    "scratch",
 				BrandHref:  "/",
+				Footer:     ToolComposer(),
 				MainClass:  "mail-files-main",
-				Nav:        toolNavItems("sql"),
+				Nav:        toolNavItems("sql", v.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {
 				<div id="sql-wrap" class="mail-tool-content flex flex-col flex-1 min-h-0">
@@ -130,7 +132,10 @@ templ SQLHead() {
 		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="/static/htmx.min.js"></script>
+		<script src="/static/htmx-ext-sse.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>
+		<script src="/static/html2canvas.min.js" defer></script>
+		<script src="/static/chat.js" defer></script>
 		<style>
 			html, body { height: 100%; }
 			#sql-editor { display: block; width: 100%; height: 180px; resize: none; border: 0; outline: none; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
@@ -226,8 +231,4 @@ templ SQLResults(r *SQLResult) {
 			</table>
 		</div>
 	}
-}
-
-templ toolActions() {
-	@uikit.NewChatAction(uikit.NewChatActionProps{})
 }

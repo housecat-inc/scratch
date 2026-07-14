@@ -56,7 +56,15 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 			home, workdir := ws.Home, ws.Dir
-			sessionsSrv, err := sessions.NewServer(sessions.DefaultDeps(), workdir)
+			var chatSvc *chat.Service
+			var todoSvc *todo.Service
+			shell := func() ui.ToolShellProps {
+				return toolShell(todoSvc, chatSvc)
+			}
+
+			sessionsDeps := sessions.DefaultDeps()
+			sessionsDeps.Shell = shell
+			sessionsSrv, err := sessions.NewServer(sessionsDeps, workdir)
 			if err != nil {
 				return errors.Wrap(err, "new sessions server")
 			}
@@ -76,7 +84,7 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			chatSvc := chat.NewService(store, agent, logger)
+			chatSvc = chat.NewService(store, agent, logger)
 			for _, available := range chat.AvailableAgentsInDir(workdir) {
 				chatSvc.RegisterAgent(chat.AgentName(available), available)
 			}
@@ -98,19 +106,24 @@ func newRootCmd() *cobra.Command {
 			codeDeps.Comments = store
 			codeDeps.ListRepos = func() ([]repo.Repo, error) { return repo.ScanIncluding(home, workdir) }
 			codeDeps.LookupRepo = func(slug string) (repo.Repo, bool) { return repo.FindIncluding(home, slug, workdir) }
+			codeDeps.Shell = shell
 			codeSrv, err := code.NewServer(codeDeps)
 			if err != nil {
 				return errors.Wrap(err, "new code server")
 			}
-			filesSrv, err := files.NewServer(files.DefaultDeps(workdir))
+			filesDeps := files.DefaultDeps(workdir)
+			filesDeps.Shell = shell
+			filesSrv, err := files.NewServer(filesDeps)
 			if err != nil {
 				return errors.Wrap(err, "new files server")
 			}
-			sqlSrv, err := sqlsrv.NewServer(sqlsrv.DefaultDeps(home, store))
+			sqlDeps := sqlsrv.DefaultDeps(home, store)
+			sqlDeps.Shell = shell
+			sqlSrv, err := sqlsrv.NewServer(sqlDeps)
 			if err != nil {
 				return errors.Wrap(err, "new sql server")
 			}
-			todoSvc := todo.NewService(store)
+			todoSvc = todo.NewService(store)
 			chatSrv := chat.NewServer(chatSvc, logger)
 			inboxSrv := inbox.NewServer(todoSvc, chatSvc, flows, logger)
 
@@ -144,4 +157,54 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, codex, echo)")
 	cmd.Flags().IntVarP(&port, "port", "p", 8888, "HTTP listen port")
 	return cmd
+}
+
+func toolShell(tasks *todo.Service, chats *chat.Service) ui.ToolShellProps {
+	props := ui.ToolShellProps{}
+	if chats != nil {
+		props.ChatOptions = chat.ProviderModelOptions(chats.AgentNames())
+	}
+	if tasks != nil {
+		for _, task := range shellTasks(tasks) {
+			if !task.Archived {
+				props.Counts.Inbox++
+			}
+			if task.Starred && !task.Archived {
+				props.Counts.Starred++
+			}
+			props.Counts.Tasks++
+		}
+	}
+	if chats != nil {
+		for _, thread := range shellThreads(chats) {
+			if thread.State != db.ThreadStateArchived {
+				props.Counts.Inbox++
+			}
+			if thread.Starred && thread.State != db.ThreadStateArchived {
+				props.Counts.Starred++
+			}
+			if chats.ThreadWorkflowID(thread) != "" {
+				props.Counts.Workflows++
+			} else {
+				props.Counts.Chats++
+			}
+		}
+	}
+	return props
+}
+
+func shellTasks(tasks *todo.Service) []db.Task {
+	items, err := tasks.All()
+	if err != nil {
+		return nil
+	}
+	return items
+}
+
+func shellThreads(chats *chat.Service) []db.Thread {
+	items, err := chats.Threads()
+	if err != nil {
+		return nil
+	}
+	return items
 }
