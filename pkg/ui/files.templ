@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/housecat-inc/scratch/uikit"
+import (
+	"github.com/housecat-inc/scratch/uikit"
+	"github.com/templui/templui/components/button"
+)
 
 templ FilesPage(v FilesProps) {
 	<!DOCTYPE html>
@@ -18,33 +21,11 @@ templ FilesPage(v FilesProps) {
 				Nav:        toolNavItems("files", v.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {
-				<div id="files-wrap" class="flex flex-1 min-h-0">
-					<aside class="tree-pane w-full md:w-72 md:flex-shrink-0 bg-white md:border-r border-slate-200 flex flex-col min-h-0">
-						<header class="mail-mainbar">
-							<span class="font-mono truncate">{ v.Root }</span>
-						</header>
-						if v.Error != "" {
-							<div class="px-3 py-2 text-xs text-destructive break-all flex-shrink-0">{ v.Error }</div>
-						}
-						<div class="flex-1 min-h-0 overflow-auto py-1" id="file-tree">
-							@FileTreeList(FileTreeProps{Entries: v.Entries})
-						</div>
-					</aside>
-					<main class="editor-pane flex-1 flex flex-col min-w-0 w-full min-h-0">
-						<header class="mail-mainbar">
-							<button id="back-btn" type="button"
-								class="md:hidden -ml-1 rounded text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1"
-								aria-label="Back to files">
-								<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"></path></svg>
-								<span>Files</span>
-							</button>
-							<span id="editor-path" class="font-mono flex-1 truncate">Select a file</span>
-							<span id="editor-status" class="hidden sm:inline"></span>
-							<button id="editor-save" type="button" disabled class="px-2 py-1 bg-slate-900 text-white text-xs rounded disabled:opacity-40">Save</button>
-						</header>
-						<div id="editor-area" class="flex-1 min-h-0 bg-white"></div>
-					</main>
-				</div>
+				@uikit.SplitPane(uikit.SplitPaneProps{
+					ID:     "files-wrap",
+					Tree:   FilesTreePane(v),
+					Editor: FilesEditorPane(),
+				})
 			}
 			<script src="/static/files.js"></script>
 		</body>
@@ -72,10 +53,37 @@ templ FilesHeadExtras() {
 		.CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }
 		@media (max-width: 767px) {
 			.CodeMirror { font-size: 16px; }
-			#files-wrap:not(.show-editor) .editor-pane { display: none; }
-			#files-wrap.show-editor .tree-pane { display: none; }
 		}
 	</style>
+}
+
+templ FilesTreePane(v FilesProps) {
+	<header class="mail-mainbar">
+		<span class="font-mono truncate">{ v.Root }</span>
+	</header>
+	if v.Error != "" {
+		<div class="px-3 py-2 text-xs text-destructive break-all flex-shrink-0">{ v.Error }</div>
+	}
+	<div class="flex-1 min-h-0 overflow-auto py-1" id="file-tree">
+		@FileTreeList(FileTreeProps{Entries: v.Entries})
+	</div>
+}
+
+templ FilesEditorPane() {
+	<header class="mail-mainbar">
+		<button id="back-btn" type="button"
+			class="md:hidden -ml-1 rounded text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1"
+			aria-label="Back to files">
+			<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"></path></svg>
+			<span>Files</span>
+		</button>
+		<span id="editor-path" class="font-mono flex-1 truncate">Select a file</span>
+		<span id="editor-status" class="hidden sm:inline"></span>
+		@button.Button(button.Props{Disabled: true, ID: "editor-save", Size: button.SizeSm, Type: button.TypeButton}) {
+			Save
+		}
+	</header>
+	<div id="editor-area" class="flex-1 min-h-0 bg-white"></div>
 }
 
 templ FileTreeList(t FileTreeProps) {

@@ -86,6 +86,10 @@ templ Head(title string) {
 templ ToolShellCSS() {
 	<style>
 		.mail-shell svg { display: inline; vertical-align: baseline; }
+		@media (max-width: 767px) {
+			.split-pane:not(.show-editor) .editor-pane { display: none; }
+			.split-pane.show-editor .tree-pane { display: none; }
+		}
 	</style>
 }
 

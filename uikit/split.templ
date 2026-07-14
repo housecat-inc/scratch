@@ -1,0 +1,18 @@
+package uikit
+
+type SplitPaneProps struct {
+	Editor templ.Component
+	ID     string
+	Tree   templ.Component
+}
+
+templ SplitPane(p SplitPaneProps) {
+	<div id={ p.ID } class="split-pane flex flex-1 min-h-0">
+		<aside class="tree-pane w-full md:w-72 md:flex-shrink-0 bg-white md:border-r border-slate-200 flex flex-col min-h-0">
+			@p.Tree
+		</aside>
+		<main class="editor-pane flex-1 flex flex-col min-w-0 w-full min-h-0">
+			@p.Editor
+		</main>
+	</div>
+}
