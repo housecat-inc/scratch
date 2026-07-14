@@ -58,7 +58,10 @@
     document.body.insertAdjacentHTML("beforeend", html);
     const panel = document.getElementById("floating-chat");
     if (!panel) return null;
+    panel.classList.add("no-anim");
     applyPanelMode(panel, mode);
+    void panel.offsetWidth;
+    requestAnimationFrame(() => panel.classList.remove("no-anim"));
     window.htmx?.process(panel);
     initAll(panel);
     panel.querySelector("[data-chat-input]")?.focus();
