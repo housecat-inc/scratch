@@ -1,6 +1,7 @@
 package inbox
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -69,6 +70,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
+	mux.HandleFunc("POST /webhooks/{id}", s.handleWebhook)
 	return logging.Middleware(s.log, mux)
 }
 
@@ -846,6 +848,23 @@ func (s *Server) handleForkWorkflow(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(forked.ID, 10), http.StatusSeeOther)
 }
 
+func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
+	var payload flow.WebhookPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	if err := s.flows.DeliverWebhook(r.PathValue("id"), payload, r.Header.Get("Idempotency-Key")); err != nil {
+		if errors.Is(err, flow.ErrRunNotFound) {
+			http.Error(w, "workflow not found", http.StatusNotFound)
+			return
+		}
+		s.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
 func (s *Server) handlePauseSchedule(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if err := s.flows.PauseSchedule(name); err != nil {
@@ -1008,6 +1027,8 @@ func workflowAgent(typ string) string {
 		return "stream"
 	case "update-claude":
 		return "update-claude"
+	case "webhook":
+		return "webhook"
 	default:
 		return "greet"
 	}
@@ -1027,6 +1048,8 @@ func workflowTitle(typ string) string {
 		return "Log stream"
 	case "update-claude":
 		return "Update Claude Code"
+	case "webhook":
+		return "Webhook"
 	default:
 		return "Greet"
 	}

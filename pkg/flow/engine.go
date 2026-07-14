@@ -41,6 +41,7 @@ type Deps struct {
 	Log            *slog.Logger
 	StageStep      time.Duration
 	Updater        Updater
+	WebhookTimeout time.Duration
 	Workdir        string
 }
 
@@ -54,6 +55,7 @@ type Engine struct {
 	log            *slog.Logger
 	stageStep      time.Duration
 	updater        Updater
+	webhookTimeout time.Duration
 }
 
 func New(deps Deps) *Engine {
@@ -81,6 +83,9 @@ func New(deps Deps) *Engine {
 	if deps.Updater == nil {
 		deps.Updater = DefaultUpdater()
 	}
+	if deps.WebhookTimeout == 0 {
+		deps.WebhookTimeout = defaultWebhookTimeout
+	}
 	e := &Engine{
 		countdownStep:  deps.CountdownStep,
 		countdownTicks: deps.CountdownTicks,
@@ -91,6 +96,7 @@ func New(deps Deps) *Engine {
 		log:            deps.Log,
 		stageStep:      deps.StageStep,
 		updater:        deps.Updater,
+		webhookTimeout: deps.WebhookTimeout,
 	}
 	if _, err := dbos.RegisterQueue(deps.DBOS, fanoutQueue, dbos.WithWorkerConcurrency(fanoutQueueWorkers)); err != nil {
 		deps.Log.Error("register fanout queue", "err", err)
@@ -103,6 +109,7 @@ func New(deps Deps) *Engine {
 	dbos.RegisterWorkflow(deps.DBOS, e.fanout, dbos.WithWorkflowName("fan-out"))
 	dbos.RegisterWorkflow(deps.DBOS, e.job, dbos.WithWorkflowName("demo-job"))
 	dbos.RegisterWorkflow(deps.DBOS, e.stream, dbos.WithWorkflowName("stream"))
+	dbos.RegisterWorkflow(deps.DBOS, e.webhook, dbos.WithWorkflowName("webhook"))
 	dbos.RegisterWorkflow(deps.DBOS, e.heartbeat)
 	return e
 }
@@ -162,6 +169,8 @@ func (e *Engine) Start(name, id string) error {
 		_, err = dbos.RunWorkflow(e.ctx, e.fanout, FanoutInput{}, dbos.WithWorkflowID(id))
 	case "stream":
 		_, err = dbos.RunWorkflow(e.ctx, e.stream, StreamInput{}, dbos.WithWorkflowID(id))
+	case "webhook":
+		_, err = dbos.RunWorkflow(e.ctx, e.webhook, WebhookInput{}, dbos.WithWorkflowID(id))
 	case "update-claude":
 		_, err = dbos.RunWorkflow(e.ctx, e.updateClaude, UpdateInput{}, dbos.WithWorkflowID(id))
 	case "create-pr":
