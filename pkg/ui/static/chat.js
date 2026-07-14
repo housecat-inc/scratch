@@ -304,6 +304,19 @@
     if (form.dataset.elicitEditableInitialized === "true") return;
     form.dataset.elicitEditableInitialized = "true";
     const fields = Array.from(form.querySelectorAll("input[name^='f_'], select[name^='f_'], textarea[name^='f_']"));
+    const original = fields.map((field) => ({
+      checked: field.checked,
+      field,
+      value: field.value,
+    }));
+    const lock = () => {
+      form.classList.remove("editing");
+      for (const { checked, field, value } of original) {
+        if ("checked" in field) field.checked = checked;
+        field.value = value;
+        field.disabled = true;
+      }
+    };
     const unlock = () => {
       form.classList.add("editing");
       for (const field of fields) field.disabled = false;
@@ -313,6 +326,11 @@
       if (!e.target.closest("[data-elicit-edit]") || form.classList.contains("editing")) return;
       e.preventDefault();
       unlock();
+    });
+    form.addEventListener("click", (e) => {
+      if (!e.target.closest("[data-elicit-cancel]")) return;
+      e.preventDefault();
+      lock();
     });
     form.addEventListener("submit", (e) => {
       if (!e.submitter?.matches("[data-elicit-edit]") || form.classList.contains("editing")) return;

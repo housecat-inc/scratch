@@ -932,12 +932,46 @@ body.chat-selecting * {
   background: #fff;
 }
 
+.chat-elicit-editable.editing .chat-elicit-header {
+  display: none;
+}
+
+.chat-elicit-edit-controls {
+  display: none;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.chat-elicit-editable.editing .chat-elicit-edit-controls {
+  display: flex;
+}
+
+.chat-elicit-edit-controls button {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 650;
+  padding: 0.45rem 0.9rem;
+}
+
 #elicit-accept {
   background: #0f172a;
   color: #fff;
 }
 
+#elicit-submit {
+  background: #0f172a;
+  color: #fff;
+}
+
 #elicit-decline {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  color: #64748b;
+}
+
+#elicit-cancel {
   background: #fff;
   border: 1px solid #d8dee9;
   color: #64748b;

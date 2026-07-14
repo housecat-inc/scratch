@@ -56,8 +56,10 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 				Click("#elicit-accept"),
 				TextContains(".chat-turn.role-assistant .chat-md", "Ada"),
 				Click("#elicit-edit"),
+				Visible("#elicit-submit"),
+				Visible("#elicit-cancel"),
 				Fill(".chat-elicit-editable [name=f_name]", "Grace"),
-				Click("#elicit-edit"),
+				Click("#elicit-submit"),
 			},
 			Assert: []Step{
 				editableFormValue("f_name", "Grace"),

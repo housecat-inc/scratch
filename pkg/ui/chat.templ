@@ -396,7 +396,7 @@ templ chatFormBody(f ChatFormProps) {
 	if f.Editable {
 		<div class="chat-elicit-header">
 			<div class="chat-elicit-actions">
-				<button class="gm-icon-btn" id="elicit-edit" name="action" value="accept" type="submit" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
+				<button class="gm-icon-btn" id="elicit-edit" type="button" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
 					@editIcon()
 				</button>
 				<button class="gm-icon-btn" id="elicit-fork" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate title="Fork" aria-label="Fork">
@@ -429,6 +429,12 @@ templ chatFormBody(f ChatFormProps) {
 					/>
 			}
 		</label>
+	}
+	if f.Editable {
+		<div class="chat-elicit-edit-controls">
+			<button id="elicit-submit" name="action" value="accept" type="submit">Submit</button>
+			<button id="elicit-cancel" type="button" data-elicit-cancel>Cancel</button>
+		</div>
 	}
 	if !f.Editable && !f.Disabled {
 		<div class="chat-elicit-actions">
