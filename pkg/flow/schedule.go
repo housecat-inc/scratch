@@ -17,11 +17,11 @@ const (
 var ErrScheduleNotFound = errors.New("schedule not found")
 
 type ScheduleView struct {
-	Cron      string
-	LastFired string
-	Name      string
-	Paused    bool
-	Status    string
+	Cron        string
+	LastFiredAt time.Time
+	Name        string
+	Paused      bool
+	Status      string
 }
 
 type ScheduleRunView struct {
@@ -66,7 +66,7 @@ func (e *Engine) Schedules() ([]ScheduleView, error) {
 			Status: string(s.Status),
 		}
 		if s.LastFiredAt != nil {
-			view.LastFired = s.LastFiredAt.Format("15:04:05")
+			view.LastFiredAt = *s.LastFiredAt
 		}
 		views = append(views, view)
 	}

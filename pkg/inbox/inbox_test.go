@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/stretchr/testify/assert"
@@ -91,6 +92,14 @@ func TestArchiveFilter(t *testing.T) {
 			a.Equal(tt.want, archiveFilter(tt.view, tt.filter))
 		})
 	}
+}
+
+func TestScheduleLastFired(t *testing.T) {
+	a := assert.New(t)
+	now := time.Now()
+
+	a.Equal("", scheduleLastFired(time.Time{}))
+	a.Equal("last at "+now.Local().Format("3:04 PM"), scheduleLastFired(now))
 }
 
 func TestLegacyTaskPagesAreNotMounted(t *testing.T) {

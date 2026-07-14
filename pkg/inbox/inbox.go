@@ -678,7 +678,7 @@ func (s *Server) schedules() ([]ui.WorkflowScheduleView, error) {
 	for _, sc := range schedules {
 		views = append(views, ui.WorkflowScheduleView{
 			Cron:      sc.Cron,
-			LastFired: sc.LastFired,
+			LastFired: scheduleLastFired(sc.LastFiredAt),
 			Name:      sc.Name,
 			Paused:    sc.Paused,
 			Status:    sc.Status,
@@ -1140,6 +1140,13 @@ func titleKindPath(kind string) string {
 		return "tasks"
 	}
 	return "chats"
+}
+
+func scheduleLastFired(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return "last at " + when(t)
 }
 
 func when(t time.Time) string {
