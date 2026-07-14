@@ -932,8 +932,8 @@ body.chat-selecting * {
   opacity: 0;
   pointer-events: none;
   position: absolute;
-  right: 0.75rem;
-  top: 0.75rem;
+  right: -0.15rem;
+  top: -0.15rem;
   transition: opacity 0.15s;
   z-index: 1;
 }
