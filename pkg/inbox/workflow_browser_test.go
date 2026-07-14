@@ -38,6 +38,17 @@ func TestWorkflowGreetBrowser(t *testing.T) {
 		},
 		{
 			Act: []Step{
+				SelectOption(`[name="workflow_type"]`, "update-claude"),
+			},
+			Assert: []Step{
+				TextContains(".mail-reader-title", "Update Claude Code"),
+				TextContains("#wf-body", "Update Claude Code to the latest version?"),
+			},
+			Name: "workflow selection starts the selected workflow",
+			Path: "/",
+		},
+		{
+			Act: []Step{
 				Click("[data-new-workflow]"),
 				TextContains(".chat-row-label", "What should I call you?"),
 				Click("#elicit-decline"),

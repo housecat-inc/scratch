@@ -18,7 +18,7 @@ templ NewChatAction(p NewChatActionProps) {
 		</button>
 		if len(p.Options) > 0 {
 			<span class="mail-create-select-wrap mail-model-select-wrap">
-				<select class="mail-create-select" name="provider_model" aria-label="Provider and model">
+				<select class="mail-create-select" name="provider_model" aria-label="Provider and model" data-submit-on-change>
 					for _, option := range p.Options {
 						<option value={ option.Value }>{ option.Label }</option>
 					}

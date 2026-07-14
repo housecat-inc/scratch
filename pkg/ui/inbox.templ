@@ -387,7 +387,7 @@ templ createWorkflowButton() {
 			<span>Flow</span>
 		</button>
 		<span class="mail-create-select-wrap mail-model-select-wrap">
-			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type">
+			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type" data-submit-on-change>
 				for _, typ := range workflowTypeOptions() {
 					<option value={ typ }>{ workflowTypeLabel(typ) }</option>
 				}
