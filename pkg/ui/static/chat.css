@@ -657,7 +657,9 @@ body.chat-selecting * {
   z-index: 90;
 }
 
-.floating-chat.no-anim {
+.floating-chat.no-anim,
+.floating-chat.no-anim .floating-chat-body,
+.floating-chat.no-anim .floating-chat-compose {
   transition: none;
 }
 
@@ -670,7 +672,7 @@ body.chat-selecting * {
 
 .floating-chat.minimized {
   cursor: pointer;
-  grid-template-rows: auto 0fr 0fr;
+  grid-template-rows: auto minmax(0, 0fr) minmax(0, 0fr);
   height: 3.05rem;
   width: min(22rem, calc(100vw - 2.5rem));
 }
