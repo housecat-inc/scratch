@@ -15,11 +15,35 @@ func SeedSchedule() Step {
 }
 
 func SeedScheduleRun() Step {
+	return SeedScheduleRuns(1)
+}
+
+func SeedScheduleRuns(n int) Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
-		runID, err := h.Flows.TriggerSchedule("heartbeat")
-		h.R.NoError(err)
-		h.Flows.Await(runID, 5*time.Second)
+		runIDs := make([]string, 0, n)
+		for range n {
+			runID, err := h.Flows.TriggerSchedule("heartbeat")
+			h.R.NoError(err)
+			runIDs = append(runIDs, runID)
+		}
+		for _, runID := range runIDs {
+			h.Flows.Await(runID, 5*time.Second)
+		}
+	}
+}
+
+func ScheduleFeedAtBottom() Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			result, err := h.Page.Eval(`() => {
+				const scroller = document.querySelector(".mail-chat-body");
+				if (!scroller) return false;
+				return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4;
+			}`)
+			return err == nil && result.Value.Bool()
+		}, 2*time.Second, 50*time.Millisecond)
 	}
 }
 
@@ -61,7 +85,7 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 		{
 			Act: []Step{
 				SeedSchedule(),
-				SeedScheduleRun(),
+				SeedScheduleRuns(12),
 				Load("/inbox/workflows"),
 				Click("[data-id=heartbeat] .gm-row-link"),
 			},
@@ -70,6 +94,7 @@ func TestWorkflowSchedulesBrowser(t *testing.T) {
 				TextContains(".mail-reader-labels", "Scheduled"),
 				TextContains("#wf-body", "Execution"),
 				TextContains("#wf-body", "beat at"),
+				ScheduleFeedAtBottom(),
 			},
 			Name: "clicking a schedule opens the execution feed",
 			Path: "/inbox/workflows",

@@ -284,7 +284,7 @@ templ InboxScheduleReader(d InboxScheduleDetail) {
 		Title: d.Name,
 	})
 	<div class="mail-reader-body mail-chat-body">
-		<div id="wf-body" class="chat-messages mail-chat-messages">
+		<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
 			if len(d.Runs) == 0 {
 				<div class="mail-empty">No executions yet.</div>
 			}
@@ -320,7 +320,7 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 			@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
 		}
 		<div class="mail-reader-body mail-chat-body">
-			<div id="wf-body" class="chat-messages mail-chat-messages">
+			<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
 				for i, item := range d.Items {
 					@workflowItem(i, item)
 				}
