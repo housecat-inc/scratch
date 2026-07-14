@@ -639,6 +639,7 @@ body.chat-selecting * {
 }
 
 .floating-chat {
+  align-content: start;
   background: #fff;
   border: 1px solid #cbd5e1;
   border-radius: 0.55rem 0.55rem 0 0;
@@ -652,7 +653,7 @@ body.chat-selecting * {
   position: fixed;
   right: 1.25rem;
   transform-origin: bottom right;
-  transition: height 180ms ease, width 180ms ease, grid-template-rows 180ms ease, inset 180ms ease, border-radius 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  transition: height 180ms ease, width 180ms ease, inset 180ms ease, border-radius 180ms ease, box-shadow 180ms ease, transform 180ms ease;
   width: min(46rem, calc(100vw - 2.5rem));
   z-index: 90;
 }
