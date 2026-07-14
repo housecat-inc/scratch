@@ -32,25 +32,40 @@ var (
 )
 
 type Deps struct {
-	DBOS    dbos.DBOSContext
-	Drafter PRDrafter
-	Greeter Greeter
-	Log     *slog.Logger
-	Updater Updater
-	Workdir string
+	CountdownStep  time.Duration
+	CountdownTicks int
+	DBOS           dbos.DBOSContext
+	Drafter        PRDrafter
+	FanoutJobs     int
+	Greeter        Greeter
+	Log            *slog.Logger
+	Updater        Updater
+	Workdir        string
 }
 
 type Engine struct {
-	ctx     dbos.DBOSContext
-	drafter PRDrafter
-	greeter Greeter
-	log     *slog.Logger
-	updater Updater
+	countdownStep  time.Duration
+	countdownTicks int
+	ctx            dbos.DBOSContext
+	drafter        PRDrafter
+	fanoutJobs     int
+	greeter        Greeter
+	log            *slog.Logger
+	updater        Updater
 }
 
 func New(deps Deps) *Engine {
+	if deps.CountdownStep == 0 {
+		deps.CountdownStep = defaultCountdownStep
+	}
+	if deps.CountdownTicks == 0 {
+		deps.CountdownTicks = defaultCountdownTicks
+	}
 	if deps.Drafter == nil {
 		deps.Drafter = DefaultPRDrafter(deps.Workdir)
+	}
+	if deps.FanoutJobs == 0 {
+		deps.FanoutJobs = defaultFanoutJobs
 	}
 	if deps.Greeter == nil {
 		deps.Greeter = DefaultGreeter()
@@ -61,10 +76,25 @@ func New(deps Deps) *Engine {
 	if deps.Updater == nil {
 		deps.Updater = DefaultUpdater()
 	}
-	e := &Engine{ctx: deps.DBOS, drafter: deps.Drafter, greeter: deps.Greeter, log: deps.Log, updater: deps.Updater}
+	e := &Engine{
+		countdownStep:  deps.CountdownStep,
+		countdownTicks: deps.CountdownTicks,
+		ctx:            deps.DBOS,
+		drafter:        deps.Drafter,
+		fanoutJobs:     deps.FanoutJobs,
+		greeter:        deps.Greeter,
+		log:            deps.Log,
+		updater:        deps.Updater,
+	}
+	if _, err := dbos.RegisterQueue(deps.DBOS, fanoutQueue, dbos.WithWorkerConcurrency(fanoutQueueWorkers)); err != nil {
+		deps.Log.Error("register fanout queue", "err", err)
+	}
 	dbos.RegisterWorkflow(deps.DBOS, e.greet, dbos.WithWorkflowName("greet"))
 	dbos.RegisterWorkflow(deps.DBOS, e.updateClaude, dbos.WithWorkflowName("update-claude"))
 	dbos.RegisterWorkflow(deps.DBOS, e.createPR, dbos.WithWorkflowName("create-pr"))
+	dbos.RegisterWorkflow(deps.DBOS, e.countdown, dbos.WithWorkflowName("countdown"))
+	dbos.RegisterWorkflow(deps.DBOS, e.fanout, dbos.WithWorkflowName("fan-out"))
+	dbos.RegisterWorkflow(deps.DBOS, e.job, dbos.WithWorkflowName("demo-job"))
 	return e
 }
 
@@ -115,6 +145,10 @@ func act(ctx dbos.DBOSContext, name, title, input string, fn func(context.Contex
 func (e *Engine) Start(name, id string) error {
 	var err error
 	switch name {
+	case "countdown":
+		_, err = dbos.RunWorkflow(e.ctx, e.countdown, CountdownInput{}, dbos.WithWorkflowID(id))
+	case "fan-out":
+		_, err = dbos.RunWorkflow(e.ctx, e.fanout, FanoutInput{}, dbos.WithWorkflowID(id))
 	case "update-claude":
 		_, err = dbos.RunWorkflow(e.ctx, e.updateClaude, UpdateInput{}, dbos.WithWorkflowID(id))
 	case "create-pr":
@@ -158,6 +192,9 @@ func (e *Engine) Run(id string) (RunView, error) {
 	inputs := map[string]string{}
 
 	for _, s := range steps {
+		if s.ChildWorkflowID != "" {
+			continue
+		}
 		switch {
 		case strings.HasPrefix(s.StepName, "begin/"):
 			if b, err := decode[stepBegin](s.Output); err == nil {

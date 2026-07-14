@@ -883,8 +883,12 @@ func chatModel(agent, model string) string {
 
 func workflowAgent(typ string) string {
 	switch strings.TrimSpace(typ) {
+	case "countdown":
+		return "countdown"
 	case "create-pr":
 		return "create-pr"
+	case "fan-out":
+		return "fan-out"
 	case "update-claude":
 		return "update-claude"
 	default:
@@ -894,8 +898,12 @@ func workflowAgent(typ string) string {
 
 func workflowTitle(typ string) string {
 	switch typ {
+	case "countdown":
+		return "Countdown"
 	case "create-pr":
 		return "Create pull request"
+	case "fan-out":
+		return "Parallel jobs"
 	case "update-claude":
 		return "Update Claude Code"
 	default:

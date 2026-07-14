@@ -521,8 +521,12 @@ func showRowKindLabel(view string) bool {
 
 func workflowTypeLabel(typ string) string {
 	switch typ {
+	case "countdown":
+		return "Countdown"
 	case "create-pr":
 		return "Create pull request"
+	case "fan-out":
+		return "Parallel jobs"
 	case "greet":
 		return "Greet"
 	case "update-claude":
@@ -548,7 +552,7 @@ func workflowStatusLabel(status string) string {
 }
 
 func workflowTypeOptions() []string {
-	return []string{"greet", "update-claude", "create-pr"}
+	return []string{"greet", "update-claude", "create-pr", "countdown", "fan-out"}
 }
 
 func chatIcon() templ.Component {

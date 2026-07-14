@@ -48,10 +48,11 @@ func runCases(t *testing.T, cases []testkit.Case[*Harness]) {
 				greetFn: func(_ context.Context, name string) (string, error) { return "Hi " + name, nil },
 			}
 			h.Engine = New(Deps{
-				DBOS:    wf.Ctx(),
-				Drafter: fakeDrafter{drafts: h.Drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
-				Greeter: GreeterFunc(func(ctx context.Context, name string) (string, error) { return h.greetFn(ctx, name) }),
-				Log:     slog.Default(),
+				CountdownStep: 5 * time.Millisecond,
+				DBOS:          wf.Ctx(),
+				Drafter:       fakeDrafter{drafts: h.Drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
+				Greeter:       GreeterFunc(func(ctx context.Context, name string) (string, error) { return h.greetFn(ctx, name) }),
+				Log:           slog.Default(),
 				Updater: UpdaterFuncs{
 					UpdateFn:  func(context.Context) (string, error) { return "Updated to claude 2.0", nil },
 					VersionFn: func(context.Context) (string, error) { return "claude 1.0", nil },
