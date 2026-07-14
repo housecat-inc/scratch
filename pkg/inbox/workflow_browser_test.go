@@ -19,6 +19,23 @@ func editableFormValue(name, want string) Step {
 	}
 }
 
+func TestWorkflowStreamAutoRefreshesToCompleted(t *testing.T) {
+	runBrowser(t, []testkit.BrowserCase[*Harness]{
+		{
+			Act: []Step{
+				SelectOption(`[name="workflow_type"]`, "stream"),
+				TextContains(".mail-reader-head", "Running"),
+			},
+			Assert: []Step{
+				TextContains(".mail-reader-head", "Completed"),
+				TextContains("#wf-body", "Done ✓"),
+			},
+			Name: "log stream auto-refreshes the header to completed without a manual reload",
+			Path: "/",
+		},
+	})
+}
+
 func TestWorkflowGreetBrowser(t *testing.T) {
 	runBrowser(t, []testkit.BrowserCase[*Harness]{
 		{

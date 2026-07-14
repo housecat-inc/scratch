@@ -275,34 +275,35 @@ templ InboxThreadReader(d InboxThreadDetail) {
 }
 
 templ InboxWorkflowReader(d InboxWorkflowDetail) {
-	@ReaderHeader(ReaderHeaderProps{
-		BackHref: "/inbox/workflows",
-		Description: workflowStatusLabel(d.Status),
-		Title: d.Title,
-	}) {
-		if d.Archived {
-			@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
-			@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow permanently")
-		} else {
-			@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
+	<div
+		id="wf-reader"
+		if d.Running && !d.Awaiting {
+			hx-get={ threadInboxDetailURL("workflow", d.ID) }
+			hx-trigger="load delay:600ms"
+			hx-select="#wf-reader"
+			hx-target="#wf-reader"
+			hx-swap="outerHTML"
 		}
-		@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
-	}
-	<div class="mail-reader-body mail-chat-body">
-		<div
-			id="wf-body"
-			class="chat-messages mail-chat-messages"
-			if d.Running && !d.Awaiting {
-				hx-get={ threadInboxDetailURL("workflow", d.ID) }
-				hx-trigger="load delay:600ms"
-				hx-select="#wf-body"
-				hx-target="#wf-body"
-				hx-swap="outerHTML"
+	>
+		@ReaderHeader(ReaderHeaderProps{
+			BackHref: "/inbox/workflows",
+			Description: workflowStatusLabel(d.Status),
+			Title: d.Title,
+		}) {
+			if d.Archived {
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
+				@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow permanently")
+			} else {
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
 			}
-		>
-			for i, item := range d.Items {
-				@workflowItem(i, item)
-			}
+			@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
+		}
+		<div class="mail-reader-body mail-chat-body">
+			<div id="wf-body" class="chat-messages mail-chat-messages">
+				for i, item := range d.Items {
+					@workflowItem(i, item)
+				}
+			</div>
 		</div>
 	</div>
 }
