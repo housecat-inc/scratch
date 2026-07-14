@@ -2,7 +2,9 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, drawSelection, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { StreamLanguage, bracketMatching, defaultHighlightStyle, foldGutter, foldKeymap, indentOnInput, syntaxHighlighting } from "@codemirror/language";
+import { acceptCompletion, autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { searchKeymap } from "@codemirror/search";
+import { SQLite, sql } from "@codemirror/lang-sql";
 import { go } from "@codemirror/lang-go";
 import { javascript } from "@codemirror/lang-javascript";
 import { html } from "@codemirror/lang-html";
@@ -13,6 +15,28 @@ import { python } from "@codemirror/lang-python";
 import { xml } from "@codemirror/lang-xml";
 import { yaml } from "@codemirror/lang-yaml";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
+import { languageServer } from "codemirror-languageserver";
+import { createFromBuffer } from "@dprint/formatter";
+
+window.CMSQL = {
+  Compartment,
+  EditorState,
+  EditorView,
+  SQLite,
+  acceptCompletion,
+  autocompletion,
+  completionKeymap,
+  createFromBuffer,
+  defaultHighlightStyle,
+  defaultKeymap,
+  history,
+  historyKeymap,
+  keymap,
+  languageServer,
+  lineNumbers,
+  sql,
+  syntaxHighlighting,
+};
 
 function languageFor(filename) {
   const ext = (filename.split(".").pop() || "").toLowerCase();
@@ -51,6 +75,8 @@ function languageFor(filename) {
     case "bash":
     case "sh":
       return StreamLanguage.define(shell);
+    case "sql":
+      return sql({ dialect: SQLite });
     default:
       return [];
   }
