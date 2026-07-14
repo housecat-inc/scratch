@@ -1,7 +1,9 @@
 # Vendored JavaScript
 
-All third-party browser JS is vendored into `pkg/ui/static` and served from the
-`//go:embed` filesystem, so the app has no runtime CDN dependency.
+The editor and its supporting libraries are vendored into `pkg/ui/static` and
+served from the `//go:embed` filesystem, so the SQL and Files tools work with no
+runtime CDN dependency. (Tailwind's browser build is still loaded from a CDN in
+`layout.templ`.)
 
 ## CodeMirror 6 bundle (built here)
 
@@ -34,5 +36,6 @@ Committed directly to `pkg/ui/static` from their upstream releases — no build:
 - `htmx.min.js` — htmx 2.0.10
 - `htmx-ext-sse.min.js` — htmx server-sent-events extension
 - `html2canvas.min.js` — html2canvas-pro 1.5.8
-- `lax-sql.wasm` — dprint lax-sql plugin 0.3.0, fetched at runtime by the SQL Fmt
-  action (`https://plugins.dprint.dev/bartlomieju/lax-sql-0.3.0.wasm`)
+- `lax-sql.wasm` — dprint lax-sql plugin 0.3.0 (vendored from
+  `https://plugins.dprint.dev/bartlomieju/lax-sql-0.3.0.wasm`); the SQL Fmt action
+  loads it at runtime from `/static/lax-sql.wasm`

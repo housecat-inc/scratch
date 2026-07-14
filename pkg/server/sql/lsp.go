@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +19,19 @@ import (
 )
 
 var lspUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: sameOrigin,
+}
+
+func sameOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Host, r.Host)
 }
 
 func (s *Server) handleLSP(w http.ResponseWriter, r *http.Request) {
@@ -89,12 +102,13 @@ func writeSqlsConfig(dbPath string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "abs db path")
 	}
+	dsn := "file:" + (&url.URL{Path: abs}).EscapedPath() + "?mode=ro"
 	yaml := fmt.Sprintf(`lowercaseKeywords: false
 connections:
   - alias: scratch
     driver: sqlite3
-    dataSourceName: file:%s?mode=ro
-`, abs)
+    dataSourceName: %s
+`, dsn)
 	f, err := os.CreateTemp("", "sqls-*.yml")
 	if err != nil {
 		return "", errors.Wrap(err, "sqls config tempfile")

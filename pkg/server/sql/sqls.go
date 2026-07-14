@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +18,11 @@ import (
 )
 
 const sqlsVersion = "0.2.45"
+
+var sqlsChecksums = map[string]string{
+	"darwin": "0b2beea6f94c08d74e2c7f63ca8ae773cdde8fff2bba9401bbfce72170e69abb",
+	"linux":  "7429f0ef8af09ca1d4096147c5aeb4d0b9cfcf42306f98f2fcb7414b19c0e1f4",
+}
 
 func (s *Server) sqlsBinary(ctx context.Context) (string, error) {
 	s.sqlsMu.Lock()
@@ -69,6 +76,13 @@ func downloadSqls(ctx context.Context, dir string) error {
 	if err != nil {
 		return errors.Wrap(err, "read sqls archive")
 	}
+	want, ok := sqlsChecksums[runtime.GOOS]
+	if !ok {
+		return errors.Errorf("sqls: no checksum for OS %q", runtime.GOOS)
+	}
+	if got := hex.EncodeToString(sha256Sum(data)); got != want {
+		return errors.Errorf("sqls checksum mismatch: got %s want %s", got, want)
+	}
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return errors.Wrap(err, "open sqls archive")
@@ -110,6 +124,11 @@ func sqlsDownloadURL() (string, error) {
 	default:
 		return "", errors.Errorf("sqls: unsupported OS %q", runtime.GOOS)
 	}
+}
+
+func sha256Sum(b []byte) []byte {
+	sum := sha256.Sum256(b)
+	return sum[:]
 }
 
 func isExecutable(path string) bool {
