@@ -688,9 +688,7 @@ body.chat-selecting * {
 
 .floating-chat.minimized .floating-chat-body,
 .floating-chat.minimized .floating-chat-compose {
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
+  display: none;
 }
 
 .floating-chat.minimized [data-chat-restore] {

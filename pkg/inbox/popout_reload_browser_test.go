@@ -38,13 +38,18 @@ func TestPopoutReloadRestoresCollapsedMinimized(t *testing.T) {
 							const close = panel.querySelector('[data-chat-close]');
 							const pr = panel.getBoundingClientRect();
 							const cr = close.getBoundingClientRect();
-							const rows = getComputedStyle(panel).gridTemplateRows.split(' ');
+							const head = panel.querySelector('.floating-chat-head').getBoundingClientRect();
+							let leaks = 0;
+							panel.querySelectorAll('*').forEach(el => {
+								const r = el.getBoundingClientRect();
+								if (r.height > 0.5 && (r.bottom > pr.bottom + 0.5 || r.top < pr.top - 0.5)) leaks++;
+							});
 							return cr.width > 0 &&
 								cr.right <= pr.right + 1 &&
 								cr.right <= window.innerWidth &&
 								pr.width <= 360 &&
-								parseFloat(rows[1]) === 0 &&
-								parseFloat(rows[2]) === 0;
+								Math.abs(head.bottom - pr.bottom) <= 1 &&
+								leaks === 0;
 						}`)
 						return err == nil && v.Value.Bool()
 					}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
