@@ -1,4 +1,6 @@
 (() => {
+  if (window.scratchChat) return;
+
   const draftKeyPrefix = "scratch.chat.draft:";
   const providerModelKey = "scratch.chat.provider_model";
   const popoutKey = "scratch.chat.popout";

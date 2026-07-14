@@ -56,6 +56,8 @@ func TestPage(t *testing.T) {
 	} {
 		a.Contains(body, want)
 	}
+	a.Equal(1, strings.Count(body, "/static/chat.js"))
+	a.Equal(1, strings.Count(body, "/static/htmx-ext-sse.min.js"))
 }
 
 func TestQuery(t *testing.T) {
