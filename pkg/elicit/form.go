@@ -24,12 +24,12 @@ func Form[T any](ctx dbos.DBOSContext, key, message string, defaults T, timeout 
 		Message:         message,
 		Order:           schema.PropertyOrder,
 		RequestedSchema: schema,
-		Topic:           "elicit/" + key,
+		Topic:           workflowID + "/elicit/" + key,
 		WorkflowID:      workflowID,
 	}
 	if _, err := dbos.RunAsStep(ctx, func(context.Context) (Prompt, error) {
 		return prompt, nil
-	}, dbos.WithStepName(prompt.Topic)); err != nil {
+	}, dbos.WithStepName("elicit/"+key)); err != nil {
 		return out, "", errors.Wrap(err, "record prompt")
 	}
 

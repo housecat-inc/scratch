@@ -139,5 +139,19 @@ func TestCreatePRWorkflow(t *testing.T) {
 				}),
 			},
 		},
+		{
+			Name: "fork the review shows a fresh form with the cached draft",
+			Act: []Step{
+				Start("create-pr", "pr-fork"),
+				Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
+				ExpectResult("Add thing"),
+				ExpectDrafts(1),
+				Fork("review"),
+			},
+			Assert: []Step{
+				ExpectForm("Review the pull request"),
+				ExpectDrafts(1),
+			},
+		},
 	})
 }

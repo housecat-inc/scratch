@@ -137,6 +137,16 @@ func Edit(key string, values map[string]string) Step {
 	}
 }
 
+func Fork(key string) Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		forkedID, err := h.Engine.Fork(h.id, h.id+"/"+key)
+		h.R.NoError(err)
+		h.id = forkedID
+		h.Engine.Await(forkedID, 5*time.Second)
+	}
+}
+
 func ExpectResult(want string) Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
@@ -184,4 +194,3 @@ func ExpectLastStep(check func(*Harness, StepView)) Step {
 		check(h, steps[len(steps)-1])
 	}
 }
-
