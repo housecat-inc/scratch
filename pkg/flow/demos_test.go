@@ -78,11 +78,14 @@ func TestDeployWorkflow(t *testing.T) {
 			Act:  []Step{Start("deploy", "deploy-1")},
 			Assert: []Step{
 				ExpectResult("Deployed v1.4.2"),
-				ExpectStepCount(1),
+				ExpectStepCount(2),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal("Release v1.4.2 — available immediately", s.Title)
+					h.Equal(StepDone, s.Status)
+				}),
 				ExpectLastStep(func(h *Harness, s StepView) {
 					h.Equal("Live status", s.Title)
-					h.R.Contains(s.Detail, "version: v1.4.2")
-					h.R.Contains(s.Detail, "status: Live")
+					h.Equal("Live", s.Detail)
 				}),
 			},
 		},

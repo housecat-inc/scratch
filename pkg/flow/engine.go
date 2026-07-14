@@ -302,9 +302,7 @@ func (e *Engine) Run(id string) (RunView, error) {
 		}
 	}
 	if evented {
-		if step, ok := e.eventStep(id, view.Running()); ok {
-			view.Steps = append(view.Steps, step)
-		}
+		view.Steps = append(view.Steps, e.eventSteps(id, view.Running())...)
 	}
 	return view, nil
 }
@@ -327,23 +325,29 @@ func (e *Engine) streamStep(id string, running bool) (StepView, bool) {
 	return step, true
 }
 
-func (e *Engine) eventStep(id string, running bool) (StepView, bool) {
+func (e *Engine) eventSteps(id string, running bool) []StepView {
 	version, _ := dbos.GetEvent[string](e.ctx, id, eventVersionKey, 100*time.Millisecond)
 	if version == "" {
-		return StepView{}, false
+		return nil
 	}
+	steps := []StepView{{
+		Detail: "Published with SetEvent as the deploy starts, so any caller can read it with GetEvent before the workflow finishes.",
+		Kind:   KindTool,
+		Status: StepDone,
+		Title:  "Release " + version + " — available immediately",
+	}}
 	stage, _ := dbos.GetEvent[string](e.ctx, id, eventStatusKey, 100*time.Millisecond)
-	step := StepView{
-		Detail:  fmt.Sprintf("version: %s\nstatus: %s", version, stage),
-		Kind:    KindTool,
-		Status:  StepRunning,
-		Summary: fmt.Sprintf("%s — %s", version, stage),
-		Title:   "Live status",
-	}
+	status := StepRunning
 	if !running {
-		step.Status = StepDone
+		status = StepDone
 	}
-	return step, true
+	steps = append(steps, StepView{
+		Detail: stage,
+		Kind:   KindTool,
+		Status: status,
+		Title:  "Live status",
+	})
+	return steps
 }
 
 func stepDuration(s dbos.StepInfo) string {
