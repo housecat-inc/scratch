@@ -645,14 +645,25 @@ func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
 }
 
 func (s *Service) emit(threadID, messageID int64, ev Event) {
+	s.emitWith(threadID, messageID, ev, nil)
+}
+
+func (s *Service) emitWith(threadID, messageID int64, ev Event, dedup *dedupState) {
 	if !s.messageStreaming(messageID) {
 		return
 	}
-	if s.eventAlreadyStored(messageID, ev) {
+	if dedup != nil {
+		if dedup.stored(ev) {
+			return
+		}
+	} else if s.eventAlreadyStored(messageID, ev) {
 		return
 	}
 	if _, err := s.store.AddMessageEvent(messageID, ev.Type, ev.Data); err != nil {
 		s.log.Error("chat.event", "error", err.Error())
+	}
+	if dedup != nil {
+		dedup.record(ev)
 	}
 	switch ev.Type {
 	case EventAnchor:
@@ -680,6 +691,43 @@ func (s *Service) emit(threadID, messageID int64, ev Event) {
 		}
 	}
 	s.broker.Publish(threadID, messageID)
+}
+
+type dedupState struct {
+	count int
+	last  string
+	seen  map[string]bool
+}
+
+func eventDedupKey(ev Event) string {
+	return ev.Type + "\x00" + ev.Data
+}
+
+func (d *dedupState) stored(ev Event) bool {
+	if ev.Type == EventDelta {
+		return d.count > 0 && d.last == eventDedupKey(ev)
+	}
+	return d.seen[eventDedupKey(ev)]
+}
+
+func (d *dedupState) record(ev Event) {
+	key := eventDedupKey(ev)
+	d.seen[key] = true
+	d.last = key
+	d.count++
+}
+
+func (s *Service) newDedupState(messageID int64) *dedupState {
+	d := &dedupState{seen: map[string]bool{}}
+	events, err := s.store.ListMessageEvents(messageID, 0)
+	if err != nil {
+		s.log.Error("chat.events", "error", err.Error())
+		return d
+	}
+	for _, e := range events {
+		d.record(Event{Data: e.Data, Type: e.Type})
+	}
+	return d
 }
 
 func (s *Service) eventAlreadyStored(messageID int64, ev Event) bool {
@@ -728,8 +776,9 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 		s.activeMu.Unlock()
 	}()
 
+	dedup := s.newDedupState(turn.MessageID)
 	anchor, err := agent.Run(ctx, turn, func(ev Event) {
-		s.emit(thread.ID, turn.MessageID, ev)
+		s.emitWith(thread.ID, turn.MessageID, ev, dedup)
 	})
 
 	if errors.Is(err, ErrTurnPending) {
@@ -744,7 +793,7 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	if err != nil {
 		status = db.MessageStatusError
 		s.log.Error("chat.run", "error", err.Error(), "message", turn.MessageID, "thread", thread.ID)
-		s.emit(thread.ID, turn.MessageID, Event{Data: errorData(err), Type: EventError})
+		s.emitWith(thread.ID, turn.MessageID, Event{Data: errorData(err), Type: EventError}, dedup)
 	}
 	if _, err := s.store.FinishMessage(turn.MessageID, status); err != nil {
 		s.log.Error("chat.finish", "error", err.Error())
