@@ -20,7 +20,7 @@ bumping versions:
 
 ```sh
 cd $(mktemp -d)
-cp /path/to/repo/pkg/ui/vendor/codemirror/{package.json,cm.js} .
+cp /path/to/repo/pkg/ui/codemirror/{package.json,cm.js} .
 npm install
 npx esbuild cm.js --bundle --format=iife --minify --target=es2020 \
   --legal-comments=none --outfile=cm.bundle.js
