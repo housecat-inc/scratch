@@ -335,11 +335,6 @@
       e.preventDefault();
       lock();
     });
-    form.addEventListener("submit", (e) => {
-      if (!e.submitter?.matches("[data-elicit-edit]") || form.classList.contains("editing")) return;
-      e.preventDefault();
-      unlock();
-    });
   };
 
   const initCapture = (form, input, upload, addDraftFiles, setComposeMode) => {
