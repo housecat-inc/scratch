@@ -88,6 +88,15 @@ func AbsentStep[H interface{ ElementAbsent(string) }](selector string) Step[H] {
 	}
 }
 
+func AttributeContainsStep[H interface {
+	ElementAttributeContains(string, string, string)
+}](selector, name, expected string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementAttributeContains(selector, name, expected)
+	}
+}
+
 func AttributeEqualsStep[H interface {
 	ElementAttributeEquals(string, string, string)
 }](selector, name, expected string) Step[H] {
@@ -115,6 +124,13 @@ func SelectOptionStep[H interface{ SelectOption(string, string) }](selector, val
 	return func(t *testing.T, h H) {
 		t.Helper()
 		h.SelectOption(selector, value)
+	}
+}
+
+func PresentStep[H interface{ ElementPresent(string) }](selector string) Step[H] {
+	return func(t *testing.T, h H) {
+		t.Helper()
+		h.ElementPresent(selector)
 	}
 }
 

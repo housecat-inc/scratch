@@ -17,6 +17,7 @@ type HTML struct {
 	Client *http.Client
 	Doc    *goquery.Document
 	Server *httptest.Server
+	Status int
 }
 
 func NewHTML(t *testing.T, handler http.Handler) *HTML {
@@ -103,6 +104,11 @@ func (h *HTML) ElementHidden(selector string) {
 		return
 	}
 	h.A.True(hidden(sel), "expected %q hidden", selector)
+}
+
+func (h *HTML) ElementPresent(selector string) {
+	h.t.Helper()
+	h.A.Positive(h.find(selector).Length(), "expected %q present", selector)
 }
 
 func (h *HTML) ElementTextContains(selector string, expected string) {
@@ -195,6 +201,7 @@ func (h *HTML) do(method string, path string, body io.Reader, hx bool) string {
 	h.R.NoError(err)
 	defer resp.Body.Close()
 
+	h.Status = resp.StatusCode
 	out, err := io.ReadAll(resp.Body)
 	h.R.NoError(err)
 	return string(out)
