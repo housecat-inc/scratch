@@ -91,4 +91,19 @@
       form?.closest(".gm-row-actions, .mail-reader-actions")?.classList.remove("confirming-trash");
     }
   });
+
+  document.body.addEventListener("htmx:beforeRequest", (event) => {
+    const target = event.detail.elt;
+    if (target && target.id === "wf-reader" && hasSelectionWithin(target)) {
+      event.preventDefault();
+    }
+  });
+
+  function hasSelectionWithin(element) {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.toString().trim() === "") {
+      return false;
+    }
+    return element.contains(selection.anchorNode) || element.contains(selection.focusNode);
+  }
 })();

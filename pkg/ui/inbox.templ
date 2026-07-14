@@ -307,7 +307,7 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 		id="wf-reader"
 		if d.Running && !d.Awaiting {
 			hx-get={ threadInboxDetailURL("workflow", d.ID) }
-			hx-trigger="load delay:600ms"
+			hx-trigger="every 600ms"
 			hx-select="#wf-reader"
 			hx-target="#wf-reader"
 			hx-swap="outerHTML"
