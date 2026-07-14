@@ -52,6 +52,43 @@ func TestFanoutWorkflow(t *testing.T) {
 	})
 }
 
+func TestStreamWorkflow(t *testing.T) {
+	runCases(t, []testkit.Case[*Harness]{
+		{
+			Name: "streams log lines then closes",
+			Act:  []Step{Start("stream", "stream-1")},
+			Assert: []Step{
+				ExpectResult("Streamed 5 log lines"),
+				ExpectStepCount(1),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.Equal("Log stream", s.Title)
+					h.Equal(StepDone, s.Status)
+					h.R.Contains(s.Detail, "Connecting")
+					h.R.Contains(s.Detail, "Done ✓")
+				}),
+			},
+		},
+	})
+}
+
+func TestDeployWorkflow(t *testing.T) {
+	runCases(t, []testkit.Case[*Harness]{
+		{
+			Name: "publishes version and status events",
+			Act:  []Step{Start("deploy", "deploy-1")},
+			Assert: []Step{
+				ExpectResult("Deployed v1.4.2"),
+				ExpectStepCount(1),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.Equal("Live status", s.Title)
+					h.R.Contains(s.Detail, "version: v1.4.2")
+					h.R.Contains(s.Detail, "status: Live")
+				}),
+			},
+		},
+	})
+}
+
 func TestFanoutEnqueuesChildWorkflows(t *testing.T) {
 	r := require.New(t)
 	e := newEngine(t)

@@ -39,6 +39,7 @@ type Deps struct {
 	FanoutJobs     int
 	Greeter        Greeter
 	Log            *slog.Logger
+	StageStep      time.Duration
 	Updater        Updater
 	Workdir        string
 }
@@ -51,6 +52,7 @@ type Engine struct {
 	fanoutJobs     int
 	greeter        Greeter
 	log            *slog.Logger
+	stageStep      time.Duration
 	updater        Updater
 }
 
@@ -73,6 +75,9 @@ func New(deps Deps) *Engine {
 	if deps.Log == nil {
 		deps.Log = slog.Default()
 	}
+	if deps.StageStep == 0 {
+		deps.StageStep = defaultStageStep
+	}
 	if deps.Updater == nil {
 		deps.Updater = DefaultUpdater()
 	}
@@ -84,6 +89,7 @@ func New(deps Deps) *Engine {
 		fanoutJobs:     deps.FanoutJobs,
 		greeter:        deps.Greeter,
 		log:            deps.Log,
+		stageStep:      deps.StageStep,
 		updater:        deps.Updater,
 	}
 	if _, err := dbos.RegisterQueue(deps.DBOS, fanoutQueue, dbos.WithWorkerConcurrency(fanoutQueueWorkers)); err != nil {
@@ -93,8 +99,11 @@ func New(deps Deps) *Engine {
 	dbos.RegisterWorkflow(deps.DBOS, e.updateClaude, dbos.WithWorkflowName("update-claude"))
 	dbos.RegisterWorkflow(deps.DBOS, e.createPR, dbos.WithWorkflowName("create-pr"))
 	dbos.RegisterWorkflow(deps.DBOS, e.countdown, dbos.WithWorkflowName("countdown"))
+	dbos.RegisterWorkflow(deps.DBOS, e.deploy, dbos.WithWorkflowName("deploy"))
 	dbos.RegisterWorkflow(deps.DBOS, e.fanout, dbos.WithWorkflowName("fan-out"))
 	dbos.RegisterWorkflow(deps.DBOS, e.job, dbos.WithWorkflowName("demo-job"))
+	dbos.RegisterWorkflow(deps.DBOS, e.stream, dbos.WithWorkflowName("stream"))
+	dbos.RegisterWorkflow(deps.DBOS, e.heartbeat)
 	return e
 }
 
@@ -147,8 +156,12 @@ func (e *Engine) Start(name, id string) error {
 	switch name {
 	case "countdown":
 		_, err = dbos.RunWorkflow(e.ctx, e.countdown, CountdownInput{}, dbos.WithWorkflowID(id))
+	case "deploy":
+		_, err = dbos.RunWorkflow(e.ctx, e.deploy, DeployInput{}, dbos.WithWorkflowID(id))
 	case "fan-out":
 		_, err = dbos.RunWorkflow(e.ctx, e.fanout, FanoutInput{}, dbos.WithWorkflowID(id))
+	case "stream":
+		_, err = dbos.RunWorkflow(e.ctx, e.stream, StreamInput{}, dbos.WithWorkflowID(id))
 	case "update-claude":
 		_, err = dbos.RunWorkflow(e.ctx, e.updateClaude, UpdateInput{}, dbos.WithWorkflowID(id))
 	case "create-pr":
@@ -188,12 +201,19 @@ func (e *Engine) Run(id string) (RunView, error) {
 	view := RunView{ID: id, Result: output, Status: status}
 	var awaiting []elicit.Prompt
 	var pending []stepBegin
+	var evented, streamed bool
 	titles := map[string]string{}
 	inputs := map[string]string{}
 
 	for _, s := range steps {
 		if s.ChildWorkflowID != "" {
 			continue
+		}
+		switch s.StepName {
+		case "DBOS.setEvent":
+			evented = true
+		case "DBOS.writeStream":
+			streamed = true
 		}
 		switch {
 		case strings.HasPrefix(s.StepName, "begin/"):
@@ -276,7 +296,54 @@ func (e *Engine) Run(id string) (RunView, error) {
 			})
 		}
 	}
+	if streamed {
+		if step, ok := e.streamStep(id, view.Running()); ok {
+			view.Steps = append(view.Steps, step)
+		}
+	}
+	if evented {
+		if step, ok := e.eventStep(id, view.Running()); ok {
+			view.Steps = append(view.Steps, step)
+		}
+	}
 	return view, nil
+}
+
+func (e *Engine) streamStep(id string, running bool) (StepView, bool) {
+	lines, closed, err := dbos.ReadStream[string](e.ctx, id, streamKey, dbos.WithReadStreamSnapshot(0))
+	if err != nil || len(lines) == 0 {
+		return StepView{}, false
+	}
+	step := StepView{
+		Detail:  strings.Join(lines, "\n"),
+		Kind:    KindTool,
+		Status:  StepRunning,
+		Summary: lines[len(lines)-1],
+		Title:   "Log stream",
+	}
+	if closed || !running {
+		step.Status = StepDone
+	}
+	return step, true
+}
+
+func (e *Engine) eventStep(id string, running bool) (StepView, bool) {
+	version, _ := dbos.GetEvent[string](e.ctx, id, eventVersionKey, 100*time.Millisecond)
+	if version == "" {
+		return StepView{}, false
+	}
+	stage, _ := dbos.GetEvent[string](e.ctx, id, eventStatusKey, 100*time.Millisecond)
+	step := StepView{
+		Detail:  fmt.Sprintf("version: %s\nstatus: %s", version, stage),
+		Kind:    KindTool,
+		Status:  StepRunning,
+		Summary: fmt.Sprintf("%s — %s", version, stage),
+		Title:   "Live status",
+	}
+	if !running {
+		step.Status = StepDone
+	}
+	return step, true
 }
 
 func stepDuration(s dbos.StepInfo) string {

@@ -98,6 +98,9 @@ func newRootCmd() *cobra.Command {
 			if err := workflows.Launch(); err != nil {
 				return errors.Wrap(err, "launch workflows")
 			}
+			if err := flows.EnsureSchedules(); err != nil {
+				return errors.Wrap(err, "ensure schedules")
+			}
 			if err := chatSvc.Recover(); err != nil {
 				return errors.Wrap(err, "recover chat turns")
 			}

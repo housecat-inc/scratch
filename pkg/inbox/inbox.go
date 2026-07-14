@@ -58,6 +58,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/tasks/{id}/star", s.handleStarTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/trash", s.handleTrashTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
+	mux.HandleFunc("POST /inbox/schedules/{name}/pause", s.handlePauseSchedule)
+	mux.HandleFunc("POST /inbox/schedules/{name}/resume", s.handleResumeSchedule)
+	mux.HandleFunc("POST /inbox/schedules/{name}/trigger", s.handleTriggerSchedule)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/edit", s.handleEditWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/fork", s.handleForkWorkflow)
@@ -437,6 +440,13 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 		Items:         items,
 		View:          view,
 	}
+	if view == "workflows" {
+		schedules, err := s.schedules()
+		if err != nil {
+			return ui.InboxProps{}, err
+		}
+		props.Schedules = schedules
+	}
 	props.Selected = selected
 	if selected.Kind == "" {
 		return props, nil
@@ -597,6 +607,24 @@ func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 		detail.Items = append(detail.Items, item)
 	}
 	return detail, nil
+}
+
+func (s *Server) schedules() ([]ui.WorkflowScheduleView, error) {
+	schedules, err := s.flows.Schedules()
+	if err != nil {
+		return nil, err
+	}
+	views := make([]ui.WorkflowScheduleView, 0, len(schedules))
+	for _, sc := range schedules {
+		views = append(views, ui.WorkflowScheduleView{
+			Cron:      sc.Cron,
+			LastFired: sc.LastFired,
+			Name:      sc.Name,
+			Paused:    sc.Paused,
+			Status:    sc.Status,
+		})
+	}
+	return views, nil
 }
 
 func (s *Server) workflowSnippet(workflowID string) string {
@@ -760,6 +788,33 @@ func (s *Server) handleForkWorkflow(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(forked.ID, 10), http.StatusSeeOther)
 }
 
+func (s *Server) handlePauseSchedule(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if err := s.flows.PauseSchedule(name); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.redirectBack(w, r)
+}
+
+func (s *Server) handleResumeSchedule(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if err := s.flows.ResumeSchedule(name); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.redirectBack(w, r)
+}
+
+func (s *Server) handleTriggerSchedule(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if _, err := s.flows.TriggerSchedule(name); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.redirectBack(w, r)
+}
+
 func formValues(r *http.Request) map[string]string {
 	values := map[string]string{}
 	for key := range r.PostForm {
@@ -887,8 +942,12 @@ func workflowAgent(typ string) string {
 		return "countdown"
 	case "create-pr":
 		return "create-pr"
+	case "deploy":
+		return "deploy"
 	case "fan-out":
 		return "fan-out"
+	case "stream":
+		return "stream"
 	case "update-claude":
 		return "update-claude"
 	default:
@@ -902,8 +961,12 @@ func workflowTitle(typ string) string {
 		return "Countdown"
 	case "create-pr":
 		return "Create pull request"
+	case "deploy":
+		return "Deploy"
 	case "fan-out":
 		return "Parallel jobs"
+	case "stream":
+		return "Log stream"
 	case "update-claude":
 		return "Update Claude Code"
 	default:

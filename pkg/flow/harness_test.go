@@ -53,6 +53,7 @@ func runCases(t *testing.T, cases []testkit.Case[*Harness]) {
 				Drafter:       fakeDrafter{drafts: h.Drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
 				Greeter:       GreeterFunc(func(ctx context.Context, name string) (string, error) { return h.greetFn(ctx, name) }),
 				Log:           slog.Default(),
+				StageStep:     5 * time.Millisecond,
 				Updater: UpdaterFuncs{
 					UpdateFn:  func(context.Context) (string, error) { return "Updated to claude 2.0", nil },
 					VersionFn: func(context.Context) (string, error) { return "claude 1.0", nil },

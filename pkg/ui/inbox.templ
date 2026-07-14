@@ -115,6 +115,9 @@ templ InboxListView(p InboxProps) {
 		</div>
 		<span>{ strconv.Itoa(len(p.Items)) }</span>
 	</header>
+	if p.View == "workflows" && len(p.Schedules) > 0 {
+		@schedulesPanel(p.Schedules)
+	}
 	if len(p.Items) == 0 {
 		<div class="mail-empty">Nothing here.</div>
 	} else {
@@ -124,6 +127,39 @@ templ InboxListView(p InboxProps) {
 			}
 		</div>
 	}
+}
+
+templ schedulesPanel(schedules []WorkflowScheduleView) {
+	<section class="mail-card mail-schedules">
+		<h2 class="mail-schedules-title">Schedules</h2>
+		for _, sc := range schedules {
+			<div class="mail-schedule-row">
+				<div class="mail-schedule-info">
+					<span class="mail-schedule-name">{ sc.Name }</span>
+					<code class="mail-schedule-cron">{ sc.Cron }</code>
+					<span class={ "mail-schedule-status", templ.KV("paused", sc.Paused) }>{ scheduleStatusLabel(sc) }</span>
+					if sc.LastFired != "" {
+						<span class="mail-schedule-fired">last fired { sc.LastFired }</span>
+					}
+				</div>
+				<div class="mail-schedule-actions">
+					if sc.Paused {
+						@scheduleButton(sc.Name, "resume", "Resume")
+					} else {
+						@scheduleButton(sc.Name, "pause", "Pause")
+					}
+					@scheduleButton(sc.Name, "trigger", "Run now")
+				</div>
+			</div>
+		}
+	</section>
+}
+
+templ scheduleButton(name, action, label string) {
+	<form method="post" action={ templ.SafeURL("/inbox/schedules/" + name + "/" + action) }>
+		<input type="hidden" name="back" value="/inbox/workflows"/>
+		<button type="submit" class="mail-schedule-btn" data-schedule-btn={ action }>{ label }</button>
+	</form>
 }
 
 templ archiveFilterTab(view, active, value, label string) {
@@ -525,15 +561,26 @@ func workflowTypeLabel(typ string) string {
 		return "Countdown"
 	case "create-pr":
 		return "Create pull request"
+	case "deploy":
+		return "Deploy"
 	case "fan-out":
 		return "Parallel jobs"
 	case "greet":
 		return "Greet"
+	case "stream":
+		return "Log stream"
 	case "update-claude":
 		return "Update Claude Code"
 	default:
 		return agentLabel(typ)
 	}
+}
+
+func scheduleStatusLabel(sc WorkflowScheduleView) string {
+	if sc.Paused {
+		return "Paused"
+	}
+	return "Active"
 }
 
 func workflowStatusLabel(status string) string {
@@ -552,7 +599,7 @@ func workflowStatusLabel(status string) string {
 }
 
 func workflowTypeOptions() []string {
-	return []string{"greet", "update-claude", "create-pr", "countdown", "fan-out"}
+	return []string{"greet", "update-claude", "create-pr", "countdown", "fan-out", "stream", "deploy"}
 }
 
 func chatIcon() templ.Component {
