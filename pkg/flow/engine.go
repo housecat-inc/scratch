@@ -389,6 +389,7 @@ func (e *Engine) Fork(id, elicitationID string) (string, error) {
 		return "", ErrFormNotFound
 	}
 	handle, err := dbos.ForkWorkflow[string](e.ctx, dbos.ForkWorkflowInput{
+		ApplicationVersion: e.ctx.GetApplicationVersion(),
 		OriginalWorkflowID: id,
 		StartStep:          uint(startStep),
 	})

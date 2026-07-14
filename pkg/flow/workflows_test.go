@@ -1,9 +1,15 @@
 package flow
 
 import (
+	"log/slog"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/housecat-inc/scratch/pkg/elicit"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/housecat-inc/scratch/testkit"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGreetWorkflow(t *testing.T) {
@@ -154,4 +160,51 @@ func TestCreatePRWorkflow(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestForkUsesCurrentApplicationVersion(t *testing.T) {
+	r := require.New(t)
+	path := filepath.Join(t.TempDir(), "flow.db")
+	drafter := fakeDrafter{pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"}
+
+	t.Setenv("DBOS__APPVERSION", "v1")
+	wf1, err := workflow.New(path)
+	r.NoError(err)
+	e1 := New(Deps{
+		DBOS:    wf1.Ctx(),
+		Drafter: drafter,
+		Log:     slog.Default(),
+	})
+	r.NoError(wf1.Launch())
+	r.NoError(e1.Start("create-pr", "pr-v1"))
+	e1.Await("pr-v1", 5*time.Second)
+	run, err := e1.Run("pr-v1")
+	r.NoError(err)
+	r.True(run.Blocked)
+	r.NotEmpty(run.Steps)
+	form := run.Steps[len(run.Steps)-1].Form
+	r.NotNil(form)
+	r.NoError(e1.Resolve("pr-v1", form.ElicitationID, elicit.ActionAccept, map[string]string{"body": "- Add thing", "title": "Add thing"}))
+	e1.Await("pr-v1", 5*time.Second)
+	r.NoError(wf1.Close())
+
+	t.Setenv("DBOS__APPVERSION", "v2")
+	wf2, err := workflow.New(path)
+	r.NoError(err)
+	e2 := New(Deps{
+		DBOS:    wf2.Ctx(),
+		Drafter: drafter,
+		Log:     slog.Default(),
+	})
+	r.NoError(wf2.Launch())
+	t.Cleanup(func() { wf2.Close() })
+
+	forkedID, err := e2.Fork("pr-v1", "pr-v1/review")
+	r.NoError(err)
+	e2.Await(forkedID, 5*time.Second)
+	run, err = e2.Run(forkedID)
+	r.NoError(err)
+	r.True(run.Blocked)
+	r.NotEmpty(run.Steps)
+	r.NotNil(run.Steps[len(run.Steps)-1].Form)
 }
