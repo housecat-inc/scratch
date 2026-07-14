@@ -843,8 +843,13 @@ body.chat-selecting * {
 .chat-elicit-editable {
   background: #f8fafc;
   margin-top: 0;
-  padding-right: 5.5rem;
-  position: relative;
+}
+
+.chat-elicit-header {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  min-height: 2rem;
 }
 
 .chat-elicit-message {
@@ -892,13 +897,6 @@ body.chat-selecting * {
   margin-top: 0.25rem;
 }
 
-.chat-elicit-editable .chat-elicit-actions {
-  margin-top: 0;
-  position: absolute;
-  right: 0.75rem;
-  top: 0.75rem;
-}
-
 .chat-elicit-actions button {
   border: 0;
   border-radius: 999px;
@@ -910,9 +908,9 @@ body.chat-selecting * {
 
 .chat-elicit-editable .chat-elicit-actions button {
   align-items: center;
-  background: #fff;
-  border: 1px solid #d8dee9;
-  color: #475569;
+  background: transparent;
+  border: 0;
+  color: #64748b;
   display: inline-flex;
   height: 2rem;
   justify-content: center;
@@ -922,12 +920,12 @@ body.chat-selecting * {
 
 .chat-elicit-editable .chat-elicit-actions button:hover {
   background: #f1f5f9;
-  color: #0f172a;
+  color: #111827;
 }
 
 .chat-elicit-editable .chat-elicit-actions svg {
-  height: 1rem;
-  width: 1rem;
+  height: 1.2rem;
+  width: 1.2rem;
 }
 
 .chat-elicit-editable.editing {

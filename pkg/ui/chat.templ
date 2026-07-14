@@ -393,6 +393,18 @@ templ chatFormBody(f ChatFormProps) {
 	if !f.HideMessage {
 		<p class="chat-elicit-message">{ f.Message }</p>
 	}
+	if f.Editable {
+		<div class="chat-elicit-header">
+			<div class="chat-elicit-actions">
+				<button class="gm-icon-btn" id="elicit-edit" name="action" value="accept" type="submit" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
+					@editIcon()
+				</button>
+				<button class="gm-icon-btn" id="elicit-fork" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate title="Fork" aria-label="Fork">
+					@forkIcon()
+				</button>
+			</div>
+		</div>
+	}
 	for _, field := range f.Fields {
 		<label class="chat-elicit-field">
 			<span>{ field.Label }</span>
@@ -418,16 +430,7 @@ templ chatFormBody(f ChatFormProps) {
 			}
 		</label>
 	}
-	if f.Editable {
-		<div class="chat-elicit-actions">
-			<button id="elicit-edit" name="action" value="accept" type="submit" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
-				@editIcon()
-			</button>
-			<button id="elicit-fork" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate title="Fork" aria-label="Fork">
-				@forkIcon()
-			</button>
-		</div>
-	} else if !f.Disabled {
+	if !f.Editable && !f.Disabled {
 		<div class="chat-elicit-actions">
 			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
 			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
