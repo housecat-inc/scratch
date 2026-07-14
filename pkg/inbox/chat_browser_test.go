@@ -295,6 +295,7 @@ func TestChatBrowser(t *testing.T) {
 			},
 			Act: []Step{
 				WaitChatReady(),
+				ElementEventuallyPresent(".chat-row.row-tool summary"),
 				Click(".chat-row.row-tool summary"),
 			},
 			Assert: []Step{

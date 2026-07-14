@@ -5,7 +5,9 @@ import "github.com/housecat-inc/scratch/uikit"
 templ FilesPage(v FilesProps) {
 	<!DOCTYPE html>
 	<html lang="en">
-		@FilesHead()
+		@MailHead("Files") {
+			@FilesHeadExtras()
+		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
 				Actions:    toolActions(v.Shell),
@@ -49,56 +51,31 @@ templ FilesPage(v FilesProps) {
 	</html>
 }
 
-templ FilesHead() {
-	<head>
-		<meta charset="utf-8"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-		<meta name="color-scheme" content="light"/>
-		<title>Files · scratch</title>
-		<link rel="manifest" href="/manifest.webmanifest"/>
-		<meta name="apple-mobile-web-app-capable" content="yes"/>
-		<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-		<meta name="apple-mobile-web-app-title" content="scratch"/>
-		<meta name="mobile-web-app-capable" content="yes"/>
-		<meta name="application-name" content="scratch"/>
-		<meta name="theme-color" content="#0f172a"/>
-		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
-		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
-		@InboxCSS()
-		@ChatCSS()
-		@TempluiCSS()
-		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-		@ToolShellCSS()
-		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
-		<script src="/static/register-sw.js" defer></script>
-		<script src="/static/html2canvas.min.js" defer></script>
-		<script src="/static/chat.js" defer></script>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css"/>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js"></script>
-		<style>
-			html, body { height: 100%; }
-			.CodeMirror { height: 100%; font-size: 14px; }
-			.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-			.CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }
-			@media (max-width: 767px) {
-				.CodeMirror { font-size: 16px; }
-				#files-wrap:not(.show-editor) .editor-pane { display: none; }
-				#files-wrap.show-editor .tree-pane { display: none; }
-			}
-		</style>
-	</head>
+templ FilesHeadExtras() {
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neat.min.css"/>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js"></script>
+	<style>
+		html, body { height: 100%; }
+		.CodeMirror { height: 100%; font-size: 14px; }
+		.CodeMirror-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+		.CodeMirror-gutters { background: #fff; border-right: 1px solid #f1f5f9; }
+		@media (max-width: 767px) {
+			.CodeMirror { font-size: 16px; }
+			#files-wrap:not(.show-editor) .editor-pane { display: none; }
+			#files-wrap.show-editor .tree-pane { display: none; }
+		}
+	</style>
 }
 
 templ FileTreeList(t FileTreeProps) {

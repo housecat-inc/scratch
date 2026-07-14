@@ -11,7 +11,9 @@ import (
 templ SQLPage(v SQLProps) {
 	<!DOCTYPE html>
 	<html lang="en">
-		@SQLHead()
+		@MailHead("SQL") {
+			@SQLHeadExtras()
+		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
 				Actions:    toolActions(v.Shell),
@@ -116,48 +118,24 @@ templ SQLSaveModal() {
 	</div>
 }
 
-templ SQLHead() {
-	<head>
-		<meta charset="utf-8"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-		<meta name="color-scheme" content="light"/>
-		<title>SQL · scratch</title>
-		<link rel="manifest" href="/manifest.webmanifest"/>
-		<meta name="apple-mobile-web-app-capable" content="yes"/>
-		<meta name="apple-mobile-web-app-title" content="scratch"/>
-		<meta name="mobile-web-app-capable" content="yes"/>
-		<meta name="application-name" content="scratch"/>
-		<meta name="theme-color" content="#0f172a"/>
-		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
-		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
-		@InboxCSS()
-		@ChatCSS()
-		@TempluiCSS()
-		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-		@ToolShellCSS()
-		<script src="/static/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
-		<script src="/static/register-sw.js" defer></script>
-		<script src="/static/html2canvas.min.js" defer></script>
-		<script src="/static/chat.js" defer></script>
-		<style>
-			html, body { height: 100%; }
-			#sql-editor { display: block; width: 100%; height: 180px; resize: none; border: 0; outline: none; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-			.sql-cm { flex-shrink: 0; }
-			.sql-cm .cm-editor { height: 180px; }
-			.sql-cm .cm-editor.cm-focused { outline: none; }
-			.sql-cm .cm-scroller { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-			.sql-table { border-collapse: collapse; font-size: 12px; width: 100%; }
-			.sql-table th, .sql-table td { border: 1px solid #e2e8f0; padding: 3px 8px; text-align: left; white-space: pre; vertical-align: top; }
-			.sql-table th { background: #f8fafc; position: sticky; top: 0; }
-			.sql-table td.is-null { color: #94a3b8; font-style: italic; }
-			@media (max-width: 767px) {
-				#sql-editor { font-size: 16px; }
-				#sql-wrap:not(.show-editor) .editor-pane { display: none; }
-				#sql-wrap.show-editor .tree-pane { display: none; }
-			}
-		</style>
-	</head>
+templ SQLHeadExtras() {
+	<style>
+		html, body { height: 100%; }
+		#sql-editor { display: block; width: 100%; height: 180px; resize: none; border: 0; outline: none; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+		.sql-cm { flex-shrink: 0; }
+		.sql-cm .cm-editor { height: 180px; }
+		.sql-cm .cm-editor.cm-focused { outline: none; }
+		.sql-cm .cm-scroller { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+		.sql-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+		.sql-table th, .sql-table td { border: 1px solid #e2e8f0; padding: 3px 8px; text-align: left; white-space: pre; vertical-align: top; }
+		.sql-table th { background: #f8fafc; position: sticky; top: 0; }
+		.sql-table td.is-null { color: #94a3b8; font-style: italic; }
+		@media (max-width: 767px) {
+			#sql-editor { font-size: 16px; }
+			#sql-wrap:not(.show-editor) .editor-pane { display: none; }
+			#sql-wrap.show-editor .tree-pane { display: none; }
+		}
+	</style>
 }
 
 templ SQLTableList(tables []SQLTable) {

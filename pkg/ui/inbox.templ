@@ -12,7 +12,9 @@ import (
 templ InboxPage(p InboxProps) {
 	<!DOCTYPE html>
 	<html lang="en">
-		@InboxHead(inboxTitle(p))
+		@MailHead(inboxTitle(p)) {
+			<script src="/static/inbox.js" defer></script>
+		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
 				Actions: InboxActions(p),
@@ -58,18 +60,6 @@ templ composeButton(mode, label, aria string) {
 			<span>{ label }</span>
 		</button>
 	</form>
-}
-
-templ InboxHead(title string) {
-	<head>
-		<meta charset="utf-8"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1"/>
-		<title>{ title } · scratch</title>
-		@InboxCSS()
-		@ChatCSS()
-		@uikit.ChatPluginScripts()
-		<script src="/static/inbox.js" defer></script>
-	</head>
 }
 
 templ MailShell(p InboxProps) {

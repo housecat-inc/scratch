@@ -10,15 +10,9 @@ import (
 templ TodoPage(p TodoProps) {
 	<!DOCTYPE html>
 	<html lang="en">
-		<head>
-			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>Todos · scratch</title>
-			@InboxCSS()
-			@ChatCSS()
-			@uikit.ChatPluginScripts()
+		@MailHead("Todos") {
 			<script src="/static/inbox.js" defer></script>
-		</head>
+		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
 				Actions: TodoActions(p),

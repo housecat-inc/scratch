@@ -49,7 +49,7 @@ templ InboxLayout(active string, tasks, chats int) {
 	</div>
 }
 
-templ Head(title string) {
+templ MailHead(title string) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
@@ -75,7 +75,12 @@ templ Head(title string) {
 		<script src="/static/ptr.js" defer></script>
 		<script src="/static/html2canvas.min.js" defer></script>
 		<script src="/static/chat.js" defer></script>
+		{ children... }
 	</head>
+}
+
+templ Head(title string) {
+	@MailHead(title)
 }
 
 templ ToolShellCSS() {
