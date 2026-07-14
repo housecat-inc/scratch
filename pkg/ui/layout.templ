@@ -68,6 +68,7 @@ templ Head(title string) {
 		@ChatCSS()
 		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		@ToolShellCSS()
 		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
 		<script src="/static/htmx-ext-sse.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>
@@ -75,6 +76,12 @@ templ Head(title string) {
 		<script src="/static/html2canvas.min.js" defer></script>
 		<script src="/static/chat.js" defer></script>
 	</head>
+}
+
+templ ToolShellCSS() {
+	<style>
+		.mail-shell svg { display: inline; vertical-align: baseline; }
+	</style>
 }
 
 templ Layout(title, nav string, shells ...ToolShellProps) {

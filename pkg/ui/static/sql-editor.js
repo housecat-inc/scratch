@@ -72,6 +72,31 @@
     })
     .catch(function (err) { console.warn("SQL schema fetch failed:", err && err.message); });
 
+  var formatter = null;
+  function loadFormatter() {
+    if (formatter) return Promise.resolve(formatter);
+    return fetch("/static/lax-sql.wasm", { credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) throw new Error("wasm " + r.status); return r.arrayBuffer(); })
+      .then(function (buf) {
+        formatter = CM.createFromBuffer(buf);
+        try { formatter.setConfig({}, {}); } catch (e) {}
+        return formatter;
+      });
+  }
+
+  var fmtBtn = document.getElementById("sql-fmt-btn");
+  if (fmtBtn) {
+    fmtBtn.addEventListener("click", function () {
+      loadFormatter()
+        .then(function (f) {
+          var text = view.state.doc.toString();
+          var out = f.formatText({ filePath: "query.sql", fileText: text });
+          if (typeof out === "string" && out && out !== text) window.sqlSetEditor(out);
+        })
+        .catch(function (err) { console.warn("SQL format failed:", err && err.message); });
+    });
+  }
+
   try {
     var wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
     var lsp = CM.languageServer({

@@ -37,6 +37,9 @@ templ SQLPage(v SQLProps) {
 						</form>
 						<span class="flex-1"></span>
 						<span id="sql-running" class="htmx-indicator text-xs text-slate-400">running…</span>
+						@button.Button(button.Props{ID: "sql-fmt-btn", Size: button.SizeSm, Type: button.TypeButton, Variant: button.VariantOutline}) {
+							Fmt
+						}
 						@button.Button(button.Props{Attributes: templ.Attributes{"data-sql-save-open": "true"}, Size: button.SizeSm, Type: button.TypeButton, Variant: button.VariantOutline}) {
 							Save
 						}
@@ -131,6 +134,7 @@ templ SQLHead() {
 		@ChatCSS()
 		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		@ToolShellCSS()
 		<script src="/static/htmx.min.js"></script>
 		<script src="/static/htmx-ext-sse.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>

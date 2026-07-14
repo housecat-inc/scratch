@@ -18,6 +18,7 @@
     "@codemirror/lint": "^6.9.7",
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.6",
+    "@dprint/formatter": "^0.5.1",
     "codemirror-languageserver": "^1.22.0",
     "esbuild": "^0.28.1"
   }

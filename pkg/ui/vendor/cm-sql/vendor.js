@@ -5,6 +5,7 @@ import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { SQLite, sql } from "@codemirror/lang-sql";
 import { acceptCompletion, autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { languageServer } from "codemirror-languageserver";
+import { createFromBuffer } from "@dprint/formatter";
 
 window.CMSQL = {
   Compartment,
@@ -14,6 +15,7 @@ window.CMSQL = {
   acceptCompletion,
   autocompletion,
   completionKeymap,
+  createFromBuffer,
   defaultHighlightStyle,
   defaultKeymap,
   history,
