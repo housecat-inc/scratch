@@ -59,13 +59,20 @@ templ FilesHeadExtras() {
 
 templ FilesTreePane(v FilesProps) {
 	<header class="mail-mainbar">
-		<span class="font-mono truncate">{ v.Root }</span>
+		<nav class="flex items-center gap-0.5 font-mono text-xs overflow-x-auto whitespace-nowrap" aria-label="Directory">
+			for i, c := range v.Crumbs {
+				if i > 1 {
+					<span class="text-slate-300">/</span>
+				}
+				<a href={ templ.SafeURL(filesDirHref(c.Dir)) } class="px-1 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900">{ c.Name }</a>
+			}
+		</nav>
 	</header>
 	if v.Error != "" {
 		<div class="px-3 py-2 text-xs text-destructive break-all flex-shrink-0">{ v.Error }</div>
 	}
-	<div class="flex-1 min-h-0 overflow-auto py-1" id="file-tree">
-		@FileTreeList(FileTreeProps{Entries: v.Entries})
+	<div class="flex-1 min-h-0 overflow-auto py-1" id="file-tree" data-dir={ v.Dir }>
+		@FileTreeList(FileTreeProps{Dir: v.Dir, Entries: v.Entries})
 	</div>
 }
 
@@ -93,7 +100,7 @@ templ FileTreeList(t FileTreeProps) {
 				<li>
 					<details class="group/dir"
 						data-dir={ e.Path }
-						hx-get={ "/files/tree?path=" + e.Path }
+						hx-get={ filesTreeHref(t.Dir, e.Path) }
 						hx-trigger="toggle once"
 						hx-target="find .tree-children"
 						hx-swap="innerHTML">

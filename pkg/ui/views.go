@@ -127,10 +127,18 @@ type FileProps struct {
 }
 
 type FileTreeProps struct {
+	Dir     string
 	Entries []FileEntry
 }
 
+type FileCrumb struct {
+	Dir  string
+	Name string
+}
+
 type FilesProps struct {
+	Crumbs  []FileCrumb
+	Dir     string
 	Entries []FileEntry
 	Error   string
 	Root    string
