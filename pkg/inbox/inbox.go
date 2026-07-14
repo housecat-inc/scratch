@@ -635,9 +635,17 @@ func (s *Server) handleResolveWorkflow(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-	err = s.flows.Resolve(workflowID, r.PostForm.Get("elicitation_id"), r.PostForm.Get("action"), formValues(r))
+	action := r.PostForm.Get("action")
+	elicitationID := r.PostForm.Get("elicitation_id")
+	values := formValues(r)
+	err = s.flows.Resolve(workflowID, elicitationID, action, values)
 	switch {
 	case err == nil, errors.Is(err, flow.ErrFormResolved):
+		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	case errors.Is(err, flow.ErrFormStale):
+		if !s.recoverStaleWorkflowForm(w, id, workflowID, elicitationID, action, values) {
+			return
+		}
 		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 	case elicit.IsInvalid(err):
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
@@ -646,6 +654,30 @@ func (s *Server) handleResolveWorkflow(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.fail(w, err)
 	}
+}
+
+func (s *Server) recoverStaleWorkflowForm(w http.ResponseWriter, threadID int64, workflowID, elicitationID, action string, values map[string]string) bool {
+	forkedID, err := s.flows.EditForm(workflowID, elicitationID, action, values)
+	switch {
+	case err == nil:
+	case elicit.IsInvalid(err):
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return false
+	case errors.Is(err, flow.ErrFormNotFound):
+		http.Error(w, "form not found", http.StatusNotFound)
+		return false
+	default:
+		s.fail(w, err)
+		return false
+	}
+	if err := s.flows.Cancel(workflowID); err != nil {
+		s.log.Warn("cancel stale workflow", "id", workflowID, "err", err)
+	}
+	if err := s.chat.SetThreadWorkflowID(threadID, forkedID); err != nil {
+		s.fail(w, err)
+		return false
+	}
+	return true
 }
 
 func (s *Server) handleEditWorkflow(w http.ResponseWriter, r *http.Request) {

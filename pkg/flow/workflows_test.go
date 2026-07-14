@@ -209,6 +209,50 @@ func TestForkUsesCurrentApplicationVersion(t *testing.T) {
 	r.NotNil(run.Steps[len(run.Steps)-1].Form)
 }
 
+func TestResolveOldApplicationVersionReturnsStale(t *testing.T) {
+	r := require.New(t)
+	path := filepath.Join(t.TempDir(), "flow.db")
+	drafter := fakeDrafter{pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"}
+
+	t.Setenv("DBOS__APPVERSION", "v1")
+	wf1, err := workflow.New(path)
+	r.NoError(err)
+	e1 := New(Deps{
+		DBOS:    wf1.Ctx(),
+		Drafter: drafter,
+		Log:     slog.Default(),
+	})
+	r.NoError(wf1.Launch())
+	r.NoError(e1.Start("create-pr", "pr-stale"))
+	e1.Await("pr-stale", 5*time.Second)
+	run, err := e1.Run("pr-stale")
+	r.NoError(err)
+	r.True(run.Blocked)
+	r.NoError(wf1.Close())
+
+	t.Setenv("DBOS__APPVERSION", "v2")
+	wf2, err := workflow.New(path)
+	r.NoError(err)
+	e2 := New(Deps{
+		DBOS:    wf2.Ctx(),
+		Drafter: drafter,
+		Log:     slog.Default(),
+	})
+	r.NoError(wf2.Launch())
+	t.Cleanup(func() { wf2.Close() })
+
+	err = e2.Resolve("pr-stale", "pr-stale/review", elicit.ActionAccept, map[string]string{"body": "- Add thing", "title": "Add thing"})
+	r.ErrorIs(err, ErrFormStale)
+
+	forkedID, err := e2.EditForm("pr-stale", "pr-stale/review", elicit.ActionAccept, map[string]string{"body": "- Add thing", "title": "Add thing"})
+	r.NoError(err)
+	e2.Await(forkedID, 5*time.Second)
+	run, err = e2.Run(forkedID)
+	r.NoError(err)
+	r.True(run.Done())
+	r.Equal("Add thing", run.Result)
+}
+
 func TestNormalizePullRequestUnescapesHTMLEntities(t *testing.T) {
 	r := require.New(t)
 
