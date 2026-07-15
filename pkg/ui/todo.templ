@@ -246,10 +246,7 @@ func todoBack(view string) string {
 }
 
 func todoNavItems(p TodoProps) []uikit.NavItem {
-	return []uikit.NavItem{
-		{Active: p.View == "inbox", Count: p.ActiveCount, Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
-		{Group: "More", Active: p.View == "tasks", Count: p.TaskCount, Href: "/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
-	}
+	return appNav(p.View, NavCounts{Contacts: p.ContactCount, Inbox: p.ActiveCount, Tasks: p.TaskCount})
 }
 
 func todoStatus(task db.Task) string {

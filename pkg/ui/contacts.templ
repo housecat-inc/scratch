@@ -1,0 +1,87 @@
+package ui
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/uikit"
+)
+
+templ ContactsPage(p ContactsProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Contacts") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				AppName: "todos",
+				BrandHref: "/",
+				MainClass: "contacts-main",
+				Nav: appNav("contacts", p.Counts),
+			}) {
+				<header class="mail-mainbar">
+					<div class="mail-mainbar-title">
+						<h1>Contacts</h1>
+					</div>
+					<span>{ strconv.Itoa(p.Total) }</span>
+				</header>
+				@ContactsTable(p)
+			}
+		</body>
+	</html>
+}
+
+templ ContactsTable(p ContactsProps) {
+	@uikit.DataTable(uikit.DataTableProps{
+		BaseHref: "/contacts",
+		Columns: []uikit.DataTableColumn{
+			{Header: "Name", Icon: "contacts", Sticky: true, Width: "minmax(14rem, 18rem)"},
+			{Header: "Email", Icon: "chat", Width: "18rem"},
+			{Header: "Company", Icon: "database", Width: "14rem"},
+			{Header: "Job title", Icon: "task", Width: "14rem"},
+		},
+		Empty: "No contacts yet.",
+		ID: "contacts-table",
+		Page: p.Page,
+		PerPage: p.PerPage,
+		Rows: contactRows(p.Contacts),
+		Total: p.Total,
+	})
+}
+
+func contactRows(contacts []db.ContactListItem) []uikit.DataTableRow {
+	rows := make([]uikit.DataTableRow, 0, len(contacts))
+	for _, c := range contacts {
+		rows = append(rows, uikit.DataTableRow{
+			Href: "/contacts/" + strconv.FormatInt(c.ID, 10),
+			ID:   strconv.FormatInt(c.ID, 10),
+			Cells: []templ.Component{
+				contactNameCell(c),
+				contactEmailCell(c),
+				contactMutedCell(c.Company),
+				contactMutedCell(c.JobTitle),
+			},
+		})
+	}
+	return rows
+}
+
+templ contactNameCell(c db.ContactListItem) {
+	<span class="dt-name">
+		<span class="dt-avatar">{ contactInitials(c.Name) }</span>
+		<span class="dt-name-text">{ c.Name }</span>
+	</span>
+}
+
+templ contactEmailCell(c db.ContactListItem) {
+	if c.PrimaryEmail != "" {
+		<span class="dt-email">{ c.PrimaryEmail }</span>
+	} else {
+		<span class="dt-muted">—</span>
+	}
+}
+
+templ contactMutedCell(value string) {
+	<span class="dt-muted">{ contactDash(value) }</span>
+}

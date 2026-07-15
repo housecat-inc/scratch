@@ -99,7 +99,9 @@ func newRootCmd() *cobra.Command {
 			srv.Mux.HandleFunc("/chat", http.NotFound)
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			srv.Mux.Handle("/", todo.NewWebServerWithChat(svc, chatSvc, logger).Handler())
+			webSrv := todo.NewWebServerWithChat(svc, chatSvc, logger)
+			webSrv.SetContacts(store)
+			srv.Mux.Handle("/", webSrv.Handler())
 
 			slog.Info("listening", "addr", addr)
 			return srv.Run()

@@ -1,0 +1,97 @@
+package uikit
+
+import "strconv"
+
+templ DataTable(p DataTableProps) {
+	<div id={ p.ID } class="dt-wrap">
+		<div class="dt-scroll">
+			<div class="dt-table" role="table">
+				<div class="dt-head" role="row" { dtGridAttrs(p.Columns)... }>
+					for _, col := range p.Columns {
+						<div class={ dtHeadCellClass(col) } role="columnheader">
+							if col.Icon != "" {
+								<span class="dt-head-icon">
+									@Icon(col.Icon)
+								</span>
+							}
+							<span>{ col.Header }</span>
+						</div>
+					}
+				</div>
+				if len(p.Rows) == 0 {
+					<div class="dt-empty">{ dtEmpty(p.Empty) }</div>
+				} else {
+					for _, row := range p.Rows {
+						@dataTableRow(p, row)
+					}
+				}
+			</div>
+		</div>
+		@dataTableFooter(p)
+	</div>
+}
+
+templ dataTableRow(p DataTableProps, row DataTableRow) {
+	if row.Href != "" {
+		<a href={ templ.SafeURL(row.Href) } class="dt-row" role="row" { dtGridAttrs(p.Columns)... } { row.LinkAttrs... }>
+			for i, cell := range row.Cells {
+				<div class={ dtCellClass(colAt(p.Columns, i)) } role="cell">
+					@cell
+				</div>
+			}
+		</a>
+	} else {
+		<div class="dt-row" role="row" { dtGridAttrs(p.Columns)... }>
+			for i, cell := range row.Cells {
+				<div class={ dtCellClass(colAt(p.Columns, i)) } role="cell">
+					@cell
+				</div>
+			}
+		</div>
+	}
+}
+
+templ dataTableFooter(p DataTableProps) {
+	<div class="dt-footer">
+		<span class="dt-count">{ dtRangeLabel(p) }</span>
+		if dtTotalPages(p) > 1 {
+			<nav class="dt-pager" aria-label="Pagination">
+				@dtPagerLink(p, p.Page-1, "‹", p.Page <= 1)
+				for _, n := range dtPageWindow(p.Page, dtTotalPages(p)) {
+					@dtPagerPage(p, n)
+				}
+				@dtPagerLink(p, p.Page+1, "›", p.Page >= dtTotalPages(p))
+			</nav>
+		}
+	</div>
+}
+
+templ dtPagerPage(p DataTableProps, n int) {
+	if n == p.Page {
+		<span class="dt-page dt-page-active" aria-current="page">{ strconv.Itoa(n) }</span>
+	} else {
+		<a
+			class="dt-page"
+			href={ templ.SafeURL(dtPageHref(p.BaseHref, n)) }
+			hx-get={ dtPageHref(p.BaseHref, n) }
+			hx-target={ "#" + p.ID }
+			hx-swap="outerHTML"
+			hx-push-url="true"
+		>{ strconv.Itoa(n) }</a>
+	}
+}
+
+templ dtPagerLink(p DataTableProps, n int, label string, disabled bool) {
+	if disabled {
+		<span class="dt-page dt-page-disabled" aria-disabled="true">{ label }</span>
+	} else {
+		<a
+			class="dt-page"
+			href={ templ.SafeURL(dtPageHref(p.BaseHref, n)) }
+			hx-get={ dtPageHref(p.BaseHref, n) }
+			hx-target={ "#" + p.ID }
+			hx-swap="outerHTML"
+			hx-push-url="true"
+		>{ label }</a>
+	}
+}

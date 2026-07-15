@@ -18,9 +18,10 @@ import (
 const chatLabelTodo = "todo"
 
 type WebServer struct {
-	chat  *chat.Service
-	log   *slog.Logger
-	tasks *Service
+	chat     *chat.Service
+	contacts db.ContactStore
+	log      *slog.Logger
+	tasks    *Service
 }
 
 func NewWebServer(tasks *Service, log *slog.Logger) *WebServer {
@@ -34,10 +35,15 @@ func NewWebServerWithChat(tasks *Service, chat *chat.Service, log *slog.Logger) 
 	return &WebServer{chat: chat, log: log, tasks: tasks}
 }
 
+func (s *WebServer) SetContacts(contacts db.ContactStore) {
+	s.contacts = contacts
+}
+
 func (s *WebServer) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleList)
 	mux.HandleFunc("GET /chats", s.handleChats)
+	mux.HandleFunc("GET /contacts", s.handleContacts)
 	mux.HandleFunc("GET /tasks", s.handleTasks)
 	mux.HandleFunc("GET /tasks/{id}", s.handleShow)
 	mux.HandleFunc("POST /tasks", s.handleCreate)
