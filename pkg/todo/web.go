@@ -54,6 +54,7 @@ func (s *WebServer) Handler() http.Handler {
 	mux.HandleFunc("GET /workflows", s.handleWorkflows)
 	mux.HandleFunc("POST /workflows", s.handleStartWorkflow)
 	mux.HandleFunc("GET /workflows/{id}", s.handleWorkflow)
+	mux.HandleFunc("GET /workflows/{id}/events", s.handleWorkflowEvents)
 	mux.HandleFunc("POST /workflows/{id}/resolve", s.handleResolveWorkflow)
 	mux.HandleFunc("GET /tasks/{id}", s.handleShow)
 	mux.HandleFunc("POST /tasks", s.handleCreate)

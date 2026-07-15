@@ -1,12 +1,16 @@
 package todo
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
@@ -110,11 +114,117 @@ func (s *WebServer) handleWorkflow(w http.ResponseWriter, r *http.Request) {
 		s.notFoundOr(w, err)
 		return
 	}
-	if r.Header.Get("HX-Request") != "" {
-		s.render(w, r, ui.WorkflowRunBody(detail))
+	s.render(w, r, ui.WorkflowRunPage(ui.WorkflowRunProps{Counts: s.navCounts(), Detail: detail}))
+}
+
+const workflowEventInterval = 400 * time.Millisecond
+
+func (s *WebServer) handleWorkflowEvents(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsEnabled() {
+		http.NotFound(w, r)
 		return
 	}
-	s.render(w, r, ui.WorkflowRunPage(ui.WorkflowRunProps{Counts: s.navCounts(), Detail: detail}))
+	id, ok := taskPathID(w, r)
+	if !ok {
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if s.chat.ThreadWorkflowID(thread) == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Content-Type", "text/event-stream")
+
+	after, _ := strconv.Atoi(r.URL.Query().Get("after"))
+	if last, err := strconv.Atoi(r.Header.Get("Last-Event-ID")); err == nil && last > after {
+		after = last
+	}
+
+	ticker := time.NewTicker(workflowEventInterval)
+	defer ticker.Stop()
+
+	ctx := r.Context()
+	var lastStatus, lastPending string
+	for {
+		detail, err := s.workflowDetail(id)
+		if err != nil {
+			return
+		}
+		if err := writeWorkflowChanged(w, ctx, "status", ui.TaskWorkflowStatus(detail), &lastStatus); err != nil {
+			return
+		}
+		for _, item := range detail.Items {
+			if !item.Durable || item.ID <= after {
+				continue
+			}
+			if err := writeWorkflowEvent(w, ctx, "step", strconv.Itoa(item.ID), ui.WorkflowStep(item)); err != nil {
+				return
+			}
+			after = item.ID
+		}
+		if err := writeWorkflowChanged(w, ctx, "pending", ui.WorkflowPending(detail), &lastPending); err != nil {
+			return
+		}
+		flusher.Flush()
+		if !detail.Running {
+			fmt.Fprint(w, "event: done\ndata: done\n\n")
+			flusher.Flush()
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func writeWorkflowChanged(w io.Writer, ctx context.Context, event string, comp templ.Component, last *string) error {
+	var buf bytes.Buffer
+	if err := comp.Render(ctx, &buf); err != nil {
+		return err
+	}
+	if buf.String() == *last {
+		return nil
+	}
+	*last = buf.String()
+	return writeWorkflowSSE(w, event, "", buf.String())
+}
+
+func writeWorkflowEvent(w io.Writer, ctx context.Context, event, id string, comp templ.Component) error {
+	var buf bytes.Buffer
+	if err := comp.Render(ctx, &buf); err != nil {
+		return err
+	}
+	return writeWorkflowSSE(w, event, id, buf.String())
+}
+
+func writeWorkflowSSE(w io.Writer, event, id, html string) error {
+	if id != "" {
+		if _, err := fmt.Fprintf(w, "id: %s\n", id); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+		return err
+	}
+	for _, line := range strings.Split(strings.ReplaceAll(html, "\r", ""), "\n") {
+		if _, err := fmt.Fprintf(w, "data: %s\n", line); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprint(w, "\n")
+	return err
 }
 
 func (s *WebServer) handleResolveWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -146,9 +256,16 @@ func (s *WebServer) handleResolveWorkflow(w http.ResponseWriter, r *http.Request
 			values[name] = r.PostForm.Get(key)
 		}
 	}
-	err = s.flows.Resolve(workflowID, r.PostForm.Get("elicitation_id"), r.PostForm.Get("action"), values)
+	elicitationID := r.PostForm.Get("elicitation_id")
+	action := r.PostForm.Get("action")
+	err = s.flows.Resolve(workflowID, elicitationID, action, values)
 	switch {
 	case err == nil, errors.Is(err, flow.ErrFormResolved):
+		http.Redirect(w, r, "/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	case errors.Is(err, flow.ErrFormStale):
+		if !s.recoverStaleWorkflowForm(w, id, workflowID, elicitationID, action, values) {
+			return
+		}
 		http.Redirect(w, r, "/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 	case elicit.IsInvalid(err):
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
@@ -157,6 +274,30 @@ func (s *WebServer) handleResolveWorkflow(w http.ResponseWriter, r *http.Request
 	default:
 		s.fail(w, err)
 	}
+}
+
+func (s *WebServer) recoverStaleWorkflowForm(w http.ResponseWriter, threadID int64, workflowID, elicitationID, action string, values map[string]string) bool {
+	forkedID, err := s.flows.EditForm(workflowID, elicitationID, action, values)
+	switch {
+	case err == nil:
+	case elicit.IsInvalid(err):
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return false
+	case errors.Is(err, flow.ErrFormNotFound):
+		http.Error(w, "form not found", http.StatusNotFound)
+		return false
+	default:
+		s.fail(w, err)
+		return false
+	}
+	if err := s.flows.Cancel(workflowID); err != nil {
+		s.log.Warn("cancel stale workflow", "id", workflowID, "err", err)
+	}
+	if err := s.chat.SetThreadWorkflowID(threadID, forkedID); err != nil {
+		s.fail(w, err)
+		return false
+	}
+	return true
 }
 
 func (s *WebServer) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {

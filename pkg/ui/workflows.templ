@@ -83,36 +83,30 @@ templ WorkflowRunPage(p WorkflowRunProps) {
 	</html>
 }
 
-templ WorkflowRunBody(d InboxWorkflowDetail) {
-	<div
-		id="wf-run-body"
-		if d.Running && !d.Awaiting {
-			hx-get={ "/workflows/" + strconv.FormatInt(d.ID, 10) }
-			hx-trigger="every 1s"
-			hx-target="#wf-run-body"
-			hx-swap="outerHTML"
-		}
-	>
+templ TaskWorkflowStatus(d InboxWorkflowDetail) {
+	<div id="wf-status">
 		@ReaderHeader(ReaderHeaderProps{
 			BackHref: "/workflows",
 			Description: workflowStatusLabel(d.Status),
 			Title: d.Title,
 		}) {
 		}
+	</div>
+}
+
+templ WorkflowRunBody(d InboxWorkflowDetail) {
+	<div id="wf-reader" data-events-url={ "/workflows/" + strconv.FormatInt(d.ID, 10) + "/events" }>
+		@TaskWorkflowStatus(d)
 		<div class="mail-reader-body mail-chat-body">
-			<div class="chat-messages mail-chat-messages">
-				<div>
+			<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
+				<div id="wf-steps">
 					for _, item := range d.Items {
 						if item.Durable {
 							@WorkflowStep(item)
 						}
 					}
 				</div>
-				for i, item := range d.Items {
-					if !item.Durable {
-						@workflowItem("wf-pending-" + strconv.Itoa(i), item)
-					}
-				}
+				@WorkflowPending(d)
 			</div>
 		</div>
 	</div>
