@@ -1,5 +1,7 @@
 package ui
 
+import "github.com/housecat-inc/scratch/uikit"
+
 type WorkflowStartOption struct {
 	Label string
 	Type  string
@@ -14,13 +16,17 @@ type WorkflowRunItem struct {
 }
 
 type WorkflowsProps struct {
-	Counts NavCounts
-	Runs   []WorkflowRunItem
+	ChatLabel   string
+	ChatOptions []uikit.SelectOption
+	Counts      NavCounts
+	Runs        []WorkflowRunItem
 }
 
 type WorkflowRunProps struct {
-	Counts NavCounts
-	Detail InboxWorkflowDetail
+	ChatLabel   string
+	ChatOptions []uikit.SelectOption
+	Counts      NavCounts
+	Detail      InboxWorkflowDetail
 }
 
 func TaskWorkflowOptions() []WorkflowStartOption {

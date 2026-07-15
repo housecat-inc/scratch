@@ -25,12 +25,15 @@ func (s *WebServer) handleContacts(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	chatOptions, chatLabel := s.chatActions()
 	props := ui.ContactsProps{
-		Contacts: items,
-		Counts:   s.navCounts(),
-		Page:     page,
-		PerPage:  contactsPerPage,
-		Total:    total,
+		ChatLabel:   chatLabel,
+		ChatOptions: chatOptions,
+		Contacts:    items,
+		Counts:      s.navCounts(),
+		Page:        page,
+		PerPage:     contactsPerPage,
+		Total:       total,
 	}
 	if r.Header.Get("HX-Request") != "" {
 		s.render(w, r, ui.ContactsTable(props))

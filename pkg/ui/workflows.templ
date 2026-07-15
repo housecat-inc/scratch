@@ -14,7 +14,7 @@ templ WorkflowsPage(p WorkflowsProps) {
 		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				Actions: WorkflowStartForm(p),
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: appNav("workflows", p.Counts),
@@ -22,8 +22,9 @@ templ WorkflowsPage(p WorkflowsProps) {
 				<header class="mail-mainbar">
 					<div class="mail-mainbar-title">
 						<h1>Workflows</h1>
+						<span>{ strconv.Itoa(len(p.Runs)) }</span>
 					</div>
-					<span>{ strconv.Itoa(len(p.Runs)) }</span>
+					@WorkflowStartForm(p)
 				</header>
 				if len(p.Runs) == 0 {
 					<div class="mail-empty">No workflow runs yet. Start one above.</div>
@@ -73,6 +74,7 @@ templ WorkflowRunPage(p WorkflowRunProps) {
 		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: appNav("workflows", p.Counts),

@@ -1334,6 +1334,18 @@ textarea {
   padding: 0;
 }
 
+#wf-steps,
+#wf-pending,
+#wf-steps > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+#wf-body > #wf-steps + #wf-pending {
+  margin-top: 1.25rem;
+}
+
 .mail-footer {
   align-items: flex-end;
   background: #f8fafc;

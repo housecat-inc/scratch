@@ -14,6 +14,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/server/httperr"
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/ui"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 const chatLabelTodo = "todo"
@@ -43,6 +44,13 @@ func (s *WebServer) SetContacts(contacts db.ContactStore) {
 
 func (s *WebServer) SetFlows(flows *flow.Engine) {
 	s.flows = flows
+}
+
+func (s *WebServer) chatActions() (options []uikit.SelectOption, label string) {
+	if s.chat == nil {
+		return nil, ""
+	}
+	return chat.ProviderModelOptions(s.chat.AgentNames()), chatLabelTodo
 }
 
 func (s *WebServer) Handler() http.Handler {

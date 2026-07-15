@@ -70,7 +70,13 @@ func (s *WebServer) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 			When:   todoWhen(thread.UpdatedAt.Time),
 		})
 	}
-	s.render(w, r, ui.WorkflowsPage(ui.WorkflowsProps{Counts: s.navCounts(), Runs: runs}))
+	chatOptions, chatLabel := s.chatActions()
+	s.render(w, r, ui.WorkflowsPage(ui.WorkflowsProps{
+		ChatLabel:   chatLabel,
+		ChatOptions: chatOptions,
+		Counts:      s.navCounts(),
+		Runs:        runs,
+	}))
 }
 
 func (s *WebServer) handleStartWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +120,13 @@ func (s *WebServer) handleWorkflow(w http.ResponseWriter, r *http.Request) {
 		s.notFoundOr(w, err)
 		return
 	}
-	s.render(w, r, ui.WorkflowRunPage(ui.WorkflowRunProps{Counts: s.navCounts(), Detail: detail}))
+	chatOptions, chatLabel := s.chatActions()
+	s.render(w, r, ui.WorkflowRunPage(ui.WorkflowRunProps{
+		ChatLabel:   chatLabel,
+		ChatOptions: chatOptions,
+		Counts:      s.navCounts(),
+		Detail:      detail,
+	}))
 }
 
 const workflowEventInterval = 400 * time.Millisecond

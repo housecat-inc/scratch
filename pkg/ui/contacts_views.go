@@ -4,14 +4,17 @@ import (
 	"strings"
 
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 type ContactsProps struct {
-	Contacts []db.ContactListItem
-	Counts   NavCounts
-	Page     int
-	PerPage  int
-	Total    int
+	ChatLabel   string
+	ChatOptions []uikit.SelectOption
+	Contacts    []db.ContactListItem
+	Counts      NavCounts
+	Page        int
+	PerPage     int
+	Total       int
 }
 
 func contactInitials(name string) string {

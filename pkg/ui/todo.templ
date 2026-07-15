@@ -33,6 +33,10 @@ templ TodoPage(p TodoProps) {
 }
 
 templ TodoActions(p TodoProps) {
+	@AppActions(p.ChatOptions, p.ChatLabel)
+}
+
+templ AppActions(chatOptions []uikit.SelectOption, chatLabel string) {
 	<div class="todo-topbar-actions">
 		<form class="todo-create-form" method="post" action="/tasks">
 			<input class="todo-new-input" name="title" placeholder="New task" autocomplete="off" required/>
@@ -41,9 +45,9 @@ templ TodoActions(p TodoProps) {
 				<span>Add</span>
 			</button>
 		</form>
-		if len(p.ChatOptions) > 0 {
+		if len(chatOptions) > 0 {
 			<div class="mail-chat-actions">
-				@uikit.NewChatAction(uikit.NewChatActionProps{Label: p.ChatLabel, Options: p.ChatOptions})
+				@uikit.NewChatAction(uikit.NewChatActionProps{Label: chatLabel, Options: chatOptions})
 				@uikit.ChatHistoryAction("/chats")
 			</div>
 		}

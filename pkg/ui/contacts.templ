@@ -15,6 +15,7 @@ templ ContactsPage(p ContactsProps) {
 		}
 		<body>
 			@uikit.Shell(uikit.ShellProps{
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
 				AppName: "todos",
 				BrandHref: "/",
 				MainClass: "contacts-main",
