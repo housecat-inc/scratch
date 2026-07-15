@@ -114,11 +114,10 @@ func TestTodoWebBrowser(t *testing.T) {
 		},
 		{
 			Act: []webStep{
-				testkit.TypeStep[*webHarness](".todo-new-input", "buy milk"),
-				testkit.ClickStep[*webHarness](".todo-create-form button"),
+				testkit.ClickStep[*webHarness](`[aria-label="New task"]`),
 			},
 			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "buy milk"),
+				testkit.TextContainsStep[*webHarness](".mail-reader-title", "New task"),
 				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Active"),
 				webElementAbsent("section.mail-card"),
 			},
