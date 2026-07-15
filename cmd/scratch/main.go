@@ -95,6 +95,7 @@ func newRootCmd() *cobra.Command {
 				Log:     logger,
 				Workdir: workdir,
 			})
+			chatSvc.SetResolver(flows)
 			if err := workflows.Launch(); err != nil {
 				return errors.Wrap(err, "launch workflows")
 			}
