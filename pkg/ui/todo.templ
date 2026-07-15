@@ -19,7 +19,7 @@ templ TodoPage(p TodoProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: todoNavItems(p),
-				SidebarTop: FlowLauncher(),
+				SidebarTop: ComposeLauncher(),
 			}) {
 				if p.View == "chats" {
 					@TodoChatListView(p)
@@ -37,8 +37,15 @@ templ TodoActions(p TodoProps) {
 	@AppActions(p.ChatOptions, p.ChatLabel)
 }
 
-templ FlowLauncher() {
+templ ComposeLauncher() {
 	<div class="mail-compose-actions">
+		<form class="mail-compose-btn-form" method="post" action="/tasks">
+			<input type="hidden" name="title" value="New task"/>
+			<button class="mail-compose-btn" type="submit" title="New task" aria-label="New task">
+				@plusIcon()
+				<span>Task</span>
+			</button>
+		</form>
 		<form class="mail-compose-combo" method="post" action="/workflows">
 			<button class="mail-compose-btn" type="submit" title="New workflow" aria-label="New workflow">
 				@plusIcon()
@@ -58,21 +65,12 @@ templ FlowLauncher() {
 }
 
 templ AppActions(chatOptions []uikit.SelectOption, chatLabel string) {
-	<div class="todo-topbar-actions">
-		<form class="todo-create-form" method="post" action="/tasks">
-			<input class="todo-new-input" name="title" placeholder="New task" autocomplete="off" required/>
-			<button class="mail-create-btn" type="submit">
-				@uikit.Icon("task")
-				<span>Add</span>
-			</button>
-		</form>
-		if len(chatOptions) > 0 {
-			<div class="mail-chat-actions">
-				@uikit.NewChatAction(uikit.NewChatActionProps{Label: chatLabel, Options: chatOptions})
-				@uikit.ChatHistoryAction("/chats")
-			</div>
-		}
-	</div>
+	if len(chatOptions) > 0 {
+		<div class="mail-chat-actions">
+			@uikit.NewChatAction(uikit.NewChatActionProps{Label: chatLabel, Options: chatOptions})
+			@uikit.ChatHistoryAction("/chats")
+		</div>
+	}
 }
 
 templ TodoChatListView(p TodoProps) {

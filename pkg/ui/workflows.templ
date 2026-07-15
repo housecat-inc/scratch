@@ -18,7 +18,7 @@ templ WorkflowsPage(p WorkflowsProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: appNav("workflows", p.Counts),
-				SidebarTop: FlowLauncher(),
+				SidebarTop: ComposeLauncher(),
 			}) {
 				<header class="mail-mainbar">
 					<div class="mail-mainbar-title">
@@ -78,7 +78,7 @@ templ WorkflowRunPage(p WorkflowRunProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: appNav("workflows", p.Counts),
-				SidebarTop: FlowLauncher(),
+				SidebarTop: ComposeLauncher(),
 			}) {
 				@WorkflowRunBody(p.Detail)
 			}

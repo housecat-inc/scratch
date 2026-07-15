@@ -1358,55 +1358,6 @@ textarea {
   padding: 0.65rem 0.9rem;
 }
 
-.todo-create-form {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.45rem;
-  min-width: min(28rem, 100%);
-}
-
-.todo-topbar-actions {
-  align-items: center;
-  display: flex;
-  gap: 0.45rem;
-  min-width: 0;
-  width: 100%;
-}
-
-.todo-topbar-actions .mail-chat-actions {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.45rem;
-  margin-left: auto;
-}
-
-.todo-topbar-actions .todo-create-form {
-  flex: 0 1 28rem;
-  min-width: 0;
-  width: clamp(8rem, calc(100% - 9rem), 28rem);
-}
-
-.todo-topbar-actions .todo-new-input {
-  min-width: 0;
-}
-
-.todo-new-input {
-  background: #fff;
-  border: 1px solid #d8dee9;
-  border-radius: 999px;
-  color: #111827;
-  height: 2.2rem;
-  min-width: 12rem;
-  outline: none;
-  padding: 0 0.85rem;
-  width: 100%;
-}
-
-.todo-new-input:focus {
-  border-color: #94a3b8;
-  box-shadow: 0 0 0 3px rgb(148 163 184 / 0.2);
-}
-
 .todo-reader-head {
   border-top: 1px solid #e5e7eb;
 }

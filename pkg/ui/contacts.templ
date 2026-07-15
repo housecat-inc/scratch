@@ -20,7 +20,7 @@ templ ContactsPage(p ContactsProps) {
 				BrandHref: "/",
 				MainClass: "contacts-main",
 				Nav: appNav("contacts", p.Counts),
-				SidebarTop: FlowLauncher(),
+				SidebarTop: ComposeLauncher(),
 			}) {
 				<header class="mail-mainbar">
 					<div class="mail-mainbar-title">
@@ -46,7 +46,7 @@ templ ContactDetailPage(p ContactDetailProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: appNav("contacts", p.Counts),
-				SidebarTop: FlowLauncher(),
+				SidebarTop: ComposeLauncher(),
 			}) {
 				@ReaderHeader(ReaderHeaderProps{
 					BackHref: "/contacts",
