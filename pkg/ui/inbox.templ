@@ -691,7 +691,7 @@ func workflowLastStepID(items []WorkflowItemProps) int {
 }
 
 func workflowRowRunning(status string) bool {
-	return status == "PENDING" || status == "ENQUEUED" || status == "DELAYED"
+	return status == "PENDING" || status == "ENQUEUED"
 }
 
 func workflowResumable(status string) bool {

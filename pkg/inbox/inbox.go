@@ -382,8 +382,13 @@ func (s *Server) handleWorkflowEvents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
-	if _, err := s.chat.Thread(id); err != nil {
+	thread, err := s.chat.Thread(id)
+	if err != nil {
 		s.notFoundOr(w, err)
+		return
+	}
+	if s.chat.ThreadWorkflowID(thread) == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-cache")
@@ -455,11 +460,17 @@ func (s *Server) writeWorkflowEvent(w io.Writer, ctx context.Context, event, id 
 
 func writeWorkflowSSE(w io.Writer, event, id, html string) error {
 	if id != "" {
-		fmt.Fprintf(w, "id: %s\n", id)
+		if _, err := fmt.Fprintf(w, "id: %s\n", id); err != nil {
+			return err
+		}
 	}
-	fmt.Fprintf(w, "event: %s\n", event)
+	if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+		return err
+	}
 	for line := range strings.SplitSeq(strings.ReplaceAll(html, "\r", ""), "\n") {
-		fmt.Fprintf(w, "data: %s\n", line)
+		if _, err := fmt.Fprintf(w, "data: %s\n", line); err != nil {
+			return err
+		}
 	}
 	_, err := fmt.Fprint(w, "\n")
 	return err
