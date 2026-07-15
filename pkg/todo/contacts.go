@@ -27,7 +27,7 @@ func (s *WebServer) handleContacts(w http.ResponseWriter, r *http.Request) {
 	}
 	props := ui.ContactsProps{
 		Contacts: items,
-		Counts:   s.navCounts(total),
+		Counts:   s.navCounts(),
 		Page:     page,
 		PerPage:  contactsPerPage,
 		Total:    total,
@@ -39,18 +39,22 @@ func (s *WebServer) handleContacts(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, ui.ContactsPage(props))
 }
 
-func (s *WebServer) navCounts(contactCount int) ui.NavCounts {
-	counts := ui.NavCounts{Contacts: contactCount}
-	all, err := s.tasks.All()
-	if err != nil {
-		return counts
+func (s *WebServer) navCounts() ui.NavCounts {
+	counts := ui.NavCounts{}
+	if all, err := s.tasks.All(); err == nil {
+		for _, task := range all {
+			if !task.Archived && !task.Completed {
+				counts.Inbox++
+			}
+		}
+		counts.Tasks = len(all)
 	}
-	for _, task := range all {
-		if !task.Archived && !task.Completed {
-			counts.Inbox++
+	if s.contacts != nil {
+		if n, err := s.contacts.CountContacts(); err == nil {
+			counts.Contacts = n
 		}
 	}
-	counts.Tasks = len(all)
+	counts.Workflows = len(s.workflowThreads())
 	return counts
 }
 

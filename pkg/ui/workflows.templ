@@ -1,0 +1,119 @@
+package ui
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/uikit"
+)
+
+templ WorkflowsPage(p WorkflowsProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Workflows") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: WorkflowStartForm(p),
+				AppName: "todos",
+				BrandHref: "/",
+				Nav: appNav("workflows", p.Counts),
+			}) {
+				<header class="mail-mainbar">
+					<div class="mail-mainbar-title">
+						<h1>Workflows</h1>
+					</div>
+					<span>{ strconv.Itoa(len(p.Runs)) }</span>
+				</header>
+				if len(p.Runs) == 0 {
+					<div class="mail-empty">No workflow runs yet. Start one above.</div>
+				} else {
+					<div class="mail-list">
+						for _, run := range p.Runs {
+							@workflowRunRow(run)
+						}
+					</div>
+				}
+			}
+		</body>
+	</html>
+}
+
+templ WorkflowStartForm(p WorkflowsProps) {
+	<form class="todo-topbar-actions" method="post" action="/workflows">
+		<select class="wf-start-select" name="workflow_type">
+			for _, opt := range TaskWorkflowOptions() {
+				<option value={ opt.Type }>{ opt.Label }</option>
+			}
+		</select>
+		<button class="mail-create-btn" type="submit">
+			@uikit.Icon("play")
+			<span>Run</span>
+		</button>
+	</form>
+}
+
+templ workflowRunRow(run WorkflowRunItem) {
+	@uikit.ListRow(uikit.ListRowProps{
+		Href: run.Href,
+		ID: strconv.FormatInt(run.ID, 10),
+		Kind: "workflow",
+		Labels: []string{workflowStatusLabel(run.Status)},
+		Subject: workflowStatusLabel(run.Status),
+		What: run.Title,
+		When: run.When,
+	})
+}
+
+templ WorkflowRunPage(p WorkflowRunProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Workflow") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				AppName: "todos",
+				BrandHref: "/",
+				Nav: appNav("workflows", p.Counts),
+			}) {
+				@WorkflowRunBody(p.Detail)
+			}
+		</body>
+	</html>
+}
+
+templ WorkflowRunBody(d InboxWorkflowDetail) {
+	<div
+		id="wf-run-body"
+		if d.Running {
+			hx-get={ "/workflows/" + strconv.FormatInt(d.ID, 10) }
+			hx-trigger="every 1s"
+			hx-target="#wf-run-body"
+			hx-swap="outerHTML"
+		}
+	>
+		@ReaderHeader(ReaderHeaderProps{
+			BackHref: "/workflows",
+			Description: workflowStatusLabel(d.Status),
+			Title: d.Title,
+		}) {
+		}
+		<div class="mail-reader-body mail-chat-body">
+			<div class="chat-messages mail-chat-messages">
+				<div>
+					for _, item := range d.Items {
+						if item.Durable {
+							@WorkflowStep(item)
+						}
+					}
+				</div>
+				for i, item := range d.Items {
+					if !item.Durable {
+						@workflowItem("wf-pending-" + strconv.Itoa(i), item)
+					}
+				}
+			</div>
+		</div>
+	</div>
+}

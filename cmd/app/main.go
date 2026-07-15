@@ -102,6 +102,7 @@ func newRootCmd() *cobra.Command {
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 			webSrv := todo.NewWebServerWithChat(svc, chatSvc, logger)
 			webSrv.SetContacts(store)
+			webSrv.SetFlows(flows)
 			contacts.NewServer(store).RegisterAPI(srv.Mux)
 			srv.Mux.Handle("/", webSrv.Handler())
 
