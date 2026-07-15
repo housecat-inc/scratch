@@ -546,6 +546,13 @@ func (e *Engine) Cancel(id string) error {
 	return errors.Wrap(dbos.CancelWorkflow(e.ctx, id), "cancel workflow")
 }
 
+func (e *Engine) Resume(id string) error {
+	if _, err := dbos.ResumeWorkflow[string](e.ctx, id); err != nil {
+		return errors.Wrap(err, "resume workflow")
+	}
+	return nil
+}
+
 func (e *Engine) EditForm(id, elicitationID, action string, values map[string]string) (string, error) {
 	forkedID, err := e.Fork(id, elicitationID)
 	if err != nil {

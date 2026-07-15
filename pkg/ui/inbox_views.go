@@ -24,6 +24,7 @@ type InboxItem struct {
 	Kind      string
 	Snippet   string
 	Starred   bool
+	Status    string
 	Title     string
 	UpdatedAt time.Time
 	When      string

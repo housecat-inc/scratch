@@ -194,6 +194,12 @@ templ InboxRow(item InboxItem, view, filter string) {
 }
 
 templ InboxRowActions(item InboxItem, view, filter string) {
+	if item.Kind == "workflow" && workflowRowRunning(item.Status) {
+		@rowPostButton(itemActionURL(item, "cancel"), view, filter, "Cancel", stopIcon(), "gm-row-action danger", "Cancel")
+	}
+	if item.Kind == "workflow" && workflowResumable(item.Status) {
+		@rowPostButton(itemActionURL(item, "resume"), view, filter, "Resume", playIcon(), "gm-row-action", "Resume")
+	}
 	if item.Archived {
 		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), unarchiveIcon(), "gm-row-action", "Unarchive")
 		@rowTrashButton(itemActionURL(item, "trash"), view, filter, trashActionLabel(item), "gm-row-action")
@@ -328,6 +334,12 @@ templ WorkflowStatus(d InboxWorkflowDetail) {
 			Description: workflowStatusLabel(d.Status),
 			Title: d.Title,
 		}) {
+			if d.Running {
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "cancel"), "Cancel", stopIcon())
+			}
+			if workflowResumable(d.Status) {
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "resume"), "Resume", playIcon())
+			}
 			if d.Archived {
 				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
 				@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow")
@@ -676,6 +688,14 @@ func workflowLastStepID(items []WorkflowItemProps) int {
 		}
 	}
 	return last
+}
+
+func workflowRowRunning(status string) bool {
+	return status == "PENDING" || status == "ENQUEUED" || status == "DELAYED"
+}
+
+func workflowResumable(status string) bool {
+	return status == "CANCELLED" || status == "MAX_RECOVERY_ATTEMPTS_EXCEEDED"
 }
 
 func workflowStatusLabel(status string) string {

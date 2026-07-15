@@ -68,11 +68,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/schedules/{name}/resume", s.handleResumeSchedule)
 	mux.HandleFunc("POST /inbox/schedules/{name}/trigger", s.handleTriggerSchedule)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/cancel", s.handleCancelWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/edit", s.handleEditWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/fork", s.handleForkWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/resolve", s.handleResolveWorkflow)
+	mux.HandleFunc("POST /inbox/workflows/{id}/resume", s.handleResumeWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
-	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
 	mux.HandleFunc("POST /webhooks/{id}", s.handleWebhook)
 	return logging.Middleware(s.log, mux)
@@ -468,6 +469,36 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{Kind: "schedule", Name: r.PathValue("name")})
 }
 
+func (s *Server) handleCancelWorkflow(w http.ResponseWriter, r *http.Request) {
+	s.workflowLifecycle(w, r, s.flows.Cancel)
+}
+
+func (s *Server) handleResumeWorkflow(w http.ResponseWriter, r *http.Request) {
+	s.workflowLifecycle(w, r, s.flows.Resume)
+}
+
+func (s *Server) workflowLifecycle(w http.ResponseWriter, r *http.Request, action func(string) error) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	workflowID := s.chat.ThreadWorkflowID(thread)
+	if workflowID == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
+		return
+	}
+	if err := action(workflowID); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.redirectBack(w, r)
+}
+
 func composeHasFiles(r *http.Request) bool {
 	if r.MultipartForm == nil {
 		return false
@@ -616,7 +647,9 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 	}
 	for _, thread := range threads {
 		if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
-			item := threadItem(thread, "workflow", "", s.workflowSnippet(workflowID))
+			status, _ := s.flows.Status(workflowID)
+			item := threadItem(thread, "workflow", "", workflowStatusSnippet(status))
+			item.Status = status
 			addCounts(&counts, item)
 			if includeItem(view, filter, item) {
 				all = append(all, item)
@@ -799,12 +832,10 @@ func (s *Server) schedules() ([]ui.WorkflowScheduleView, error) {
 	return views, nil
 }
 
-func (s *Server) workflowSnippet(workflowID string) string {
-	status, err := s.flows.Status(workflowID)
-	if err != nil {
-		return ""
-	}
+func workflowStatusSnippet(status string) string {
 	switch status {
+	case "":
+		return ""
 	case "SUCCESS":
 		return "Completed"
 	case "ERROR":
