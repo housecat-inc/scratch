@@ -118,9 +118,11 @@ type StepView struct {
 	Answer   string
 	Copy     string
 	Detail   string
+	Durable  bool
 	Duration string
 	Failed   bool
 	Form     *elicit.Prompt
+	ID       int
 	Input    string
 	Kind     string
 	Pending  bool
@@ -246,7 +248,9 @@ func (e *Engine) Run(id string) (RunView, error) {
 			prompt := awaiting[0]
 			sv := StepView{
 				Answer:   summarizeReply(prompt, reply),
+				Durable:  true,
 				Duration: stepDuration(s),
+				ID:       s.StepID,
 				Kind:     KindForm,
 				Status:   StepDone,
 				Title:    prompt.Message,
@@ -262,7 +266,9 @@ func (e *Engine) Run(id string) (RunView, error) {
 			body, _ := decode[string](s.Output)
 			sv := StepView{
 				Detail:   body,
+				Durable:  true,
 				Duration: stepDuration(s),
+				ID:       s.StepID,
 				Input:    inputs[s.StepName],
 				Kind:     KindResponse,
 				Status:   stepStatus(s),
@@ -279,8 +285,10 @@ func (e *Engine) Run(id string) (RunView, error) {
 			detail, _ := decode[string](s.Output)
 			view.Steps = append(view.Steps, StepView{
 				Detail:   detail,
+				Durable:  true,
 				Duration: stepDuration(s),
 				Failed:   s.Error != nil,
+				ID:       s.StepID,
 				Input:    inputs[s.StepName],
 				Kind:     KindTool,
 				Status:   stepStatus(s),
@@ -536,6 +544,13 @@ func (e *Engine) Cancel(id string) error {
 		return nil
 	}
 	return errors.Wrap(dbos.CancelWorkflow(e.ctx, id), "cancel workflow")
+}
+
+func (e *Engine) Resume(id string) error {
+	if _, err := dbos.ResumeWorkflow[string](e.ctx, id); err != nil {
+		return errors.Wrap(err, "resume workflow")
+	}
+	return nil
 }
 
 func (e *Engine) EditForm(id, elicitationID, action string, values map[string]string) (string, error) {

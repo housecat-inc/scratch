@@ -67,12 +67,38 @@ func TestThreadCRUD(t *testing.T) {
 	a.Equal("2026-07-11T12:04:00Z", got.UpdatedAt.Format(time.RFC3339))
 }
 
+func TestTrashThreadHidesFromList(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+
+	d := newTestDB(t)
+
+	kept, err := d.AddThread(ThreadKindChat, "Kept", "")
+	r.NoError(err)
+	trashed, err := d.AddThread(ThreadKindChat, "Trashed", "")
+	r.NoError(err)
+	r.NoError(d.SetThreadStarred(trashed.ID, true))
+
+	r.NoError(d.TrashThread(trashed.ID))
+
+	chats, err := d.ListThreads(ThreadKindChat)
+	r.NoError(err)
+	r.Len(chats, 1)
+	a.Equal(kept.ID, chats[0].ID)
+
+	got, err := d.GetThread(trashed.ID)
+	r.NoError(err)
+	a.NotNil(got.TrashedAt)
+	a.False(got.Starred)
+}
+
 func TestThreadErrors(t *testing.T) {
 	tests := []struct {
 		act  func(d *DB) error
 		name string
 	}{
 		{act: func(d *DB) error { return d.DeleteThread(404) }, name: "delete missing"},
+		{act: func(d *DB) error { return d.TrashThread(404) }, name: "trash missing"},
 		{act: func(d *DB) error { _, err := d.GetThread(404); return err }, name: "get missing"},
 		{act: func(d *DB) error { return d.SetThreadAnchor(404, "{}") }, name: "anchor missing"},
 		{act: func(d *DB) error { return d.SetThreadState(404, ThreadStateResolved) }, name: "state missing"},

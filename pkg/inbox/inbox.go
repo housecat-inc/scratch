@@ -1,8 +1,11 @@
 package inbox
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -50,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /inbox/tasks/{id}", s.handleTask)
 	mux.HandleFunc("GET /inbox/schedules/{name}", s.handleSchedule)
 	mux.HandleFunc("GET /inbox/workflows/{id}", s.handleWorkflow)
+	mux.HandleFunc("GET /inbox/workflows/{id}/events", s.handleWorkflowEvents)
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
@@ -64,11 +68,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/schedules/{name}/resume", s.handleResumeSchedule)
 	mux.HandleFunc("POST /inbox/schedules/{name}/trigger", s.handleTriggerSchedule)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/cancel", s.handleCancelWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/edit", s.handleEditWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/fork", s.handleForkWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/resolve", s.handleResolveWorkflow)
+	mux.HandleFunc("POST /inbox/workflows/{id}/resume", s.handleResumeWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
-	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
 	mux.HandleFunc("POST /webhooks/{id}", s.handleWebhook)
 	return logging.Middleware(s.log, mux)
@@ -309,7 +314,17 @@ func (s *Server) handleTrashThread(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.chat.DeleteThread(id); err != nil {
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
+		if err := s.flows.Cancel(workflowID); err != nil {
+			s.log.Warn("cancel workflow before trash", "id", workflowID, "err", err)
+		}
+	}
+	if err := s.chat.TrashThread(id); err != nil {
 		s.notFoundOr(w, err)
 		return
 	}
@@ -355,8 +370,144 @@ func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{})
 }
 
+const workflowEventInterval = 400 * time.Millisecond
+
+func (s *Server) handleWorkflowEvents(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if s.chat.ThreadWorkflowID(thread) == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Content-Type", "text/event-stream")
+
+	after, _ := strconv.Atoi(r.URL.Query().Get("after"))
+	if last, err := strconv.Atoi(r.Header.Get("Last-Event-ID")); err == nil && last > after {
+		after = last
+	}
+
+	ticker := time.NewTicker(workflowEventInterval)
+	defer ticker.Stop()
+
+	ctx := r.Context()
+	var lastStatus, lastPending string
+	for {
+		detail, err := s.workflowDetail(id)
+		if err != nil {
+			return
+		}
+		if err := s.writeWorkflowChanged(w, ctx, "status", ui.WorkflowStatus(detail), &lastStatus); err != nil {
+			return
+		}
+		for _, item := range detail.Items {
+			if !item.Durable || item.ID <= after {
+				continue
+			}
+			if err := s.writeWorkflowEvent(w, ctx, "step", strconv.Itoa(item.ID), ui.WorkflowStep(item)); err != nil {
+				return
+			}
+			after = item.ID
+		}
+		if err := s.writeWorkflowChanged(w, ctx, "pending", ui.WorkflowPending(detail), &lastPending); err != nil {
+			return
+		}
+		flusher.Flush()
+		if !detail.Running {
+			fmt.Fprint(w, "event: done\ndata: done\n\n")
+			flusher.Flush()
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Server) writeWorkflowChanged(w io.Writer, ctx context.Context, event string, comp templ.Component, last *string) error {
+	var buf bytes.Buffer
+	if err := comp.Render(ctx, &buf); err != nil {
+		return err
+	}
+	if buf.String() == *last {
+		return nil
+	}
+	*last = buf.String()
+	return writeWorkflowSSE(w, event, "", buf.String())
+}
+
+func (s *Server) writeWorkflowEvent(w io.Writer, ctx context.Context, event, id string, comp templ.Component) error {
+	var buf bytes.Buffer
+	if err := comp.Render(ctx, &buf); err != nil {
+		return err
+	}
+	return writeWorkflowSSE(w, event, id, buf.String())
+}
+
+func writeWorkflowSSE(w io.Writer, event, id, html string) error {
+	if id != "" {
+		if _, err := fmt.Fprintf(w, "id: %s\n", id); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+		return err
+	}
+	for line := range strings.SplitSeq(strings.ReplaceAll(html, "\r", ""), "\n") {
+		if _, err := fmt.Fprintf(w, "data: %s\n", line); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprint(w, "\n")
+	return err
+}
+
 func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{Kind: "schedule", Name: r.PathValue("name")})
+}
+
+func (s *Server) handleCancelWorkflow(w http.ResponseWriter, r *http.Request) {
+	s.workflowLifecycle(w, r, s.flows.Cancel)
+}
+
+func (s *Server) handleResumeWorkflow(w http.ResponseWriter, r *http.Request) {
+	s.workflowLifecycle(w, r, s.flows.Resume)
+}
+
+func (s *Server) workflowLifecycle(w http.ResponseWriter, r *http.Request, action func(string) error) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	workflowID := s.chat.ThreadWorkflowID(thread)
+	if workflowID == "" {
+		http.Error(w, "not a workflow", http.StatusNotFound)
+		return
+	}
+	if err := action(workflowID); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.redirectBack(w, r)
 }
 
 func composeHasFiles(r *http.Request) bool {
@@ -507,7 +658,9 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 	}
 	for _, thread := range threads {
 		if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
-			item := threadItem(thread, "workflow", "", s.workflowSnippet(workflowID))
+			status, _ := s.flows.Status(workflowID)
+			item := threadItem(thread, "workflow", "", workflowStatusSnippet(status))
+			item.Status = status
 			addCounts(&counts, item)
 			if includeItem(view, filter, item) {
 				all = append(all, item)
@@ -641,8 +794,10 @@ func (s *Server) workflowItemProps(threadID int64, step flow.StepView) ui.Workfl
 		Answer:   step.Answer,
 		Copy:     step.Copy,
 		Detail:   step.Detail,
+		Durable:  step.Durable,
 		Duration: step.Duration,
 		Failed:   step.Failed,
+		ID:       step.ID,
 		Input:    step.Input,
 		Kind:     step.Kind,
 		Running:  step.Status == flow.StepRunning,
@@ -688,12 +843,10 @@ func (s *Server) schedules() ([]ui.WorkflowScheduleView, error) {
 	return views, nil
 }
 
-func (s *Server) workflowSnippet(workflowID string) string {
-	status, err := s.flows.Status(workflowID)
-	if err != nil {
-		return ""
-	}
+func workflowStatusSnippet(status string) string {
 	switch status {
+	case "":
+		return ""
 	case "SUCCESS":
 		return "Completed"
 	case "ERROR":

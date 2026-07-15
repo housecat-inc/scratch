@@ -92,13 +92,6 @@
     }
   });
 
-  document.body.addEventListener("htmx:beforeRequest", (event) => {
-    const target = event.detail.elt;
-    if (target && target.id === "wf-reader" && hasSelectionWithin(target)) {
-      event.preventDefault();
-    }
-  });
-
   function hasSelectionWithin(element) {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.toString().trim() === "") {
@@ -106,4 +99,37 @@
     }
     return element.contains(selection.anchorNode) || element.contains(selection.focusNode);
   }
+
+  const pendingElicitationID = (root) => root.querySelector("#elicit-form [name=elicitation_id]")?.value || "";
+
+  const bootWorkflowStream = () => {
+    const reader = document.getElementById("wf-reader");
+    if (!reader || !reader.dataset.eventsUrl || reader.dataset.wfStream === "1") return;
+    reader.dataset.wfStream = "1";
+
+    const source = new EventSource(reader.dataset.eventsUrl);
+    source.addEventListener("status", (event) => {
+      const el = document.getElementById("wf-status");
+      if (el) el.outerHTML = event.data;
+    });
+    source.addEventListener("step", (event) => {
+      const steps = document.getElementById("wf-steps");
+      if (!steps || document.getElementById("wf-step-" + event.lastEventId)) return;
+      steps.insertAdjacentHTML("beforeend", event.data);
+    });
+    source.addEventListener("pending", (event) => {
+      const el = document.getElementById("wf-pending");
+      if (!el || hasSelectionWithin(el)) return;
+      const current = pendingElicitationID(document);
+      if (current) {
+        const incoming = new DOMParser().parseFromString(event.data, "text/html");
+        if (pendingElicitationID(incoming) === current) return;
+      }
+      el.outerHTML = event.data;
+    });
+    source.addEventListener("done", () => source.close());
+    window.addEventListener("pagehide", () => source.close(), { once: true });
+  };
+
+  bootWorkflowStream();
 })();
