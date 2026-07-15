@@ -11,6 +11,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-fuego/fuego"
 	"github.com/housecat-inc/scratch/pkg/chat"
+	"github.com/housecat-inc/scratch/pkg/contacts"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/todo"
@@ -101,6 +102,7 @@ func newRootCmd() *cobra.Command {
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 			webSrv := todo.NewWebServerWithChat(svc, chatSvc, logger)
 			webSrv.SetContacts(store)
+			contacts.NewServer(store).RegisterAPI(srv.Mux)
 			srv.Mux.Handle("/", webSrv.Handler())
 
 			slog.Info("listening", "addr", addr)

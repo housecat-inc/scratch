@@ -1,19 +1,13 @@
 package todo
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
 
-	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/ui"
 )
 
-const (
-	contactSearchLimit = 20
-	contactsPerPage    = 25
-)
+const contactsPerPage = 25
 
 func (s *WebServer) handleContacts(w http.ResponseWriter, r *http.Request) {
 	if s.contacts == nil {
@@ -43,53 +37,6 @@ func (s *WebServer) handleContacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, r, ui.ContactsPage(props))
-}
-
-func (s *WebServer) handleContactSearch(w http.ResponseWriter, r *http.Request) {
-	if s.contacts == nil {
-		http.NotFound(w, r)
-		return
-	}
-	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	items, err := s.contactMatches(query)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	s.render(w, r, ui.ContactSearchResults(items, query))
-}
-
-func (s *WebServer) handleContactCreate(w http.ResponseWriter, r *http.Request) {
-	if s.contacts == nil {
-		http.NotFound(w, r)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		s.fail(w, err)
-		return
-	}
-	name := strings.TrimSpace(r.FormValue("name"))
-	if name == "" {
-		http.Error(w, "name required", http.StatusBadRequest)
-		return
-	}
-	contact, err := s.contacts.AddContact(name, "", "")
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"id":   strconv.FormatInt(contact.ID, 10),
-		"name": contact.Name,
-	})
-}
-
-func (s *WebServer) contactMatches(query string) ([]db.ContactListItem, error) {
-	if query == "" {
-		return s.contacts.ListContactsPage(contactSearchLimit, 0)
-	}
-	return s.contacts.SearchContacts(query, contactSearchLimit)
 }
 
 func (s *WebServer) navCounts(contactCount int) ui.NavCounts {

@@ -35,3 +35,7 @@ func contactDash(s string) string {
 func contactCreateLabel(query string) string {
 	return `+ Create "` + query + `"`
 }
+
+func contactStatusSlug(status string) string {
+	return strings.ToLower(strings.ReplaceAll(status, " ", "-"))
+}

@@ -14,7 +14,12 @@ type Contact struct {
 	CreatedAt ts.Timestamp
 	ID        int64
 	JobTitle  string
+	Linkedin  string
+	Location  string
 	Name      string
+	Phone     string
+	Status    string
+	Twitter   string
 	UpdatedAt ts.Timestamp
 }
 
@@ -136,7 +141,12 @@ func (d *DB) ListContactsPage(limit, offset int) ([]ContactListItem, error) {
 				CreatedAt: r.CreatedAt,
 				ID:        r.ID,
 				JobTitle:  r.JobTitle,
+				Linkedin:  r.Linkedin,
+				Location:  r.Location,
 				Name:      r.Name,
+				Phone:     r.Phone,
+				Status:    r.Status,
+				Twitter:   r.Twitter,
 				UpdatedAt: r.UpdatedAt,
 			},
 			PrimaryEmail: asString(r.PrimaryEmail),
@@ -163,7 +173,12 @@ func (d *DB) SearchContacts(query string, limit int) ([]ContactListItem, error) 
 				CreatedAt: r.CreatedAt,
 				ID:        r.ID,
 				JobTitle:  r.JobTitle,
+				Linkedin:  r.Linkedin,
+				Location:  r.Location,
 				Name:      r.Name,
+				Phone:     r.Phone,
+				Status:    r.Status,
+				Twitter:   r.Twitter,
 				UpdatedAt: r.UpdatedAt,
 			},
 			PrimaryEmail: asString(r.PrimaryEmail),
@@ -210,7 +225,12 @@ func fromSqliteContact(c sqlite.Contact) Contact {
 		CreatedAt: c.CreatedAt,
 		ID:        c.ID,
 		JobTitle:  c.JobTitle,
+		Linkedin:  c.Linkedin,
+		Location:  c.Location,
 		Name:      c.Name,
+		Phone:     c.Phone,
+		Status:    c.Status,
+		Twitter:   c.Twitter,
 		UpdatedAt: c.UpdatedAt,
 	}
 }

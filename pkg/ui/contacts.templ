@@ -36,10 +36,15 @@ templ ContactsTable(p ContactsProps) {
 	@uikit.DataTable(uikit.DataTableProps{
 		BaseHref: "/contacts",
 		Columns: []uikit.DataTableColumn{
-			{Header: "Name", Icon: "contacts", Sticky: true, Width: "minmax(14rem, 18rem)"},
+			{Header: "Name", Icon: "contacts", Sticky: true, Width: "16rem"},
 			{Header: "Email", Icon: "chat", Width: "18rem"},
 			{Header: "Company", Icon: "database", Width: "14rem"},
-			{Header: "Job title", Icon: "task", Width: "14rem"},
+			{Header: "Job title", Icon: "task", Width: "15rem"},
+			{Header: "Status", Icon: "star", Width: "10rem"},
+			{Header: "Phone", Icon: "chat", Width: "13rem"},
+			{Header: "Location", Icon: "inbox", Width: "14rem"},
+			{Header: "LinkedIn", Icon: "history", Width: "14rem"},
+			{Header: "Twitter", Icon: "chat", Width: "12rem"},
 		},
 		Empty: "No contacts yet.",
 		ID: "contacts-table",
@@ -61,6 +66,11 @@ func contactRows(contacts []db.ContactListItem) []uikit.DataTableRow {
 				contactEmailCell(c),
 				contactMutedCell(c.Company),
 				contactMutedCell(c.JobTitle),
+				contactStatusCell(c.Status),
+				contactMutedCell(c.Phone),
+				contactMutedCell(c.Location),
+				contactMutedCell(c.Linkedin),
+				contactMutedCell(c.Twitter),
 			},
 		})
 	}
@@ -84,6 +94,14 @@ templ contactEmailCell(c db.ContactListItem) {
 
 templ contactMutedCell(value string) {
 	<span class="dt-muted">{ contactDash(value) }</span>
+}
+
+templ contactStatusCell(status string) {
+	if status != "" {
+		<span class={ "dt-badge", "dt-badge-" + contactStatusSlug(status) }>{ status }</span>
+	} else {
+		<span class="dt-muted">—</span>
+	}
 }
 
 templ contactField(field ChatFormFieldProps, disabled bool) {
