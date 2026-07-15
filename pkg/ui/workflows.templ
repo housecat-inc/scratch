@@ -86,7 +86,7 @@ templ WorkflowRunPage(p WorkflowRunProps) {
 templ WorkflowRunBody(d InboxWorkflowDetail) {
 	<div
 		id="wf-run-body"
-		if d.Running {
+		if d.Running && !d.Awaiting {
 			hx-get={ "/workflows/" + strconv.FormatInt(d.ID, 10) }
 			hx-trigger="every 1s"
 			hx-target="#wf-run-body"
