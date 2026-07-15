@@ -439,9 +439,9 @@ templ chatFormBody(f ChatFormProps) {
 		</div>
 	}
 	if !f.Editable && !f.Disabled {
-		<div class="chat-elicit-actions">
-			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
-			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
+		<div class="chat-elicit-actions chat-elicit-decisions">
+			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>{ declineLabel(f) }</button>
+			<button id="elicit-accept" name="action" value="accept" type="submit">{ acceptLabel(f) }</button>
 		</div>
 	}
 }

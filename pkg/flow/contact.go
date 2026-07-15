@@ -29,7 +29,8 @@ type ContactNote struct {
 }
 
 func (e *Engine) contactNote(ctx dbos.DBOSContext, _ ContactNoteInput) (string, error) {
-	note, action, err := elicit.Form(ctx, "contact-note", "Log a note about a contact", ContactNote{}, contactNoteTimeout)
+	note, action, err := elicit.Form(ctx, "contact-note", "Log a note about a contact", ContactNote{}, contactNoteTimeout,
+		elicit.WithAccept("Save note"), elicit.WithDecline("Cancel"))
 	if err != nil {
 		return "", errors.Wrap(err, "elicit contact note")
 	}

@@ -518,7 +518,9 @@ func toFormProps(threadID, messageID int64, prompt elicit.Prompt) ui.ChatFormPro
 
 func FormProps(action string, prompt elicit.Prompt) ui.ChatFormProps {
 	form := ui.ChatFormProps{
+		AcceptLabel:   prompt.AcceptLabel,
 		Action:        action,
+		DeclineLabel:  prompt.DeclineLabel,
 		ElicitationID: prompt.ElicitationID,
 		Message:       prompt.Message,
 	}

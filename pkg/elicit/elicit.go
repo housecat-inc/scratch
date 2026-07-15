@@ -15,6 +15,8 @@ const (
 )
 
 type Prompt struct {
+	AcceptLabel     string             `json:"acceptLabel,omitempty"`
+	DeclineLabel    string             `json:"declineLabel,omitempty"`
 	ElicitationID   string             `json:"elicitationId"`
 	Message         string             `json:"message"`
 	Order           []string           `json:"order"`
@@ -22,6 +24,12 @@ type Prompt struct {
 	Topic           string             `json:"topic"`
 	WorkflowID      string             `json:"workflowId"`
 }
+
+type Option func(*Prompt)
+
+func WithAccept(label string) Option { return func(p *Prompt) { p.AcceptLabel = label } }
+
+func WithDecline(label string) Option { return func(p *Prompt) { p.DeclineLabel = label } }
 
 type Reply struct {
 	Action  string
