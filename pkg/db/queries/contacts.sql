@@ -3,10 +3,21 @@ INSERT INTO contacts (company, created_at, job_title, name, updated_at)
 VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
+-- name: AddContactNote :one
+INSERT INTO contact_notes (body, contact_id, created_at)
+VALUES (?, ?, ?)
+RETURNING *;
+
 -- name: AddEmail :one
 INSERT INTO emails (contact_id, created_at, email, is_primary, updated_at)
 VALUES (?, ?, ?, ?, ?)
 RETURNING *;
+
+-- name: CountContactNotes :one
+SELECT COUNT(*) FROM contact_notes WHERE contact_id = ?;
+
+-- name: ListContactNotes :many
+SELECT * FROM contact_notes WHERE contact_id = ? ORDER BY created_at DESC, id DESC;
 
 -- name: CountContacts :one
 SELECT COUNT(*) FROM contacts;

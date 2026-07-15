@@ -42,6 +42,48 @@ func (s *WebServer) handleContacts(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, ui.ContactsPage(props))
 }
 
+func (s *WebServer) handleContact(w http.ResponseWriter, r *http.Request) {
+	if s.contacts == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id, ok := taskPathID(w, r)
+	if !ok {
+		return
+	}
+	contact, err := s.contacts.GetContact(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	emails, err := s.contacts.ListContactEmails(id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	notes, err := s.contacts.ListContactNotes(id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	noteViews := make([]ui.ContactNoteView, 0, len(notes))
+	for _, note := range notes {
+		noteViews = append(noteViews, ui.ContactNoteView{
+			Body: note.Body,
+			When: note.CreatedAt.Time.Format("Jan 2, 2006 3:04 PM"),
+		})
+	}
+	chatOptions, chatLabel := s.chatActions()
+	s.render(w, r, ui.ContactDetailPage(ui.ContactDetailProps{
+		ChatLabel:   chatLabel,
+		ChatOptions: chatOptions,
+		Contact:     contact,
+		Counts:      s.navCounts(),
+		Emails:      emails,
+		Notes:       noteViews,
+	}))
+}
+
 func (s *WebServer) navCounts() ui.NavCounts {
 	counts := ui.NavCounts{}
 	if all, err := s.tasks.All(); err == nil {

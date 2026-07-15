@@ -32,6 +32,7 @@ var (
 )
 
 type Deps struct {
+	ContactNotes   ContactNoteRecorder
 	CountdownStep  time.Duration
 	CountdownTicks int
 	DBOS           dbos.DBOSContext
@@ -46,6 +47,7 @@ type Deps struct {
 }
 
 type Engine struct {
+	contactNotes   ContactNoteRecorder
 	countdownStep  time.Duration
 	countdownTicks int
 	ctx            dbos.DBOSContext
@@ -59,6 +61,9 @@ type Engine struct {
 }
 
 func New(deps Deps) *Engine {
+	if deps.ContactNotes == nil {
+		deps.ContactNotes = noopContactNotes{}
+	}
 	if deps.CountdownStep == 0 {
 		deps.CountdownStep = defaultCountdownStep
 	}
@@ -93,6 +98,7 @@ func New(deps Deps) *Engine {
 		drafter:        deps.Drafter,
 		fanoutJobs:     deps.FanoutJobs,
 		greeter:        deps.Greeter,
+		contactNotes:   deps.ContactNotes,
 		log:            deps.Log,
 		stageStep:      deps.StageStep,
 		updater:        deps.Updater,

@@ -18,16 +18,16 @@ templ WorkflowsPage(p WorkflowsProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: appNav("workflows", p.Counts),
+				SidebarTop: FlowLauncher(),
 			}) {
 				<header class="mail-mainbar">
 					<div class="mail-mainbar-title">
 						<h1>Workflows</h1>
 						<span>{ strconv.Itoa(len(p.Runs)) }</span>
 					</div>
-					@WorkflowStartForm(p)
 				</header>
 				if len(p.Runs) == 0 {
-					<div class="mail-empty">No workflow runs yet. Start one above.</div>
+					<div class="mail-empty">No workflow runs yet. Start one with + Flow.</div>
 				} else {
 					<div class="mail-list">
 						for _, run := range p.Runs {
@@ -40,22 +40,9 @@ templ WorkflowsPage(p WorkflowsProps) {
 	</html>
 }
 
-templ WorkflowStartForm(p WorkflowsProps) {
-	<form class="todo-topbar-actions" method="post" action="/workflows">
-		<select class="wf-start-select" name="workflow_type">
-			for _, opt := range TaskWorkflowOptions() {
-				<option value={ opt.Type }>{ opt.Label }</option>
-			}
-		</select>
-		<button class="mail-create-btn" type="submit">
-			@uikit.Icon("play")
-			<span>Run</span>
-		</button>
-	</form>
-}
-
 templ workflowRunRow(run WorkflowRunItem) {
 	@uikit.ListRow(uikit.ListRowProps{
+		Actions: workflowRowActions(run),
 		Href: run.Href,
 		ID: strconv.FormatInt(run.ID, 10),
 		Kind: "workflow",
@@ -64,6 +51,19 @@ templ workflowRunRow(run WorkflowRunItem) {
 		What: run.Title,
 		When: run.When,
 	})
+}
+
+templ workflowRowActions(run WorkflowRunItem) {
+	<form method="post" action={ templ.SafeURL("/workflows/" + strconv.FormatInt(run.ID, 10) + "/archive") }>
+		<button type="submit" class="gm-row-action" aria-label="Archive" title="Archive">
+			@uikit.Icon("archive")
+		</button>
+	</form>
+	<form method="post" action={ templ.SafeURL("/workflows/" + strconv.FormatInt(run.ID, 10) + "/trash") }>
+		<button type="submit" class="gm-row-action" aria-label="Delete" title="Delete">
+			@uikit.Icon("trash")
+		</button>
+	</form>
 }
 
 templ WorkflowRunPage(p WorkflowRunProps) {
@@ -78,6 +78,7 @@ templ WorkflowRunPage(p WorkflowRunProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: appNav("workflows", p.Counts),
+				SidebarTop: FlowLauncher(),
 			}) {
 				@WorkflowRunBody(p.Detail)
 			}
@@ -92,6 +93,12 @@ templ TaskWorkflowStatus(d InboxWorkflowDetail) {
 			Description: workflowStatusLabel(d.Status),
 			Title: d.Title,
 		}) {
+			if d.Archived {
+				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Unarchive", unarchiveIcon())
+			} else {
+				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Archive", archiveIcon())
+			}
+			@readerTrashButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/trash", "Delete workflow")
 		}
 	</div>
 }

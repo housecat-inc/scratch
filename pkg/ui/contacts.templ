@@ -20,6 +20,7 @@ templ ContactsPage(p ContactsProps) {
 				BrandHref: "/",
 				MainClass: "contacts-main",
 				Nav: appNav("contacts", p.Counts),
+				SidebarTop: FlowLauncher(),
 			}) {
 				<header class="mail-mainbar">
 					<div class="mail-mainbar-title">
@@ -31,6 +32,80 @@ templ ContactsPage(p ContactsProps) {
 			}
 		</body>
 	</html>
+}
+
+templ ContactDetailPage(p ContactDetailProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Contact") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
+				AppName: "todos",
+				BrandHref: "/",
+				Nav: appNav("contacts", p.Counts),
+				SidebarTop: FlowLauncher(),
+			}) {
+				@ReaderHeader(ReaderHeaderProps{
+					BackHref: "/contacts",
+					Description: contactDash(p.Contact.JobTitle),
+					Title: p.Contact.Name,
+				}) {
+				}
+				<div class="mail-reader-body">
+					<div class="mail-card contact-detail-card">
+						@contactField2("Company", p.Contact.Company)
+						@contactField2("Status", p.Contact.Status)
+						@contactEmailsField(p.Emails)
+						@contactField2("Phone", p.Contact.Phone)
+						@contactField2("Location", p.Contact.Location)
+						@contactField2("LinkedIn", p.Contact.Linkedin)
+						@contactField2("Twitter", p.Contact.Twitter)
+					</div>
+					<section class="contact-notes">
+						<h2 class="contact-notes-title">Notes { contactNotesCount(p.Notes) }</h2>
+						if len(p.Notes) == 0 {
+							<div class="mail-empty">No notes yet. Run the Contact note workflow to add one.</div>
+						} else {
+							for _, note := range p.Notes {
+								<div class="mail-card contact-note">
+									<div class="contact-note-body">{ note.Body }</div>
+									<div class="contact-note-when">{ note.When }</div>
+								</div>
+							}
+						}
+					</section>
+				</div>
+			}
+		</body>
+	</html>
+}
+
+templ contactField2(label, value string) {
+	<div class="contact-detail-row">
+		<span class="contact-detail-label">{ label }</span>
+		<span class="contact-detail-value">{ contactDash(value) }</span>
+	</div>
+}
+
+templ contactEmailsField(emails []db.Email) {
+	<div class="contact-detail-row">
+		<span class="contact-detail-label">Email</span>
+		<span class="contact-detail-value">
+			if len(emails) == 0 {
+				—
+			} else {
+				for i, email := range emails {
+					if i > 0 {
+						{ ", " }
+					}
+					<a class="dt-email" href={ templ.SafeURL("mailto:" + email.Email) }>{ email.Email }</a>
+				}
+			}
+		</span>
+	</div>
 }
 
 templ ContactsTable(p ContactsProps) {

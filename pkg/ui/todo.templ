@@ -19,6 +19,7 @@ templ TodoPage(p TodoProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: todoNavItems(p),
+				SidebarTop: FlowLauncher(),
 			}) {
 				if p.View == "chats" {
 					@TodoChatListView(p)
@@ -34,6 +35,26 @@ templ TodoPage(p TodoProps) {
 
 templ TodoActions(p TodoProps) {
 	@AppActions(p.ChatOptions, p.ChatLabel)
+}
+
+templ FlowLauncher() {
+	<div class="mail-compose-actions">
+		<form class="mail-compose-combo" method="post" action="/workflows">
+			<button class="mail-compose-btn" type="submit" title="New workflow" aria-label="New workflow">
+				@plusIcon()
+				<span>Flow</span>
+			</button>
+			<span class="mail-create-select-wrap mail-model-select-wrap">
+				<select class="mail-create-select" name="workflow_type" aria-label="Workflow type" data-submit-on-change>
+					<option value="" selected disabled hidden>Workflow type</option>
+					for _, opt := range TaskWorkflowOptions() {
+						<option value={ opt.Type }>{ opt.Label }</option>
+					}
+				</select>
+				<span class="mail-create-chevron">@chevronDownIcon()</span>
+			</span>
+		</form>
+	</div>
 }
 
 templ AppActions(chatOptions []uikit.SelectOption, chatLabel string) {

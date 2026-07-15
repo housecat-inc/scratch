@@ -28,6 +28,13 @@ type ContactListItem struct {
 	PrimaryEmail string
 }
 
+type ContactNote struct {
+	Body      string
+	ContactID int64
+	CreatedAt ts.Timestamp
+	ID        int64
+}
+
 type Email struct {
 	ContactID int64
 	CreatedAt ts.Timestamp
@@ -39,13 +46,17 @@ type Email struct {
 
 type ContactStore interface {
 	AddContact(name, company, jobTitle string) (Contact, error)
+	AddContactNote(contactID int64, body string) (ContactNote, error)
 	AddEmail(contactID int64, email string, isPrimary bool) (Email, error)
+	CountContactNotes(contactID int64) (int, error)
 	CountContacts() (int, error)
 	DeleteContact(id int64) error
 	DeleteEmail(id int64) error
 	GetContact(id int64) (Contact, error)
 	ListContactEmails(contactID int64) ([]Email, error)
+	ListContactNotes(contactID int64) ([]ContactNote, error)
 	ListContactsPage(limit, offset int) ([]ContactListItem, error)
+	RecordContactNote(contactID int64, body string) error
 	SearchContacts(query string, limit int) ([]ContactListItem, error)
 	UpdateContact(id int64, name, company, jobTitle string) (Contact, error)
 }
@@ -199,6 +210,43 @@ func (d *DB) UpdateContact(id int64, name, company, jobTitle string) (Contact, e
 		return Contact{}, errors.Wrap(err, "update contact")
 	}
 	return d.GetContact(id)
+}
+
+func (d *DB) AddContactNote(contactID int64, body string) (ContactNote, error) {
+	row, err := d.queries.AddContactNote(context.Background(), sqlite.AddContactNoteParams{
+		Body:      body,
+		ContactID: contactID,
+		CreatedAt: ts.Now(),
+	})
+	if err != nil {
+		return ContactNote{}, errors.Wrap(err, "insert contact note")
+	}
+	return ContactNote{Body: row.Body, ContactID: row.ContactID, CreatedAt: row.CreatedAt, ID: row.ID}, nil
+}
+
+func (d *DB) RecordContactNote(contactID int64, body string) error {
+	_, err := d.AddContactNote(contactID, body)
+	return err
+}
+
+func (d *DB) CountContactNotes(contactID int64) (int, error) {
+	n, err := d.queries.CountContactNotes(context.Background(), contactID)
+	if err != nil {
+		return 0, errors.Wrap(err, "count contact notes")
+	}
+	return int(n), nil
+}
+
+func (d *DB) ListContactNotes(contactID int64) ([]ContactNote, error) {
+	rows, err := d.queries.ListContactNotes(context.Background(), contactID)
+	if err != nil {
+		return nil, errors.Wrap(err, "list contact notes")
+	}
+	out := make([]ContactNote, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, ContactNote{Body: r.Body, ContactID: r.ContactID, CreatedAt: r.CreatedAt, ID: r.ID})
+	}
+	return out, nil
 }
 
 func asString(v any) string {

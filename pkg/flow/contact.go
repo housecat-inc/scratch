@@ -2,6 +2,8 @@ package flow
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -10,6 +12,14 @@ import (
 )
 
 const contactNoteTimeout = 24 * time.Hour
+
+type ContactNoteRecorder interface {
+	RecordContactNote(contactID int64, body string) error
+}
+
+type noopContactNotes struct{}
+
+func (noopContactNotes) RecordContactNote(int64, string) error { return nil }
 
 type ContactNoteInput struct{}
 
@@ -26,8 +36,16 @@ func (e *Engine) contactNote(ctx dbos.DBOSContext, _ ContactNoteInput) (string, 
 	if action != elicit.ActionAccept {
 		return "", nil
 	}
+	contactID, _ := strconv.ParseInt(strings.TrimSpace(note.Contact), 10, 64)
+	body := strings.TrimSpace(note.Notes)
 	summary, err := act(ctx, "respond/contact-note", "Record note", note.Contact, func(context.Context) (string, error) {
-		return "Logged a note for contact #" + note.Contact + ":\n\n" + note.Notes, nil
+		if contactID <= 0 {
+			return "No contact selected; nothing recorded.", nil
+		}
+		if err := e.contactNotes.RecordContactNote(contactID, body); err != nil {
+			return "", err
+		}
+		return "Saved a note for contact #" + strconv.FormatInt(contactID, 10) + ".", nil
 	})
 	if err != nil {
 		return "", errors.Wrap(err, "record contact note")

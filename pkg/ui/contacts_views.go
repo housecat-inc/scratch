@@ -1,11 +1,33 @@
 package ui
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/uikit"
 )
+
+func contactNotesCount(notes []ContactNoteView) string {
+	if len(notes) == 0 {
+		return ""
+	}
+	return "(" + strconv.Itoa(len(notes)) + ")"
+}
+
+type ContactNoteView struct {
+	Body string
+	When string
+}
+
+type ContactDetailProps struct {
+	ChatLabel   string
+	ChatOptions []uikit.SelectOption
+	Contact     db.Contact
+	Counts      NavCounts
+	Emails      []db.Email
+	Notes       []ContactNoteView
+}
 
 type ContactsProps struct {
 	ChatLabel   string

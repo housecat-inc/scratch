@@ -270,3 +270,58 @@ a.dt-row:hover .dt-cell-sticky {
 .dt-badge-lead { background: #fef9c3; color: #854d0e; }
 .dt-badge-prospect { background: #fce7f3; color: #9d174d; }
 .dt-badge-churned { background: #fee2e2; color: #991b1b; }
+
+.contact-detail-card {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem 1.5rem;
+  align-items: baseline;
+  max-width: 40rem;
+}
+
+.contact-detail-row {
+  display: contents;
+}
+
+.contact-detail-label {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.contact-detail-value {
+  color: #1f2933;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.contact-notes {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 40rem;
+}
+
+.contact-notes-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+}
+
+.contact-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.contact-note-body {
+  color: #1f2933;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.contact-note-when {
+  color: #9ca3af;
+  font-size: 0.78rem;
+}

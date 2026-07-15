@@ -67,9 +67,10 @@ func newRootCmd() *cobra.Command {
 			defer chatSvc.Close()
 
 			flows := flow.New(flow.Deps{
-				DBOS:    workflows.Ctx(),
-				Log:     logger,
-				Workdir: workdir,
+				ContactNotes: store,
+				DBOS:         workflows.Ctx(),
+				Log:          logger,
+				Workdir:      workdir,
 			})
 			chatSvc.SetResolver(flows)
 			if err := workflows.Launch(); err != nil {

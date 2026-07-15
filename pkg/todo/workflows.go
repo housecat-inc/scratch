@@ -312,6 +312,57 @@ func (s *WebServer) recoverStaleWorkflowForm(w http.ResponseWriter, threadID int
 	return true
 }
 
+func (s *WebServer) handleArchiveWorkflow(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsEnabled() {
+		http.NotFound(w, r)
+		return
+	}
+	id, ok := taskPathID(w, r)
+	if !ok {
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	state := db.ThreadStateArchived
+	if thread.State == db.ThreadStateArchived {
+		state = db.ThreadStateOpen
+	}
+	if err := s.chat.SetThreadState(id, state); err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	http.Redirect(w, r, "/workflows", http.StatusSeeOther)
+}
+
+func (s *WebServer) handleTrashWorkflow(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowsEnabled() {
+		http.NotFound(w, r)
+		return
+	}
+	id, ok := taskPathID(w, r)
+	if !ok {
+		return
+	}
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
+		if err := s.flows.Cancel(workflowID); err != nil {
+			s.log.Warn("cancel workflow before trash", "id", workflowID, "err", err)
+		}
+	}
+	if err := s.chat.TrashThread(id); err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	http.Redirect(w, r, "/workflows", http.StatusSeeOther)
+}
+
 func (s *WebServer) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 	thread, err := s.chat.Thread(id)
 	if err != nil {
@@ -332,6 +383,7 @@ func (s *WebServer) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
 		title = "New workflow"
 	}
 	detail := ui.InboxWorkflowDetail{
+		Archived: thread.State == db.ThreadStateArchived,
 		Awaiting: run.Blocked,
 		ID:       id,
 		Running:  run.Running(),
