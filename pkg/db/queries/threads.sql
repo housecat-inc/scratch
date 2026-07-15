@@ -20,7 +20,7 @@ DELETE FROM messages WHERE thread_id = ?;
 SELECT * FROM threads WHERE id = ?;
 
 -- name: ListThreads :many
-SELECT * FROM threads WHERE kind = ? ORDER BY updated_at DESC, id DESC;
+SELECT * FROM threads WHERE kind = ? AND trashed_at IS NULL ORDER BY updated_at DESC, id DESC;
 
 -- name: SetThreadAnchor :execrows
 UPDATE threads SET anchor_json = ?, updated_at = ? WHERE id = ?;
@@ -36,3 +36,6 @@ UPDATE threads SET title = ?, updated_at = ? WHERE id = ?;
 
 -- name: TouchThread :execrows
 UPDATE threads SET updated_at = ? WHERE id = ?;
+
+-- name: TrashThread :execrows
+UPDATE threads SET starred = 0, trashed_at = ?, updated_at = ? WHERE id = ?;

@@ -309,7 +309,17 @@ func (s *Server) handleTrashThread(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.chat.DeleteThread(id); err != nil {
+	thread, err := s.chat.Thread(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
+		if err := s.flows.Cancel(workflowID); err != nil {
+			s.log.Warn("cancel workflow before trash", "id", workflowID, "err", err)
+		}
+	}
+	if err := s.chat.TrashThread(id); err != nil {
 		s.notFoundOr(w, err)
 		return
 	}

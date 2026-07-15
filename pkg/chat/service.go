@@ -195,6 +195,10 @@ func (s *Service) DeleteThread(threadID int64) error {
 	return s.store.DeleteThread(threadID)
 }
 
+func (s *Service) TrashThread(threadID int64) error {
+	return s.store.TrashThread(threadID)
+}
+
 func (s *Service) ThreadWorkflowID(thread db.Thread) string {
 	var anchor struct {
 		WorkflowID string `json:"workflow_id"`
