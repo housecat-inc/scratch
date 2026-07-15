@@ -2,6 +2,7 @@ package contacts
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -54,11 +55,18 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		httperr.Error(w, err, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"id":   strconv.FormatInt(contact.ID, 10),
 		"name": contact.Name,
 	})
+	if err != nil {
+		httperr.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(payload); err != nil {
+		slog.Default().Warn("write contact create response", "err", err)
+	}
 }
 
 func (s *Server) matches(query string) ([]db.ContactListItem, error) {

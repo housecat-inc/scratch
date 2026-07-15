@@ -44,10 +44,13 @@ func contactInitials(name string) string {
 	if len(fields) == 0 {
 		return "?"
 	}
-	if len(fields) == 1 {
-		return strings.ToUpper(fields[0][:1])
+	initial := func(field string) string {
+		return string([]rune(field)[:1])
 	}
-	return strings.ToUpper(fields[0][:1] + fields[len(fields)-1][:1])
+	if len(fields) == 1 {
+		return strings.ToUpper(initial(fields[0]))
+	}
+	return strings.ToUpper(initial(fields[0]) + initial(fields[len(fields)-1]))
 }
 
 func contactDash(s string) string {

@@ -84,7 +84,14 @@ func dtTotalPages(p DataTableProps) int {
 }
 
 func dtPageHref(base string, page int) string {
-	return base + "?page=" + strconv.Itoa(page)
+	if page < 1 {
+		page = 1
+	}
+	sep := "?"
+	if strings.Contains(base, "?") {
+		sep = "&"
+	}
+	return base + sep + "page=" + strconv.Itoa(page)
 }
 
 func dtPageWindow(page, total int) []int {
