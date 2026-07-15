@@ -31,3 +31,7 @@ func contactDash(s string) string {
 	}
 	return s
 }
+
+func contactCreateLabel(query string) string {
+	return `+ Create "` + query + `"`
+}

@@ -186,3 +186,69 @@ a.dt-row:hover .dt-cell-sticky {
   color: #9ca3af;
   text-align: center;
 }
+
+.contact-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-search {
+  width: 100%;
+}
+
+.contact-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.contact-results:empty {
+  display: none;
+}
+
+.contact-option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.contact-option:hover {
+  background: #f1f5f9;
+}
+
+.contact-option-name {
+  font-weight: 500;
+  color: #1f2933;
+}
+
+.contact-option-email {
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+.contact-option-create {
+  color: #2563eb;
+  border-top: 1px solid #f1f2f4;
+}
+
+.contact-empty {
+  padding: 0.55rem 0.7rem;
+  color: #9ca3af;
+  font-size: 0.82rem;
+}

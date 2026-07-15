@@ -1171,6 +1171,8 @@ func chatModel(agent, model string) string {
 
 func workflowAgent(typ string) string {
 	switch strings.TrimSpace(typ) {
+	case "contact-note":
+		return "contact-note"
 	case "countdown":
 		return "countdown"
 	case "create-pr":
@@ -1192,6 +1194,8 @@ func workflowAgent(typ string) string {
 
 func workflowTitle(typ string) string {
 	switch typ {
+	case "contact-note":
+		return "Contact note"
 	case "countdown":
 		return "Countdown"
 	case "create-pr":

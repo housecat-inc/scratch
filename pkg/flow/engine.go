@@ -101,6 +101,7 @@ func New(deps Deps) *Engine {
 	if _, err := dbos.RegisterQueue(deps.DBOS, fanoutQueue, dbos.WithWorkerConcurrency(fanoutQueueWorkers)); err != nil {
 		deps.Log.Error("register fanout queue", "err", err)
 	}
+	dbos.RegisterWorkflow(deps.DBOS, e.contactNote, dbos.WithWorkflowName("contact-note"))
 	dbos.RegisterWorkflow(deps.DBOS, e.greet, dbos.WithWorkflowName("greet"))
 	dbos.RegisterWorkflow(deps.DBOS, e.updateClaude, dbos.WithWorkflowName("update-claude"))
 	dbos.RegisterWorkflow(deps.DBOS, e.createPR, dbos.WithWorkflowName("create-pr"))
@@ -164,6 +165,8 @@ func act(ctx dbos.DBOSContext, name, title, input string, fn func(context.Contex
 func (e *Engine) Start(name, id string) error {
 	var err error
 	switch name {
+	case "contact-note":
+		_, err = dbos.RunWorkflow(e.ctx, e.contactNote, ContactNoteInput{}, dbos.WithWorkflowID(id))
 	case "countdown":
 		_, err = dbos.RunWorkflow(e.ctx, e.countdown, CountdownInput{}, dbos.WithWorkflowID(id))
 	case "deploy":

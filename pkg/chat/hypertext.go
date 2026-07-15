@@ -563,6 +563,9 @@ func toFieldProps(name string, prop *jsonschema.Schema, required bool) ui.ChatFo
 	case "body", "description", "notes":
 		field.Type = "textarea"
 	}
+	if name == "contact" || strings.HasSuffix(name, "_contact") {
+		field.Type = "contact"
+	}
 	for _, option := range prop.Enum {
 		if s, ok := option.(string); ok {
 			field.Options = append(field.Options, s)

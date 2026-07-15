@@ -85,3 +85,52 @@ templ contactEmailCell(c db.ContactListItem) {
 templ contactMutedCell(value string) {
 	<span class="dt-muted">{ contactDash(value) }</span>
 }
+
+templ contactField(field ChatFormFieldProps, disabled bool) {
+	<div class="contact-field" data-contact-field>
+		<input type="hidden" name={ "f_" + field.Name } value={ field.Value } data-contact-value/>
+		<input
+			type="text"
+			class="contact-search"
+			name="q"
+			placeholder="Search or create a contact…"
+			autocomplete="off"
+			disabled?={ disabled }
+			data-contact-search
+			hx-get="/contacts/search"
+			hx-trigger="input changed delay:200ms, focus"
+			hx-target="next .contact-results"
+			hx-swap="innerHTML"
+		/>
+		<div class="contact-results" data-contact-results></div>
+	</div>
+}
+
+templ ContactSearchResults(results []db.ContactListItem, query string) {
+	for _, c := range results {
+		<button
+			type="button"
+			class="contact-option"
+			data-contact-option
+			data-id={ strconv.FormatInt(c.ID, 10) }
+			data-label={ c.Name }
+		>
+			<span class="contact-option-name">{ c.Name }</span>
+			if c.PrimaryEmail != "" {
+				<span class="contact-option-email">{ c.PrimaryEmail }</span>
+			}
+		</button>
+	}
+	if query != "" {
+		<button
+			type="button"
+			class="contact-option contact-option-create"
+			data-contact-option
+			data-contact-create
+			data-label={ query }
+		>{ contactCreateLabel(query) }</button>
+	}
+	if len(results) == 0 && query == "" {
+		<div class="contact-empty">Type to search contacts…</div>
+	}
+}

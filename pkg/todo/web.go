@@ -44,6 +44,8 @@ func (s *WebServer) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleList)
 	mux.HandleFunc("GET /chats", s.handleChats)
 	mux.HandleFunc("GET /contacts", s.handleContacts)
+	mux.HandleFunc("POST /contacts", s.handleContactCreate)
+	mux.HandleFunc("GET /contacts/search", s.handleContactSearch)
 	mux.HandleFunc("GET /tasks", s.handleTasks)
 	mux.HandleFunc("GET /tasks/{id}", s.handleShow)
 	mux.HandleFunc("POST /tasks", s.handleCreate)
