@@ -304,16 +304,25 @@ templ InboxScheduleReader(d InboxScheduleDetail) {
 }
 
 templ InboxWorkflowReader(d InboxWorkflowDetail) {
-	<div
-		id="wf-reader"
-		if d.Running && !d.Awaiting {
-			hx-get={ threadInboxDetailURL("workflow", d.ID) }
-			hx-trigger="every 600ms"
-			hx-select="#wf-reader"
-			hx-target="#wf-reader"
-			hx-swap="outerHTML"
-		}
-	>
+	<div id="wf-reader" data-events-url={ workflowEventsURL(d) }>
+		@WorkflowStatus(d)
+		<div class="mail-reader-body mail-chat-body">
+			<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
+				<div id="wf-steps">
+					for _, item := range d.Items {
+						if item.Durable {
+							@WorkflowStep(item)
+						}
+					}
+				</div>
+				@WorkflowPending(d)
+			</div>
+		</div>
+	</div>
+}
+
+templ WorkflowStatus(d InboxWorkflowDetail) {
+	<div id="wf-status">
 		@ReaderHeader(ReaderHeaderProps{
 			BackHref: "/inbox/workflows",
 			Description: workflowStatusLabel(d.Status),
@@ -321,19 +330,28 @@ templ InboxWorkflowReader(d InboxWorkflowDetail) {
 		}) {
 			if d.Archived {
 				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
-				@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow permanently")
+				@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow")
 			} else {
 				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
 			}
 			@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
 		}
-		<div class="mail-reader-body mail-chat-body">
-			<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
-				for i, item := range d.Items {
-					@workflowItem(i, item)
-				}
-			</div>
-		</div>
+	</div>
+}
+
+templ WorkflowStep(item WorkflowItemProps) {
+	<div id={ workflowStepID(item.ID) }>
+		@workflowItem(workflowStepID(item.ID), item)
+	</div>
+}
+
+templ WorkflowPending(d InboxWorkflowDetail) {
+	<div id="wf-pending">
+		for i, item := range d.Items {
+			if !item.Durable {
+				@workflowItem("wf-pending-" + strconv.Itoa(i), item)
+			}
+		}
 	</div>
 }
 
@@ -349,15 +367,15 @@ templ scheduleRunItem(i int, run ScheduleRunProps) {
 		})
 	}
 	for j, item := range run.Items {
-		@workflowItem(j, item)
+		@workflowItem("sched-" + strconv.Itoa(i) + "-" + strconv.Itoa(j), item)
 	}
 }
 
-templ workflowItem(i int, item WorkflowItemProps) {
+templ workflowItem(key string, item WorkflowItemProps) {
 	@ChatTurn("assistant") {
 		@chatRow(chatRowProps{
 			Failed:  item.Failed,
-			Key:     "wf-step-" + strconv.Itoa(i),
+			Key:     key,
 			Kind:    "tool",
 			Label:   item.Title,
 			Shimmer: item.Running,
@@ -640,6 +658,24 @@ func scheduleRowLabels(sc WorkflowScheduleView) []string {
 
 func scheduleInboxURL(name string) string {
 	return "/inbox/schedules/" + url.PathEscape(name)
+}
+
+func workflowStepID(id int) string {
+	return "wf-step-" + strconv.Itoa(id)
+}
+
+func workflowEventsURL(d InboxWorkflowDetail) string {
+	return fmt.Sprintf("/inbox/workflows/%d/events?after=%d", d.ID, workflowLastStepID(d.Items))
+}
+
+func workflowLastStepID(items []WorkflowItemProps) int {
+	last := 0
+	for _, item := range items {
+		if item.Durable && item.ID > last {
+			last = item.ID
+		}
+	}
+	return last
 }
 
 func workflowStatusLabel(status string) string {

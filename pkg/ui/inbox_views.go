@@ -113,9 +113,11 @@ type WorkflowItemProps struct {
 	Answer   string
 	Copy     string
 	Detail   string
+	Durable  bool
 	Duration string
 	Failed   bool
 	Form     *ChatFormProps
+	ID       int
 	Input    string
 	Kind     string
 	Running  bool

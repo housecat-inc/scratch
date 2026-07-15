@@ -1,8 +1,11 @@
 package inbox
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -50,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /inbox/tasks/{id}", s.handleTask)
 	mux.HandleFunc("GET /inbox/schedules/{name}", s.handleSchedule)
 	mux.HandleFunc("GET /inbox/workflows/{id}", s.handleWorkflow)
+	mux.HandleFunc("GET /inbox/workflows/{id}/events", s.handleWorkflowEvents)
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
@@ -365,6 +369,101 @@ func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{})
 }
 
+const workflowEventInterval = 400 * time.Millisecond
+
+func (s *Server) handleWorkflowEvents(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	if _, err := s.chat.Thread(id); err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Content-Type", "text/event-stream")
+
+	after, _ := strconv.Atoi(r.URL.Query().Get("after"))
+	if last, err := strconv.Atoi(r.Header.Get("Last-Event-ID")); err == nil && last > after {
+		after = last
+	}
+
+	ticker := time.NewTicker(workflowEventInterval)
+	defer ticker.Stop()
+
+	ctx := r.Context()
+	var lastStatus, lastPending string
+	for {
+		detail, err := s.workflowDetail(id)
+		if err != nil {
+			return
+		}
+		if err := s.writeWorkflowChanged(w, ctx, "status", ui.WorkflowStatus(detail), &lastStatus); err != nil {
+			return
+		}
+		for _, item := range detail.Items {
+			if !item.Durable || item.ID <= after {
+				continue
+			}
+			if err := s.writeWorkflowEvent(w, ctx, "step", strconv.Itoa(item.ID), ui.WorkflowStep(item)); err != nil {
+				return
+			}
+			after = item.ID
+		}
+		if err := s.writeWorkflowChanged(w, ctx, "pending", ui.WorkflowPending(detail), &lastPending); err != nil {
+			return
+		}
+		flusher.Flush()
+		if !detail.Running {
+			fmt.Fprint(w, "event: done\ndata: done\n\n")
+			flusher.Flush()
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Server) writeWorkflowChanged(w io.Writer, ctx context.Context, event string, comp templ.Component, last *string) error {
+	var buf bytes.Buffer
+	if err := comp.Render(ctx, &buf); err != nil {
+		return err
+	}
+	if buf.String() == *last {
+		return nil
+	}
+	*last = buf.String()
+	return writeWorkflowSSE(w, event, "", buf.String())
+}
+
+func (s *Server) writeWorkflowEvent(w io.Writer, ctx context.Context, event, id string, comp templ.Component) error {
+	var buf bytes.Buffer
+	if err := comp.Render(ctx, &buf); err != nil {
+		return err
+	}
+	return writeWorkflowSSE(w, event, id, buf.String())
+}
+
+func writeWorkflowSSE(w io.Writer, event, id, html string) error {
+	if id != "" {
+		fmt.Fprintf(w, "id: %s\n", id)
+	}
+	fmt.Fprintf(w, "event: %s\n", event)
+	for line := range strings.SplitSeq(strings.ReplaceAll(html, "\r", ""), "\n") {
+		fmt.Fprintf(w, "data: %s\n", line)
+	}
+	_, err := fmt.Fprint(w, "\n")
+	return err
+}
+
 func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{Kind: "schedule", Name: r.PathValue("name")})
 }
@@ -651,8 +750,10 @@ func (s *Server) workflowItemProps(threadID int64, step flow.StepView) ui.Workfl
 		Answer:   step.Answer,
 		Copy:     step.Copy,
 		Detail:   step.Detail,
+		Durable:  step.Durable,
 		Duration: step.Duration,
 		Failed:   step.Failed,
+		ID:       step.ID,
 		Input:    step.Input,
 		Kind:     step.Kind,
 		Running:  step.Status == flow.StepRunning,
