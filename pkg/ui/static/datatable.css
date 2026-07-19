@@ -197,24 +197,25 @@ a.dt-row:hover .dt-cell-sticky {
   width: 100%;
 }
 
-.contact-field-selected .contact-results,
-.contact-field-selected .contact-search {
+.contact-field.contact-field-selected .contact-results,
+.contact-field.contact-field-selected .contact-search {
   display: none;
 }
 
 .contact-chip {
   display: none;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 0.5rem;
-  width: 100%;
-  min-height: 2.35rem;
-  padding: 0.4rem 0.45rem 0.4rem 0.7rem;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 1.75rem;
+  padding: 0.2rem 0.25rem 0.2rem 0.55rem;
   border: 1px solid #c7d2fe;
-  border-radius: 0.45rem;
+  border-radius: 999px;
   background: #eef2ff;
   color: #1e293b;
-  font-size: 0.86rem;
+  font-size: 0.78rem;
   font-weight: 500;
 }
 
@@ -223,8 +224,8 @@ a.dt-row:hover .dt-cell-sticky {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 1.45rem;
-  height: 1.45rem;
+  width: 1.1rem;
+  height: 1.1rem;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -252,7 +253,13 @@ a.dt-row:hover .dt-cell-sticky {
   white-space: nowrap;
 }
 
-.contact-field-selected .contact-chip {
+.chat-elicit-field .contact-chip span {
+  color: inherit;
+  font-size: inherit;
+  text-transform: none;
+}
+
+.contact-field.contact-field-selected .contact-chip {
   display: flex;
 }
 
