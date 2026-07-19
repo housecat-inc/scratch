@@ -3,7 +3,10 @@ package uikit
 templ Shell(p ShellProps) {
 	<div class={ shellClass(p.Class) }>
 		<header class="mail-topbar">
-			<a class="mail-brand" href={ templ.SafeURL(p.BrandHref) }>{ p.AppName }</a>
+			<a class="mail-brand" href={ templ.SafeURL(p.BrandHref) }>
+				<img class="mail-brand-logo" src="/static/icon.svg" alt="" aria-hidden="true"/>
+				<span>{ p.AppName }</span>
+			</a>
 			<div class="mail-create-actions">
 				if p.Actions != nil {
 					@p.Actions

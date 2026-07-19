@@ -68,7 +68,10 @@ templ composeButton(mode, label, aria string) {
 templ MailShell(p InboxProps) {
 	<div class="mail-shell">
 		<header class="mail-topbar">
-			<a class="mail-brand" href="/">scratch</a>
+			<a class="mail-brand" href="/">
+				<img class="mail-brand-logo" src="/static/icon.svg" alt="" aria-hidden="true"/>
+				<span>scratch</span>
+			</a>
 			<div class="mail-create-actions">
 				@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 				@createButton("task", "New task", taskIcon())
