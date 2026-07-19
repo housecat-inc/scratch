@@ -64,6 +64,13 @@ func contactCreateLabel(query string) string {
 	return `+ Create "` + query + `"`
 }
 
+func contactSelectedLabel(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return "Contact #" + value
+}
+
 func contactStatusSlug(status string) string {
 	return strings.ToLower(strings.ReplaceAll(status, " ", "-"))
 }

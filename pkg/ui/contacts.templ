@@ -181,7 +181,7 @@ templ contactStatusCell(status string) {
 }
 
 templ contactField(field ChatFormFieldProps, disabled bool) {
-	<div class="contact-field" data-contact-field>
+	<div class={ "contact-field", templ.KV("contact-field-selected", field.Value != "") } data-contact-field>
 		<input type="hidden" name={ "f_" + field.Name } value={ field.Value } data-contact-value/>
 		<input
 			type="text"
@@ -197,6 +197,10 @@ templ contactField(field ChatFormFieldProps, disabled bool) {
 			hx-swap="innerHTML"
 		/>
 		<div class="contact-results" data-contact-results></div>
+		<span class="contact-chip" data-contact-chip>
+			<span data-contact-label>{ contactSelectedLabel(field.Value) }</span>
+			<button type="button" title="Remove contact" aria-label="Remove contact" disabled?={ disabled } data-contact-clear>x</button>
+		</span>
 	</div>
 }
 

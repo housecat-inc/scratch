@@ -197,6 +197,65 @@ a.dt-row:hover .dt-cell-sticky {
   width: 100%;
 }
 
+.contact-field-selected .contact-results,
+.contact-field-selected .contact-search {
+  display: none;
+}
+
+.contact-chip {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.45rem 0.4rem 0.7rem;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.45rem;
+  background: #eef2ff;
+  color: #1e293b;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.contact-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #4f46e5;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.contact-chip button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.contact-chip button:not(:disabled):hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.contact-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contact-field-selected .contact-chip {
+  display: flex;
+}
+
 .contact-results {
   position: absolute;
   top: 100%;

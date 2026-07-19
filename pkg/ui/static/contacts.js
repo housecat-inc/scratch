@@ -3,12 +3,34 @@
     var value = wrap.querySelector("[data-contact-value]");
     if (value) value.value = id;
     var search = wrap.querySelector("[data-contact-search]");
-    if (search) search.value = label;
+    if (search) search.value = "";
+    var chipLabel = wrap.querySelector("[data-contact-label]");
+    if (chipLabel) chipLabel.textContent = label;
     var results = wrap.querySelector("[data-contact-results]");
     if (results) results.innerHTML = "";
+    wrap.classList.add("contact-field-selected");
+  }
+
+  function clear(wrap) {
+    var value = wrap.querySelector("[data-contact-value]");
+    if (value) value.value = "";
+    var search = wrap.querySelector("[data-contact-search]");
+    if (search) search.value = "";
+    var results = wrap.querySelector("[data-contact-results]");
+    if (results) results.innerHTML = "";
+    wrap.classList.remove("contact-field-selected");
+    if (search) search.focus();
   }
 
   document.addEventListener("click", function (event) {
+    var clearButton = event.target.closest("[data-contact-clear]");
+    if (clearButton) {
+      event.preventDefault();
+      var clearWrap = clearButton.closest("[data-contact-field]");
+      if (clearWrap) clear(clearWrap);
+      return;
+    }
+
     var option = event.target.closest("[data-contact-option]");
     if (option) {
       event.preventDefault();
