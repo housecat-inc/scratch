@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"strings"
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db/internal/sqlite"
@@ -48,6 +50,7 @@ type ContactStore interface {
 	AddContact(name, company, jobTitle string) (Contact, error)
 	AddContactNote(contactID int64, body string) (ContactNote, error)
 	AddEmail(contactID int64, email string, isPrimary bool) (Email, error)
+	ContactLabel(id int64) (string, error)
 	CountContactNotes(contactID int64) (int, error)
 	CountContacts() (int, error)
 	DeleteContact(id int64) error
@@ -101,6 +104,26 @@ func (d *DB) CountContacts() (int, error) {
 		return 0, errors.Wrap(err, "count contacts")
 	}
 	return int(n), nil
+}
+
+func (d *DB) ContactLabel(id int64) (string, error) {
+	contact, err := d.GetContact(id)
+	if err != nil {
+		return "", err
+	}
+	emails, err := d.ListContactEmails(id)
+	if err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(contact.Name)
+	if name == "" {
+		name = "Contact #" + strconv.FormatInt(id, 10)
+	}
+	email := primaryContactEmail(emails)
+	if email == "" {
+		return name, nil
+	}
+	return name + " / " + email, nil
 }
 
 func (d *DB) DeleteContact(id int64) error {
@@ -292,4 +315,21 @@ func fromSqliteEmail(e sqlite.Email) Email {
 		IsPrimary: e.IsPrimary != 0,
 		UpdatedAt: e.UpdatedAt,
 	}
+}
+
+func primaryContactEmail(emails []Email) string {
+	if len(emails) == 0 {
+		return ""
+	}
+	for _, email := range emails {
+		if email.IsPrimary && strings.TrimSpace(email.Email) != "" {
+			return strings.TrimSpace(email.Email)
+		}
+	}
+	for _, email := range emails {
+		if strings.TrimSpace(email.Email) != "" {
+			return strings.TrimSpace(email.Email)
+		}
+	}
+	return ""
 }

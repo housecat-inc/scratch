@@ -17,6 +17,10 @@ type ContactNoteRecorder interface {
 	RecordContactNote(contactID int64, body string) error
 }
 
+type ContactLabeler interface {
+	ContactLabel(contactID int64) (string, error)
+}
+
 type noopContactNotes struct{}
 
 func (noopContactNotes) RecordContactNote(int64, string) error { return nil }
@@ -46,10 +50,20 @@ func (e *Engine) contactNote(ctx dbos.DBOSContext, _ ContactNoteInput) (string, 
 		if err := e.contactNotes.RecordContactNote(contactID, body); err != nil {
 			return "", err
 		}
-		return "Saved a note for contact #" + strconv.FormatInt(contactID, 10) + ".", nil
+		return "Saved a note for " + e.contactLabel(contactID) + ".", nil
 	})
 	if err != nil {
 		return "", errors.Wrap(err, "record contact note")
 	}
 	return summary, nil
+}
+
+func (e *Engine) contactLabel(contactID int64) string {
+	if labeler, ok := e.contactNotes.(ContactLabeler); ok {
+		label, err := labeler.ContactLabel(contactID)
+		if err == nil && strings.TrimSpace(label) != "" {
+			return strings.TrimSpace(label)
+		}
+	}
+	return "contact #" + strconv.FormatInt(contactID, 10)
 }

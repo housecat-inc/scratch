@@ -12,12 +12,13 @@ import (
 var chatCSS string
 
 type ChatFormFieldProps struct {
-	Label    string
-	Name     string
-	Options  []string
-	Required bool
-	Type     string
-	Value    string
+	Label      string
+	Name       string
+	Options    []string
+	Required   bool
+	Type       string
+	Value      string
+	ValueLabel string
 }
 
 type ChatFormProps struct {

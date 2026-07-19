@@ -64,11 +64,46 @@ func contactCreateLabel(query string) string {
 	return `+ Create "` + query + `"`
 }
 
-func contactSelectedLabel(value string) string {
-	if strings.TrimSpace(value) == "" {
+func ContactValueLabel(store db.ContactStore, value string) string {
+	if store == nil {
 		return ""
 	}
+	id, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil || id <= 0 {
+		return ""
+	}
+	label, err := store.ContactLabel(id)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(label)
+}
+
+func contactOptionLabel(c db.ContactListItem) string {
+	return contactNameEmailLabel(c.Name, c.PrimaryEmail)
+}
+
+func contactSelectedLabel(field ChatFormFieldProps) string {
+	value := strings.TrimSpace(field.Value)
+	if value == "" {
+		return ""
+	}
+	if label := strings.TrimSpace(field.ValueLabel); label != "" {
+		return label
+	}
 	return "Contact #" + value
+}
+
+func contactNameEmailLabel(name, email string) string {
+	name = strings.TrimSpace(name)
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return name
+	}
+	if name == "" {
+		return email
+	}
+	return name + " / " + email
 }
 
 func contactStatusSlug(status string) string {

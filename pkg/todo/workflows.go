@@ -424,8 +424,21 @@ func (s *WebServer) workflowItemProps(threadID int64, step flow.StepView) ui.Wor
 				form.Fields[i].Value = v
 			}
 		}
+		s.setContactFieldLabels(&form)
 		form.Disabled = true
 	}
 	item.Form = &form
 	return item
+}
+
+func (s *WebServer) setContactFieldLabels(form *ui.ChatFormProps) {
+	if s.contacts == nil {
+		return
+	}
+	for i := range form.Fields {
+		if form.Fields[i].Type != "contact" {
+			continue
+		}
+		form.Fields[i].ValueLabel = ui.ContactValueLabel(s.contacts, form.Fields[i].Value)
+	}
 }

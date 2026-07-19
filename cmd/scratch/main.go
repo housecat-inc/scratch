@@ -132,6 +132,7 @@ func newRootCmd() *cobra.Command {
 			todoSvc = todo.NewService(store)
 			chatSrv := chat.NewServer(chatSvc, logger)
 			inboxSrv := inbox.NewServer(todoSvc, chatSvc, flows, logger)
+			inboxSrv.SetContacts(store)
 
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(

@@ -199,7 +199,7 @@ templ contactField(field ChatFormFieldProps, disabled bool) {
 		/>
 		<div class="contact-results" data-contact-results></div>
 		<span class="contact-chip" data-contact-chip>
-			<span data-contact-label>{ contactSelectedLabel(field.Value) }</span>
+			<span data-contact-label>{ contactSelectedLabel(field) }</span>
 			<button type="button" title="Remove contact" aria-label="Remove contact" disabled?={ disabled } data-contact-clear>x</button>
 		</span>
 	</div>
@@ -212,7 +212,7 @@ templ ContactSearchResults(results []db.ContactListItem, query string) {
 			class="contact-option"
 			data-contact-option
 			data-id={ strconv.FormatInt(c.ID, 10) }
-			data-label={ c.Name }
+			data-label={ contactOptionLabel(c) }
 		>
 			<span class="contact-option-name">{ c.Name }</span>
 			if c.PrimaryEmail != "" {
