@@ -9,7 +9,7 @@ import (
 
 type DataTableColumn struct {
 	Header string
-	Icon   string
+	Icon   templ.Component
 	Sticky bool
 	Width  string
 }

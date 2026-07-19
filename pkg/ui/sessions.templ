@@ -5,6 +5,7 @@ import (
 
 	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ SetupPage(v SessionsProps) {
@@ -310,10 +311,7 @@ templ SessionsCard(v SessionsProps) {
 					}
 					@card.Footer(card.FooterProps{Class: "justify-end gap-2"}) {
 						<span class="session-spinner items-center gap-1.5 text-xs text-muted-foreground">
-							<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-								<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-opacity="0.25"></circle>
-								<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
-							</svg>
+							@lucide.LoaderCircle(templ.Attributes{"class": "w-3 h-3"})
 							<span>Starting session…</span>
 						</span>
 						@button.Button(button.Props{Type: button.TypeSubmit}) {

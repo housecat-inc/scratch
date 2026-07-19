@@ -8,6 +8,7 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/uikit"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ InboxPage(p InboxProps) {
@@ -59,7 +60,7 @@ templ composeButton(mode, label, aria string) {
 		<input type="hidden" name="mode" value={ mode }/>
 		<input type="hidden" name="create_only" value="true"/>
 		<button class="mail-compose-btn" type="submit" title={ aria } aria-label={ aria }>
-			@plusIcon()
+			@lucide.Plus()
 			<span>{ label }</span>
 		</button>
 	</form>
@@ -74,19 +75,19 @@ templ MailShell(p InboxProps) {
 			</a>
 			<div class="mail-create-actions">
 				@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
-				@createButton("task", "New task", taskIcon())
+				@createButton("task", "New task", lucide.ListChecks())
 				@createWorkflowButton()
 			</div>
 		</header>
 		<div class="mail-body">
 			<aside class="mail-sidebar">
 				<nav class="mail-labels" aria-label="Mail">
-					@mailLabel("/", "inbox", p.View, "Inbox", p.Counts.Inbox, inboxIcon())
-					@mailLabel("/starred", "starred", p.View, "Starred", p.Counts.Starred, starIcon(false))
+					@mailLabel("/", "inbox", p.View, "Inbox", p.Counts.Inbox, lucide.Inbox())
+					@mailLabel("/starred", "starred", p.View, "Starred", p.Counts.Starred, lucide.Star())
 					<div class="mail-label-group">More</div>
-					@mailLabel("/inbox/chats", "chats", p.View, "Chats", p.Counts.Chats, chatIcon())
-					@mailLabel("/inbox/tasks", "tasks", p.View, "Tasks", p.Counts.Tasks, taskIcon())
-					@mailLabel("/inbox/workflows", "workflows", p.View, "Workflows", p.Counts.Workflows, workflowIcon())
+					@mailLabel("/inbox/chats", "chats", p.View, "Chats", p.Counts.Chats, lucide.MessageSquare())
+					@mailLabel("/inbox/tasks", "tasks", p.View, "Tasks", p.Counts.Tasks, lucide.ListChecks())
+					@mailLabel("/inbox/workflows", "workflows", p.View, "Workflows", p.Counts.Workflows, lucide.Workflow())
 				</nav>
 			</aside>
 			<main class="mail-main">
@@ -153,16 +154,16 @@ templ ScheduleRow(sc WorkflowScheduleView) {
 
 templ ScheduleRowPrimary(sc WorkflowScheduleView) {
 	<button type="button" class="gm-star" title="Star" aria-label="Star" onclick="event.stopPropagation()">
-		@starIcon(false)
+		@lucide.Star()
 	</button>
 }
 
 templ ScheduleRowActions(sc WorkflowScheduleView) {
-	@scheduleButton(sc.Name, "trigger", "Run now", sendIcon())
+	@scheduleButton(sc.Name, "trigger", "Run now", lucide.Send())
 	if sc.Paused {
-		@scheduleButton(sc.Name, "resume", "Resume", playIcon())
+		@scheduleButton(sc.Name, "resume", "Resume", lucide.Play())
 	} else {
-		@scheduleButton(sc.Name, "pause", "Pause", pauseIcon())
+		@scheduleButton(sc.Name, "pause", "Pause", lucide.Pause())
 	}
 }
 
@@ -198,16 +199,16 @@ templ InboxRow(item InboxItem, view, filter string) {
 
 templ InboxRowActions(item InboxItem, view, filter string) {
 	if item.Kind == "workflow" && workflowRowRunning(item.Status) {
-		@rowPostButton(itemActionURL(item, "cancel"), view, filter, "Cancel", stopIcon(), "gm-row-action danger", "Cancel")
+		@rowPostButton(itemActionURL(item, "cancel"), view, filter, "Cancel", lucide.SquareStop(), "gm-row-action danger", "Cancel")
 	}
 	if item.Kind == "workflow" && workflowResumable(item.Status) {
-		@rowPostButton(itemActionURL(item, "resume"), view, filter, "Resume", playIcon(), "gm-row-action", "Resume")
+		@rowPostButton(itemActionURL(item, "resume"), view, filter, "Resume", lucide.Play(), "gm-row-action", "Resume")
 	}
 	if item.Archived {
-		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), unarchiveIcon(), "gm-row-action", "Unarchive")
+		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), lucide.ArchiveRestore(), "gm-row-action", "Unarchive")
 		@rowTrashButton(itemActionURL(item, "trash"), view, filter, trashActionLabel(item), "gm-row-action")
 	} else {
-		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
+		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), lucide.Archive(), "gm-row-action", "Archive")
 	}
 }
 
@@ -215,7 +216,7 @@ templ InboxRowPrimary(item InboxItem, view, filter string) {
 	if item.Kind == "task" {
 		@rowPostButton(itemActionURL(item, "done"), view, filter, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
 	} else {
-		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
+		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), lucide.Star(), starClass(item.Starred), "Star")
 	}
 }
 
@@ -228,12 +229,12 @@ templ InboxTaskReader(d InboxTaskDetail) {
 	}) {
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "done"), doneActionLabel(taskInboxItem(d.Task)), doneIcon(d.Task.Completed))
 			if d.Task.Archived {
-				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), unarchiveIcon())
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), lucide.ArchiveRestore())
 				@readerTrashButton(taskInboxActionURL(d.Task.ID, "trash"), trashActionLabel(taskInboxItem(d.Task)))
 			} else {
-				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), lucide.Archive())
 			}
-			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), starIcon(d.Task.Starred))
+			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), lucide.Star())
 	}
 	<div class="mail-reader-body">
 		<form class="mail-card mail-task-editor" method="post" action={ taskInboxActionURL(d.Task.ID, "") }>
@@ -273,18 +274,18 @@ templ InboxThreadReader(d InboxThreadDetail) {
 				@ChatAccessToggle(d.ID, d.Access)
 			}
 			<button type="button" class="gm-icon-btn" data-chat-popout-thread={ itoa64(d.ID) } title="Open chat popout" aria-label="Open chat popout">
-				@popoutIcon()
+				@lucide.ExternalLink()
 			</button>
 			if d.Streaming && d.Kind != "chat" {
 				@readerStopButton(d.Kind, d.ID)
 			}
 			if d.Archived {
-				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), unarchiveIcon())
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), lucide.ArchiveRestore())
 				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))
 			} else {
-				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), archiveIcon())
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), lucide.Archive())
 			}
-			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), starIcon(d.Starred))
+			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), lucide.Star())
 	}
 	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body mail-chat-body">
 		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages" sse-swap="message">
@@ -338,18 +339,18 @@ templ WorkflowStatus(d InboxWorkflowDetail) {
 			Title: d.Title,
 		}) {
 			if d.Running {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "cancel"), "Cancel", stopIcon())
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "cancel"), "Cancel", lucide.SquareStop())
 			}
 			if workflowResumable(d.Status) {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "resume"), "Resume", playIcon())
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "resume"), "Resume", lucide.Play())
 			}
 			if d.Archived {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", lucide.ArchiveRestore())
 				@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow")
 			} else {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
+				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", lucide.Archive())
 			}
-			@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", starIcon(d.Starred))
+			@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", lucide.Star())
 		}
 	</div>
 }
@@ -444,7 +445,7 @@ templ workflowStepDetail(item WorkflowItemProps) {
 templ ReaderHeader(p ReaderHeaderProps) {
 	<header class="mail-reader-head">
 		<a class="gm-icon-btn" href={ templ.SafeURL(p.BackHref) } aria-label="Back">
-			@backIcon()
+			@lucide.ArrowLeft()
 		</a>
 		<div class="mail-reader-title">
 			<h1>{ p.Title }</h1>
@@ -491,7 +492,7 @@ templ createWorkflowButton() {
 		<input type="hidden" name="mode" value="workflow"/>
 		<input type="hidden" name="create_only" value="true"/>
 		<button class="mail-compose-btn" type="submit" data-new-workflow title="New workflow" aria-label="New workflow">
-			@plusIcon()
+			@lucide.Plus()
 			<span>Flow</span>
 		</button>
 		<span class="mail-create-select-wrap mail-model-select-wrap">
@@ -501,7 +502,7 @@ templ createWorkflowButton() {
 					<option value={ typ }>{ workflowTypeLabel(typ) }</option>
 				}
 			</select>
-			<span class="mail-create-chevron">@chevronDownIcon()</span>
+			<span class="mail-create-chevron">@lucide.ChevronDown()</span>
 		</span>
 	</form>
 }
@@ -519,7 +520,7 @@ templ readerStopButton(kind string, id int64) {
 	<form method="post" action={ threadInboxActionURL(kind, id, "stop") }>
 		<input type="hidden" name="back" value={ threadInboxDetailURL(kind, id) }/>
 		<button type="submit" class="gm-icon-btn" title="Stop chat" aria-label="Stop chat">
-			@stopIcon()
+			@lucide.SquareStop()
 		</button>
 	</form>
 }
@@ -528,7 +529,7 @@ templ readerTrashButton(action, label string) {
 	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
 		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
 		<button type="button" class="gm-icon-btn danger mail-trash-trigger" title={ label } aria-label={ label } data-trash-trigger>
-			@trashIcon()
+			@lucide.Trash2()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
 			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
@@ -554,7 +555,7 @@ templ rowTrashButton(action, view, filter, label, class string) {
 	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
 		<input type="hidden" name="back" value={ archiveFilterHref(view, filter) }/>
 		<button type="button" class={ class + " danger mail-trash-trigger" } title={ label } aria-label={ label } data-trash-trigger>
-			@trashIcon()
+			@lucide.Trash2()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
 			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
@@ -605,13 +606,13 @@ func rowKindLabel(kind string) string {
 func rowKindIcon(kind string) templ.Component {
 	switch kind {
 	case "chat":
-		return chatIcon()
+		return lucide.MessageSquare()
 	case "task":
-		return taskIcon()
+		return lucide.ListChecks()
 	case "workflow":
-		return workflowIcon()
+		return lucide.Workflow()
 	default:
-		return inboxIcon()
+		return lucide.Inbox()
 	}
 }
 
@@ -722,22 +723,6 @@ func workflowTypeOptions() []string {
 	return []string{"greet", "contact-note", "update-claude", "create-pr", "countdown", "fan-out", "stream", "deploy", "webhook"}
 }
 
-func chatIcon() templ.Component {
-	return lucideIcon(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>`)
-}
-
-func chevronDownIcon() templ.Component {
-	return lucideIcon(`<path d="m6 9 6 6 6-6"></path>`)
-}
-
-func archiveIcon() templ.Component {
-	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path>`)
-}
-
-func backIcon() templ.Component {
-	return lucideIcon(`<path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path>`)
-}
-
 func currentBackFallback(action string) string {
 	if strings.Contains(action, "/workflows/") {
 		return "/inbox/workflows"
@@ -792,9 +777,9 @@ func doneActionLabel(item InboxItem) string {
 
 func doneIcon(done bool) templ.Component {
 	if done {
-		return lucideIcon(`<path d="M21.8 10A10 10 0 1 1 17 3.3"></path><path d="m9 11 3 3L22 4"></path>`)
+		return lucide.CircleCheck()
 	}
-	return lucideIcon(`<circle cx="12" cy="12" r="10"></circle>`)
+	return lucide.Circle()
 }
 
 func inboxBackPath(kind string) string {
@@ -806,16 +791,16 @@ func inboxBackPath(kind string) string {
 
 func inboxNavItems(p InboxProps) []uikit.NavItem {
 	return []uikit.NavItem{
-		{Active: p.View == "inbox", Count: p.Counts.Inbox, Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
-		{Active: p.View == "starred", Count: p.Counts.Starred, Href: "/starred", Icon: "star", Label: "Starred", ShowCount: true},
-		{Group: "More", Active: p.View == "chats", Count: p.Counts.Chats, Href: "/inbox/chats", Icon: "chat", Label: "Chats", ShowCount: true},
-		{Active: p.View == "tasks", Count: p.Counts.Tasks, Href: "/inbox/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
-		{Active: p.View == "workflows", Count: p.Counts.Workflows, Href: "/inbox/workflows", Icon: "play", Label: "Workflows", ShowCount: true},
-		{Group: "Tools", Href: "/setup", Icon: "settings", Label: "Setup"},
-		{Href: "/sessions", Icon: "chat", Label: "Sessions"},
-		{Href: "/code/", Icon: "code", Label: "Code review"},
-		{Href: "/files/", Icon: "file", Label: "Files"},
-		{Href: "/sql/", Icon: "database", Label: "SQL"},
+		{Active: p.View == "inbox", Count: p.Counts.Inbox, Href: "/", Icon: lucide.Inbox(), Label: "Inbox", ShowCount: true},
+		{Active: p.View == "starred", Count: p.Counts.Starred, Href: "/starred", Icon: lucide.Star(), Label: "Starred", ShowCount: true},
+		{Active: p.View == "chats", Count: p.Counts.Chats, Group: "More", Href: "/inbox/chats", Icon: lucide.MessageSquare(), Label: "Chats", ShowCount: true},
+		{Active: p.View == "tasks", Count: p.Counts.Tasks, Href: "/inbox/tasks", Icon: lucide.ListChecks(), Label: "Tasks", ShowCount: true},
+		{Active: p.View == "workflows", Count: p.Counts.Workflows, Href: "/inbox/workflows", Icon: lucide.Play(), Label: "Workflows", ShowCount: true},
+		{Group: "Tools", Href: "/setup", Icon: lucide.Settings(), Label: "Setup"},
+		{Href: "/sessions", Icon: lucide.MessageSquare(), Label: "Sessions"},
+		{Href: "/code/", Icon: lucide.CodeXml(), Label: "Code review"},
+		{Href: "/files/", Icon: lucide.File(), Label: "Files"},
+		{Href: "/sql/", Icon: lucide.Database(), Label: "SQL"},
 	}
 }
 
@@ -859,27 +844,11 @@ func inboxTitle(p InboxProps) string {
 	}
 }
 
-func inboxIcon() templ.Component {
-	return lucideIcon(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
-}
-
 func inboxListCount(p InboxProps) int {
 	if p.View == "workflows" {
 		return len(p.Items) + len(p.Schedules)
 	}
 	return len(p.Items)
-}
-
-func pauseIcon() templ.Component {
-	return lucideIcon(`<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect>`)
-}
-
-func playIcon() templ.Component {
-	return lucideIcon(`<polygon points="6 3 20 12 6 21 6 3"></polygon>`)
-}
-
-func popoutIcon() templ.Component {
-	return lucideIcon(`<path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>`)
 }
 
 func itemActionURL(item InboxItem, action string) string {
@@ -907,27 +876,8 @@ func starClass(on bool) string {
 	return "gm-star"
 }
 
-func starIcon(on bool) templ.Component {
-	if on {
-		return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`)
-	}
-	return lucideIcon(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>`)
-}
-
-func sendIcon() templ.Component {
-	return lucideIcon(`<path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path>`)
-}
-
-func stopIcon() templ.Component {
-	return lucideIcon(`<rect width="14" height="14" x="5" y="5" rx="2"></rect>`)
-}
-
 func showArchiveFilters(view string) bool {
 	return view == "chats" || view == "tasks" || view == "workflows"
-}
-
-func taskIcon() templ.Component {
-	return lucideIcon(`<rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path>`)
 }
 
 func trashActionLabel(item InboxItem) string {
@@ -939,10 +889,6 @@ func trashActionLabel(item InboxItem) string {
 	default:
 		return "Delete chat"
 	}
-}
-
-func trashIcon() templ.Component {
-	return lucideIcon(`<path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`)
 }
 
 func taskInboxActionURL(id int64, action string) string {
@@ -986,20 +932,4 @@ func threadInboxDetailURL(kind string, id int64) string {
 
 func threadInboxItem(d InboxThreadDetail) InboxItem {
 	return InboxItem{Archived: d.Archived, ID: d.ID, Kind: d.Kind, Starred: d.Starred}
-}
-
-func lucideIcon(body string) templ.Component {
-	return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + body + `</svg>`)
-}
-
-func unarchiveIcon() templ.Component {
-	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="m9 15 3-3 3 3"></path><path d="M12 12v6"></path>`)
-}
-
-func workflowIcon() templ.Component {
-	return lucideIcon(`<circle cx="12" cy="4.5" r="2.5"></circle><circle cx="4.5" cy="12" r="2.5"></circle><circle cx="19.5" cy="12" r="2.5"></circle><circle cx="12" cy="19.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><path d="M7 12h10"></path><path d="m13.8 17.7 3.9-3.9"></path>`)
-}
-
-func plusIcon() templ.Component {
-	return lucideIcon(`<path d="M12 5v14"></path><path d="M5 12h14"></path>`)
 }

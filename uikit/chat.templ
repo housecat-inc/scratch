@@ -1,12 +1,14 @@
 package uikit
 
+import lucide "github.com/wux4an/lucide-templ/icons"
+
 templ NewChatAction(p NewChatActionProps) {
 	<form class="mail-create-combo" method="get" action={ newChatAction(p.Action) } data-chat-popout-new>
 		if p.Label != "" {
 			<input type="hidden" name="chat_label" value={ p.Label }/>
 		}
 		<button class="mail-create-btn" type="submit" data-new-chat title="New chat" aria-label="New chat">
-			@Icon("plus")
+			@lucide.Plus()
 			<span>Chat</span>
 		</button>
 		if len(p.Options) > 0 {
@@ -17,7 +19,7 @@ templ NewChatAction(p NewChatActionProps) {
 						<option value={ option.Value }>{ option.Label }</option>
 					}
 				</select>
-				<span class="mail-create-chevron">@Icon("chevron-down")</span>
+				<span class="mail-create-chevron">@lucide.ChevronDown()</span>
 			</span>
 		}
 	</form>
@@ -25,6 +27,6 @@ templ NewChatAction(p NewChatActionProps) {
 
 templ ChatHistoryAction(href string) {
 	<a aria-label="Chat history" class="mail-create-btn" data-chat-history href={ templ.SafeURL(historyHref(href)) } title="Chat history">
-		@Icon("history")
+		@lucide.History()
 	</a>
 }

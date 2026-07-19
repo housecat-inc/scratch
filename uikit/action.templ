@@ -2,7 +2,7 @@ package uikit
 
 templ ActionIcon(p ActionIconProps) {
 	<button type="button" class={ "gm-row-action", templ.KV("danger", p.Danger) } title={ p.Label } aria-label={ p.Label } onclick="event.stopPropagation()" { p.Attrs... }>
-		@Icon(p.Icon)
+		@p.Icon
 	</button>
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/uikit"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ ContactsPage(p ContactsProps) {
@@ -112,15 +113,15 @@ templ ContactsTable(p ContactsProps) {
 	@uikit.DataTable(uikit.DataTableProps{
 		BaseHref: "/contacts",
 		Columns: []uikit.DataTableColumn{
-			{Header: "Name", Icon: "contacts", Sticky: true, Width: "16rem"},
-			{Header: "Email", Icon: "chat", Width: "18rem"},
-			{Header: "Company", Icon: "database", Width: "14rem"},
-			{Header: "Job title", Icon: "task", Width: "15rem"},
-			{Header: "Status", Icon: "star", Width: "10rem"},
-			{Header: "Phone", Icon: "chat", Width: "13rem"},
-			{Header: "Location", Icon: "inbox", Width: "14rem"},
-			{Header: "LinkedIn", Icon: "history", Width: "14rem"},
-			{Header: "Twitter", Icon: "chat", Width: "12rem"},
+			{Header: "Name", Icon: lucide.Users(), Sticky: true, Width: "16rem"},
+			{Header: "Email", Icon: lucide.Mail(), Width: "18rem"},
+			{Header: "Company", Icon: lucide.BriefcaseBusiness(), Width: "14rem"},
+			{Header: "Job title", Icon: lucide.UserRoundCog(), Width: "15rem"},
+			{Header: "Status", Icon: lucide.Star(), Width: "10rem"},
+			{Header: "Phone", Icon: lucide.Phone(), Width: "13rem"},
+			{Header: "Location", Icon: lucide.MapPin(), Width: "14rem"},
+			{Header: "LinkedIn", Icon: lucide.Linkedin(), Width: "14rem"},
+			{Header: "Twitter", Icon: lucide.Twitter(), Width: "12rem"},
 		},
 		Empty: "No contacts yet.",
 		ID: "contacts-table",

@@ -1168,6 +1168,10 @@ textarea {
   color: #eab308;
 }
 
+.gm-star.on svg {
+  fill: currentColor;
+}
+
 .mail-empty {
   align-items: center;
   color: #64748b;

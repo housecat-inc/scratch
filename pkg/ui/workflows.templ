@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/housecat-inc/scratch/uikit"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ WorkflowsPage(p WorkflowsProps) {
@@ -56,12 +57,12 @@ templ workflowRunRow(run WorkflowRunItem) {
 templ workflowRowActions(run WorkflowRunItem) {
 	<form method="post" action={ templ.SafeURL("/workflows/" + strconv.FormatInt(run.ID, 10) + "/archive") }>
 		<button type="submit" class="gm-row-action" aria-label="Archive" title="Archive">
-			@uikit.Icon("archive")
+			@lucide.Archive()
 		</button>
 	</form>
 	<form method="post" action={ templ.SafeURL("/workflows/" + strconv.FormatInt(run.ID, 10) + "/trash") }>
 		<button type="submit" class="gm-row-action" aria-label="Delete" title="Delete">
-			@uikit.Icon("trash")
+			@lucide.Trash2()
 		</button>
 	</form>
 }
@@ -94,9 +95,9 @@ templ TaskWorkflowStatus(d InboxWorkflowDetail) {
 			Title: d.Title,
 		}) {
 			if d.Archived {
-				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Unarchive", unarchiveIcon())
+				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Unarchive", lucide.ArchiveRestore())
 			} else {
-				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Archive", archiveIcon())
+				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Archive", lucide.Archive())
 			}
 			@readerTrashButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/trash", "Delete workflow")
 		}

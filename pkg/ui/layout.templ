@@ -6,6 +6,7 @@ import (
 
 	"github.com/housecat-inc/scratch/uikit"
 	"github.com/templui/templui/components/card"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ AppCard(extra ...string) {
@@ -126,16 +127,16 @@ templ Layout(title, nav string, shells ...ToolShellProps) {
 
 func toolNavItems(active string, counts InboxCounts) []uikit.NavItem {
 	return []uikit.NavItem{
-		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
-		{Active: active == "starred", Count: counts.Starred, Href: "/starred", Icon: "star", Label: "Starred", ShowCount: true},
-		{Group: "More", Active: active == "chats", Count: counts.Chats, Href: "/inbox/chats", Icon: "chat", Label: "Chats", ShowCount: true},
-		{Active: active == "tasks", Count: counts.Tasks, Href: "/inbox/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
-		{Active: active == "workflows", Count: counts.Workflows, Href: "/inbox/workflows", Icon: "play", Label: "Workflows", ShowCount: true},
-		{Group: "Tools", Active: active == "setup", Href: "/setup", Icon: "settings", Label: "Setup"},
-		{Active: active == "sessions", Href: "/sessions", Icon: "chat", Label: "Sessions"},
-		{Active: active == "code", Href: "/code/", Icon: "code", Label: "Code review"},
-		{Active: active == "files", Href: "/files/", Icon: "file", Label: "Files"},
-		{Active: active == "sql", Href: "/sql/", Icon: "database", Label: "SQL"},
+		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: lucide.Inbox(), Label: "Inbox", ShowCount: true},
+		{Active: active == "starred", Count: counts.Starred, Href: "/starred", Icon: lucide.Star(), Label: "Starred", ShowCount: true},
+		{Active: active == "chats", Count: counts.Chats, Group: "More", Href: "/inbox/chats", Icon: lucide.MessageSquare(), Label: "Chats", ShowCount: true},
+		{Active: active == "tasks", Count: counts.Tasks, Href: "/inbox/tasks", Icon: lucide.ListChecks(), Label: "Tasks", ShowCount: true},
+		{Active: active == "workflows", Count: counts.Workflows, Href: "/inbox/workflows", Icon: lucide.Play(), Label: "Workflows", ShowCount: true},
+		{Active: active == "setup", Group: "Tools", Href: "/setup", Icon: lucide.Settings(), Label: "Setup"},
+		{Active: active == "sessions", Href: "/sessions", Icon: lucide.MessageSquare(), Label: "Sessions"},
+		{Active: active == "code", Href: "/code/", Icon: lucide.CodeXml(), Label: "Code review"},
+		{Active: active == "files", Href: "/files/", Icon: lucide.File(), Label: "Files"},
+		{Active: active == "sql", Href: "/sql/", Icon: lucide.Database(), Label: "SQL"},
 	}
 }
 

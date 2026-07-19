@@ -9,9 +9,9 @@ templ DataTable(p DataTableProps) {
 				<div class="dt-head" role="row" { dtGridAttrs(p.Columns)... }>
 					for _, col := range p.Columns {
 						<div class={ dtHeadCellClass(col) } role="columnheader">
-							if col.Icon != "" {
+							if col.Icon != nil {
 								<span class="dt-head-icon">
-									@Icon(col.Icon)
+									@col.Icon
 								</span>
 							}
 							<span>{ col.Header }</span>

@@ -14,6 +14,7 @@ import (
 	"github.com/templui/templui/components/badge"
 	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ CodeSubnav(p CodeSubnavProps) {
@@ -226,11 +227,11 @@ templ CommentListPage(p CommentListProps) {
 templ FileBlock(f FileProps) {
 	<details class="group bg-white rounded-lg border border-slate-200 mb-2">
 		<summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none group-open:border-b border-slate-100 group-open:sticky group-open:top-11 group-open:z-10 group-open:bg-white group-open:rounded-t-lg">
-			<svg class="w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+			@lucide.ChevronRight(templ.Attributes{"class": "w-3 h-3 text-slate-400 transition-transform group-open:rotate-90 flex-shrink-0 ml-1"})
 			<span class="font-mono text-xs truncate flex-1 min-w-0 text-slate-700">{ f.Path }</span>
 			if f.Comments > 0 {
 				<span class="text-xs text-slate-500 flex-shrink-0 inline-flex items-center gap-0.5" title={ fmt.Sprintf("%d comments", f.Comments) }>
-					<svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h12v8H6l-3 3v-3H2V3z"></path></svg>
+					@lucide.MessageSquare(templ.Attributes{"class": "w-3 h-3"})
 					<span class="tabular-nums">{ strconv.Itoa(f.Comments) }</span>
 				</span>
 			}
@@ -243,13 +244,13 @@ templ FileBlock(f FileProps) {
 			}
 			<div class="flex items-center flex-shrink-0">
 				<button type="button" title="Expand entire file" onclick="expandWholeFile(this, event)" class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100">
-					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3"></path></svg>
+					@lucide.Maximize(templ.Attributes{"class": "w-3.5 h-3.5"})
 				</button>
 				<button type="button" title="Expand all blocks" onclick="expandAllBlocks(this, event)" class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100">
-					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v8M4 8h8"></path></svg>
+					@lucide.Plus(templ.Attributes{"class": "w-3.5 h-3.5"})
 				</button>
 				<button type="button" title="Mark as done" onclick="markFileDone(this, event)" class="p-1.5 text-slate-400 rounded hover:bg-slate-100">
-					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"></path></svg>
+					@lucide.Check(templ.Attributes{"class": "w-3.5 h-3.5"})
 				</button>
 			</div>
 		</summary>
@@ -297,7 +298,7 @@ templ HunkBlock(h HunkProps) {
 	} else {
 		<details class="group/hunk" id={ "hunk-" + h.Hunk.Key() }>
 			<summary class="h-10 flex items-center gap-2 px-2 cursor-pointer list-none border-b border-slate-100 hover:bg-slate-50">
-				<svg class="w-3 h-3 text-slate-400 transition-transform group-open/hunk:rotate-90 flex-shrink-0 ml-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+				@lucide.ChevronRight(templ.Attributes{"class": "w-3 h-3 text-slate-400 transition-transform group-open/hunk:rotate-90 flex-shrink-0 ml-1"})
 				<span class="text-xs text-slate-700 truncate flex-1 min-w-0">
 					if h.Commit.Subject != "" {
 						{ h.Commit.Subject }
@@ -316,7 +317,7 @@ templ HunkBlock(h HunkProps) {
 						}
 					</span>
 					<button type="button" title="Mark hunk as done" onclick="markHunkDone(this, event)" class="p-1.5 text-slate-400 rounded hover:bg-slate-100">
-						<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"></path></svg>
+						@lucide.Check(templ.Attributes{"class": "w-3.5 h-3.5"})
 					</button>
 				</div>
 			</summary>
@@ -338,7 +339,7 @@ templ PrevButtonsInner(s ExpandSpot) {
 		hx-target={ "#prev-buttons-" + s.HunkKey }
 		hx-swap="outerHTML"
 		hx-on::before-request="handlePrevClick(this, event)">
-		<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3"></path></svg>
+		@lucide.Maximize(templ.Attributes{"class": "w-3.5 h-3.5"})
 	</button>
 	<button type="button" title="Expand context"
 		class="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
@@ -347,7 +348,7 @@ templ PrevButtonsInner(s ExpandSpot) {
 		hx-target={ "#prev-buttons-" + s.HunkKey }
 		hx-swap="outerHTML"
 		hx-on::before-request="handlePrevClick(this, event)">
-		<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v8M4 8h8"></path></svg>
+		@lucide.Plus(templ.Attributes{"class": "w-3.5 h-3.5"})
 	</button>
 }
 
@@ -357,7 +358,9 @@ templ PrevButtonsEmpty() {
 }
 
 templ ControlPlaceholder() {
-	<span class="p-1.5 invisible inline-flex"><svg class="w-3.5 h-3.5" viewBox="0 0 16 16"></svg></span>
+	<span class="p-1.5 invisible inline-flex">
+		<span class="w-3.5 h-3.5"></span>
+	</span>
 }
 
 templ ContextAttached(p ContextProps) {
@@ -395,15 +398,15 @@ templ DiffLine(l DiffLineProps) {
 			</span>
 			<span class="text-slate-400 select-none w-3 flex-shrink-0">{ lineMarker(l.Line.Kind) }</span>
 			<pre class="whitespace-pre-wrap break-all flex-1 m-0"><code class={ l.Lang }>{ l.Line.Content }</code></pre>
-			if l.Anchor != "" {
-				<button type="button" title="Add comment"
-					class="text-slate-300 hover:text-slate-900 px-1 -my-0.5 flex-shrink-0"
-					hx-get={ fmt.Sprintf("/code/%s/comments/form?path=%s&side=%s&line=%d", l.Slug, url.QueryEscape(l.Path), l.Side, l.AnchorLine) }
-					hx-target={ "#comment-form-" + l.Anchor }
-					hx-swap="innerHTML">
-					<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h12v8H8l-3 3v-3H2V3z"></path></svg>
-				</button>
-			}
+				if l.Anchor != "" {
+					<button type="button" title="Add comment"
+						class="text-slate-300 hover:text-slate-900 px-1 -my-0.5 flex-shrink-0"
+						hx-get={ fmt.Sprintf("/code/%s/comments/form?path=%s&side=%s&line=%d", l.Slug, url.QueryEscape(l.Path), l.Side, l.AnchorLine) }
+						hx-target={ "#comment-form-" + l.Anchor }
+						hx-swap="innerHTML">
+						@lucide.MessageSquare(templ.Attributes{"class": "w-3.5 h-3.5"})
+					</button>
+				}
 		</div>
 		if l.Anchor != "" {
 			@CommentThread(CommentThreadProps{Anchor: l.Anchor, Comments: l.Comments, Slug: l.Slug})
@@ -423,7 +426,7 @@ templ CommentThread(p CommentThreadProps) {
 templ CommentItem(p CommentItemProps) {
 	<details id={ "comment-" + p.Comment.ID } class={ "group/comment bg-amber-50 text-xs", templ.KV("opacity-60", p.Comment.Resolved) }>
 		<summary class="cursor-pointer list-none flex items-center gap-2 px-2 group-open/comment:items-start group-open/comment:py-1">
-			<svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90 group-open/comment:mt-1" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3l5 5-5 5z"></path></svg>
+			@lucide.ChevronRight(templ.Attributes{"class": "w-3 h-3 text-slate-400 flex-shrink-0 transition-transform group-open/comment:rotate-90 group-open/comment:mt-1"})
 			<div class="flex-1 min-w-0 font-sans">
 				<div class="truncate group-open/comment:whitespace-pre-wrap group-open/comment:overflow-visible group-open/comment:break-words">{ p.Comment.Body }</div>
 				if p.Comment.Resolved && p.Comment.ResolvedBody != "" {
@@ -467,7 +470,7 @@ templ CommentIcons(p CommentItemProps) {
 
 templ CommentActions(p CommentItemProps) {
 	@uikit.ActionIcon(uikit.ActionIconProps{
-		Icon:  "edit",
+		Icon:  lucide.Pencil(),
 		Label: "Edit",
 		Attrs: templ.Attributes{
 			"hx-get":    fmt.Sprintf("/code/%s/comments/%s/edit?view=%s", p.Slug, p.Comment.ID, p.View),
@@ -487,7 +490,7 @@ templ CommentActions(p CommentItemProps) {
 	})
 	@uikit.ActionIcon(uikit.ActionIconProps{
 		Danger: true,
-		Icon:   "trash",
+		Icon:   lucide.Trash2(),
 		Label:  "Delete",
 		Attrs: templ.Attributes{
 			"hx-delete":  fmt.Sprintf("/code/%s/comments/%s", p.Slug, p.Comment.ID),
@@ -498,11 +501,11 @@ templ CommentActions(p CommentItemProps) {
 	})
 }
 
-func resolveIcon(resolved bool) string {
+func resolveIcon(resolved bool) templ.Component {
 	if resolved {
-		return "reopen"
+		return lucide.RefreshCcw()
 	}
-	return "check"
+	return lucide.Check()
 }
 
 func resolveLabel(resolved bool) string {

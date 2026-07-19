@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/housecat-inc/scratch/uikit"
+import (
+	"github.com/housecat-inc/scratch/uikit"
+	lucide "github.com/wux4an/lucide-templ/icons"
+)
 
 type NavCounts struct {
 	Contacts  int
@@ -11,9 +14,9 @@ type NavCounts struct {
 
 func appNav(active string, counts NavCounts) []uikit.NavItem {
 	return []uikit.NavItem{
-		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
-		{Group: "More", Active: active == "tasks", Count: counts.Tasks, Href: "/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
-		{Active: active == "contacts", Count: counts.Contacts, Href: "/contacts", Icon: "contacts", Label: "Contacts", ShowCount: true},
-		{Active: active == "workflows", Count: counts.Workflows, Href: "/workflows", Icon: "play", Label: "Workflows", ShowCount: true},
+		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: lucide.Inbox(), Label: "Inbox", ShowCount: true},
+		{Active: active == "tasks", Count: counts.Tasks, Group: "More", Href: "/tasks", Icon: lucide.ListChecks(), Label: "Tasks", ShowCount: true},
+		{Active: active == "contacts", Count: counts.Contacts, Href: "/contacts", Icon: lucide.Users(), Label: "Contacts", ShowCount: true},
+		{Active: active == "workflows", Count: counts.Workflows, Href: "/workflows", Icon: lucide.Play(), Label: "Workflows", ShowCount: true},
 	}
 }
