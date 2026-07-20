@@ -26,10 +26,11 @@ import (
 )
 
 type Server struct {
-	chat  *chat.Service
-	flows *flow.Engine
-	log   *slog.Logger
-	tasks *todo.Service
+	chat     *chat.Service
+	contacts db.ContactStore
+	flows    *flow.Engine
+	log      *slog.Logger
+	tasks    *todo.Service
 }
 
 func NewServer(tasks *todo.Service, chat *chat.Service, flows *flow.Engine, log *slog.Logger) *Server {
@@ -37,6 +38,10 @@ func NewServer(tasks *todo.Service, chat *chat.Service, flows *flow.Engine, log 
 		log = slog.Default()
 	}
 	return &Server{chat: chat, flows: flows, log: log, tasks: tasks}
+}
+
+func (s *Server) SetContacts(contacts db.ContactStore) {
+	s.contacts = contacts
 }
 
 func (s *Server) Handler() http.Handler {
@@ -820,9 +825,22 @@ func (s *Server) workflowItemProps(threadID int64, step flow.StepView) ui.Workfl
 				form.Fields[i].Value = v
 			}
 		}
+		s.setContactFieldLabels(&form)
 	}
 	item.Form = &form
 	return item
+}
+
+func (s *Server) setContactFieldLabels(form *ui.ChatFormProps) {
+	if s.contacts == nil {
+		return
+	}
+	for i := range form.Fields {
+		if form.Fields[i].Type != "contact" {
+			continue
+		}
+		form.Fields[i].ValueLabel = ui.ContactValueLabel(s.contacts, form.Fields[i].Value)
+	}
 }
 
 func (s *Server) schedules() ([]ui.WorkflowScheduleView, error) {
@@ -1171,6 +1189,8 @@ func chatModel(agent, model string) string {
 
 func workflowAgent(typ string) string {
 	switch strings.TrimSpace(typ) {
+	case "contact-note":
+		return "contact-note"
 	case "countdown":
 		return "countdown"
 	case "create-pr":
@@ -1192,6 +1212,8 @@ func workflowAgent(typ string) string {
 
 func workflowTitle(typ string) string {
 	switch typ {
+	case "contact-note":
+		return "Contact note"
 	case "countdown":
 		return "Countdown"
 	case "create-pr":

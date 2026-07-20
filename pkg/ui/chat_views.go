@@ -12,16 +12,19 @@ import (
 var chatCSS string
 
 type ChatFormFieldProps struct {
-	Label    string
-	Name     string
-	Options  []string
-	Required bool
-	Type     string
-	Value    string
+	Label      string
+	Name       string
+	Options    []string
+	Required   bool
+	Type       string
+	Value      string
+	ValueLabel string
 }
 
 type ChatFormProps struct {
+	AcceptLabel   string
 	Action        string
+	DeclineLabel  string
 	Disabled      bool
 	Editable      bool
 	ElicitationID string
@@ -31,6 +34,20 @@ type ChatFormProps struct {
 	Message       string
 	MessageID     int64
 	Plain         bool
+}
+
+func acceptLabel(f ChatFormProps) string {
+	if f.AcceptLabel != "" {
+		return f.AcceptLabel
+	}
+	return "Accept"
+}
+
+func declineLabel(f ChatFormProps) string {
+	if f.DeclineLabel != "" {
+		return f.DeclineLabel
+	}
+	return "Decline"
 }
 
 type ChatAttachmentProps struct {

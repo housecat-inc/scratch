@@ -10,17 +10,21 @@ import (
 	"github.com/a-h/templ"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/server/httperr"
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/ui"
+	"github.com/housecat-inc/scratch/uikit"
 )
 
 const chatLabelTodo = "todo"
 
 type WebServer struct {
-	chat  *chat.Service
-	log   *slog.Logger
-	tasks *Service
+	chat     *chat.Service
+	contacts db.ContactStore
+	flows    *flow.Engine
+	log      *slog.Logger
+	tasks    *Service
 }
 
 func NewWebServer(tasks *Service, log *slog.Logger) *WebServer {
@@ -34,11 +38,35 @@ func NewWebServerWithChat(tasks *Service, chat *chat.Service, log *slog.Logger) 
 	return &WebServer{chat: chat, log: log, tasks: tasks}
 }
 
+func (s *WebServer) SetContacts(contacts db.ContactStore) {
+	s.contacts = contacts
+}
+
+func (s *WebServer) SetFlows(flows *flow.Engine) {
+	s.flows = flows
+}
+
+func (s *WebServer) chatActions() (options []uikit.SelectOption, label string) {
+	if s.chat == nil {
+		return nil, ""
+	}
+	return chat.ProviderModelOptions(s.chat.AgentNames()), chatLabelTodo
+}
+
 func (s *WebServer) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleList)
 	mux.HandleFunc("GET /chats", s.handleChats)
+	mux.HandleFunc("GET /contacts", s.handleContacts)
+	mux.HandleFunc("GET /contacts/{id}", s.handleContact)
 	mux.HandleFunc("GET /tasks", s.handleTasks)
+	mux.HandleFunc("GET /workflows", s.handleWorkflows)
+	mux.HandleFunc("POST /workflows", s.handleStartWorkflow)
+	mux.HandleFunc("GET /workflows/{id}", s.handleWorkflow)
+	mux.HandleFunc("GET /workflows/{id}/events", s.handleWorkflowEvents)
+	mux.HandleFunc("POST /workflows/{id}/archive", s.handleArchiveWorkflow)
+	mux.HandleFunc("POST /workflows/{id}/resolve", s.handleResolveWorkflow)
+	mux.HandleFunc("POST /workflows/{id}/trash", s.handleTrashWorkflow)
 	mux.HandleFunc("GET /tasks/{id}", s.handleShow)
 	mux.HandleFunc("POST /tasks", s.handleCreate)
 	mux.HandleFunc("POST /tasks/{id}/archive", s.handleArchive)
@@ -192,6 +220,14 @@ func (s *WebServer) props(filter Filter, selectedID int64) (ui.TodoProps, error)
 		Tasks:       tasks,
 		TaskCount:   len(all),
 		View:        todoView(filter),
+	}
+	if s.contacts != nil {
+		if count, err := s.contacts.CountContacts(); err == nil {
+			props.ContactCount = count
+		}
+	}
+	if s.workflowsEnabled() {
+		props.WorkflowCount = len(s.workflowThreads())
 	}
 	if s.chat != nil {
 		chatItems, err := s.chatItems()

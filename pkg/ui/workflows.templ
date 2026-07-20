@@ -1,0 +1,123 @@
+package ui
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/uikit"
+	lucide "github.com/wux4an/lucide-templ/icons"
+)
+
+templ WorkflowsPage(p WorkflowsProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Workflows") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
+				AppName: "todos",
+				BrandHref: "/",
+				Nav: appNav("workflows", p.Counts),
+				SidebarTop: ComposeLauncher(),
+			}) {
+				<header class="mail-mainbar">
+					<div class="mail-mainbar-title">
+						<h1>Workflows</h1>
+						<span>{ strconv.Itoa(len(p.Runs)) }</span>
+					</div>
+				</header>
+				if len(p.Runs) == 0 {
+					<div class="mail-empty">No workflow runs yet. Start one with + Flow.</div>
+				} else {
+					<div class="mail-list">
+						for _, run := range p.Runs {
+							@workflowRunRow(run)
+						}
+					</div>
+				}
+			}
+		</body>
+	</html>
+}
+
+templ workflowRunRow(run WorkflowRunItem) {
+	@uikit.ListRow(uikit.ListRowProps{
+		Actions: workflowRowActions(run),
+		Href: run.Href,
+		ID: strconv.FormatInt(run.ID, 10),
+		Kind: "workflow",
+		Labels: []string{workflowStatusLabel(run.Status)},
+		Subject: workflowStatusLabel(run.Status),
+		What: run.Title,
+		When: run.When,
+	})
+}
+
+templ workflowRowActions(run WorkflowRunItem) {
+	<form method="post" action={ templ.SafeURL("/workflows/" + strconv.FormatInt(run.ID, 10) + "/archive") }>
+		<button type="submit" class="gm-row-action" aria-label="Archive" title="Archive">
+			@lucide.Archive()
+		</button>
+	</form>
+	<form method="post" action={ templ.SafeURL("/workflows/" + strconv.FormatInt(run.ID, 10) + "/trash") }>
+		<button type="submit" class="gm-row-action" aria-label="Delete" title="Delete">
+			@lucide.Trash2()
+		</button>
+	</form>
+}
+
+templ WorkflowRunPage(p WorkflowRunProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Workflow") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
+				AppName: "todos",
+				BrandHref: "/",
+				Nav: appNav("workflows", p.Counts),
+				SidebarTop: ComposeLauncher(),
+			}) {
+				@WorkflowRunBody(p.Detail)
+			}
+		</body>
+	</html>
+}
+
+templ TaskWorkflowStatus(d InboxWorkflowDetail) {
+	<div id="wf-status">
+		@ReaderHeader(ReaderHeaderProps{
+			BackHref: "/workflows",
+			Description: workflowStatusLabel(d.Status),
+			Title: d.Title,
+		}) {
+			if d.Archived {
+				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Unarchive", lucide.ArchiveRestore())
+			} else {
+				@readerPostButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/archive", "Archive", lucide.Archive())
+			}
+			@readerTrashButton("/workflows/" + strconv.FormatInt(d.ID, 10) + "/trash", "Delete workflow")
+		}
+	</div>
+}
+
+templ WorkflowRunBody(d InboxWorkflowDetail) {
+	<div id="wf-reader" data-events-url={ "/workflows/" + strconv.FormatInt(d.ID, 10) + "/events" }>
+		@TaskWorkflowStatus(d)
+		<div class="mail-reader-body mail-chat-body">
+			<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
+				<div id="wf-steps">
+					for _, item := range d.Items {
+						if item.Durable {
+							@WorkflowStep(item)
+						}
+					}
+				</div>
+				@WorkflowPending(d)
+			</div>
+		</div>
+	</div>
+}

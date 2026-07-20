@@ -518,7 +518,9 @@ func toFormProps(threadID, messageID int64, prompt elicit.Prompt) ui.ChatFormPro
 
 func FormProps(action string, prompt elicit.Prompt) ui.ChatFormProps {
 	form := ui.ChatFormProps{
+		AcceptLabel:   prompt.AcceptLabel,
 		Action:        action,
+		DeclineLabel:  prompt.DeclineLabel,
 		ElicitationID: prompt.ElicitationID,
 		Message:       prompt.Message,
 	}
@@ -562,6 +564,9 @@ func toFieldProps(name string, prop *jsonschema.Schema, required bool) ui.ChatFo
 	switch name {
 	case "body", "description", "notes":
 		field.Type = "textarea"
+	}
+	if name == "contact" || strings.HasSuffix(name, "_contact") {
+		field.Type = "contact"
 	}
 	for _, option := range prop.Enum {
 		if s, ok := option.(string); ok {

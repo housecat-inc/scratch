@@ -1,6 +1,10 @@
 package ui
 
-import "strconv"
+import (
+	"strconv"
+
+	lucide "github.com/wux4an/lucide-templ/icons"
+)
 
 templ ChatComposer(p ChatComposerProps) {
 	if p.UploadURL != "" {
@@ -44,24 +48,24 @@ templ chatComposerBody(p ChatComposerProps) {
 		autocomplete="off"
 		autofocus
 	></textarea>
-	<div class="chat-compose-row">
-		<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
-			@paperclipIcon()
-			<input id={ chatDOMID(p, "chat-file") } data-chat-file name={ p.FileName } type="file" multiple hidden/>
-		</label>
-		<button type="button" id={ chatDOMID(p, "chat-snap") } data-chat-snap class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
-			@crosshairIcon()
-		</button>
-		if p.StopAction != "" {
-			<button type="button" class="chat-icon-circle" title="Stop chat" aria-label="Stop chat" hx-post={ p.StopAction } hx-swap="none">
-				@stopIcon()
+		<div class="chat-compose-row">
+			<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
+				@lucide.Paperclip()
+				<input id={ chatDOMID(p, "chat-file") } data-chat-file name={ p.FileName } type="file" multiple hidden/>
+			</label>
+			<button type="button" id={ chatDOMID(p, "chat-snap") } data-chat-snap class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
+				@lucide.Crosshair()
 			</button>
-		}
-		<div id={ chatDOMID(p, "chat-attachments") } data-chat-attachments class="chat-attachments"></div>
-		<button id={ chatDOMID(p, "chat-send") } data-chat-send class="mail-send-btn" type="submit" aria-label="Send">
-			@sendIcon()
-			<span>Send</span>
-		</button>
+			if p.StopAction != "" {
+				<button type="button" class="chat-icon-circle" title="Stop chat" aria-label="Stop chat" hx-post={ p.StopAction } hx-swap="none">
+					@lucide.SquareStop()
+				</button>
+			}
+			<div id={ chatDOMID(p, "chat-attachments") } data-chat-attachments class="chat-attachments"></div>
+			<button id={ chatDOMID(p, "chat-send") } data-chat-send class="mail-send-btn" type="submit" aria-label="Send">
+				@lucide.Send()
+				<span>Send</span>
+			</button>
 	</div>
 }
 
@@ -90,19 +94,19 @@ templ FloatingChatPanel(p FloatingChatProps) {
 					<small>{ p.Description }</small>
 				}
 			</div>
-			<div class="floating-chat-actions">
-				<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
-					@minusIcon()
-				</button>
-				<button type="button" class="floating-chat-icon" data-chat-restore title="Restore floating chat" aria-label="Restore floating chat">
-					@restoreIcon()
-				</button>
-				<button type="button" class="floating-chat-icon" data-chat-fullscreen title="Fullscreen" aria-label="Fullscreen chat">
-					@fullscreenIcon()
-				</button>
-				<button type="button" class="floating-chat-icon" data-chat-close title="Close" aria-label="Close chat">
-					@closeIcon()
-				</button>
+				<div class="floating-chat-actions">
+					<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
+						@lucide.Minus()
+					</button>
+					<button type="button" class="floating-chat-icon" data-chat-restore title="Restore floating chat" aria-label="Restore floating chat">
+						@lucide.PanelTopOpen()
+					</button>
+					<button type="button" class="floating-chat-icon" data-chat-fullscreen title="Fullscreen" aria-label="Fullscreen chat">
+						@lucide.Maximize2()
+					</button>
+					<button type="button" class="floating-chat-icon" data-chat-close title="Close" aria-label="Close chat">
+						@lucide.X()
+					</button>
 			</div>
 		</header>
 		<div hx-ext="sse" sse-connect={ "/chat/" + itoa64(p.ID) + "/events" } class="floating-chat-body" data-chat-scroller>
@@ -154,14 +158,14 @@ templ ChatMessage(m ChatMessageProps) {
 templ userBubble(m ChatMessageProps) {
 	if len(m.Attachments) > 0 {
 		<div class="chat-bubble-attachments">
-			for _, a := range m.Attachments {
-				<a class="chat-attachment-chip" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
-					if a.IsImage {
-						@imageIcon()
-						<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
-					} else {
-						@paperclipIcon()
-					}
+				for _, a := range m.Attachments {
+					<a class="chat-attachment-chip" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
+						if a.IsImage {
+							@lucide.Image()
+							<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
+						} else {
+							@lucide.Paperclip()
+						}
 					<span class="chat-chip-name">{ a.Name }</span>
 				</a>
 			}
@@ -180,18 +184,14 @@ templ ChatAttachmentChip(a ChatAttachmentProps) {
 	<span class="chat-attachment-chip" data-id={ itoa64(a.ID) }>
 		<input type="hidden" name="attachment_id" value={ itoa64(a.ID) }/>
 		if a.IsImage {
-			@imageIcon()
+			@lucide.Image()
 			<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
 		} else {
-			@paperclipIcon()
+			@lucide.Paperclip()
 		}
 		<span class="chat-chip-name">{ a.Name }</span>
 		<button type="button" class="chat-attachment-remove" data-id={ itoa64(a.ID) } aria-label={ "Remove " + a.Name }>×</button>
 	</span>
-}
-
-templ imageIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-4.6-4.6a2 2 0 00-2.8 0L5 19"></path></svg>
 }
 
 templ ChatAccessToggle(threadID int64, access string) {
@@ -206,48 +206,12 @@ templ ChatAccessToggle(threadID int64, access string) {
 		aria-label={ accessLabel(access) }
 	>
 		<span class="chat-switch-icon">
-			@boltIcon()
+			@lucide.Zap()
 		</span>
 		<span class="chat-switch-track">
 			<span class="chat-switch-knob"></span>
 		</span>
 	</button>
-}
-
-templ paperclipIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path></svg>
-}
-
-templ boltIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-}
-
-templ crosshairIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg>
-}
-
-templ closeIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
-}
-
-templ fullscreenIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M21 16v3a2 2 0 0 1-2 2h-3"></path></svg>
-}
-
-templ minusIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14"></path></svg>
-}
-
-templ restoreIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"></path></svg>
-}
-
-templ editIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
-}
-
-templ forkIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><circle cx="18" cy="6" r="3"></circle><path d="M18 9a9 9 0 0 1-12 0"></path><path d="M12 15V9"></path></svg>
 }
 
 templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
@@ -357,11 +321,11 @@ templ chatToolGroup(m ChatMessageProps, g chatPartGroup) {
 
 templ rowIcon(kind string, failed bool) {
 	if failed {
-		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.2"></circle><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"></path></svg>
+		@lucide.CircleX()
 	} else if kind == "thinking" {
-		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.2"></circle><path d="M8 1.8v12.4M1.8 8h12.4M3.6 3.6c2.6 2.6 6.2 2.6 8.8 0M3.6 12.4c2.6-2.6 6.2-2.6 8.8 0"></path></svg>
+		@lucide.Globe()
 	} else {
-		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 3.5l4 4-4 4M8.5 12h5"></path></svg>
+		@lucide.Terminal()
 	}
 }
 
@@ -395,13 +359,13 @@ templ chatFormBody(f ChatFormProps) {
 	}
 	if f.Editable {
 		<div class="chat-elicit-header">
-			<div class="chat-elicit-actions">
-				<button class="gm-icon-btn" type="button" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
-					@editIcon()
-				</button>
-				<button class="gm-icon-btn" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate title="Fork" aria-label="Fork" data-elicit-fork>
-					@forkIcon()
-				</button>
+				<div class="chat-elicit-actions">
+					<button class="gm-icon-btn" type="button" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
+						@lucide.Pencil()
+					</button>
+					<button class="gm-icon-btn" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate title="Fork" aria-label="Fork" data-elicit-fork>
+						@lucide.GitFork()
+					</button>
 			</div>
 		</div>
 	}
@@ -419,6 +383,8 @@ templ chatFormBody(f ChatFormProps) {
 					<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" } disabled?={ f.Disabled || f.Editable }/>
 				case "textarea":
 					<textarea class="chat-elicit-textarea" name={ "f_" + field.Name } rows="8" required?={ field.Required } disabled?={ f.Disabled || f.Editable }>{ field.Value }</textarea>
+				case "contact":
+					@contactField(field, f.Disabled || f.Editable)
 				default:
 					<input
 						type={ field.Type }
@@ -437,9 +403,9 @@ templ chatFormBody(f ChatFormProps) {
 		</div>
 	}
 	if !f.Editable && !f.Disabled {
-		<div class="chat-elicit-actions">
-			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
-			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
+		<div class="chat-elicit-actions chat-elicit-decisions">
+			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>{ declineLabel(f) }</button>
+			<button id="elicit-accept" name="action" value="accept" type="submit">{ acceptLabel(f) }</button>
 		</div>
 	}
 }

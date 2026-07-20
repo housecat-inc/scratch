@@ -6,6 +6,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/uikit"
 	"github.com/templui/templui/components/button"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ SQLPage(v SQLProps) {
@@ -27,7 +28,7 @@ templ SQLPage(v SQLProps) {
 				<div class="mail-tool-content flex flex-col flex-1 min-h-0">
 					<header class="mail-mainbar gap-2">
 						<button id="sql-back-btn" type="button" class="md:hidden -ml-1 rounded text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" aria-label="Back to tables">
-							<svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"></path></svg>
+							@lucide.ChevronLeft(templ.Attributes{"class": "w-3.5 h-3.5"})
 							<span>Tables</span>
 						</button>
 						<form method="get" action="/sql/" class="flex-shrink-0">
@@ -166,7 +167,7 @@ templ SQLQueryList(saved []db.SQLQuery) {
 				</button>
 				<button type="button" class="flex h-10 w-10 flex-shrink-0 items-center justify-center text-slate-300 hover:text-destructive md:h-5 md:w-7 md:opacity-0 group-hover:opacity-100" title="Delete query" aria-label="Delete query" hx-delete={ "/sql/queries/" + q.ID } hx-target="#sql-query-list" hx-swap="innerHTML" hx-confirm="Delete this saved query?">
 					<span class="inline-flex h-4 w-4 md:h-3 md:w-3 [&>svg]:h-full [&>svg]:w-full">
-						@uikit.Icon("trash")
+						@lucide.Trash2()
 					</span>
 				</button>
 			</li>

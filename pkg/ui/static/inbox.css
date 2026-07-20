@@ -397,8 +397,17 @@ textarea {
   flex: 0 0 16rem;
   font-size: 1.25rem;
   font-weight: 700;
+  gap: 0.55rem;
   height: 56px;
   text-decoration: none;
+}
+
+.mail-brand-logo {
+  border-radius: 0.45rem;
+  display: block;
+  flex: 0 0 auto;
+  height: 1.85rem;
+  width: 1.85rem;
 }
 
 .mail-create-actions {
@@ -1159,6 +1168,10 @@ textarea {
   color: #eab308;
 }
 
+.gm-star.on svg {
+  fill: currentColor;
+}
+
 .mail-empty {
   align-items: center;
   color: #64748b;
@@ -1334,6 +1347,18 @@ textarea {
   padding: 0;
 }
 
+#wf-steps,
+#wf-pending,
+#wf-steps > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+#wf-body > #wf-steps + #wf-pending {
+  margin-top: 1.25rem;
+}
+
 .mail-footer {
   align-items: flex-end;
   background: #f8fafc;
@@ -1344,55 +1369,6 @@ textarea {
   grid-row: 3;
   min-height: 68px;
   padding: 0.65rem 0.9rem;
-}
-
-.todo-create-form {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.45rem;
-  min-width: min(28rem, 100%);
-}
-
-.todo-topbar-actions {
-  align-items: center;
-  display: flex;
-  gap: 0.45rem;
-  min-width: 0;
-  width: 100%;
-}
-
-.todo-topbar-actions .mail-chat-actions {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.45rem;
-  margin-left: auto;
-}
-
-.todo-topbar-actions .todo-create-form {
-  flex: 0 1 28rem;
-  min-width: 0;
-  width: clamp(8rem, calc(100% - 9rem), 28rem);
-}
-
-.todo-topbar-actions .todo-new-input {
-  min-width: 0;
-}
-
-.todo-new-input {
-  background: #fff;
-  border: 1px solid #d8dee9;
-  border-radius: 999px;
-  color: #111827;
-  height: 2.2rem;
-  min-width: 12rem;
-  outline: none;
-  padding: 0 0.85rem;
-  width: 100%;
-}
-
-.todo-new-input:focus {
-  border-color: #94a3b8;
-  box-shadow: 0 0 0 3px rgb(148 163 184 / 0.2);
 }
 
 .todo-reader-head {

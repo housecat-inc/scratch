@@ -5,6 +5,6 @@ import "github.com/a-h/templ"
 type ActionIconProps struct {
 	Attrs  templ.Attributes
 	Danger bool
-	Icon   string
+	Icon   templ.Component
 	Label  string
 }

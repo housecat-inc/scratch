@@ -12,6 +12,7 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/housecat-inc/scratch/pkg/api"
 	"github.com/housecat-inc/scratch/pkg/chat"
+	"github.com/housecat-inc/scratch/pkg/contacts"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/inbox"
@@ -91,10 +92,12 @@ func newRootCmd() *cobra.Command {
 			defer chatSvc.Close()
 
 			flows := flow.New(flow.Deps{
-				DBOS:    workflows.Ctx(),
-				Log:     logger,
-				Workdir: workdir,
+				ContactNotes: store,
+				DBOS:         workflows.Ctx(),
+				Log:          logger,
+				Workdir:      workdir,
 			})
+			chatSvc.SetResolver(flows)
 			if err := workflows.Launch(); err != nil {
 				return errors.Wrap(err, "launch workflows")
 			}
@@ -129,6 +132,7 @@ func newRootCmd() *cobra.Command {
 			todoSvc = todo.NewService(store)
 			chatSrv := chat.NewServer(chatSvc, logger)
 			inboxSrv := inbox.NewServer(todoSvc, chatSvc, flows, logger)
+			inboxSrv.SetContacts(store)
 
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(
@@ -145,6 +149,7 @@ func newRootCmd() *cobra.Command {
 			api.Register(srv, workflows)
 			todo.Register(srv, todoSvc)
 			sessionsSrv.Register(srv.Mux, false)
+			contacts.NewServer(store).RegisterAPI(srv.Mux)
 			srv.Mux.HandleFunc("/chat", http.NotFound)
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			srv.Mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))

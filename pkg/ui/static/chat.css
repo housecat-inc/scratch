@@ -908,6 +908,10 @@ body.chat-selecting * {
   margin-top: 0.25rem;
 }
 
+.chat-elicit-decisions {
+  justify-content: flex-end;
+}
+
 .chat-elicit-actions button {
   border: 0;
   border-radius: 999px;

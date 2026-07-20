@@ -11,9 +11,12 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-fuego/fuego"
 	"github.com/housecat-inc/scratch/pkg/chat"
+	"github.com/housecat-inc/scratch/pkg/contacts"
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/spf13/cobra"
 )
 
@@ -43,6 +46,11 @@ func newRootCmd() *cobra.Command {
 				return errors.Wrap(err, "open db")
 			}
 			defer store.Close()
+			workflows, err := workflow.New(dbPath)
+			if err != nil {
+				return errors.Wrap(err, "open workflows")
+			}
+			defer workflows.Close()
 
 			workdir, err := os.Getwd()
 			if err != nil {
@@ -57,6 +65,20 @@ func newRootCmd() *cobra.Command {
 				chatSvc.RegisterAgent(chat.AgentName(available), available)
 			}
 			defer chatSvc.Close()
+
+			flows := flow.New(flow.Deps{
+				ContactNotes: store,
+				DBOS:         workflows.Ctx(),
+				Log:          logger,
+				Workdir:      workdir,
+			})
+			chatSvc.SetResolver(flows)
+			if err := workflows.Launch(); err != nil {
+				return errors.Wrap(err, "launch workflows")
+			}
+			if err := flows.EnsureSchedules(); err != nil {
+				return errors.Wrap(err, "ensure schedules")
+			}
 			if err := chatSvc.Recover(); err != nil {
 				return errors.Wrap(err, "recover chat turns")
 			}
@@ -79,7 +101,11 @@ func newRootCmd() *cobra.Command {
 			srv.Mux.HandleFunc("/chat", http.NotFound)
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			srv.Mux.Handle("/", todo.NewWebServerWithChat(svc, chatSvc, logger).Handler())
+			webSrv := todo.NewWebServerWithChat(svc, chatSvc, logger)
+			webSrv.SetContacts(store)
+			webSrv.SetFlows(flows)
+			contacts.NewServer(store).RegisterAPI(srv.Mux)
+			srv.Mux.Handle("/", webSrv.Handler())
 
 			slog.Info("listening", "addr", addr)
 			return srv.Run()

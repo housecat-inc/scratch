@@ -1,0 +1,235 @@
+package ui
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/uikit"
+	lucide "github.com/wux4an/lucide-templ/icons"
+)
+
+templ ContactsPage(p ContactsProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Contacts") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
+				AppName: "todos",
+				BrandHref: "/",
+				MainClass: "contacts-main",
+				Nav: appNav("contacts", p.Counts),
+				SidebarTop: ComposeLauncher(),
+			}) {
+				<header class="mail-mainbar">
+					<div class="mail-mainbar-title">
+						<h1>Contacts</h1>
+					</div>
+					<span>{ strconv.Itoa(p.Total) }</span>
+				</header>
+				@ContactsTable(p)
+			}
+		</body>
+	</html>
+}
+
+templ ContactDetailPage(p ContactDetailProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@MailHead("Contact") {
+			<script src="/static/inbox.js" defer></script>
+		}
+		<body>
+			@uikit.Shell(uikit.ShellProps{
+				Actions: AppActions(p.ChatOptions, p.ChatLabel),
+				AppName: "todos",
+				BrandHref: "/",
+				Nav: appNav("contacts", p.Counts),
+				SidebarTop: ComposeLauncher(),
+			}) {
+				@ReaderHeader(ReaderHeaderProps{
+					BackHref: "/contacts",
+					Description: contactDash(p.Contact.JobTitle),
+					Title: p.Contact.Name,
+				}) {
+				}
+				<div class="mail-reader-body">
+					<div class="mail-card contact-detail-card">
+						@contactField2("Company", p.Contact.Company)
+						@contactField2("Status", p.Contact.Status)
+						@contactEmailsField(p.Emails)
+						@contactField2("Phone", p.Contact.Phone)
+						@contactField2("Location", p.Contact.Location)
+						@contactField2("LinkedIn", p.Contact.Linkedin)
+						@contactField2("Twitter", p.Contact.Twitter)
+					</div>
+					<section class="contact-notes">
+						<h2 class="contact-notes-title">Notes { contactNotesCount(p.Notes) }</h2>
+						if len(p.Notes) == 0 {
+							<div class="mail-empty">No notes yet. Run the Contact note workflow to add one.</div>
+						} else {
+							for _, note := range p.Notes {
+								<div class="mail-card contact-note">
+									<div class="contact-note-body">{ note.Body }</div>
+									<div class="contact-note-when">{ note.When }</div>
+								</div>
+							}
+						}
+					</section>
+				</div>
+			}
+		</body>
+	</html>
+}
+
+templ contactField2(label, value string) {
+	<div class="contact-detail-row">
+		<span class="contact-detail-label">{ label }</span>
+		<span class="contact-detail-value">{ contactDash(value) }</span>
+	</div>
+}
+
+templ contactEmailsField(emails []db.Email) {
+	<div class="contact-detail-row">
+		<span class="contact-detail-label">Email</span>
+		<span class="contact-detail-value">
+			if len(emails) == 0 {
+				—
+			} else {
+				for i, email := range emails {
+					if i > 0 {
+						{ ", " }
+					}
+					<a class="dt-email" href={ templ.SafeURL("mailto:" + email.Email) }>{ email.Email }</a>
+				}
+			}
+		</span>
+	</div>
+}
+
+templ ContactsTable(p ContactsProps) {
+	@uikit.DataTable(uikit.DataTableProps{
+		BaseHref: "/contacts",
+		Columns: []uikit.DataTableColumn{
+			{Header: "Name", Icon: lucide.Users(), Sticky: true, Width: "16rem"},
+			{Header: "Email", Icon: lucide.Mail(), Width: "18rem"},
+			{Header: "Company", Icon: lucide.BriefcaseBusiness(), Width: "14rem"},
+			{Header: "Job title", Icon: lucide.UserRoundCog(), Width: "15rem"},
+			{Header: "Status", Icon: lucide.Star(), Width: "10rem"},
+			{Header: "Phone", Icon: lucide.Phone(), Width: "13rem"},
+			{Header: "Location", Icon: lucide.MapPin(), Width: "14rem"},
+			{Header: "LinkedIn", Icon: lucide.Linkedin(), Width: "14rem"},
+			{Header: "Twitter", Icon: lucide.Twitter(), Width: "12rem"},
+		},
+		Empty: "No contacts yet.",
+		ID: "contacts-table",
+		Page: p.Page,
+		PerPage: p.PerPage,
+		Rows: contactRows(p.Contacts),
+		Total: p.Total,
+	})
+}
+
+func contactRows(contacts []db.ContactListItem) []uikit.DataTableRow {
+	rows := make([]uikit.DataTableRow, 0, len(contacts))
+	for _, c := range contacts {
+		rows = append(rows, uikit.DataTableRow{
+			Href: "/contacts/" + strconv.FormatInt(c.ID, 10),
+			ID:   strconv.FormatInt(c.ID, 10),
+			Cells: []templ.Component{
+				contactNameCell(c),
+				contactEmailCell(c),
+				contactMutedCell(c.Company),
+				contactMutedCell(c.JobTitle),
+				contactStatusCell(c.Status),
+				contactMutedCell(c.Phone),
+				contactMutedCell(c.Location),
+				contactMutedCell(c.Linkedin),
+				contactMutedCell(c.Twitter),
+			},
+		})
+	}
+	return rows
+}
+
+templ contactNameCell(c db.ContactListItem) {
+	<span class="dt-name">
+		<span class="dt-avatar">{ contactInitials(c.Name) }</span>
+		<span class="dt-name-text">{ c.Name }</span>
+	</span>
+}
+
+templ contactEmailCell(c db.ContactListItem) {
+	if c.PrimaryEmail != "" {
+		<span class="dt-email">{ c.PrimaryEmail }</span>
+	} else {
+		<span class="dt-muted">—</span>
+	}
+}
+
+templ contactMutedCell(value string) {
+	<span class="dt-muted">{ contactDash(value) }</span>
+}
+
+templ contactStatusCell(status string) {
+	if status != "" {
+		<span class={ "dt-badge", "dt-badge-" + contactStatusSlug(status) }>{ status }</span>
+	} else {
+		<span class="dt-muted">—</span>
+	}
+}
+
+templ contactField(field ChatFormFieldProps, disabled bool) {
+	<div class={ "contact-field", templ.KV("contact-field-selected", field.Value != "") } data-contact-field>
+		<input type="hidden" name={ "f_" + field.Name } value={ field.Value } data-contact-value/>
+		<input
+			type="text"
+			class="contact-search"
+			name="q"
+			placeholder="Search or create a contact…"
+			autocomplete="off"
+			disabled?={ disabled }
+			data-contact-search
+			hx-get="/contacts/search"
+			hx-trigger="input changed delay:200ms, focus"
+			hx-target="next .contact-results"
+			hx-swap="innerHTML"
+		/>
+		<div class="contact-results" data-contact-results></div>
+		<span class="contact-chip" data-contact-chip>
+			<span data-contact-label>{ contactSelectedLabel(field) }</span>
+			<button type="button" title="Remove contact" aria-label="Remove contact" disabled?={ disabled } data-contact-clear>x</button>
+		</span>
+	</div>
+}
+
+templ ContactSearchResults(results []db.ContactListItem, query string) {
+	for _, c := range results {
+		<button
+			type="button"
+			class="contact-option"
+			data-contact-option
+			data-id={ strconv.FormatInt(c.ID, 10) }
+			data-label={ contactOptionLabel(c) }
+		>
+			<span class="contact-option-name">{ c.Name }</span>
+			if c.PrimaryEmail != "" {
+				<span class="contact-option-email">{ c.PrimaryEmail }</span>
+			}
+		</button>
+	}
+	if query != "" {
+		<button
+			type="button"
+			class="contact-option contact-option-create"
+			data-contact-option
+			data-contact-create
+			data-label={ query }
+		>{ contactCreateLabel(query) }</button>
+	}
+	if len(results) == 0 && query == "" {
+		<div class="contact-empty">Type to search contacts…</div>
+	}
+}

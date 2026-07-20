@@ -14,7 +14,7 @@ type NavItem struct {
 	Count     int
 	Group     string
 	Href      string
-	Icon      string
+	Icon      templ.Component
 	Label     string
 	ShowCount bool
 }

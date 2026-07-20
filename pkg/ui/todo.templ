@@ -5,6 +5,7 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/uikit"
+	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ TodoPage(p TodoProps) {
@@ -19,6 +20,7 @@ templ TodoPage(p TodoProps) {
 				AppName: "todos",
 				BrandHref: "/",
 				Nav: todoNavItems(p),
+				SidebarTop: ComposeLauncher(),
 			}) {
 				if p.View == "chats" {
 					@TodoChatListView(p)
@@ -33,21 +35,43 @@ templ TodoPage(p TodoProps) {
 }
 
 templ TodoActions(p TodoProps) {
-	<div class="todo-topbar-actions">
-		<form class="todo-create-form" method="post" action="/tasks">
-			<input class="todo-new-input" name="title" placeholder="New task" autocomplete="off" required/>
-			<button class="mail-create-btn" type="submit">
-				@uikit.Icon("task")
-				<span>Add</span>
+	@AppActions(p.ChatOptions, p.ChatLabel)
+}
+
+templ ComposeLauncher() {
+	<div class="mail-compose-actions">
+		<form class="mail-compose-btn-form" method="post" action="/tasks">
+			<input type="hidden" name="title" value="New task"/>
+			<button class="mail-compose-btn" type="submit" title="New task" aria-label="New task">
+				@lucide.Plus()
+				<span>Task</span>
 			</button>
 		</form>
-		if len(p.ChatOptions) > 0 {
-			<div class="mail-chat-actions">
-				@uikit.NewChatAction(uikit.NewChatActionProps{Label: p.ChatLabel, Options: p.ChatOptions})
-				@uikit.ChatHistoryAction("/chats")
-			</div>
-		}
+		<form class="mail-compose-combo" method="post" action="/workflows">
+			<button class="mail-compose-btn" type="submit" title="New workflow" aria-label="New workflow">
+				@lucide.Plus()
+				<span>Flow</span>
+			</button>
+			<span class="mail-create-select-wrap mail-model-select-wrap">
+				<select class="mail-create-select" name="workflow_type" aria-label="Workflow type" required data-submit-on-change>
+					<option value="" selected disabled hidden>Workflow type</option>
+					for _, opt := range TaskWorkflowOptions() {
+						<option value={ opt.Type }>{ opt.Label }</option>
+					}
+				</select>
+				<span class="mail-create-chevron">@lucide.ChevronDown()</span>
+			</span>
+		</form>
 	</div>
+}
+
+templ AppActions(chatOptions []uikit.SelectOption, chatLabel string) {
+	if len(chatOptions) > 0 {
+		<div class="mail-chat-actions">
+			@uikit.NewChatAction(uikit.NewChatActionProps{Label: chatLabel, Options: chatOptions})
+			@uikit.ChatHistoryAction("/chats")
+		</div>
+	}
 }
 
 templ TodoChatListView(p TodoProps) {
@@ -86,7 +110,7 @@ templ TodoChatRow(item TodoChatItem) {
 
 templ TodoChatRowPrimary(item TodoChatItem) {
 	<button type="button" class="gm-row-action" data-chat-popout-thread={ strconv.FormatInt(item.ID, 10) } aria-label="Open chat">
-		@uikit.Icon("chat")
+		@lucide.MessageSquare()
 	</button>
 }
 
@@ -176,9 +200,9 @@ templ todoArchiveReaderForm(task db.Task, view string) {
 		<input type="hidden" name="back" value={ todoBack(view) }/>
 		<button type="submit" class="gm-icon-btn" aria-label={ todoArchiveLabel(task) }>
 			if task.Archived {
-				@unarchiveIcon()
+				@lucide.ArchiveRestore()
 			} else {
-				@archiveIcon()
+				@lucide.Archive()
 			}
 		</button>
 	</form>
@@ -189,9 +213,9 @@ templ todoArchiveRowForm(task db.Task, view string) {
 		<input type="hidden" name="back" value={ todoBack(view) }/>
 		<button type="submit" class="gm-row-action" aria-label={ todoArchiveLabel(task) }>
 			if task.Archived {
-				@unarchiveIcon()
+				@lucide.ArchiveRestore()
 			} else {
-				@archiveIcon()
+				@lucide.Archive()
 			}
 		</button>
 	</form>
@@ -201,7 +225,7 @@ templ todoDeleteReaderForm(id int64, view string) {
 	<form class="mail-trash-form" method="post" action={ "/tasks/" + strconv.FormatInt(id, 10) + "/delete" } data-trash-form>
 		<input type="hidden" name="back" value={ todoBack(view) }/>
 		<button type="button" class="gm-icon-btn danger mail-trash-trigger" title="Delete" aria-label="Delete" data-trash-trigger>
-			@trashIcon()
+			@lucide.Trash2()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
 			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
@@ -218,7 +242,7 @@ templ todoDeleteRowForm(id int64, view string) {
 	<form class="mail-trash-form" method="post" action={ "/tasks/" + strconv.FormatInt(id, 10) + "/delete" } data-trash-form>
 		<input type="hidden" name="back" value={ todoBack(view) }/>
 		<button type="button" class="gm-row-action danger mail-trash-trigger" title="Delete" aria-label="Delete" data-trash-trigger>
-			@trashIcon()
+			@lucide.Trash2()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
 			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
@@ -246,10 +270,7 @@ func todoBack(view string) string {
 }
 
 func todoNavItems(p TodoProps) []uikit.NavItem {
-	return []uikit.NavItem{
-		{Active: p.View == "inbox", Count: p.ActiveCount, Href: "/", Icon: "inbox", Label: "Inbox", ShowCount: true},
-		{Group: "More", Active: p.View == "tasks", Count: p.TaskCount, Href: "/tasks", Icon: "task", Label: "Tasks", ShowCount: true},
-	}
+	return appNav(p.View, NavCounts{Contacts: p.ContactCount, Inbox: p.ActiveCount, Tasks: p.TaskCount, Workflows: p.WorkflowCount})
 }
 
 func todoStatus(task db.Task) string {
