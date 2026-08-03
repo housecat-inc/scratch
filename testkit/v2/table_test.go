@@ -1,7 +1,7 @@
 package testkit_test
 
 import (
-	"bytes"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -69,10 +69,11 @@ func TestSetupTeardown(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
 
-			buf := &bytes.Buffer{}
-			t.Cleanup(func() { a.NotZero(buf.Len()) })
+			f, err := os.CreateTemp(t.TempDir(), "buf")
+			r.NoError(err)
+			t.Cleanup(func() { f.Close() })
 
-			out, err := buf.WriteString(tt.in)
+			out, err := f.WriteString(tt.in)
 			r.NoError(err)
 
 			a.Equal(tt.out, out)

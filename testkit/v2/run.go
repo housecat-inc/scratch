@@ -15,10 +15,11 @@ type T struct {
 }
 
 type Test[In, Out any] struct {
-	Name string
-	In   In
-	Out  Out
-	Err  string
+	Name  string
+	In    In
+	Out   Out
+	Err   string
+	Check func(t *T, out Out)
 }
 
 type Option func(*options)
@@ -50,7 +51,12 @@ func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, err
 			}
 
 			tk.R.NoError(err)
-			tk.A.Equal(tt.Out, out)
+
+			check := tt.Check
+			if check == nil {
+				check = func(t *T, out Out) { t.A.Equal(tt.Out, out) }
+			}
+			check(tk, out)
 		})
 	}
 }

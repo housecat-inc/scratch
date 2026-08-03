@@ -1,7 +1,7 @@
 package testkit_test
 
 import (
-	"bytes"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,29 +17,39 @@ func TestUpperGeneric(t *testing.T) {
 }
 
 func TestAtoiGeneric(t *testing.T) {
-	testkit.Run(t, []testkit.Test[string, int]{
-		{In: "1", Out: 1},
-		{In: "a", Err: "invalid syntax"},
-	}, strconv.Atoi)
+	testkit.Run(t,
+		[]testkit.Test[string, int]{
+			{In: "1", Out: 1},
+			{In: "a", Err: "invalid syntax"},
+		},
+		strconv.Atoi,
+	)
 }
 
 func TestSetupTeardownGeneric(t *testing.T) {
-	var buf *bytes.Buffer
+	var f *os.File
 
-	testkit.Run(t, []testkit.Test[string, int]{
-		{In: "hello", Out: 5},
-		{In: "hi", Out: 2},
-	}, func(s string) (int, error) { return buf.WriteString(s) },
+	testkit.Run(t,
+		[]testkit.Test[string, int]{
+			{In: "hello", Out: 5},
+			{In: "hi", Out: 2},
+		},
+		func(s string) (int, error) { return f.WriteString(s) },
 		testkit.Setup(func(t *testkit.T) {
-			buf = &bytes.Buffer{}
-			t.Cleanup(func() { t.A.NotZero(buf.Len()) })
+			var err error
+			f, err = os.CreateTemp(t.TempDir(), "buf")
+			t.R.NoError(err)
+			t.Cleanup(func() { f.Close() })
 		}),
 	)
 }
 
 func TestSplitGeneric(t *testing.T) {
-	testkit.Run(t, []testkit.Test[string, []string]{
-		{In: "a,b,c", Out: []string{"a", "b", "c"}},
-		{In: "x", Out: []string{"x"}},
-	}, func(s string) ([]string, error) { return strings.Split(s, ","), nil })
+	testkit.Run(t,
+		[]testkit.Test[string, []string]{
+			{In: "a,b,c", Out: []string{"a", "b", "c"}},
+			{In: "x", Out: []string{"x"}},
+		},
+		func(s string) ([]string, error) { return strings.Split(s, ","), nil },
+	)
 }
