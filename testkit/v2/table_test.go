@@ -57,12 +57,11 @@ func TestAtoi(t *testing.T) {
 
 func TestSetupTeardown(t *testing.T) {
 	var tests = []struct {
-		in    string
-		out   int
-		setup func(buf *bytes.Buffer)
+		in  string
+		out int
 	}{
-		{"world", 11, func(buf *bytes.Buffer) { buf.WriteString("hello ") }},
-		{"there", 5, nil},
+		{"hello", 5},
+		{"hi", 2},
 	}
 
 	for _, tt := range tests {
@@ -72,14 +71,11 @@ func TestSetupTeardown(t *testing.T) {
 
 			buf := &bytes.Buffer{}
 			t.Cleanup(func() { a.NotZero(buf.Len()) })
-			if tt.setup != nil {
-				tt.setup(buf)
-			}
 
-			_, err := buf.WriteString(tt.in)
+			out, err := buf.WriteString(tt.in)
 			r.NoError(err)
 
-			a.Equal(tt.out, buf.Len())
+			a.Equal(tt.out, out)
 		})
 	}
 }

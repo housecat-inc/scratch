@@ -15,23 +15,19 @@ type T struct {
 }
 
 type Test[In, Out any] struct {
-	Name  string
-	In    In
-	Out   Out
-	Err   string
-	Setup func(t *T)
-	Check func(t *T, out Out)
+	Name string
+	In   In
+	Out  Out
+	Err  string
 }
 
 type Option func(*options)
 
 type options struct {
-	setup    func(t *T)
-	teardown func(t *T)
+	setup func(t *T)
 }
 
-func Setup(fn func(t *T)) Option    { return func(o *options) { o.setup = fn } }
-func Teardown(fn func(t *T)) Option { return func(o *options) { o.teardown = fn } }
+func Setup(fn func(t *T)) Option { return func(o *options) { o.setup = fn } }
 
 func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, error), opts ...Option) {
 	t.Helper()
@@ -46,12 +42,6 @@ func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, err
 			if o.setup != nil {
 				o.setup(tk)
 			}
-			if o.teardown != nil {
-				t.Cleanup(func() { o.teardown(tk) })
-			}
-			if tt.Setup != nil {
-				tt.Setup(tk)
-			}
 
 			out, err := fn(tt.In)
 			if tt.Err != "" {
@@ -60,10 +50,6 @@ func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, err
 			}
 
 			tk.R.NoError(err)
-			if tt.Check != nil {
-				tt.Check(tk, out)
-				return
-			}
 			tk.A.Equal(tt.Out, out)
 		})
 	}
