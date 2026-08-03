@@ -8,35 +8,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type Case[In, Out any] struct {
+type Test[In, Out any] struct {
 	Name string
 	In   In
 	Out  Out
 	Err  string
 }
 
-func Run[In, Out any](t *testing.T, cases []Case[In, Out], fn func(In) (Out, error)) {
+func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, error)) {
 	t.Helper()
-	for _, c := range cases {
-		t.Run(name(c.Name, c.In), func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(name(tt.Name, tt.In), func(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
 
-			out, err := fn(c.In)
-			if c.Err != "" {
-				r.ErrorContains(err, c.Err)
+			out, err := fn(tt.In)
+			if tt.Err != "" {
+				r.ErrorContains(err, tt.Err)
 				return
 			}
 
 			r.NoError(err)
-			a.Equal(c.Out, out)
+			a.Equal(tt.Out, out)
 		})
 	}
 }
 
-func name(explicit string, in any) string {
-	if explicit != "" {
-		return explicit
+func name(name string, in any) string {
+	if name != "" {
+		return name
 	}
 	return fmt.Sprint(in)
 }
