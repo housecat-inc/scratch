@@ -1,6 +1,7 @@
 package testkit_test
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,6 +21,18 @@ func TestAtoiGeneric(t *testing.T) {
 		{In: "1", Out: 1},
 		{In: "a", Err: "invalid syntax"},
 	}, strconv.Atoi)
+}
+
+func TestSetupTeardownGeneric(t *testing.T) {
+	var buf *bytes.Buffer
+
+	testkit.Run(t, []testkit.Test[string, int]{
+		{In: "hello", Out: 5},
+		{In: "hi", Out: 2},
+	}, func(s string) (int, error) { return buf.WriteString(s) },
+		testkit.Setup(func(t *testkit.T) { buf = &bytes.Buffer{} }),
+		testkit.Teardown(func(t *testkit.T) { t.A.NotZero(buf.Len()) }),
+	)
 }
 
 func TestSplitGeneric(t *testing.T) {
