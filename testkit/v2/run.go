@@ -22,14 +22,6 @@ type Test[In, Out any] struct {
 	Check func(t *T, out Out)
 }
 
-type Option func(*options)
-
-type options struct {
-	parallel bool
-}
-
-func Parallel() Option { return func(o *options) { o.parallel = true } }
-
 func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, error), opts ...Option) {
 	t.Helper()
 	o := newOptions(opts)
@@ -77,14 +69,6 @@ func verify[In, Out any](tk *T, tt Test[In, Out], out Out, err error) {
 		check = func(t *T, out Out) { t.A.Equal(tt.Out, out) }
 	}
 	check(tk, out)
-}
-
-func newOptions(opts []Option) options {
-	var o options
-	for _, opt := range opts {
-		opt(&o)
-	}
-	return o
 }
 
 func name(name string, in any) string {
