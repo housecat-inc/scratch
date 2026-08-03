@@ -1,6 +1,7 @@
 package testkit_test
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,7 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/housecat-inc/scratch/pkg/db"
+	_ "modernc.org/sqlite"
+
 	testkit "github.com/housecat-inc/scratch/testkit/v2"
 )
 
@@ -49,8 +51,11 @@ func TestFixtureGeneric(t *testing.T) {
 }
 
 func TestDBGeneric(t *testing.T) {
-	setup := func(t *testkit.T) *db.DB {
-		d, err := db.New(":memory:")
+	setup := func(t *testkit.T) *sql.DB {
+		d, err := sql.Open("sqlite", ":memory:")
+		t.R.NoError(err)
+		d.SetMaxOpenConns(1)
+		_, err = d.Exec("CREATE TABLE names (name TEXT)")
 		t.R.NoError(err)
 		t.Cleanup(func() { d.Close() })
 		return d
@@ -61,19 +66,13 @@ func TestDBGeneric(t *testing.T) {
 			{In: "Ada", Out: 1},
 			{In: "Bob", Out: 1},
 		},
-		func(t *testkit.T, d *db.DB, name string) (int, error) {
-			before, err := d.CountContacts()
-			if err != nil {
+		func(t *testkit.T, d *sql.DB, name string) (int, error) {
+			if _, err := d.Exec("INSERT INTO names (name) VALUES (?)", name); err != nil {
 				return 0, err
 			}
-			if _, err := d.AddContact(name, "", ""); err != nil {
-				return 0, err
-			}
-			after, err := d.CountContacts()
-			if err != nil {
-				return 0, err
-			}
-			return after - before, nil
+			var n int
+			err := d.QueryRow("SELECT count(*) FROM names").Scan(&n)
+			return n, err
 		},
 		testkit.Parallel(),
 	)
