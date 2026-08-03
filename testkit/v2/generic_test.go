@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/housecat-inc/scratch/pkg/db"
 	testkit "github.com/housecat-inc/scratch/testkit/v2"
 )
 
@@ -30,21 +31,51 @@ func TestAtoiGeneric(t *testing.T) {
 	)
 }
 
-func TestSetupTeardownGeneric(t *testing.T) {
-	var f *os.File
+func TestFixtureGeneric(t *testing.T) {
+	setup := func(t *testkit.T) *os.File {
+		f, err := os.CreateTemp(t.TempDir(), "buf")
+		t.R.NoError(err)
+		t.Cleanup(func() { f.Close() })
+		return f
+	}
 
-	testkit.Run(t,
+	testkit.RunF(t, setup,
 		[]testkit.Test[string, int]{
 			{In: "hello", Out: 5},
 			{In: "hi", Out: 2},
 		},
-		func(s string) (int, error) { return f.WriteString(s) },
-		testkit.Setup(func(t *testkit.T) {
-			var err error
-			f, err = os.CreateTemp(t.TempDir(), "buf")
-			t.R.NoError(err)
-			t.Cleanup(func() { f.Close() })
-		}),
+		func(t *testkit.T, f *os.File, s string) (int, error) { return f.WriteString(s) },
+	)
+}
+
+func TestDBGeneric(t *testing.T) {
+	setup := func(t *testkit.T) *db.DB {
+		d, err := db.New(":memory:")
+		t.R.NoError(err)
+		t.Cleanup(func() { d.Close() })
+		return d
+	}
+
+	testkit.RunF(t, setup,
+		[]testkit.Test[string, int]{
+			{In: "Ada", Out: 1},
+			{In: "Bob", Out: 1},
+		},
+		func(t *testkit.T, d *db.DB, name string) (int, error) {
+			before, err := d.CountContacts()
+			if err != nil {
+				return 0, err
+			}
+			if _, err := d.AddContact(name, "", ""); err != nil {
+				return 0, err
+			}
+			after, err := d.CountContacts()
+			if err != nil {
+				return 0, err
+			}
+			return after - before, nil
+		},
+		testkit.Parallel(),
 	)
 }
 

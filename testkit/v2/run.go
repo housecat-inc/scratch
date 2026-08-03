@@ -25,44 +25,66 @@ type Test[In, Out any] struct {
 type Option func(*options)
 
 type options struct {
-	setup func(t *T)
+	parallel bool
 }
 
-func Setup(fn func(t *T)) Option { return func(o *options) { o.setup = fn } }
+func Parallel() Option { return func(o *options) { o.parallel = true } }
 
 func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, error), opts ...Option) {
 	t.Helper()
-	var o options
-	for _, opt := range opts {
-		opt(&o)
-	}
+	o := newOptions(opts)
 	for _, tt := range tests {
 		t.Run(name(tt.Name, tt.In), func(t *testing.T) {
+			if o.parallel {
+				t.Parallel()
+			}
 			tk := &T{T: t, A: assert.New(t), R: require.New(t)}
-
-			if o.setup != nil {
-				o.setup(tk)
-			}
-
 			out, err := fn(tt.In)
-			if tt.Err != "" {
-				tk.R.ErrorContains(err, tt.Err)
-				return
-			}
+			verify(tk, tt, out, err)
+		})
+	}
+}
 
-			tk.R.NoError(err)
-
-			check := tt.Check
-			if check == nil {
-				check = func(t *T, out Out) { t.A.Equal(tt.Out, out) }
+func RunF[Fix, In, Out any](t *testing.T, setup func(t *T) Fix, tests []Test[In, Out], fn func(t *T, fix Fix, in In) (Out, error), opts ...Option) {
+	t.Helper()
+	o := newOptions(opts)
+	for _, tt := range tests {
+		t.Run(name(tt.Name, tt.In), func(t *testing.T) {
+			if o.parallel {
+				t.Parallel()
 			}
-			check(tk, out)
+			tk := &T{T: t, A: assert.New(t), R: require.New(t)}
+			fix := setup(tk)
+			out, err := fn(tk, fix, tt.In)
+			verify(tk, tt, out, err)
 		})
 	}
 }
 
 func Pure[In, Out any](fn func(In) Out) func(In) (Out, error) {
 	return func(in In) (Out, error) { return fn(in), nil }
+}
+
+func verify[In, Out any](tk *T, tt Test[In, Out], out Out, err error) {
+	if tt.Err != "" {
+		tk.R.ErrorContains(err, tt.Err)
+		return
+	}
+
+	tk.R.NoError(err)
+	check := tt.Check
+	if check == nil {
+		check = func(t *T, out Out) { t.A.Equal(tt.Out, out) }
+	}
+	check(tk, out)
+}
+
+func newOptions(opts []Option) options {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
 }
 
 func name(name string, in any) string {
