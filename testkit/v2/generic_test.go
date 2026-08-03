@@ -16,14 +16,14 @@ import (
 	tk "github.com/housecat-inc/scratch/testkit/v2"
 )
 
-func TestUpperGeneric(t *testing.T) {
+func TestUpper(t *testing.T) {
 	tk.Run(t, []tk.Test[string, string]{
 		{In: "one", Out: "ONE"},
 		{In: "two", Out: "TWO"},
 	}, tk.Pure(strings.ToUpper))
 }
 
-func TestAtoiGeneric(t *testing.T) {
+func TestAtoi(t *testing.T) {
 	tk.Run(t,
 		[]tk.Test[string, int]{
 			{In: "1", Out: 1},
@@ -33,7 +33,7 @@ func TestAtoiGeneric(t *testing.T) {
 	)
 }
 
-func TestFixtureGeneric(t *testing.T) {
+func TestFixture(t *testing.T) {
 	setup := func(t *tk.T) *os.File {
 		f, err := os.CreateTemp(t.TempDir(), "buf")
 		t.R.NoError(err)
@@ -50,7 +50,7 @@ func TestFixtureGeneric(t *testing.T) {
 	)
 }
 
-func TestDBGeneric(t *testing.T) {
+func TestDB(t *testing.T) {
 	setup := func(t *tk.T) *sql.DB {
 		d, err := sql.Open("sqlite", ":memory:")
 		t.R.NoError(err)
@@ -78,7 +78,7 @@ func TestDBGeneric(t *testing.T) {
 	)
 }
 
-func TestServerGeneric(t *testing.T) {
+func TestServer(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello %s", r.URL.Query().Get("name"))
 	}))
@@ -100,7 +100,7 @@ func TestServerGeneric(t *testing.T) {
 	}, get)
 }
 
-func TestSplitGeneric(t *testing.T) {
+func TestSplit(t *testing.T) {
 	tk.Run(t,
 		[]tk.Test[string, []string]{
 			{In: "a,b,c", Out: []string{"a", "b", "c"}},

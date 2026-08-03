@@ -11,7 +11,7 @@ import (
 )
 
 // Example of idiomatic table driven test https://go.dev/wiki/TableDrivenTests
-func TestUpper(t *testing.T) {
+func TestUpperTable(t *testing.T) {
 	var tests = []struct {
 		in  string
 		out string
@@ -28,7 +28,7 @@ func TestUpper(t *testing.T) {
 	}
 }
 
-func TestAtoi(t *testing.T) {
+func TestAtoiTable(t *testing.T) {
 	var tests = []struct {
 		in  string
 		out int
@@ -55,7 +55,7 @@ func TestAtoi(t *testing.T) {
 	}
 }
 
-func TestSetupTeardown(t *testing.T) {
+func TestSetupTeardownTable(t *testing.T) {
 	var tests = []struct {
 		in  string
 		out int
