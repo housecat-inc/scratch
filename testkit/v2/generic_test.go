@@ -13,19 +13,19 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	testkit "github.com/housecat-inc/scratch/testkit/v2"
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 )
 
 func TestUpperGeneric(t *testing.T) {
-	testkit.Run(t, []testkit.Test[string, string]{
+	tk.Run(t, []tk.Test[string, string]{
 		{In: "one", Out: "ONE"},
 		{In: "two", Out: "TWO"},
-	}, testkit.Pure(strings.ToUpper))
+	}, tk.Pure(strings.ToUpper))
 }
 
 func TestAtoiGeneric(t *testing.T) {
-	testkit.Run(t,
-		[]testkit.Test[string, int]{
+	tk.Run(t,
+		[]tk.Test[string, int]{
 			{In: "1", Out: 1},
 			{In: "a", Err: "invalid syntax"},
 		},
@@ -34,24 +34,24 @@ func TestAtoiGeneric(t *testing.T) {
 }
 
 func TestFixtureGeneric(t *testing.T) {
-	setup := func(t *testkit.T) *os.File {
+	setup := func(t *tk.T) *os.File {
 		f, err := os.CreateTemp(t.TempDir(), "buf")
 		t.R.NoError(err)
 		t.Cleanup(func() { f.Close() })
 		return f
 	}
 
-	testkit.RunF(t, setup,
-		[]testkit.Test[string, int]{
+	tk.RunF(t, setup,
+		[]tk.Test[string, int]{
 			{In: "hello", Out: 5},
 			{In: "hi", Out: 2},
 		},
-		func(t *testkit.T, f *os.File, s string) (int, error) { return f.WriteString(s) },
+		func(t *tk.T, f *os.File, s string) (int, error) { return f.WriteString(s) },
 	)
 }
 
 func TestDBGeneric(t *testing.T) {
-	setup := func(t *testkit.T) *sql.DB {
+	setup := func(t *tk.T) *sql.DB {
 		d, err := sql.Open("sqlite", ":memory:")
 		t.R.NoError(err)
 		d.SetMaxOpenConns(1)
@@ -61,12 +61,12 @@ func TestDBGeneric(t *testing.T) {
 		return d
 	}
 
-	testkit.RunF(t, setup,
-		[]testkit.Test[string, int]{
+	tk.RunF(t, setup,
+		[]tk.Test[string, int]{
 			{In: "Ada", Out: 1},
 			{In: "Bob", Out: 1},
 		},
-		func(t *testkit.T, d *sql.DB, name string) (int, error) {
+		func(t *tk.T, d *sql.DB, name string) (int, error) {
 			if _, err := d.Exec("INSERT INTO names (name) VALUES (?)", name); err != nil {
 				return 0, err
 			}
@@ -74,7 +74,7 @@ func TestDBGeneric(t *testing.T) {
 			err := d.QueryRow("SELECT count(*) FROM names").Scan(&n)
 			return n, err
 		},
-		testkit.Parallel(),
+		tk.Parallel(),
 	)
 }
 
@@ -94,15 +94,15 @@ func TestServerGeneric(t *testing.T) {
 		return string(b), err
 	}
 
-	testkit.Run(t, []testkit.Test[string, string]{
+	tk.Run(t, []tk.Test[string, string]{
 		{In: "/?name=world", Out: "hello world"},
 		{In: "/?name=go", Out: "hello go"},
 	}, get)
 }
 
 func TestSplitGeneric(t *testing.T) {
-	testkit.Run(t,
-		[]testkit.Test[string, []string]{
+	tk.Run(t,
+		[]tk.Test[string, []string]{
 			{In: "a,b,c", Out: []string{"a", "b", "c"}},
 			{In: "x", Out: []string{"x"}},
 		},
