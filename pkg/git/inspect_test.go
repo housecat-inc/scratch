@@ -5,41 +5,27 @@ import (
 	"os/exec"
 	"testing"
 
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseSlug(t *testing.T) {
-	tests := []struct {
-		name    string
-		url     string
-		org     string
-		repo    string
-		wantErr bool
-	}{
-		{name: "https github", url: "https://github.com/foo/bar.git", org: "foo", repo: "bar"},
-		{name: "https github no suffix", url: "https://github.com/foo/bar", org: "foo", repo: "bar"},
-		{name: "ssh shorthand", url: "git@github.com:foo/bar.git", org: "foo", repo: "bar"},
-		{name: "ssh full", url: "ssh://git@github.com/foo/bar.git", org: "foo", repo: "bar"},
-		{name: "internal mirror", url: "https://housecat-inc-scratch.int.exe.xyz/housecat-inc/scratch.git", org: "housecat-inc", repo: "scratch"},
-		{name: "trailing slash", url: "https://github.com/foo/bar/", org: "foo", repo: "bar"},
-		{name: "missing repo", url: "https://github.com/foo", wantErr: true},
-		{name: "empty", url: "", wantErr: true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
-			org, repo, err := parseSlug(tc.url)
-			if tc.wantErr {
-				r.Error(err)
-				return
-			}
-			r.NoError(err)
-			a.Equal(tc.org, org)
-			a.Equal(tc.repo, repo)
-		})
-	}
+	type out struct{ org, repo string }
+
+	tk.Run(t, []tk.Test[string, out]{
+		{Name: "https github", In: "https://github.com/foo/bar.git", Out: out{org: "foo", repo: "bar"}},
+		{Name: "https github no suffix", In: "https://github.com/foo/bar", Out: out{org: "foo", repo: "bar"}},
+		{Name: "ssh shorthand", In: "git@github.com:foo/bar.git", Out: out{org: "foo", repo: "bar"}},
+		{Name: "ssh full", In: "ssh://git@github.com/foo/bar.git", Out: out{org: "foo", repo: "bar"}},
+		{Name: "internal mirror", In: "https://housecat-inc-scratch.int.exe.xyz/housecat-inc/scratch.git", Out: out{org: "housecat-inc", repo: "scratch"}},
+		{Name: "trailing slash", In: "https://github.com/foo/bar/", Out: out{org: "foo", repo: "bar"}},
+		{Name: "missing repo", In: "https://github.com/foo", Err: "bad remote url"},
+		{Name: "empty", In: "", Err: "bad remote url"},
+	}, func(url string) (out, error) {
+		org, repo, err := parseSlug(url)
+		return out{org: org, repo: repo}, err
+	})
 }
 
 func TestBranch(t *testing.T) {

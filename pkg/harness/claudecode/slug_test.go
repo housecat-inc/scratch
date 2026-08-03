@@ -3,32 +3,23 @@ package claudecode
 import (
 	"testing"
 
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSanitizeSlug(t *testing.T) {
-	tests := []struct {
-		in   string
-		name string
-		want string
-	}{
-		{name: "basic kebab", in: "fix login bug", want: "fix-login-bug"},
-		{name: "already kebab", in: "rename-feature-x", want: "rename-feature-x"},
-		{name: "uppercase folded", in: "Fix Login Bug", want: "fix-login-bug"},
-		{name: "strips punctuation", in: "feat: add login!?", want: "feat-add-login"},
-		{name: "trims leading dashes", in: "  -- hello world", want: "hello-world"},
-		{name: "trims trailing dashes", in: "hello world---", want: "hello-world"},
-		{name: "newline cuts response", in: "fix-login\nmore text after", want: "fix-login"},
-		{name: "underscore becomes dash", in: "fix_login_bug", want: "fix-login-bug"},
-		{name: "max length", in: "this slug is going to be way too long for our liking", want: "this-slug-is-going-to-be-way-too"},
-		{name: "empty", in: "   ", want: ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := assert.New(t)
-			a.Equal(tc.want, sanitizeSlug(tc.in))
-		})
-	}
+	tk.Run(t, []tk.Test[string, string]{
+		{Name: "basic kebab", In: "fix login bug", Out: "fix-login-bug"},
+		{Name: "already kebab", In: "rename-feature-x", Out: "rename-feature-x"},
+		{Name: "uppercase folded", In: "Fix Login Bug", Out: "fix-login-bug"},
+		{Name: "strips punctuation", In: "feat: add login!?", Out: "feat-add-login"},
+		{Name: "trims leading dashes", In: "  -- hello world", Out: "hello-world"},
+		{Name: "trims trailing dashes", In: "hello world---", Out: "hello-world"},
+		{Name: "newline cuts response", In: "fix-login\nmore text after", Out: "fix-login"},
+		{Name: "underscore becomes dash", In: "fix_login_bug", Out: "fix-login-bug"},
+		{Name: "max length", In: "this slug is going to be way too long for our liking", Out: "this-slug-is-going-to-be-way-too"},
+		{Name: "empty", In: "   ", Out: ""},
+	}, tk.Pure(sanitizeSlug))
 }
 
 func TestSlugForPromptNoBinary(t *testing.T) {

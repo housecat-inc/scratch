@@ -6,24 +6,21 @@ import (
 	"strings"
 	"testing"
 
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseDiff(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want []File
-	}{
+	tk.Run(t, []tk.Test[string, []File]{
 		{
-			name: "empty input",
-			in:   "",
-			want: nil,
+			Name: "empty input",
+			In:   "",
+			Out:  nil,
 		},
 		{
-			name: "single modified file with one hunk",
-			in: strings.Join([]string{
+			Name: "single modified file with one hunk",
+			In: strings.Join([]string{
 				"diff --git a/foo.txt b/foo.txt",
 				"index abc..def 100644",
 				"--- a/foo.txt",
@@ -36,7 +33,7 @@ func TestParseDiff(t *testing.T) {
 				" c",
 				"",
 			}, "\n"),
-			want: []File{{
+			Out: []File{{
 				NewPath: "foo.txt",
 				OldPath: "foo.txt",
 				Status:  StatusModified,
@@ -55,8 +52,8 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			name: "added file",
-			in: strings.Join([]string{
+			Name: "added file",
+			In: strings.Join([]string{
 				"diff --git a/new.txt b/new.txt",
 				"new file mode 100644",
 				"index 0000000..abcdef",
@@ -67,7 +64,7 @@ func TestParseDiff(t *testing.T) {
 				"+world",
 				"",
 			}, "\n"),
-			want: []File{{
+			Out: []File{{
 				NewPath: "new.txt",
 				Status:  StatusAdded,
 				Hunks: []Hunk{{
@@ -82,8 +79,8 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			name: "deleted file",
-			in: strings.Join([]string{
+			Name: "deleted file",
+			In: strings.Join([]string{
 				"diff --git a/gone.txt b/gone.txt",
 				"deleted file mode 100644",
 				"--- a/gone.txt",
@@ -92,7 +89,7 @@ func TestParseDiff(t *testing.T) {
 				"-bye",
 				"",
 			}, "\n"),
-			want: []File{{
+			Out: []File{{
 				OldPath: "gone.txt",
 				Status:  StatusDeleted,
 				Hunks: []Hunk{{
@@ -104,29 +101,29 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			name: "renamed file no content change",
-			in: strings.Join([]string{
+			Name: "renamed file no content change",
+			In: strings.Join([]string{
 				"diff --git a/old.txt b/new.txt",
 				"similarity index 100%",
 				"rename from old.txt",
 				"rename to new.txt",
 				"",
 			}, "\n"),
-			want: []File{{
+			Out: []File{{
 				NewPath: "new.txt",
 				OldPath: "old.txt",
 				Status:  StatusRenamed,
 			}},
 		},
 		{
-			name: "binary file",
-			in: strings.Join([]string{
+			Name: "binary file",
+			In: strings.Join([]string{
 				"diff --git a/img.png b/img.png",
 				"index abc..def 100644",
 				"Binary files a/img.png and b/img.png differ",
 				"",
 			}, "\n"),
-			want: []File{{
+			Out: []File{{
 				Binary:  true,
 				NewPath: "img.png",
 				OldPath: "img.png",
@@ -134,23 +131,23 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			name: "binary file added",
-			in: strings.Join([]string{
+			Name: "binary file added",
+			In: strings.Join([]string{
 				"diff --git a/img.png b/img.png",
 				"new file mode 100644",
 				"index 0000000..abc",
 				"Binary files /dev/null and b/img.png differ",
 				"",
 			}, "\n"),
-			want: []File{{
+			Out: []File{{
 				Binary:  true,
 				NewPath: "img.png",
 				Status:  StatusAdded,
 			}},
 		},
 		{
-			name: "hunk header with section context",
-			in: strings.Join([]string{
+			Name: "hunk header with section context",
+			In: strings.Join([]string{
 				"diff --git a/main.go b/main.go",
 				"--- a/main.go",
 				"+++ b/main.go",
@@ -161,7 +158,7 @@ func TestParseDiff(t *testing.T) {
 				" d",
 				"",
 			}, "\n"),
-			want: []File{{
+			Out: []File{{
 				NewPath: "main.go", OldPath: "main.go", Status: StatusModified,
 				Hunks: []Hunk{{
 					Header:   "@@ -7,3 +7,4 @@ func main() {",
@@ -178,8 +175,8 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			name: "two files",
-			in: strings.Join([]string{
+			Name: "two files",
+			In: strings.Join([]string{
 				"diff --git a/a.txt b/a.txt",
 				"--- a/a.txt",
 				"+++ b/a.txt",
@@ -194,7 +191,7 @@ func TestParseDiff(t *testing.T) {
 				"+y",
 				"",
 			}, "\n"),
-			want: []File{
+			Out: []File{
 				{
 					NewPath: "a.txt", OldPath: "a.txt", Status: StatusModified,
 					Hunks: []Hunk{{
@@ -221,16 +218,7 @@ func TestParseDiff(t *testing.T) {
 				},
 			},
 		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
-			got, err := ParseDiff(tc.in)
-			r.NoError(err)
-			a.Equal(tc.want, got)
-		})
-	}
+	}, ParseDiff)
 }
 
 func TestHunkKeyStable(t *testing.T) {
