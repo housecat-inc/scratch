@@ -4,22 +4,22 @@ import (
 	"fmt"
 	"testing"
 
-	tassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type T struct {
 	*testing.T
-	A *tassert.Assertions
+	A *assert.Assertions
 	R *require.Assertions
 }
 
 type Test[In, Out any] struct {
-	Name  string
-	In    In
-	Out   Out
-	Err   string
-	Check func(t *T, out Out)
+	Name   string
+	In     In
+	Out    Out
+	Err    string
+	Assert func(t *T, out Out)
 }
 
 func (tt Test[In, Out]) name() string {
@@ -47,10 +47,10 @@ func RunF[Fix, In, Out any](t *testing.T, setup func(t *T) Fix, tests []Test[In,
 			if o.parallel {
 				t.Parallel()
 			}
-			tk := &T{T: t, A: tassert.New(t), R: require.New(t)}
+			tk := &T{T: t, A: assert.New(t), R: require.New(t)}
 			fix := setup(tk)
 			out, err := fn(tk, fix, tt.In)
-			assert(tk, tt, out, err)
+			check(tk, tt, out, err)
 		})
 	}
 }
@@ -59,16 +59,16 @@ func Pure[In, Out any](fn func(In) Out) func(In) (Out, error) {
 	return func(in In) (Out, error) { return fn(in), nil }
 }
 
-func assert[In, Out any](tk *T, tt Test[In, Out], out Out, err error) {
+func check[In, Out any](tk *T, tt Test[In, Out], out Out, err error) {
 	if tt.Err != "" {
 		tk.R.ErrorContains(err, tt.Err)
 		return
 	}
 
 	tk.R.NoError(err)
-	check := tt.Check
-	if check == nil {
-		check = func(t *T, out Out) { t.A.Equal(tt.Out, out) }
+	assertFn := tt.Assert
+	if assertFn == nil {
+		assertFn = func(t *T, out Out) { t.A.Equal(tt.Out, out) }
 	}
-	check(tk, out)
+	assertFn(tk, out)
 }
