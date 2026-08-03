@@ -61,6 +61,10 @@ func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, err
 	}
 }
 
+func Pure[In, Out any](fn func(In) Out) func(In) (Out, error) {
+	return func(in In) (Out, error) { return fn(in), nil }
+}
+
 func name(name string, in any) string {
 	if name != "" {
 		return name

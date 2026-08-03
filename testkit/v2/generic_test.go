@@ -1,6 +1,10 @@
 package testkit_test
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -13,7 +17,7 @@ func TestUpperGeneric(t *testing.T) {
 	testkit.Run(t, []testkit.Test[string, string]{
 		{In: "one", Out: "ONE"},
 		{In: "two", Out: "TWO"},
-	}, func(s string) (string, error) { return strings.ToUpper(s), nil })
+	}, testkit.Pure(strings.ToUpper))
 }
 
 func TestAtoiGeneric(t *testing.T) {
@@ -42,6 +46,28 @@ func TestSetupTeardownGeneric(t *testing.T) {
 			t.Cleanup(func() { f.Close() })
 		}),
 	)
+}
+
+func TestServerGeneric(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "hello %s", r.URL.Query().Get("name"))
+	}))
+	t.Cleanup(srv.Close)
+
+	get := func(query string) (string, error) {
+		resp, err := http.Get(srv.URL + query)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		return string(b), err
+	}
+
+	testkit.Run(t, []testkit.Test[string, string]{
+		{In: "/?name=world", Out: "hello world"},
+		{In: "/?name=go", Out: "hello go"},
+	}, get)
 }
 
 func TestSplitGeneric(t *testing.T) {
