@@ -8,6 +8,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/db"
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,21 +90,12 @@ func TestAddAttachmentRejectsOversize(t *testing.T) {
 }
 
 func TestSanitizeFilename(t *testing.T) {
-	tests := []struct {
-		in   string
-		name string
-		want string
-	}{
-		{in: "shot.png", name: "plain", want: "shot.png"},
-		{in: "../../etc/passwd", name: "traversal", want: "passwd"},
-		{in: "  ", name: "blank", want: "attachment"},
-		{in: "/tmp/x.txt", name: "absolute", want: "x.txt"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.New(t).Equal(tc.want, sanitizeFilename(tc.in))
-		})
-	}
+	tk.Run(t, []tk.Test[string, string]{
+		{Name: "plain", In: "shot.png", Out: "shot.png"},
+		{Name: "traversal", In: "../../etc/passwd", Out: "passwd"},
+		{Name: "blank", In: "  ", Out: "attachment"},
+		{Name: "absolute", In: "/tmp/x.txt", Out: "x.txt"},
+	}, tk.Pure(sanitizeFilename))
 }
 
 func TestToggleThreadAccess(t *testing.T) {
