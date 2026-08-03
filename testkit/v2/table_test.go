@@ -1,6 +1,7 @@
 package testkit_test
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 	"testing"
@@ -50,6 +51,35 @@ func TestAtoi(t *testing.T) {
 			r.NoError(err)
 
 			a.Equal(tt.out, out)
+		})
+	}
+}
+
+func TestSetupTeardown(t *testing.T) {
+	var tests = []struct {
+		in    string
+		out   int
+		setup func(buf *bytes.Buffer)
+	}{
+		{"world", 11, func(buf *bytes.Buffer) { buf.WriteString("hello ") }},
+		{"there", 5, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+
+			buf := &bytes.Buffer{}
+			t.Cleanup(func() { a.NotZero(buf.Len()) })
+			if tt.setup != nil {
+				tt.setup(buf)
+			}
+
+			_, err := buf.WriteString(tt.in)
+			r.NoError(err)
+
+			a.Equal(tt.out, buf.Len())
 		})
 	}
 }

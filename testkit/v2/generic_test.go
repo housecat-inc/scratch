@@ -27,9 +27,12 @@ func TestSetupTeardownGeneric(t *testing.T) {
 	var buf *bytes.Buffer
 
 	testkit.Run(t, []testkit.Test[string, int]{
-		{In: "hello", Out: 5},
-		{In: "hi", Out: 2},
-	}, func(s string) (int, error) { return buf.WriteString(s) },
+		{In: "world", Out: 11, Setup: func(t *testkit.T) { buf.WriteString("hello ") }},
+		{In: "there", Out: 5},
+	}, func(s string) (int, error) {
+		buf.WriteString(s)
+		return buf.Len(), nil
+	},
 		testkit.Setup(func(t *testkit.T) { buf = &bytes.Buffer{} }),
 		testkit.Teardown(func(t *testkit.T) { t.A.NotZero(buf.Len()) }),
 	)

@@ -19,6 +19,7 @@ type Test[In, Out any] struct {
 	In    In
 	Out   Out
 	Err   string
+	Setup func(t *T)
 	Check func(t *T, out Out)
 }
 
@@ -47,6 +48,9 @@ func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, err
 			}
 			if o.teardown != nil {
 				t.Cleanup(func() { o.teardown(tk) })
+			}
+			if tt.Setup != nil {
+				tt.Setup(tk)
 			}
 
 			out, err := fn(tt.In)
