@@ -41,11 +41,12 @@ func TestFixture(t *testing.T) {
 		return f
 	}
 
-	tk.RunF(t, setup,
+	tk.RunF(t,
 		[]tk.Test[string, int]{
 			{In: "hello", Out: 5},
 			{In: "hi", Out: 2},
 		},
+		setup,
 		func(t *tk.T, f *os.File, s string) (int, error) { return f.WriteString(s) },
 	)
 }
@@ -61,11 +62,12 @@ func TestDB(t *testing.T) {
 		return d
 	}
 
-	tk.RunF(t, setup,
+	tk.RunF(t,
 		[]tk.Test[string, int]{
 			{In: "Ada", Out: 1},
 			{In: "Bob", Out: 1},
 		},
+		setup,
 		func(t *tk.T, d *sql.DB, name string) (int, error) {
 			if _, err := d.Exec("INSERT INTO names (name) VALUES (?)", name); err != nil {
 				return 0, err

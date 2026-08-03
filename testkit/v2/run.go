@@ -2,6 +2,7 @@ package testkit
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,27 +20,29 @@ type Test[In, Out any] struct {
 	In     In
 	Out    Out
 	Err    string
-	Assert func(t *T, out Out)
+	Assert func(t *T, out Out, err error)
 }
+
+var nameReplacer = strings.NewReplacer(" ", "_", "/", "_", "\t", "_", "\n", "_")
 
 func (tt Test[In, Out]) name() string {
 	if tt.Name != "" {
 		return tt.Name
 	}
-	return fmt.Sprint(tt.In)
+	return nameReplacer.Replace(fmt.Sprint(tt.In))
 }
 
 func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, error), opts ...Option) {
 	t.Helper()
 	RunF(t,
-		func(*T) struct{} { return struct{}{} },
 		tests,
+		func(*T) struct{} { return struct{}{} },
 		func(_ *T, _ struct{}, in In) (Out, error) { return fn(in) },
 		opts...,
 	)
 }
 
-func RunF[Fix, In, Out any](t *testing.T, setup func(t *T) Fix, tests []Test[In, Out], fn func(t *T, fix Fix, in In) (Out, error), opts ...Option) {
+func RunF[Fix, In, Out any](t *testing.T, tests []Test[In, Out], setup func(t *T) Fix, fn func(t *T, fix Fix, in In) (Out, error), opts ...Option) {
 	t.Helper()
 	o := newOptions(opts)
 	for _, tt := range tests {
@@ -60,15 +63,14 @@ func Pure[In, Out any](fn func(In) Out) func(In) (Out, error) {
 }
 
 func check[In, Out any](tk *T, tt Test[In, Out], out Out, err error) {
+	if tt.Assert != nil {
+		tt.Assert(tk, out, err)
+		return
+	}
 	if tt.Err != "" {
 		tk.R.ErrorContains(err, tt.Err)
 		return
 	}
-
 	tk.R.NoError(err)
-	assertFn := tt.Assert
-	if assertFn == nil {
-		assertFn = func(t *T, out Out) { t.A.Equal(tt.Out, out) }
-	}
-	assertFn(tk, out)
+	tk.A.Equal(tt.Out, out)
 }
