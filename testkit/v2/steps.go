@@ -26,6 +26,38 @@ func RunSteps[H any](t *testing.T, scenarios []Scenario[H], setup func(t *T) H, 
 	}, opts...)
 }
 
+type harness interface {
+	Click(string)
+	ElementAbsent(string)
+	ElementAttributeContains(string, string, string)
+	ElementAttributeEquals(string, string, string)
+	ElementHidden(string)
+	ElementPresent(string)
+	ElementTextContains(string, string)
+	ElementVisible(string)
+	Fill(string, string)
+	Load(string)
+	SelectOption(string, string)
+	Submit(string)
+	Type(string, string)
+}
+
+type Steps[H harness] struct{}
+
+func (Steps[H]) Absent(selector string) Step[H]                   { return Absent[H](selector) }
+func (Steps[H]) AttrContains(selector, name, exp string) Step[H]  { return AttrContains[H](selector, name, exp) }
+func (Steps[H]) AttrEquals(selector, name, exp string) Step[H]    { return AttrEquals[H](selector, name, exp) }
+func (Steps[H]) Click(selector string) Step[H]                    { return Click[H](selector) }
+func (Steps[H]) Fill(selector, text string) Step[H]               { return Fill[H](selector, text) }
+func (Steps[H]) Hidden(selector string) Step[H]                   { return Hidden[H](selector) }
+func (Steps[H]) Present(selector string) Step[H]                  { return Present[H](selector) }
+func (Steps[H]) Select(selector, value string) Step[H]            { return Select[H](selector, value) }
+func (Steps[H]) Submit(selector string) Step[H]                   { return Submit[H](selector) }
+func (Steps[H]) Text(selector, exp string) Step[H]                { return Text[H](selector, exp) }
+func (Steps[H]) Type(selector, text string) Step[H]               { return Type[H](selector, text) }
+func (Steps[H]) Visible(selector string) Step[H]                  { return Visible[H](selector) }
+func (Steps[H]) Visit(path string) Step[H]                        { return Visit[H](path) }
+
 func Visit[H interface{ Load(string) }](path string) Step[H] {
 	return func(t *T, h H) { t.Helper(); h.Load(path) }
 }
