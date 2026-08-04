@@ -19,6 +19,9 @@ func RunSteps[H any](t *testing.T, scenarios []Scenario[H], setup func(t *T) H, 
 		if s.Setup != nil {
 			build = s.Setup
 		}
+		if build == nil {
+			tk.Fatalf("scenario %q has no Setup and RunSteps has no default", s.Name)
+		}
 		h := build(tk)
 		for _, step := range s.Steps {
 			step(tk, h)
