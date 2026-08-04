@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,31 +56,31 @@ func TestCommentCRUD(t *testing.T) {
 }
 
 func TestCommentDeleteMissing(t *testing.T) {
-	tests := []struct {
-		name string
-		slug string
-		id   string
-	}{
-		{name: "unknown id", slug: "acme/alpha", id: "deadbeef"},
-		{name: "wrong slug", slug: "wrong/slug", id: ""},
+	type fixture struct {
+		db       *DB
+		seededID string
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
+	type in struct{ slug, id string }
 
-			d := newTestDB(t)
-			c, err := d.AddComment("acme/alpha", "feature", "foo.txt", "new", 1, "x")
-			r.NoError(err)
-
-			id := tc.id
-			if id == "" {
-				id = c.ID
-			}
-			err = d.DeleteComment(tc.slug, id)
-			a.True(IsCommentNotFound(err), "expected not-found, got %v", err)
-		})
+	notFound := func(t *tk.T, _ struct{}, err error) {
+		t.A.True(IsCommentNotFound(err), "expected not-found, got %v", err)
 	}
+
+	tk.RunF(t, []tk.Test[in, struct{}]{
+		{Name: "unknown id", In: in{slug: "acme/alpha", id: "deadbeef"}, Assert: notFound},
+		{Name: "wrong slug", In: in{slug: "wrong/slug"}, Assert: notFound},
+	}, func(t *tk.T) fixture {
+		d := newTestDB(t.T)
+		c, err := d.AddComment("acme/alpha", "feature", "foo.txt", "new", 1, "x")
+		t.R.NoError(err)
+		return fixture{db: d, seededID: c.ID}
+	}, func(t *tk.T, f fixture, i in) (struct{}, error) {
+		id := i.id
+		if id == "" {
+			id = f.seededID
+		}
+		return struct{}{}, f.db.DeleteComment(i.slug, id)
+	})
 }
 
 func TestCommentUpdateAndResolve(t *testing.T) {

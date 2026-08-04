@@ -5,137 +5,110 @@ import (
 	"testing"
 
 	"github.com/housecat-inc/scratch/testkit"
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 )
 
+type sqlHTML = *testkit.HTML
+
+func sqlHarness(t *tk.T) sqlHTML {
+	mux := http.NewServeMux()
+	mux.Handle("/sql/", http.StripPrefix("/sql", newServer(t.T, seedDB(t.T)).Handler()))
+	return testkit.NewHTML(t.T, mux)
+}
+
 func TestSQLHTML(t *testing.T) {
-	type step = testkit.Step[*testkit.HTML]
+	s := tk.Steps[sqlHTML]{}
 
-	attrEquals := testkit.AttributeEqualsStep[*testkit.HTML]
-	fill := testkit.FillStep[*testkit.HTML]
-	textContains := testkit.TextContainsStep[*testkit.HTML]
-	visible := testkit.VisibleStep[*testkit.HTML]
-
-	submit := func(selector string) step {
-		return func(t *testing.T, h *testkit.HTML) {
-			t.Helper()
-			h.Submit(selector)
-		}
-	}
-
-	testkit.RunCases(t, []testkit.Case[*testkit.HTML]{
+	tk.RunSteps(t, []tk.Scenario[sqlHTML]{
 		{
-			Assert: []step{
-				attrEquals("#sql-run-form", "hx-post", "/sql/query"),
-				visible("#sql-editor"),
-				textContains(".tree-pane", "widgets"),
-			},
 			Name: "renders the editor and schema",
-			Path: "/sql/",
+			Steps: []tk.Step[sqlHTML]{
+				s.Visit("/sql/"),
+				s.AttrEquals("#sql-run-form", "hx-post", "/sql/query"),
+				s.Visible("#sql-editor"),
+				s.Text(".tree-pane", "widgets"),
+			},
 		},
 		{
-			Act: []step{
-				fill("#sql-editor", "SELECT name, note FROM widgets ORDER BY id"),
-				submit("#sql-run-form"),
-			},
-			Assert: []step{
-				textContains("#sql-results", "alpha"),
-				textContains("#sql-results", "bravo"),
-				textContains("#sql-results", "hi"),
-				textContains("#sql-results", "2 rows"),
-			},
 			Name: "runs a query and swaps results",
-			Path: "/sql/",
+			Steps: []tk.Step[sqlHTML]{
+				s.Visit("/sql/"),
+				s.Fill("#sql-editor", "SELECT name, note FROM widgets ORDER BY id"),
+				s.Submit("#sql-run-form"),
+				s.Text("#sql-results", "alpha"),
+				s.Text("#sql-results", "bravo"),
+				s.Text("#sql-results", "hi"),
+				s.Text("#sql-results", "2 rows"),
+			},
 		},
 		{
-			Act: []step{
-				fill("#sql-editor", "SELECT * FROM nope"),
-				submit("#sql-run-form"),
-			},
-			Assert: []step{
-				textContains("#sql-results", "no such table"),
-			},
 			Name: "surfaces query errors",
-			Path: "/sql/",
+			Steps: []tk.Step[sqlHTML]{
+				s.Visit("/sql/"),
+				s.Fill("#sql-editor", "SELECT * FROM nope"),
+				s.Submit("#sql-run-form"),
+				s.Text("#sql-results", "no such table"),
+			},
 		},
-	}, sqlRunner())
+	}, sqlHarness)
 }
 
 func TestSQLSavedQueriesHTML(t *testing.T) {
-	type step = testkit.Step[*testkit.HTML]
+	s := tk.Steps[sqlHTML]{}
 
-	absent := testkit.AbsentStep[*testkit.HTML]
-	click := testkit.ClickStep[*testkit.HTML]
-	fill := testkit.FillStep[*testkit.HTML]
-	textContains := testkit.TextContainsStep[*testkit.HTML]
-
-	save := func(name, sql string) []step {
-		return []step{
-			fill("#sql-save-name", name),
-			fill("#sql-editor", sql),
-			click("#sql-save-confirm"),
+	save := func(name, sql string) []tk.Step[sqlHTML] {
+		return []tk.Step[sqlHTML]{
+			s.Fill("#sql-save-name", name),
+			s.Fill("#sql-editor", sql),
+			s.Click("#sql-save-confirm"),
 		}
 	}
-	rowCount := func(want int) step {
-		return func(t *testing.T, h *testkit.HTML) {
+	rowCount := func(want int) tk.Step[sqlHTML] {
+		return func(t *tk.T, h sqlHTML) {
 			t.Helper()
-			h.A.Equal(want, h.Doc.Find("#sql-query-list li").Length())
+			t.A.Equal(want, h.Doc.Find("#sql-query-list li").Length())
 		}
 	}
-	status := func(want int) step {
-		return func(t *testing.T, h *testkit.HTML) {
-			t.Helper()
-			h.A.Equal(want, h.Status)
-		}
+	status := func(want int) tk.Step[sqlHTML] {
+		return func(t *tk.T, h sqlHTML) { t.Helper(); t.A.Equal(want, h.Status) }
 	}
 
-	testkit.RunCases(t, []testkit.Case[*testkit.HTML]{
+	visit := s.Visit("/sql/")
+
+	tk.RunSteps(t, []tk.Scenario[sqlHTML]{
 		{
-			Act: save("all widgets", "SELECT * FROM widgets"),
-			Assert: []step{
-				textContains("#sql-query-list", "all widgets"),
-				rowCount(1),
-			},
 			Name: "saves a query into the sidebar",
-			Path: "/sql/",
-		},
-		{
-			Act: append(save("all widgets", "SELECT * FROM widgets"), save("all widgets", "SELECT id FROM widgets")...),
-			Assert: []step{
-				textContains("#sql-query-list", "all widgets"),
+			Steps: append([]tk.Step[sqlHTML]{visit}, append(
+				save("all widgets", "SELECT * FROM widgets"),
+				s.Text("#sql-query-list", "all widgets"),
 				rowCount(1),
-			},
+			)...),
+		},
+		{
 			Name: "reusing a name upserts one row",
-			Path: "/sql/",
+			Steps: append([]tk.Step[sqlHTML]{visit}, append(
+				append(save("all widgets", "SELECT * FROM widgets"), save("all widgets", "SELECT id FROM widgets")...),
+				s.Text("#sql-query-list", "all widgets"),
+				rowCount(1),
+			)...),
 		},
 		{
-			Act: append(save("all widgets", "SELECT * FROM widgets"),
-				click(`#sql-query-list [aria-label="Delete query"]`)),
-			Assert: []step{
-				absent(`#sql-query-list [aria-label="Delete query"]`),
-				textContains("#sql-query-list", "none saved"),
-			},
 			Name: "deletes a saved query",
-			Path: "/sql/",
+			Steps: append([]tk.Step[sqlHTML]{visit}, append(
+				save("all widgets", "SELECT * FROM widgets"),
+				s.Click(`#sql-query-list [aria-label="Delete query"]`),
+				s.Absent(`#sql-query-list [aria-label="Delete query"]`),
+				s.Text("#sql-query-list", "none saved"),
+			)...),
 		},
 		{
-			Act: []step{
-				fill("#sql-editor", "SELECT 1"),
-				click("#sql-save-confirm"),
+			Name: "rejects a save without a name",
+			Steps: []tk.Step[sqlHTML]{
+				visit,
+				s.Fill("#sql-editor", "SELECT 1"),
+				s.Click("#sql-save-confirm"),
+				status(http.StatusBadRequest),
 			},
-			Assert: []step{status(http.StatusBadRequest)},
-			Name:   "rejects a save without a name",
-			Path:   "/sql/",
 		},
-	}, sqlRunner())
-}
-
-func sqlRunner() testkit.CaseRunner[*testkit.HTML] {
-	return testkit.CaseRunner[*testkit.HTML]{
-		Load: func(h *testkit.HTML, path string) { h.Load(path) },
-		Setup: func(t *testing.T, kit *testkit.T, _ testkit.Case[*testkit.HTML]) *testkit.HTML {
-			mux := http.NewServeMux()
-			mux.Handle("/sql/", http.StripPrefix("/sql", newServer(t, seedDB(t)).Handler()))
-			return testkit.NewHTMLWithT(t, kit, mux)
-		},
-	}
+	}, sqlHarness)
 }

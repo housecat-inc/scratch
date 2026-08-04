@@ -8,42 +8,29 @@ import (
 	"path/filepath"
 	"testing"
 
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAuthenticated(t *testing.T) {
-	tests := []struct {
-		exit    int
-		name    string
-		stdout  string
-		want    bool
-		wantErr bool
-	}{
-		{name: "logged in", stdout: `{"loggedIn": true, "email": "noah@housecat.com"}`, want: true},
-		{name: "logged out", stdout: `{"loggedIn": false}`},
-		{name: "cli error is not authenticated", exit: 1, stdout: `not logged in`},
-		{name: "malformed json errors", stdout: `{not json`, wantErr: true},
+	type in struct {
+		exit   int
+		stdout string
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
-
-			path := filepath.Join(t.TempDir(), "out")
-			r.NoError(os.WriteFile(path, []byte(tc.stdout), 0o644))
-			cmd := exec.Command("sh", "-c", fmt.Sprintf("cat %q; exit %d", path, tc.exit))
-
-			ok, err := authenticated(cmd)
-			if tc.wantErr {
-				a.Error(err)
-				return
-			}
-			r.NoError(err)
-			a.Equal(tc.want, ok)
+	tk.RunF(t, []tk.Test[in, bool]{
+		{Name: "logged in", In: in{stdout: `{"loggedIn": true, "email": "noah@housecat.com"}`}, Out: true},
+		{Name: "logged out", In: in{stdout: `{"loggedIn": false}`}, Out: false},
+		{Name: "cli error is not authenticated", In: in{exit: 1, stdout: `not logged in`}, Out: false},
+		{Name: "malformed json errors", In: in{stdout: `{not json`}, Assert: func(t *tk.T, _ bool, err error) { t.A.Error(err) }},
+	}, func(t *tk.T) string { return t.TempDir() },
+		func(t *tk.T, dir string, i in) (bool, error) {
+			path := filepath.Join(dir, "out")
+			t.R.NoError(os.WriteFile(path, []byte(i.stdout), 0o644))
+			cmd := exec.Command("sh", "-c", fmt.Sprintf("cat %q; exit %d", path, i.exit))
+			return authenticated(cmd)
 		})
-	}
 }
 
 func TestConfiguredAt(t *testing.T) {

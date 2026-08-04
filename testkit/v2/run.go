@@ -44,16 +44,22 @@ func Run[In, Out any](t *testing.T, tests []Test[In, Out], fn func(In) (Out, err
 
 func RunF[Fix, In, Out any](t *testing.T, tests []Test[In, Out], setup func(t *T) Fix, fn func(t *T, fix Fix, in In) (Out, error), opts ...Option) {
 	t.Helper()
+	each(t, tests, Test[In, Out].name, func(tk *T, tt Test[In, Out]) {
+		fix := setup(tk)
+		out, err := fn(tk, fix, tt.In)
+		check(tk, tt, out, err)
+	}, opts...)
+}
+
+func each[C any](t *testing.T, cases []C, name func(C) string, body func(*T, C), opts ...Option) {
+	t.Helper()
 	o := newOptions(opts)
-	for _, tt := range tests {
-		t.Run(tt.name(), func(t *testing.T) {
+	for _, c := range cases {
+		t.Run(name(c), func(t *testing.T) {
 			if o.parallel {
 				t.Parallel()
 			}
-			tk := &T{T: t, A: assert.New(t), R: require.New(t)}
-			fix := setup(tk)
-			out, err := fn(tk, fix, tt.In)
-			check(tk, tt, out, err)
+			body(&T{T: t, A: assert.New(t), R: require.New(t)}, c)
 		})
 	}
 }

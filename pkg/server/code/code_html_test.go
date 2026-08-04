@@ -8,34 +8,29 @@ import (
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/repo"
 	"github.com/housecat-inc/scratch/testkit"
+	tk "github.com/housecat-inc/scratch/testkit/v2"
 )
 
 func TestCodePagesHTML(t *testing.T) {
-	type step = testkit.Step[*testkit.HTML]
+	type H = *testkit.HTML
 
-	absent := testkit.AbsentStep[*testkit.HTML]
-	attrContains := testkit.AttributeContainsStep[*testkit.HTML]
-	click := testkit.ClickStep[*testkit.HTML]
-	fill := testkit.FillStep[*testkit.HTML]
-	present := testkit.PresentStep[*testkit.HTML]
-	textContains := testkit.TextContainsStep[*testkit.HTML]
+	serve := func(t *tk.T, deps Deps) H {
+		srv, err := NewServer(deps)
+		t.R.NoError(err)
+		mux := http.NewServeMux()
+		mux.Handle("/code/", http.StripPrefix("/code", srv.Handler()))
+		return testkit.NewHTML(t.T, mux)
+	}
 
-	submit := func(selector string) step {
-		return func(t *testing.T, h *testkit.HTML) {
-			t.Helper()
-			h.Submit(selector)
-		}
+	s := tk.Steps[H]{}
+
+	status := func(want int) tk.Step[H] {
+		return func(t *tk.T, h H) { t.Helper(); t.A.Equal(want, h.Status) }
 	}
-	status := func(want int) step {
-		return func(t *testing.T, h *testkit.HTML) {
+	scriptOnce := func(src string) tk.Step[H] {
+		return func(t *tk.T, h H) {
 			t.Helper()
-			h.A.Equal(want, h.Status)
-		}
-	}
-	scriptOnce := func(src string) step {
-		return func(t *testing.T, h *testkit.HTML) {
-			t.Helper()
-			h.A.Equal(1, h.Doc.Find(`script[src="`+src+`"]`).Length(), "expected one %s", src)
+			t.A.Equal(1, h.Doc.Find(`script[src="`+src+`"]`).Length(), "expected one %s", src)
 		}
 	}
 
@@ -58,102 +53,87 @@ func TestCodePagesHTML(t *testing.T) {
 	addComment := `[hx-get*="side=new"][hx-get*="line=4"]`
 	commentForm := `form[hx-post="/code/acme/alpha/comments"]`
 
-	testkit.RunCases(t, []testkit.Case[*testkit.HTML]{
+	tk.RunSteps(t, []tk.Scenario[H]{
 		{
-			Assert: []step{
-				textContains("body", "acme/alpha"),
-				textContains("body", "on feature"),
-				textContains("body", "first commit"),
-				textContains("body", "2↓"),
-				present(`a[href="/code/acme/alpha"]`),
-				textContains("body", "Commit & Push"),
-				textContains("body", "Pull"),
-				attrContains(`[hx-post="/sessions"]`, "hx-vals", `"dir":"/tmp/alpha"`),
-				attrContains(`[hx-post="/sessions"]`, "hx-vals", `"redirect":"1"`),
-			},
 			Name: "overview lists repos with sync actions",
-			Path: "/code/",
+			Steps: []tk.Step[H]{
+				s.Visit("/code/"),
+				s.Text("body", "acme/alpha"),
+				s.Text("body", "on feature"),
+				s.Text("body", "first commit"),
+				s.Text("body", "2↓"),
+				s.Present(`a[href="/code/acme/alpha"]`),
+				s.Text("body", "Commit & Push"),
+				s.Text("body", "Pull"),
+				s.AttrContains(`[hx-post="/sessions"]`, "hx-vals", `"dir":"/tmp/alpha"`),
+				s.AttrContains(`[hx-post="/sessions"]`, "hx-vals", `"redirect":"1"`),
+			},
 		},
 		{
-			Assert: []step{
-				textContains("body", "acme/alpha"),
-				absent(`[hx-post="/sessions"]`),
+			Name:  "clean repo has no sync actions",
+			Setup: func(t *tk.T) H { return serve(t, cleanRepoDeps(t.T)) },
+			Steps: []tk.Step[H]{
+				s.Visit("/code/"),
+				s.Text("body", "acme/alpha"),
+				s.Absent(`[hx-post="/sessions"]`),
 			},
-			Data: cleanRepoDeps,
-			Name: "clean repo has no sync actions",
-			Path: "/code/",
 		},
 		{
-			Assert: []step{
-				textContains("body", "refactor parser"),
-				textContains("body", "first commit"),
-				textContains("body", "abcdef1"),
-				present(`a[href="/code/acme/alpha"]`),
-				present(`a[href="/code/acme/alpha/commits"]`),
-				present(`a[href="/code/acme/alpha/comments"]`),
-			},
 			Name: "commits page renders the log",
-			Path: "/code/acme/alpha/commits",
+			Steps: []tk.Step[H]{
+				s.Visit("/code/acme/alpha/commits"),
+				s.Text("body", "refactor parser"),
+				s.Text("body", "first commit"),
+				s.Text("body", "abcdef1"),
+				s.Present(`a[href="/code/acme/alpha"]`),
+				s.Present(`a[href="/code/acme/alpha/commits"]`),
+				s.Present(`a[href="/code/acme/alpha/comments"]`),
+			},
 		},
 		{
-			Assert: []step{
-				textContains("body", "foo.txt"),
-				textContains("body", "+2"),
-				textContains("body", "−1"),
-				textContains("body", "func main() {"),
-				present(`[hx-get*="direction=up"]`),
-				present(`[hx-get*="direction=all"]`),
+			Name: "diff page renders hunks and expanders",
+			Steps: []tk.Step[H]{
+				s.Visit("/code/acme/alpha"),
+				s.Text("body", "foo.txt"),
+				s.Text("body", "+2"),
+				s.Text("body", "−1"),
+				s.Text("body", "func main() {"),
+				s.Present(`[hx-get*="direction=up"]`),
+				s.Present(`[hx-get*="direction=all"]`),
 				scriptOnce("/static/chat.js"),
 				scriptOnce("/static/htmx-ext-sse.min.js"),
 			},
-			Name: "diff page renders hunks and expanders",
-			Path: "/code/acme/alpha",
 		},
 		{
-			Assert: []step{status(http.StatusNotFound)},
-			Name:   "missing repo is not found",
-			Path:   "/code/acme/missing",
+			Name: "missing repo is not found",
+			Steps: []tk.Step[H]{
+				s.Visit("/code/acme/missing"),
+				status(http.StatusNotFound),
+			},
 		},
 		{
-			Act: []step{
-				click(addComment),
-				fill(commentForm+` textarea[name="body"]`, "nit: rename"),
-				submit(commentForm),
+			Name:  "adds a comment on the diff",
+			Setup: func(t *tk.T) H { return serve(t, commentDeps(t.T)) },
+			Steps: []tk.Step[H]{
+				s.Visit("/code/acme/alpha"),
+				s.Click(addComment),
+				s.Fill(commentForm+` textarea[name="body"]`, "nit: rename"),
+				s.Submit(commentForm),
+				s.Present(`[id^="comment-thread-"] details[id^="comment-"]`),
+				s.Text(`[id^="comment-thread-"]`, "nit: rename"),
 			},
-			Assert: []step{
-				present(`[id^="comment-thread-"] details[id^="comment-"]`),
-				textContains(`[id^="comment-thread-"]`, "nit: rename"),
-			},
-			Data: commentDeps,
-			Name: "adds a comment on the diff",
-			Path: "/code/acme/alpha",
 		},
 		{
-			Act: []step{
-				click(addComment),
-				fill(commentForm+` textarea[name="body"]`, "nit: rename"),
-				submit(commentForm),
-				click(`[hx-delete*="/comments/"]`),
+			Name:  "deletes a comment from the diff",
+			Setup: func(t *tk.T) H { return serve(t, commentDeps(t.T)) },
+			Steps: []tk.Step[H]{
+				s.Visit("/code/acme/alpha"),
+				s.Click(addComment),
+				s.Fill(commentForm+` textarea[name="body"]`, "nit: rename"),
+				s.Submit(commentForm),
+				s.Click(`[hx-delete*="/comments/"]`),
+				s.Absent(`details[id^="comment-"]`),
 			},
-			Assert: []step{
-				absent(`details[id^="comment-"]`),
-			},
-			Data: commentDeps,
-			Name: "deletes a comment from the diff",
-			Path: "/code/acme/alpha",
 		},
-	}, testkit.CaseRunner[*testkit.HTML]{
-		Load: func(h *testkit.HTML, path string) { h.Load(path) },
-		Setup: func(t *testing.T, kit *testkit.T, tc testkit.Case[*testkit.HTML]) *testkit.HTML {
-			deps := makeDeps()
-			if tc.Data != nil {
-				deps = tc.Data.(func(*testing.T) Deps)(t)
-			}
-			s, err := NewServer(deps)
-			kit.R.NoError(err)
-			mux := http.NewServeMux()
-			mux.Handle("/code/", http.StripPrefix("/code", s.Handler()))
-			return testkit.NewHTMLWithT(t, kit, mux)
-		},
-	})
+	}, func(t *tk.T) H { return serve(t, makeDeps()) })
 }
