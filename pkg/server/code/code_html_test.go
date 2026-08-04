@@ -14,15 +14,12 @@ import (
 func TestCodePagesHTML(t *testing.T) {
 	type H = *testkit.HTML
 
-	newHTML := func(t *tk.T, deps Deps) H {
-		s, err := NewServer(deps)
+	serve := func(t *tk.T, deps Deps) H {
+		srv, err := NewServer(deps)
 		t.R.NoError(err)
 		mux := http.NewServeMux()
-		mux.Handle("/code/", http.StripPrefix("/code", s.Handler()))
+		mux.Handle("/code/", http.StripPrefix("/code", srv.Handler()))
 		return testkit.NewHTML(t.T, mux)
-	}
-	withDeps := func(build func(*testing.T) Deps) func(*tk.T) H {
-		return func(t *tk.T) H { return newHTML(t, build(t.T)) }
 	}
 
 	s := tk.Steps[H]{}
@@ -74,7 +71,7 @@ func TestCodePagesHTML(t *testing.T) {
 		},
 		{
 			Name:  "clean repo has no sync actions",
-			Setup: withDeps(cleanRepoDeps),
+			Setup: func(t *tk.T) H { return serve(t, cleanRepoDeps(t.T)) },
 			Steps: []tk.Step[H]{
 				s.Visit("/code/"),
 				s.Text("body", "acme/alpha"),
@@ -116,7 +113,7 @@ func TestCodePagesHTML(t *testing.T) {
 		},
 		{
 			Name:  "adds a comment on the diff",
-			Setup: withDeps(commentDeps),
+			Setup: func(t *tk.T) H { return serve(t, commentDeps(t.T)) },
 			Steps: []tk.Step[H]{
 				s.Visit("/code/acme/alpha"),
 				s.Click(addComment),
@@ -128,7 +125,7 @@ func TestCodePagesHTML(t *testing.T) {
 		},
 		{
 			Name:  "deletes a comment from the diff",
-			Setup: withDeps(commentDeps),
+			Setup: func(t *tk.T) H { return serve(t, commentDeps(t.T)) },
 			Steps: []tk.Step[H]{
 				s.Visit("/code/acme/alpha"),
 				s.Click(addComment),
@@ -138,5 +135,5 @@ func TestCodePagesHTML(t *testing.T) {
 				s.Absent(`details[id^="comment-"]`),
 			},
 		},
-	}, func(t *tk.T) H { return newHTML(t, makeDeps()) })
+	}, func(t *tk.T) H { return serve(t, makeDeps()) })
 }
