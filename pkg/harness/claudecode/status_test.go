@@ -40,6 +40,7 @@ func TestConfiguredAt(t *testing.T) {
 		settings      any
 		writeAgents   bool
 		writeClaude   bool
+		writePath     bool
 		writeSet      bool
 		writeSymlinks bool
 		want          bool
@@ -71,11 +72,21 @@ func TestConfiguredAt(t *testing.T) {
 			writeSet:    true,
 		},
 		{
-			name:          "all four complete",
+			name:          "symlinks done but path missing",
 			claudeJSON:    claudeJSONDefaults,
 			settings:      settingsDefaults,
 			writeAgents:   true,
 			writeClaude:   true,
+			writeSet:      true,
+			writeSymlinks: true,
+		},
+		{
+			name:          "all five complete",
+			claudeJSON:    claudeJSONDefaults,
+			settings:      settingsDefaults,
+			writeAgents:   true,
+			writeClaude:   true,
+			writePath:     true,
 			writeSet:      true,
 			writeSymlinks: true,
 			want:          true,
@@ -86,6 +97,7 @@ func TestConfiguredAt(t *testing.T) {
 			settings:      settingsDefaults,
 			writeAgents:   true,
 			writeClaude:   true,
+			writePath:     true,
 			writeSet:      true,
 			writeSymlinks: true,
 		},
@@ -115,6 +127,9 @@ func TestConfiguredAt(t *testing.T) {
 			if tc.writeSymlinks {
 				r.NoError(EnsureSymlinksAt(home))
 			}
+			if tc.writePath {
+				r.NoError(EnsureGoBinOnPathAt(home))
+			}
 
 			ok, err := ConfiguredAt(home)
 			r.NoError(err)
@@ -134,6 +149,7 @@ func TestConfiguredAfterClaudeRewrite(t *testing.T) {
 	r.NoError(MergeDefaults(filepath.Join(home, ".claude", "settings.json"), settingsDefaults))
 	r.NoError(os.MkdirAll(filepath.Join(home, "scratch", ".git"), 0o755))
 	r.NoError(EnsureSymlinksAt(home))
+	r.NoError(EnsureGoBinOnPathAt(home))
 
 	rewritten := `{
 		"hasCompletedOnboarding": true,
