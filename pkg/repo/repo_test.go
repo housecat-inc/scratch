@@ -33,7 +33,7 @@ func TestScan(t *testing.T) {
 	a.NotEmpty(repos[0].Branch)
 }
 
-func TestScanSkipsReposWithoutOrigin(t *testing.T) {
+func TestScanIncludesReposWithoutOrigin(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
@@ -41,18 +41,26 @@ func TestScanSkipsReposWithoutOrigin(t *testing.T) {
 	r := require.New(t)
 
 	home := t.TempDir()
-	path := filepath.Join(home, "no-origin")
+	path := filepath.Join(home, "vizlab")
 	r.NoError(os.MkdirAll(path, 0o755))
 	runGit(t, path, "init", "--initial-branch=main")
 	runGit(t, path, "config", "user.email", "t@t.t")
 	runGit(t, path, "config", "user.name", "t")
+	runGit(t, path, "config", "commit.gpgsign", "false")
 	r.NoError(os.WriteFile(filepath.Join(path, "README"), []byte("x"), 0o644))
 	runGit(t, path, "add", ".")
 	runGit(t, path, "commit", "-m", "init")
 
 	repos, err := Scan(home)
 	r.NoError(err)
-	a.Empty(repos)
+	r.Len(repos, 1)
+	a.Equal("local/vizlab", repos[0].Slug())
+	a.Equal(path, repos[0].Path)
+	a.Equal("main", repos[0].Branch)
+
+	got, ok := Find(home, "local/vizlab")
+	r.True(ok)
+	a.Equal(path, got.Path)
 }
 
 func TestScanIncludingPrefersExplicitWorktree(t *testing.T) {
