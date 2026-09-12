@@ -103,7 +103,7 @@ templ MailShell(p InboxProps) {
 templ MailComposer(p InboxProps) {
 	if p.Thread != nil {
 		@ChatComposer(threadComposerProps(*p.Thread))
-	} else {
+	} else if p.View != "workflows" {
 		@ChatComposer(composeComposerProps(p))
 	}
 }
