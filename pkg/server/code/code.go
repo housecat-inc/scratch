@@ -32,7 +32,6 @@ type Deps struct {
 	HunkCommit func(r repo.Repo, path string, newStart, newCount int) (git.Commit, error)
 	ListRepos  func() ([]repo.Repo, error)
 	LookupRepo func(slug string) (repo.Repo, bool)
-	Shell      func() ui.ToolShellProps
 	ShowBlob   func(r repo.Repo, path string) ([]byte, error)
 	ShowCommit func(r repo.Repo, sha string) (git.Commit, error)
 	ShowFile   func(r repo.Repo, path string) ([]string, error)
@@ -105,7 +104,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
-	vm := ui.OverviewProps{Home: s.deps.Home, Shell: s.shell()}
+	vm := ui.OverviewProps{Home: s.deps.Home}
 	repos, err := s.deps.ListRepos()
 	if err != nil {
 		vm.Error = err.Error()
@@ -122,7 +121,7 @@ func (s *Server) handleCommits(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := ui.CommitsProps{Comments: s.countComments(slug, rp.Branch), Repo: rp, Shell: s.shell()}
+	vm := ui.CommitsProps{Comments: s.countComments(slug, rp.Branch), Repo: rp}
 	if s.deps.CommitLog == nil {
 		vm.Error = "commits not available"
 		s.render(w, r, ui.CommitsPage(vm))
@@ -149,13 +148,6 @@ func (s *Server) countComments(slug, branch string) int {
 	return len(cs)
 }
 
-func (s *Server) shell() ui.ToolShellProps {
-	if s.deps.Shell == nil {
-		return ui.ToolShellProps{}
-	}
-	return s.deps.Shell()
-}
-
 func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("org") + "/" + r.PathValue("name")
 	rp, ok := s.deps.LookupRepo(slug)
@@ -163,7 +155,7 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := ui.DiffProps{Repo: rp, Shell: s.shell()}
+	vm := ui.DiffProps{Repo: rp}
 	files, err := s.deps.Diff(rp)
 	if err != nil {
 		vm.Error = err.Error()
@@ -197,7 +189,7 @@ func (s *Server) handleDiffCommit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid sha", http.StatusBadRequest)
 		return
 	}
-	vm := ui.DiffProps{Repo: rp, Shell: s.shell()}
+	vm := ui.DiffProps{Repo: rp}
 	commit, err := s.deps.ShowCommit(rp, sha)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -447,7 +439,7 @@ func (s *Server) handleCommentList(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := ui.CommentListProps{Repo: rp, Shell: s.shell()}
+	vm := ui.CommentListProps{Repo: rp}
 	comments, err := s.deps.Comments.ListComments(slug, rp.Branch)
 	if err != nil {
 		vm.Error = err.Error()

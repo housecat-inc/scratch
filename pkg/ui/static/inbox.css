@@ -370,59 +370,54 @@ textarea {
   color: #202124;
   display: grid;
   grid-template-columns: 16rem minmax(0, 1fr);
-  grid-template-rows: 56px minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   height: 100vh;
   overflow: hidden;
 }
 
-.mail-topbar {
-  align-items: center;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 1rem;
-  grid-column: 1 / 3;
-  grid-row: 1;
-  height: 56px;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0 1rem;
-}
-
-.mail-brand {
-  align-items: center;
-  color: #111827;
-  display: flex;
-  flex: 0 0 16rem;
-  font-size: 1.25rem;
-  font-weight: 700;
-  gap: 0.55rem;
-  height: 56px;
-  text-decoration: none;
-}
-
-.mail-brand-logo {
-  border-radius: 0.45rem;
-  display: block;
-  flex: 0 0 auto;
-  height: 1.85rem;
-  width: 1.85rem;
-}
-
 .mail-create-actions {
-  align-items: center;
+  align-items: stretch;
   display: flex;
-  flex: 1;
-  gap: 0.45rem;
-  justify-content: flex-end;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0;
   min-width: 0;
+  padding: 0;
   white-space: nowrap;
 }
 
 .mail-create-actions form {
   display: inline-flex;
   margin: 0;
+  width: 100%;
+}
+
+.mail-create-actions .mail-create-btn { flex: 1; }
+
+.mail-create-actions > .mail-create-btn {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.mail-nav-create {
+  position: relative;
+}
+
+.mail-nav-action {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  width: calc(100% - 0.5rem);
+}
+
+.mail-nav-create .mail-model-select-wrap {
+  border: 0;
+  bottom: 0;
+  position: absolute;
+  right: 0.5rem;
+  top: 0;
 }
 
 .mail-create-combo {
@@ -468,6 +463,7 @@ textarea {
   gap: 0.45rem;
   height: 2.2rem;
   padding: 0 0.75rem;
+  text-decoration: none;
   white-space: nowrap;
 }
 
@@ -543,73 +539,9 @@ textarea {
   display: flex;
   flex-direction: column;
   grid-column: 1;
-  grid-row: 2 / 4;
+  grid-row: 1 / 3;
   min-height: 0;
   padding: 0.75rem 0;
-}
-
-.mail-sidebar-top {
-  padding: 0.25rem 0.5rem 0.75rem;
-}
-
-.mail-compose-actions {
-  display: flex;
-  gap: 0.3rem;
-}
-
-.mail-compose-btn-form {
-  display: block;
-}
-
-.mail-compose-btn {
-  align-items: center;
-  background: #fff;
-  border: 1px solid #d8dee9;
-  border-radius: 999px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  color: #334155;
-  cursor: pointer;
-  display: flex;
-  font-size: 0.8rem;
-  font-weight: 650;
-  gap: 0.15rem;
-  height: 2.4rem;
-  justify-content: center;
-  padding: 0 0.55rem;
-  white-space: nowrap;
-}
-
-.mail-compose-btn svg {
-  flex-shrink: 0;
-  height: 0.95rem;
-  width: 0.95rem;
-}
-
-.mail-compose-btn:hover {
-  background: #f8fafc;
-}
-
-.mail-compose-btn svg {
-  height: 1.05rem;
-  width: 1.05rem;
-}
-
-.mail-compose-combo {
-  align-items: center;
-  background: #fff;
-  border: 1px solid #d8dee9;
-  border-radius: 999px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  display: flex;
-  height: 2.4rem;
-  overflow: hidden;
-}
-
-.mail-compose-combo .mail-compose-btn {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  flex: 1;
 }
 
 .mail-labels {
@@ -632,13 +564,47 @@ textarea {
   text-decoration: none;
 }
 
+.gm-label-section {
+  flex-shrink: 0;
+  font-weight: 700;
+  margin-top: 1rem;
+}
+
+.gm-label-section:first-child {
+  margin-top: 0;
+}
+
+.gm-label.gm-label-child {
+  flex-shrink: 0;
+}
+
+.mail-nav-children {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.mail-nav-children .chat-sidebar-chats {
+  border-top: 0;
+  margin-top: 0;
+}
+
 .gm-label:hover {
   background: #eaf1fb;
 }
 
 .gm-label.active {
-  background: #d3e3fd;
-  color: #041e49;
+  background: #0b57d0;
+  color: #fff;
+  font-weight: 700;
+}
+
+.gm-label.active .gm-label-count {
+  color: inherit;
+}
+
+.gm-label.chat-selected {
+  background: #e8f0fe;
+  color: #174ea6;
   font-weight: 700;
 }
 
@@ -690,13 +656,13 @@ textarea {
   display: flex;
   flex-direction: column;
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 1;
   min-height: 0;
   min-width: 0;
 }
 
 .mail-main.mail-main-no-footer {
-  grid-row: 2 / 4;
+  grid-row: 1 / 3;
 }
 
 .mail-tool-main {
@@ -875,7 +841,7 @@ textarea {
   min-width: 0;
 }
 
-.mail-mainbar span,
+.mail-mainbar > span,
 .mail-reader-title p,
 .mail-muted {
   color: #64748b;
@@ -1168,10 +1134,6 @@ textarea {
   color: #eab308;
 }
 
-.gm-star.on svg {
-  fill: currentColor;
-}
-
 .mail-empty {
   align-items: center;
   color: #64748b;
@@ -1224,20 +1186,6 @@ textarea {
   max-width: 52rem;
   overflow: hidden;
   padding: 1rem;
-}
-
-.mail-copy-btn {
-  background: #fff;
-  border: 1px solid #d8dee9;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  font-size: 0.78rem;
-  margin-top: 0.4rem;
-  padding: 0.3rem 0.7rem;
-}
-
-.mail-copy-btn:hover {
-  background: #f8fafc;
 }
 
 .mail-card h2 {
@@ -1347,18 +1295,6 @@ textarea {
   padding: 0;
 }
 
-#wf-steps,
-#wf-pending,
-#wf-steps > div {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-#wf-body > #wf-steps + #wf-pending {
-  margin-top: 1.25rem;
-}
-
 .mail-footer {
   align-items: flex-end;
   background: #f8fafc;
@@ -1366,9 +1302,58 @@ textarea {
   color: #64748b;
   display: flex;
   grid-column: 2;
-  grid-row: 3;
+  grid-row: 2;
   min-height: 68px;
   padding: 0.65rem 0.9rem;
+}
+
+.todo-create-form {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  min-width: min(28rem, 100%);
+}
+
+.todo-topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.todo-topbar-actions .mail-chat-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.todo-topbar-actions .todo-create-form {
+  flex: 0 1 28rem;
+  min-width: 0;
+  width: clamp(8rem, calc(100% - 9rem), 28rem);
+}
+
+.todo-topbar-actions .todo-new-input {
+  min-width: 0;
+}
+
+.todo-new-input {
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 999px;
+  color: #111827;
+  height: 2.2rem;
+  min-width: 12rem;
+  outline: none;
+  padding: 0 0.85rem;
+  width: 100%;
+}
+
+.todo-new-input:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgb(148 163 184 / 0.2);
 }
 
 .todo-reader-head {
@@ -1492,26 +1477,7 @@ textarea {
 @media (max-width: 760px) {
   .mail-shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 56px auto minmax(0, 1fr) 68px;
-  }
-
-  .mail-topbar {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .mail-brand {
-    flex-basis: auto;
-    height: auto;
-    padding: 0.55rem 0.8rem;
-  }
-
-  .mail-create-actions {
-    justify-content: flex-end;
-  }
-
-  .mail-create-btn span {
-    display: none;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .mail-create-select {
@@ -1532,12 +1498,12 @@ textarea {
 
   .mail-main {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 1;
   }
 
   .mail-footer {
     grid-column: 1;
-    grid-row: 4;
+    grid-row: 2;
   }
 
   .mail-labels {
@@ -1599,4 +1565,282 @@ textarea {
   .mail-send-btn span {
     display: none;
   }
+}
+
+.workflow-schedule-card { margin-bottom: 20px; padding: 24px; }
+.workflow-schedule-card:first-child { border: 0; border-radius: 0; }
+.workflow-schedule-card h2 { margin-top: 0; font-size: 1.1rem; }
+.workflow-schedule-card p { line-height: 1.6; }
+.workflow-schedule-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.workflow-run { border-top: 1px solid var(--border, #ddd); padding: 16px 0; overflow-wrap: anywhere; }
+.workflow-run h3 { font-size: 1rem; }
+
+.mail-analytics-frame {
+  border: 0;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .mail-project-board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100dvh;
+  }
+
+  .mail-project-board .mail-sidebar {
+    min-width: 0;
+  }
+
+  .mail-project-board .mail-main-no-footer {
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .mail-shell { height: 100dvh; }
+  .mail-reader-head { flex-wrap: wrap; height: auto; min-height: 64px; padding: 10px 12px; }
+  .mail-reader-title { flex-basis: calc(100% - 64px); }
+  .mail-reader-title h1, .mail-reader-title p { white-space: normal; overflow-wrap: anywhere; }
+  .mail-reader-labels { margin-left: 44px; }
+  .mail-reader-actions { margin-left: auto; }
+  .mail-reader-head .gm-icon-btn { min-width: 40px; min-height: 40px; }
+  .mail-reader-body { padding: 12px; min-width: 0; }
+  .workflow-schedule-card { padding: 16px; width: 100%; overflow-wrap: anywhere; }
+  .workflow-schedule-actions { gap: 8px; }
+  .workflow-schedule-actions form { flex: 1 1 130px; }
+  .workflow-schedule-actions button { width: 100%; min-height: 44px; }
+  .workflow-run a, .workflow-run summary { display: inline-block; padding: 10px 0; }
+}
+
+.mail-mobile-header, .mail-nav-backdrop { display: none; }
+@media (max-width: 760px) {
+  .mail-mobile-header { display: flex; align-items: center; gap: 8px; position: fixed; inset: 0 0 auto; z-index: 60; height: calc(56px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 12px 0; border-bottom: 1px solid #e5e7eb; background: #f8fafc; }
+  .mail-mobile-nav { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #334155; cursor: pointer; }
+  .mail-mobile-nav:hover, .mail-mobile-nav[aria-expanded="true"] { background: #e8edf5; }
+  .mail-mobile-nav:focus-visible, .mail-mobile-brand:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+  .mail-mobile-brand { color: #202124; font-size: 18px; font-weight: 600; text-decoration: none; }
+  .mail-shell { padding-top: calc(56px + env(safe-area-inset-top)); }
+  .mail-shell .mail-main-no-footer { grid-row: 1 / 3; }
+  .mail-shell .mail-sidebar { display: none; position: fixed; inset: 0 auto 0 0; width: min(290px, calc(100vw - 48px)); max-height: none; overflow-y: auto; z-index: 55; background: #f6f8fc; padding: calc(68px + env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom)); border-right: 1px solid #d8dee9; }
+  .mail-shell[data-nav-open] .mail-sidebar { display: block; }
+  .mail-shell[data-nav-open] .mail-nav-backdrop { display: block; position: fixed; inset: 0; border: 0; background: #0005; z-index: 50; }
+  .mail-shell .mail-labels { flex-direction: column; overflow-x: hidden; }
+  .mail-shell .gm-label { min-height: 44px; margin: 2px 0; border-radius: 8px; }
+  .mail-shell .mail-label-group { display: block; }
+  .mail-create-actions .mail-create-combo { margin: 0; min-height: 44px; }
+  .mail-create-actions .mail-create-btn { min-height: 44px; }
+  .mail-create-actions .mail-create-btn span { display: inline; }
+  .mail-create-actions .mail-create-select { max-width: none; flex: 1; }
+  .gm-row-link { grid-template-columns: minmax(0,1fr); gap: 2px; align-content: center; }
+  .mail-footer { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .mail-footer:has(.chat-compose) { min-height: 100px; }
+  .mail-footer:empty { display: none; }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .mail-save-btn { min-height: 44px; }
+}
+
+.pages-home { overflow: auto; padding: 36px; }
+.pages-mainbar { background: transparent; border-bottom: 0; }
+.pages-description { max-width: 640px; margin: 0 0 28px; }
+.pages-description, .page-card p { color: #657080; line-height: 1.6; }
+.pages-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 380px)); gap: 24px; }
+.page-card { border: 1px solid #e2e5e9; border-radius: 14px; background: white; overflow: hidden; }
+.page-card-link { display: block; color: inherit; text-decoration: none; }
+.page-card-link h2 { font-size: 18px; font-weight: 600; margin: 20px 20px 8px; }
+.page-card-link p { margin: 0 20px; min-height: 52px; }
+.page-card-actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 20px; gap: 12px; }
+.page-card-actions a, .page-chat-context a { color: #4757b8; }
+.page-preview { height: 160px; padding: 22px 26px 0; background: #eef1ff; color: #555d8c; font-size: 12px; overflow: hidden; }
+.page-preview-news { background: #f7f0e6; color: #806a48; }
+.page-preview-news-lines { display: grid; gap: 14px; margin-top: 24px; }
+.page-preview-news-lines i { height: 12px; border-radius: 3px; background: #d9c8ab; }
+.page-preview-news-lines i:first-child { width: 70%; height: 20px; }
+.page-preview-news-lines i:last-child { width: 85%; }
+.page-preview-project-board { background: #edf5ef; color: #526e5a; }
+.page-preview-chart { display: flex; align-items: end; gap: 12px; height: 116px; padding-top: 12px; }
+.page-preview-chart i { background: #99a6e5; flex: 1; height: 38%; border-radius: 5px 5px 0 0; }
+.page-preview-chart i:nth-child(2n) { height: 58%; }
+.page-preview-chart i:nth-child(3n) { height: 76%; }
+.page-preview-chart i:last-child { height: 95%; background: #6577c9; }
+.page-preview-board { display: flex; gap: 12px; margin-top: 18px; }
+.page-preview-board > div { flex: 1; padding: 8px; background: #dce9df; border-radius: 6px; height: 115px; }
+.page-preview-board i { display: block; height: 29px; margin-bottom: 8px; background: white; border-radius: 4px; }
+.page-header { justify-content: space-between; }
+.page-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.page-button { padding: 8px 12px; border: 1px solid #dce0e6; border-radius: 7px; background: white; color: #374151; cursor: pointer; font: inherit; font-size: 13px; }
+.page-button:hover { background: #f1f3f8; }
+.page-button-primary { background: #28334b; border-color: #28334b; color: white; }
+.page-button-primary:hover { background: #3a4865; }
+.page-chat-context { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 24px; background: #f2f4fb; font-size: 13px; }
+.page-chat-context span { color: #657080; margin-left: 8px; }
+@media (max-width: 600px) {
+ .pages-home { padding: 20px; }
+ .pages-grid { grid-template-columns: minmax(0, 1fr); }
+ .page-header { align-items: flex-start; flex-direction: column; height: auto; min-height: 3rem; padding-block: 8px; }
+}
+
+.workflow-runs { flex: 0 0 auto; min-width: 0; }
+.workflow-table-scroll { overflow-x: auto; }
+.workflow-run-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+.workflow-run-table th { color: var(--muted-foreground, #666); font-size: 12px; font-weight: 600; }
+.workflow-run-table th, .workflow-run-table td { padding: 14px 16px; border-bottom: 1px solid var(--border, #ddd); vertical-align: top; }
+.workflow-run-table td { max-width: 320px; min-width: 100px; overflow-wrap: anywhere; }
+.workflow-run-table tbody tr:hover { background: var(--muted, #f5f5f5); }
+.workflow-run-link { display: inline-block; min-width: 175px; padding: 4px 0; }
+.workflow-transcript-link { display: block; margin-top: 8px; font-size: 12px; }
+.workflow-run-status { display: inline-block; font-weight: 500; }
+
+.workflow-setting { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
+.workflow-setting p { margin: 8px 0; }
+.workflow-setting button { min-height: 36px; }
+
+.workflow-detail { padding: 32px 40px; color: #101012; background: #fff; }
+.workflow-back { display: inline-block; margin-bottom: 24px; color: #737380; font-size: 13px; text-decoration: none; }
+.workflow-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 44px; }
+.workflow-detail-header h1 { margin: 0 0 12px; font-size: clamp(26px, 3vw, 40px); font-weight: 700; letter-spacing: -1px; line-height: 1.15; overflow-wrap: anywhere; }
+.workflow-detail-header p { margin: 0; color: #737380; font-size: 17px; }
+.workflow-detail-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-top: 4px; }
+.workflow-detail-actions button { cursor: pointer; }
+.workflow-run-button, .workflow-edit-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 17px; border: 1px solid #e2e2e7; border-radius: 18px; background: #fff; font-size: 16px; font-weight: 600; white-space: nowrap; box-shadow: 0 1px 3px #0000000d; }
+.workflow-run-button { color: #fff; background: #303036; border-color: #303036; }
+.workflow-edit-button { -webkit-appearance: none; appearance: none; color: #303036; background: #f4f4f6; }
+.workflow-edit-button:hover { background: #e8e8ed; }
+.workflow-edit-button:focus-visible { outline: 2px solid #4757b8; outline-offset: 3px; }
+.workflow-detail-actions svg { width: 20px; height: 20px; }
+.workflow-more { position: relative; }
+.workflow-more summary { list-style: none; cursor: pointer; font-size: 28px; color: #737380; padding: 0 12px; }
+.workflow-more summary::-webkit-details-marker { display: none; }
+.workflow-more > div { position: absolute; right: 0; top: 100%; z-index: 5; min-width: 170px; padding: 12px; background: #fff; border: 1px solid #e2e2e7; border-radius: 12px; box-shadow: 0 8px 24px #0002; }
+.workflow-more > div button { padding: 8px; border: 0; background: transparent; }
+.workflow-metadata { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 20px 16px; margin: 0 0 44px; font-size: 16px; line-height: 1.5; }
+.workflow-metadata dt, .workflow-muted { color: #737380; }
+.workflow-metadata dd { margin: 0; overflow-wrap: anywhere; }
+.workflow-metadata code { font-size: 15px; }
+.workflow-status-badge { padding: 3px 10px; border: 1px solid #e2e2e7; border-radius: 999px; background: #f4f4f6; color: #737380; font-size: 14px; font-weight: 600; }
+.workflow-status-badge.active { background: #f4f4f6; border-color: #e2e2e7; color: #303036; }
+.workflow-metadata .workflow-setting { margin: 0; justify-content: flex-start; }
+.workflow-metadata .workflow-setting p { margin: 0; font-size: 0; }
+.workflow-metadata .workflow-setting strong { font-size: 16px; font-weight: 400; }
+.workflow-stats { margin-bottom: 36px; }
+.workflow-steps { margin-bottom: 36px; }
+.workflow-steps h2 { margin: 0 0 16px; font-size: 22px; }
+.workflow-steps ol { list-style: decimal; margin: 0; padding-left: 28px; }
+.workflow-steps li { padding-left: 8px; margin-bottom: 12px; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
+.workflow-steps li p { margin: 4px 0 0; }
+.workflow-steps li code { font-size: 14px; }
+.workflow-steps-description { margin: 0 0 16px; color: #737380; line-height: 1.6; }
+.workflow-steps li::marker { color: #737380; font-weight: 600; }
+.workflow-stats h2 { margin: 0 0 16px; font-size: 22px; }
+.workflow-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.workflow-stat { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border: 1px solid #e2e2e7; border-radius: 18px; }
+.workflow-stat span { color: #737380; font-size: 15px; }
+.workflow-stat strong { font-size: 26px; font-weight: 600; }
+.workflow-detail .workflow-runs { max-width: none; padding: 20px; border-radius: 18px; }
+@media (max-width: 1000px) {
+ .workflow-detail-header { flex-direction: column; gap: 20px; }
+}
+@media (max-width: 600px) {
+ .workflow-detail { padding: 20px 16px; }
+ .workflow-metadata { grid-template-columns: 80px minmax(0, 1fr); gap: 16px 12px; font-size: 14px; }
+ .workflow-stat-grid { gap: 8px; }
+ .workflow-stat { padding: 14px 10px; border-radius: 12px; }
+ .workflow-stat span { font-size: 12px; }
+ .workflow-stat strong { font-size: 23px; }
+}
+
+.mail-mobile-switch { display: none; }
+@media (max-width: 760px) {
+  :root { --mobile-switch-height: calc(60px + env(safe-area-inset-bottom)); }
+  .mail-shell { padding-bottom: var(--mobile-switch-height); }
+  .mail-mobile-switch { display: flex; position: fixed; inset: auto 0 0; z-index: 61; height: var(--mobile-switch-height); gap: 4px; padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #e5e7eb; background: #f8fafc; }
+  .mail-mobile-switch button { flex: 1; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: #64748b; font-weight: 600; cursor: pointer; }
+  .mail-mobile-switch .mail-mobile-menu { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .mail-mobile-switch .mail-mobile-menu[aria-expanded="true"] { background: #e2e8f0; color: #0f172a; }
+  .mail-shell:has(.mail-mobile-switch) .mail-sidebar { bottom: var(--mobile-switch-height); }
+  .mail-mobile-switch button[aria-pressed="true"] { background: #e2e8f0; color: #0f172a; }
+  .mail-mobile-switch button:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+  .mail-mobile-switch button:disabled { opacity: 0.5; cursor: wait; }
+  body:has(.mail-mobile-switch) .floating-chat { bottom: var(--mobile-switch-height); height: calc(100dvh - 56px - env(safe-area-inset-top) - var(--mobile-switch-height)); }
+  body[data-mobile-view="work"] .floating-chat { display: none; }
+  body[data-mobile-view="chat"]:has(.floating-chat) .mail-main,
+  body[data-mobile-view="chat"]:has(.floating-chat) .mail-footer { visibility: hidden; }
+}
+
+.app-restart {
+  background: #fef08a;
+  border: 0;
+  border-bottom: 1px solid #eab308;
+  border-radius: 0;
+  color: #713f12;
+  cursor: pointer;
+  font-weight: 700;
+  height: 44px;
+  left: 0;
+  padding: 0 1rem;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 100;
+}
+
+.app-restart:hover {
+  background: #fde047;
+}
+
+.app-restart:focus-visible {
+  outline: 2px solid #713f12;
+  outline-offset: -4px;
+}
+
+.app-restart:disabled {
+  cursor: wait;
+}
+
+.app-restart[hidden] {
+  display: none;
+}
+
+body:has(.app-restart:not([hidden])) {
+  padding-top: 44px;
+}
+
+body:has(.app-restart:not([hidden])) .mail-shell {
+  height: calc(100dvh - 44px);
+}
+
+@media (max-width: 760px) {
+  body:has(.app-restart:not([hidden])) .mail-mobile-header {
+    top: 44px;
+  }
+
+  body:has(.app-restart:not([hidden])) .mail-sidebar {
+    top: 44px;
+  }
+}
+
+.mail-main > .page-header {
+  background: #fff;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.page-file-text {
+ font: 0.875rem/1.6 ui-monospace, monospace;
+ margin: 0;
+ overflow-wrap: anywhere;
+ white-space: pre-wrap;
 }

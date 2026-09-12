@@ -1,0 +1,93 @@
+package ui
+
+import (
+ "github.com/housecat-inc/scratch/pkg/db"
+ "github.com/housecat-inc/scratch/uikit"
+)
+
+templ PagesHome(p InboxProps) {
+ <!DOCTYPE html>
+ <html lang="en">
+  @InboxHead("Pages")
+  <body>
+   @uikit.Shell(uikit.ShellProps{Actions: InboxActions(p), AppName: "scratch", BrandHref: "/", Nav: inboxNavItems(p), Sidebar: ChatSidebarLoader()}) {
+    if uikit.ShellHeader(ctx) == nil {
+    <header class="mail-mainbar pages-mainbar">
+     <div class="mail-mainbar-title"><h1>Pages</h1></div>
+    </header>
+    }
+    <div class="pages-home">
+     <a class="mail-create-btn" href="/pages/new">New page</a>
+     <p class="pages-description">Your dashboards, boards, and tools. Open a page to use it or ask your agent to make it yours.</p>
+     <div class="pages-grid">
+      for _, page := range p.Pages {
+       if !page.BuiltIn() {
+       <article class="page-card">
+        <a class="page-card-link" href={ templ.SafeURL(page.Href()) }>
+         <div class={ "page-preview", "page-preview-" + page.ID } aria-hidden="true">
+          <span>Make it yours</span><div class="page-preview-board"><div><i></i><i></i></div><div><i></i></div><div><i></i><i></i></div></div>
+         </div>
+         <h2>{ page.Title }</h2><p>{ page.Description }</p>
+        </a>
+        <div class="page-card-actions">
+         <a href={ templ.SafeURL(page.Href()) }>Open page →</a>
+         @PagePin(page, "library")
+        </div>
+       </article>
+       }
+      }
+     </div>
+    </div>
+   }
+  </body>
+ </html>
+}
+
+templ PagePin(page db.Page, back string) {
+ <form method="post" action={ templ.SafeURL("/pages/" + page.ID + "/home") }>
+  <input type="hidden" name="back" value={ back }/>
+  if page.Home {
+   <button class="page-button" type="button" disabled>Pinned Home</button>
+  } else {
+   <button class="page-button" type="submit" aria-label={ "Pin " + page.Title + " as home" }>Pin as home</button>
+  }
+ </form>
+ <form method="post" action={ templ.SafeURL("/pages/" + page.ID + "/pin") }>
+  <input type="hidden" name="back" value={ back }/>
+  if page.Pinned {
+   <input type="hidden" name="pinned" value="false"/>
+   <button class="page-button" type="submit" aria-label={ "Unpin " + page.Title + " from sidebar" }>Unpin</button>
+  } else {
+   <input type="hidden" name="pinned" value="true"/>
+   <button class="page-button" type="submit" aria-label={ "Pin " + page.Title + " to sidebar" }>Pin to sidebar</button>
+  }
+ </form>
+}
+
+templ PageReader(p InboxProps, page db.Page) {
+ <!DOCTYPE html>
+ <html lang="en">
+  @InboxHead(page.Title)
+  <body>
+   @uikit.Shell(uikit.ShellProps{Actions: InboxActions(p), AppName: "scratch", BrandHref: "/", Nav: inboxNavItems(p), Sidebar: ChatSidebarLoader()}) {
+    if uikit.ShellHeader(ctx) == nil {
+     @PageHeader(page)
+    }
+    <div class="pages-home">
+     <p class="pages-description">{ page.Description }</p>
+     <article class="page-card"><div class="page-card-link"><h2>Make this page yours</h2><p>Use Edit with agent to build a dashboard, board, or tool. Pin this page to the sidebar or make it your home.</p></div></article>
+    </div>
+   }
+  </body>
+ </html>
+}
+
+templ PageHeader(page db.Page) {
+ <header class="mail-mainbar page-header" aria-label="Page navigation">
+  <div class="mail-mainbar-title"><h1>{ page.Title }</h1></div>
+  <div class="page-header-actions">
+   @PagePin(page, "page")
+   <form method="get" action="/chat/popout/new" data-chat-popout-new><button class="page-button page-button-primary" type="submit">Edit with agent</button></form>
+  </div>
+ </header>
+}

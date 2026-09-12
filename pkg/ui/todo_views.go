@@ -17,14 +17,12 @@ type TodoProps struct {
 	ChatCount   int
 	ChatItems   []TodoChatItem
 	ChatLabel   string
-	ChatOptions  []uikit.SelectOption
-	ContactCount int
-	Detail       *TodoTaskDetail
-	Title        string
-	Tasks        []db.Task
-	TaskCount    int
-	View         string
-	WorkflowCount int
+	ChatOptions []uikit.SelectOption
+	Detail      *TodoTaskDetail
+	Title       string
+	Tasks       []db.Task
+	TaskCount   int
+	View        string
 }
 
 type TodoTaskDetail struct {

@@ -12,7 +12,6 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/housecat-inc/scratch/pkg/api"
 	"github.com/housecat-inc/scratch/pkg/chat"
-	"github.com/housecat-inc/scratch/pkg/contacts"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/inbox"
@@ -20,7 +19,7 @@ import (
 	"github.com/housecat-inc/scratch/pkg/server/code"
 	"github.com/housecat-inc/scratch/pkg/server/files"
 	"github.com/housecat-inc/scratch/pkg/server/sessions"
-	sqlsrv "github.com/housecat-inc/scratch/pkg/server/sql"
+	"github.com/housecat-inc/scratch/pkg/server/updates"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
 	"github.com/housecat-inc/scratch/pkg/workflow"
@@ -43,6 +42,7 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	var agentName string
+	var dataDir string
 	var port int
 	cmd := &cobra.Command{
 		Use:     "scratch",
@@ -57,19 +57,14 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 			home, workdir := ws.Home, ws.Dir
-			var chatSvc *chat.Service
-			var todoSvc *todo.Service
-			shell := func() ui.ToolShellProps {
-				return toolShell(todoSvc, chatSvc)
-			}
-
-			sessionsDeps := sessions.DefaultDeps()
-			sessionsDeps.Shell = shell
-			sessionsSrv, err := sessions.NewServer(sessionsDeps, workdir)
+			sessionsSrv, err := sessions.NewServer(sessions.DefaultDeps(), workdir)
 			if err != nil {
 				return errors.Wrap(err, "new sessions server")
 			}
-			dbPath := filepath.Join(home, ".config", "scratch", "scratch.db")
+			if dataDir == "" {
+				dataDir = filepath.Join(home, ".config", "scratch")
+			}
+			dbPath := filepath.Join(dataDir, "scratch.db")
 			store, err := db.New(dbPath)
 			if err != nil {
 				return errors.Wrap(err, "open db")
@@ -85,23 +80,28 @@ func newRootCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			chatSvc = chat.NewService(store, agent, logger)
+			chatSvc := chat.NewService(store, agent, logger)
 			for _, available := range chat.AvailableAgentsInDir(workdir) {
 				chatSvc.RegisterAgent(chat.AgentName(available), available)
 			}
 			defer chatSvc.Close()
 
 			flows := flow.New(flow.Deps{
-				ContactNotes: store,
-				DBOS:         workflows.Ctx(),
-				Log:          logger,
-				Workdir:      workdir,
+				DBOS:    workflows.Ctx(),
+				Log:     logger,
+				Publish: chatSvc.Publish,
+				Store:   store,
+				Tasks:   store,
 			})
+			chatSvc.RegisterAgent("contact", flows.Agent())
 			chatSvc.SetResolver(flows)
+			if err := workflows.ConfigureExamples(); err != nil {
+				return errors.Wrap(err, "configure example workflows")
+			}
 			if err := workflows.Launch(); err != nil {
 				return errors.Wrap(err, "launch workflows")
 			}
-			if err := flows.EnsureSchedules(); err != nil {
+			if err := workflows.EnsureSchedules(); err != nil {
 				return errors.Wrap(err, "ensure schedules")
 			}
 			if err := chatSvc.Recover(); err != nil {
@@ -112,31 +112,27 @@ func newRootCmd() *cobra.Command {
 			codeDeps.Comments = store
 			codeDeps.ListRepos = func() ([]repo.Repo, error) { return repo.ScanIncluding(home, workdir) }
 			codeDeps.LookupRepo = func(slug string) (repo.Repo, bool) { return repo.FindIncluding(home, slug, workdir) }
-			codeDeps.Shell = shell
 			codeSrv, err := code.NewServer(codeDeps)
 			if err != nil {
 				return errors.Wrap(err, "new code server")
 			}
-			filesDeps := files.DefaultDeps(workdir)
-			filesDeps.Shell = shell
-			filesSrv, err := files.NewServer(filesDeps)
+			filesSrv, err := files.NewServer(files.DefaultDeps(workdir))
 			if err != nil {
 				return errors.Wrap(err, "new files server")
 			}
-			sqlDeps := sqlsrv.DefaultDeps(home, store)
-			sqlDeps.Shell = shell
-			sqlSrv, err := sqlsrv.NewServer(sqlDeps)
-			if err != nil {
-				return errors.Wrap(err, "new sql server")
-			}
-			todoSvc = todo.NewService(store)
+			todoSvc := todo.NewService(store)
 			chatSrv := chat.NewServer(chatSvc, logger)
-			inboxSrv := inbox.NewServer(todoSvc, chatSvc, flows, logger)
-			inboxSrv.SetContacts(store)
+			inboxSrv := inbox.NewServer(todoSvc, chatSvc, logger)
+			inboxSrv.ConfigurePages(store)
+			inboxSrv.ConfigureRunHistory(workflows)
+			if err := inboxSrv.ConfigureWorkflows(workflows, store); err != nil {
+				return errors.Wrap(err, "configure workflow inbox")
+			}
 
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(
 				fuego.WithAddr(addr),
+				fuego.WithGlobalMiddlewares(inboxSrv.PageNavigation),
 				fuego.WithEngineOptions(fuego.WithOpenAPIConfig(fuego.OpenAPIConfig{
 					DisableLocalSave: true,
 					Info: &openapi3.Info{
@@ -147,14 +143,18 @@ func newRootCmd() *cobra.Command {
 				})),
 			)
 			api.Register(srv, workflows)
+			updatesSrv, err := updates.New(os.Getenv("SCRATCH_SERVICE"))
+			if err != nil {
+				return errors.Wrap(err, "configure app updates")
+			}
+			srv.Mux.Handle("/app/", updatesSrv.Handler())
+			workflows.RegisterAudit(srv.Mux)
 			todo.Register(srv, todoSvc)
 			sessionsSrv.Register(srv.Mux, false)
-			contacts.NewServer(store).RegisterAPI(srv.Mux)
 			srv.Mux.HandleFunc("/chat", http.NotFound)
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			srv.Mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
 			srv.Mux.Handle("/files/", http.StripPrefix("/files", filesSrv.Handler()))
-			srv.Mux.Handle("/sql/", http.StripPrefix("/sql", sqlSrv.Handler()))
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 			srv.Mux.Handle("/", inboxSrv.Handler())
 
@@ -163,56 +163,7 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&agentName, "agent", "a", "auto", "chat agent (auto, claude, codex, echo)")
+	cmd.Flags().StringVar(&dataDir, "data-dir", "", "application data directory (default ~/.config/scratch)")
 	cmd.Flags().IntVarP(&port, "port", "p", 8888, "HTTP listen port")
 	return cmd
-}
-
-func toolShell(tasks *todo.Service, chats *chat.Service) ui.ToolShellProps {
-	props := ui.ToolShellProps{}
-	if chats != nil {
-		props.ChatOptions = chat.ProviderModelOptions(chats.AgentNames())
-	}
-	if tasks != nil {
-		for _, task := range shellTasks(tasks) {
-			if !task.Archived {
-				props.Counts.Inbox++
-			}
-			if task.Starred && !task.Archived {
-				props.Counts.Starred++
-			}
-			props.Counts.Tasks++
-		}
-	}
-	if chats != nil {
-		for _, thread := range shellThreads(chats) {
-			if thread.State != db.ThreadStateArchived {
-				props.Counts.Inbox++
-			}
-			if thread.Starred && thread.State != db.ThreadStateArchived {
-				props.Counts.Starred++
-			}
-			if chats.ThreadWorkflowID(thread) != "" {
-				props.Counts.Workflows++
-			} else {
-				props.Counts.Chats++
-			}
-		}
-	}
-	return props
-}
-
-func shellTasks(tasks *todo.Service) []db.Task {
-	items, err := tasks.All()
-	if err != nil {
-		return nil
-	}
-	return items
-}
-
-func shellThreads(chats *chat.Service) []db.Thread {
-	items, err := chats.Threads()
-	if err != nil {
-		return nil
-	}
-	return items
 }

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -93,17 +92,20 @@ func TestClaudeLineEvents(t *testing.T) {
 }
 
 func TestToolTitle(t *testing.T) {
-	type in struct {
-		tool  string
+	tests := []struct {
 		input string
+		name  string
+		tool  string
+		want  string
+	}{
+		{name: "command", tool: "Bash", input: `{"command":"ls -la"}`, want: "Bash ls -la"},
+		{name: "file path", tool: "Read", input: `{"file_path":"a.go"}`, want: "Read a.go"},
+		{name: "no primary", tool: "TodoWrite", input: `{"todos":[]}`, want: "TodoWrite"},
+		{name: "empty input", tool: "Task", input: ``, want: "Task"},
 	}
-
-	tk.Run(t, []tk.Test[in, string]{
-		{Name: "command", In: in{tool: "Bash", input: `{"command":"ls -la"}`}, Out: "Bash ls -la"},
-		{Name: "file path", In: in{tool: "Read", input: `{"file_path":"a.go"}`}, Out: "Read a.go"},
-		{Name: "no primary", In: in{tool: "TodoWrite", input: `{"todos":[]}`}, Out: "TodoWrite"},
-		{Name: "empty input", In: in{tool: "Task", input: ``}, Out: "Task"},
-	}, tk.Pure(func(i in) string {
-		return toolTitle(i.tool, json.RawMessage(i.input))
-	}))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.New(t).Equal(tc.want, toolTitle(tc.tool, json.RawMessage(tc.input)))
+		})
+	}
 }

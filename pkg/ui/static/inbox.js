@@ -57,12 +57,6 @@
     syncModel();
   });
 
-  document.addEventListener("change", (event) => {
-    const select = event.target.closest("[data-submit-on-change]");
-    if (!select) return;
-    select.form?.requestSubmit();
-  });
-
   document.addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-trash-trigger]");
     if (trigger) {
@@ -91,45 +85,36 @@
       form?.closest(".gm-row-actions, .mail-reader-actions")?.classList.remove("confirming-trash");
     }
   });
+})();
 
-  function hasSelectionWithin(element) {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.toString().trim() === "") {
-      return false;
-    }
-    return element.contains(selection.anchorNode) || element.contains(selection.focusNode);
-  }
-
-  const pendingElicitationID = (root) => root.querySelector("#elicit-form [name=elicitation_id]")?.value || "";
-
-  const bootWorkflowStream = () => {
-    const reader = document.getElementById("wf-reader");
-    if (!reader || !reader.dataset.eventsUrl || reader.dataset.wfStream === "1") return;
-    reader.dataset.wfStream = "1";
-
-    const source = new EventSource(reader.dataset.eventsUrl);
-    source.addEventListener("status", (event) => {
-      const el = document.getElementById("wf-status");
-      if (el) el.outerHTML = event.data;
-    });
-    source.addEventListener("step", (event) => {
-      const steps = document.getElementById("wf-steps");
-      if (!steps || document.getElementById("wf-step-" + event.lastEventId)) return;
-      steps.insertAdjacentHTML("beforeend", event.data);
-    });
-    source.addEventListener("pending", (event) => {
-      const el = document.getElementById("wf-pending");
-      if (!el || hasSelectionWithin(el)) return;
-      const current = pendingElicitationID(document);
-      if (current) {
-        const incoming = new DOMParser().parseFromString(event.data, "text/html");
-        if (pendingElicitationID(incoming) === current) return;
-      }
-      el.outerHTML = event.data;
-    });
-    source.addEventListener("done", () => source.close());
-    window.addEventListener("pagehide", () => source.close(), { once: true });
+(() => {
+  const close = (shell) => {
+    shell.removeAttribute('data-nav-open');
+    shell.querySelectorAll('[data-nav-toggle]').forEach(button => button.setAttribute('aria-expanded', 'false'));
   };
-
-  bootWorkflowStream();
+  document.addEventListener('click', event => {
+    const shell = event.target.closest('.mail-shell');
+    if (!shell) return;
+    const toggle = event.target.closest('[data-nav-toggle]');
+    if (toggle) {
+      const attribute = 'data-nav-open';
+      const open = !shell.hasAttribute(attribute);
+      close(shell);
+      if (open) {
+        shell.setAttribute(attribute, '');
+        shell.querySelectorAll('[data-nav-toggle]').forEach(button => button.setAttribute('aria-expanded', 'true'));
+      }
+    } else if (event.target.closest('[data-nav-close], .mail-sidebar a, button[data-mobile-view]')) {
+      close(shell);
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    document.querySelectorAll('.mail-shell[data-nav-open]').forEach(shell => {
+      const button = shell.querySelector('[aria-expanded="true"]');
+      close(shell);
+      button?.focus();
+    });
+  });
+  matchMedia('(max-width: 760px)').addEventListener('change', () => document.querySelectorAll('.mail-shell').forEach(close));
 })();

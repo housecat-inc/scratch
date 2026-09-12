@@ -11,9 +11,9 @@ func TestCodeBrowser(t *testing.T) {
 	testkit.RunBrowserCases(t, []testkit.BrowserCase[*testkit.Harness]{
 		{
 			Assert: []testkit.BrowserStep[*testkit.Harness]{
-				testkit.TextContainsStep[*testkit.Harness](".mail-brand", "scratch"),
-				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "Code review"),
-				testkit.ClassContainsStep[*testkit.Harness](`a[href="/code/"]`, "active"),
+				testkit.TextContainsStep[*testkit.Harness](".mail-sidebar [data-new-chat]", "New chat"),
+				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "Pages"),
+				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "Workflows"),
 				testkit.TextContainsStep[*testkit.Harness]("main", "acme/alpha"),
 				testkit.TextContainsStep[*testkit.Harness]("main", "first commit"),
 			},
@@ -22,7 +22,7 @@ func TestCodeBrowser(t *testing.T) {
 		},
 		{
 			Assert: []testkit.BrowserStep[*testkit.Harness]{
-				testkit.TextContainsStep[*testkit.Harness](".mail-brand", "scratch"),
+				testkit.TextContainsStep[*testkit.Harness](".mail-sidebar [data-new-chat]", "New chat"),
 				testkit.TextContainsStep[*testkit.Harness]("main", "foo.txt"),
 				testkit.TextContainsStep[*testkit.Harness]("main", "+2"),
 				shellIconSizedStep(),
@@ -37,7 +37,7 @@ func TestCodeBrowser(t *testing.T) {
 		Setup: func(t *testing.T, kit *testkit.T, _ testkit.BrowserCase[*testkit.Harness]) *testkit.Harness {
 			s, err := NewServer(makeDeps())
 			kit.R.NoError(err)
-			return testkit.NewHarnessWithT(t, kit, s.Handler())
+			return testkit.NewHarnessWithT(t, kit, testkit.ShellFixture(s.Handler()))
 		},
 	})
 }
@@ -48,7 +48,7 @@ func shellIconSizedStep() testkit.BrowserStep[*testkit.Harness] {
 		h.R.Eventually(func() bool {
 			result, err := h.Page.Eval(`() => {
 				const shell = document.querySelector(".mail-shell");
-				const svg = document.querySelector(".gm-label.active .gm-label-icon svg");
+				const svg = document.querySelector(".gm-label .gm-label-icon svg");
 				if (!shell || !svg) return false;
 				const box = svg.getBoundingClientRect();
 				return getComputedStyle(shell).display === "grid" && box.width > 0 && box.width <= 32 && box.height > 0 && box.height <= 32;

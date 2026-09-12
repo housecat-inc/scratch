@@ -27,11 +27,11 @@ type Thread struct {
 	Starred   bool
 	State     string
 	Title     string
-	TrashedAt *ts.Timestamp
 	UpdatedAt ts.Timestamp
 }
 
 type ThreadStore interface {
+	AddWorkflowMessageEvent(key string, messageID int64, eventType, data, delta string) error
 	AddAttachment(a NewAttachment) (Attachment, error)
 	AddMessage(m NewMessage) (Message, error)
 	AddMessageEvent(messageID int64, eventType, data string) (MessageEvent, error)
@@ -60,7 +60,6 @@ type ThreadStore interface {
 	SetThreadStarred(id int64, starred bool) error
 	SetThreadTitle(id int64, title string) error
 	TouchThread(id int64) error
-	TrashThread(id int64) error
 }
 
 var ErrThreadNotFound = errors.New("thread not found")
@@ -204,22 +203,6 @@ func (d *DB) SetThreadTitle(id int64, title string) error {
 	return nil
 }
 
-func (d *DB) TrashThread(id int64) error {
-	now := ts.Now()
-	n, err := d.queries.TrashThread(context.Background(), sqlite.TrashThreadParams{
-		ID:        id,
-		TrashedAt: &now,
-		UpdatedAt: now,
-	})
-	if err != nil {
-		return errors.Wrap(err, "trash thread")
-	}
-	if n == 0 {
-		return ErrThreadNotFound
-	}
-	return nil
-}
-
 func (d *DB) TouchThread(id int64) error {
 	n, err := d.queries.TouchThread(context.Background(), sqlite.TouchThreadParams{
 		ID:        id,
@@ -243,7 +226,6 @@ func fromSqliteThread(t sqlite.Thread) Thread {
 		Starred:   t.Starred != 0,
 		State:     t.State,
 		Title:     t.Title,
-		TrashedAt: t.TrashedAt,
 		UpdatedAt: t.UpdatedAt,
 	}
 }

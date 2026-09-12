@@ -1,0 +1,21 @@
+.guide { color: #475569; font-size: 0.875rem; line-height: 1.6; margin: 0 auto; max-width: 52rem; width: 100%; }
+.guide-progress { background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; gap: 1rem; margin-bottom: 1rem; }
+.guide-step { align-items: center; background: transparent; border: 0; border-bottom: 2px solid transparent; color: #64748b; cursor: pointer; display: inline-flex; font: inherit; font-size: 0.82rem; font-weight: 600; gap: 0.35rem; padding: 0.75rem 0.4rem; text-decoration: none; white-space: nowrap; }
+.guide-step:hover, .guide-step[aria-current="step"] { color: #111827; }
+.guide-step[aria-current="step"] { border-bottom-color: #111827; }
+.guide-step:disabled { color: #94a3b8; cursor: default; }
+.guide-panel { background: #fff; padding: 1.5rem; }
+.guide-panel h2, .guide-panel legend { color: #111827; font-size: 1.125rem; font-weight: 650; line-height: 1.4; margin: 0 0 0.75rem; padding: 0; }
+.guide-intro { color: #64748b; font-size: 0.875rem; line-height: 1.6; margin: 0; }
+.guide-footer { align-items: center; border-top: 1px solid #e5e7eb; color: #64748b; display: flex; font-size: 0.8rem; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; }
+.guide-footer-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; margin-left: auto; }
+.guide-button { align-items: center; display: inline-flex; font-size: 0.8rem; gap: 0.75rem; text-decoration: none; }
+.guide-button:hover { background: #b3dfff; }
+.guide-back { background: transparent; border: 0; color: #64748b; cursor: pointer; font: inherit; font-size: 0.8rem; padding: 0; text-decoration: none; }
+.guide-back:hover { color: #111827; text-decoration: underline; }
+.guide :focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+@media (max-width: 700px) {
+  .guide-panel { padding: 1rem; }
+  .guide-progress { gap: 0.5rem; }
+  .guide-footer { flex-wrap: wrap; }
+}

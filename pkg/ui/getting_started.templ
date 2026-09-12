@@ -1,0 +1,91 @@
+package ui
+
+templ GettingStartedPage(v SessionsProps, step string) {
+	@Layout("Getting Started", "getting-started", gettingStartedActions()) {
+		<link rel="stylesheet" href="/static/guided-flow.css"/>
+		<link rel="stylesheet" href="/static/getting-started.css"/>
+		<div class="gs guide">
+			@guidedProgress("Getting started steps", []guidedStep{{href: "/getting-started?step=welcome", label: "Welcome"}, {href: "/getting-started?step=connect", label: "Connect"}, {href: "/getting-started?step=start", label: "Create"}}, gettingStartedStep(step))
+			<section class="mail-card guide-panel" aria-labelledby="gs-title">
+				if step == "welcome" {
+					<h2 id="gs-title">Welcome to Scratch</h2>
+					<p class="guide-intro">Scratch is a standalone Agent Computer, preloaded with the building blocks your agent needs: a database, a chat interface, and page UIs.</p>
+					<div class="gs-primitives">
+						<div><span class="gs-symbol" aria-hidden="true">@databaseIcon()</span><h3>A place for your data</h3><p>A built-in database to keep things organized.</p></div>
+						<div><span class="gs-symbol" aria-hidden="true">@chatIcon()</span><h3>An agent to work with</h3><p>Go from an idea to something useful, through chat.</p></div>
+						<div><span class="gs-symbol" aria-hidden="true">@fileIcon()</span><h3>Pages that make it yours</h3><p>Give your tools and workflows a home.</p></div>
+					</div>
+					<footer class="guide-footer"><span>Let’s make yourself at home.</span><a class="mail-save-btn guide-button" href="/getting-started?step=connect">Let’s get started <span aria-hidden="true">→</span></a></footer>
+				} else if step == "connect" {
+					<h2 id="gs-title">Connect your subscription</h2>
+					<p class="guide-intro">Sign in with Claude or Codex to give your agent a place to work. Choose either to get started.</p>
+					<div class="gs-providers">
+						<section class="mail-card gs-provider" aria-labelledby="gs-claude">
+							<div class="gs-provider-heading"><div><h3 id="gs-claude">Claude</h3><p>Your Anthropic subscription</p></div></div>
+							if !v.Installed {
+								@InstallCard(v)
+							}
+							@LoginCard(v)
+							<p class="gs-provider-note">Open the sign-in link, then paste the authorization code here.</p>
+						</section>
+						<section class="mail-card gs-provider" aria-labelledby="gs-codex">
+							<div class="gs-provider-heading"><div><h3 id="gs-codex">Codex</h3><p>Your OpenAI subscription</p></div></div>
+							if !v.CodexInstalled {
+								@CodexInstallRow(v)
+							}
+							@CodexLoginRow(v)
+							<p class="gs-provider-note">Open the sign-in link and enter the device code. We’ll check for completion here.</p>
+						</section>
+					</div>
+					<p class="gs-caption">Already connected? You’re ready to continue. You can connect another provider anytime in Setup.</p>
+					<footer class="guide-footer"><a class="guide-back" href="/getting-started">← Back</a><div class="guide-footer-actions"><a class="guide-back" href="/getting-started?step=start">Do this later</a><a class="mail-save-btn guide-button" href="/getting-started?step=start">Continue <span aria-hidden="true">→</span></a></div></footer>
+				} else {
+					<h2 id="gs-title">What would you like to do?</h2>
+					<p class="guide-intro">Start with a conversation, or turn a repeatable task into a workflow. Your agent will help you take it from there.</p>
+					if !v.Authenticated && !v.CodexAuthenticated {
+						<p class="gs-notice">You can explore now. <a href="/getting-started?step=connect">Connect a subscription</a> when you’re ready to work with your agent.</p>
+					}
+					<div class="gs-choices">
+						<a class="mail-card gs-choice" href={ templ.SafeURL(gettingStartedChatURL(v)) }><span class="gs-choice-icon" aria-hidden="true">@chatIcon()</span><h3>Chat with your agent</h3><p>Ask a question, explore an idea, or describe something you want to build.</p><span class="gs-choice-cta">Start a conversation →</span></a>
+						<a class="mail-card gs-choice" href="/inbox/workflows/new"><span class="gs-choice-icon" aria-hidden="true">@workflowIcon()</span><h3>Build a new workflow</h3><p>Describe a repeatable task. Your agent will help you build the steps and put them to work.</p><span class="gs-choice-cta">Build a workflow →</span></a>
+					</div>
+					<footer class="guide-footer"><a class="guide-back" href="/getting-started?step=connect">← Back</a><a class="guide-back" href="/">Explore Scratch →</a></footer>
+				}
+			</section>
+		</div>
+	}
+}
+
+templ gettingStartedActions() {
+	for _, page := range navigationPages(ctx) {
+		if page.ID == "getting-started" {
+			@PagePin(page, "page")
+		}
+	}
+}
+
+func gettingStartedChatURL(v SessionsProps) string {
+	if v.CodexAuthenticated && !v.Authenticated {
+		return "/inbox/chats/new?agent=codex"
+	}
+	return "/inbox/chats/new?agent=claude"
+}
+
+func databaseIcon() templ.Component {
+	return lucideIcon(`<ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5M3 12a9 3 0 0 0 18 0"></path>`)
+}
+
+func fileIcon() templ.Component {
+	return lucideIcon(`<rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M9 9v12"></path>`)
+}
+
+func gettingStartedStep(step string) int {
+	switch step {
+	case "connect":
+		return 1
+	case "start":
+		return 2
+	default:
+		return 0
+	}
+}

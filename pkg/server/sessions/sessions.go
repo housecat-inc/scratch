@@ -33,7 +33,6 @@ type Deps struct {
 	ListSubdirs        func(dir string) ([]string, error)
 	SessionLastMessage func(id string) string
 	SessionQR          func(id string) ([]byte, error)
-	Shell              func() ui.ToolShellProps
 	SlugForPrompt      func(prompt string) string
 	StartCodexLogin    func() (CodexLogin, error)
 	StartLogin         func() (Login, error)
@@ -161,6 +160,7 @@ func (s *Server) Register(mux *http.ServeMux, includeRoot bool) {
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /sw.js", s.handleServiceWorker)
 	mux.HandleFunc("GET /setup", s.handleSetup)
+	mux.HandleFunc("GET /getting-started", s.handleGettingStarted)
 	mux.HandleFunc("GET /codex/login", s.handleCodexLoginPoll)
 	mux.HandleFunc("POST /codex/login", s.handleCodexLogin)
 	mux.HandleFunc("POST /configure", s.handleConfigure)
@@ -246,6 +246,14 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	vm := s.viewModel()
 	vm.Nav = "sessions"
 	s.render(w, r, ui.SessionsPage(vm))
+}
+
+func (s *Server) handleGettingStarted(w http.ResponseWriter, r *http.Request) {
+	step := r.URL.Query().Get("step")
+	if step != "connect" && step != "start" {
+		step = "welcome"
+	}
+	s.render(w, r, ui.GettingStartedPage(s.viewModel(), step))
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
@@ -512,7 +520,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, comps ...templ.C
 }
 
 func (s *Server) viewModel() ui.SessionsProps {
-	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.dir, Shell: s.shell()}
+	vm := ui.SessionsProps{Installed: s.deps.Installed(), SessionDir: s.dir}
 	if vm.Installed && s.deps.ClaudeVersion != nil {
 		vm.ClaudeVersion = s.deps.ClaudeVersion()
 	}
@@ -584,11 +592,4 @@ func (s *Server) viewModel() ui.SessionsProps {
 		}
 	}
 	return vm
-}
-
-func (s *Server) shell() ui.ToolShellProps {
-	if s.deps.Shell == nil {
-		return ui.ToolShellProps{}
-	}
-	return s.deps.Shell()
 }

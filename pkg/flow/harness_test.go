@@ -1,198 +1,157 @@
 package flow
 
 import (
-	"context"
 	"log/slog"
-	"sync/atomic"
+	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/housecat-inc/scratch/pkg/elicit"
+	"github.com/housecat-inc/scratch/pkg/chat"
+	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/inbox"
+	"github.com/housecat-inc/scratch/pkg/todo"
+	"github.com/housecat-inc/scratch/pkg/ts"
 	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/housecat-inc/scratch/testkit"
 )
 
 type Harness struct {
-	*testkit.T
-	Drafts  *atomic.Int32
-	Engine  *Engine
-	greetFn func(context.Context, string) (string, error)
-	id      string
+	*testkit.Harness
+	Clock *ts.MockTime
+	Store *db.DB
+	Svc   *chat.Service
 }
 
-type Step = testkit.Step[*Harness]
+type Case = testkit.BrowserCase[*Harness]
 
-type fakeDrafter struct {
-	drafts  *atomic.Int32
-	pr      PullRequest
-	summary string
-}
+type Step = testkit.BrowserStep[*Harness]
 
-func (f fakeDrafter) Context(context.Context) (string, error) { return f.summary, nil }
+func run(t *testing.T, cases []Case) {
+	testkit.RunBrowserCases(t, cases, testkit.BrowserCaseRunner[*Harness]{
+		ConsoleErrors: func(h *Harness) []string {
+			return h.Console.Errors()
+		},
+		Load: func(h *Harness, path string) {
+			h.Load(path)
+		},
+		Setup: func(t *testing.T, kit *testkit.T, _ testkit.BrowserCase[*Harness]) *Harness {
+			clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
+			t.Cleanup(restore)
+			logs := testkit.NewLogRecorder(t, kit.Artifacts)
 
-func (f fakeDrafter) Draft(context.Context, string) (PullRequest, error) {
-	if f.drafts != nil {
-		f.drafts.Add(1)
-	}
-	return f.pr, nil
-}
-
-func runCases(t *testing.T, cases []testkit.Case[*Harness]) {
-	testkit.RunCases(t, cases, testkit.CaseRunner[*Harness]{
-		Setup: func(t *testing.T, kit *testkit.T, _ testkit.Case[*Harness]) *Harness {
-			wf, err := workflow.New(t.TempDir() + "/flow.db")
+			path := filepath.Join(t.TempDir(), "scratch.db")
+			store, err := db.New(path)
 			kit.R.NoError(err)
-			h := &Harness{
-				T:       kit,
-				Drafts:  &atomic.Int32{},
-				greetFn: func(_ context.Context, name string) (string, error) { return "Hi " + name, nil },
-			}
-			h.Engine = New(Deps{
-				CountdownStep: 5 * time.Millisecond,
-				DBOS:          wf.Ctx(),
-				Drafter:       fakeDrafter{drafts: h.Drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
-				Greeter:       GreeterFunc(func(ctx context.Context, name string) (string, error) { return h.greetFn(ctx, name) }),
-				Log:           slog.Default(),
-				StageStep:     5 * time.Millisecond,
-				Updater: UpdaterFuncs{
-					UpdateFn:  func(context.Context) (string, error) { return "Updated to claude 2.0", nil },
-					VersionFn: func(context.Context) (string, error) { return "claude 1.0", nil },
-				},
+			t.Cleanup(func() { store.Close() })
+
+			workflows, err := workflow.New(path)
+			kit.R.NoError(err)
+
+			svc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.New(logs))
+			flows := New(Deps{DBOS: workflows.Ctx(), Extract: HeuristicExtractor(), Log: slog.New(logs), Publish: svc.Publish, Store: store, Tasks: store})
+			svc.RegisterAgent("contact", flows.Agent())
+			svc.SetResolver(flows)
+			kit.R.NoError(workflows.Launch())
+			t.Cleanup(func() {
+				svc.Close()
+				workflows.Close()
 			})
-			kit.R.NoError(wf.Launch())
-			t.Cleanup(func() { wf.Close() })
-			return h
+
+			mux := http.NewServeMux()
+			mux.Handle("/chat/", chat.NewServer(svc, slog.New(logs)).Handler())
+			mux.Handle("/", inbox.NewServer(todo.NewService(store), svc, slog.New(logs)).Handler())
+
+			return &Harness{
+				Harness: testkit.NewHarnessWithT(t, kit, mux),
+				Clock:   clock,
+				Store:   store,
+				Svc:     svc,
+			}
 		},
 	})
 }
 
-func (h *Harness) pendingForm() *elicit.Prompt {
-	var prompt *elicit.Prompt
-	h.R.Eventually(func() bool {
-		run, err := h.Engine.Run(h.id)
-		if err != nil || !run.Blocked {
-			return false
-		}
-		for _, s := range run.Steps {
-			if s.Pending && s.Form != nil {
-				prompt = s.Form
-				return true
+var Click = testkit.ClickStep[*Harness]
+var TextContains = testkit.TextContainsStep[*Harness]
+var Type = testkit.TypeStep[*Harness]
+var Visible = testkit.VisibleStep[*Harness]
+
+func SeedPendingForm(prompt string) Step {
+	return func(t *testing.T, h *Harness) {
+		thread, err := h.Svc.CreateThread("contact", "")
+		h.R.NoError(err)
+		_, err = h.Svc.Send(thread.ID, prompt)
+		h.R.NoError(err)
+		h.R.Eventually(func() bool {
+			view, err := h.Svc.View(thread.ID)
+			return err == nil && len(view.Forms) > 0
+		}, 10*time.Second, 20*time.Millisecond)
+	}
+}
+
+func Tasks(titles ...string) Step {
+	return func(t *testing.T, h *Harness) {
+		h.R.Eventually(func() bool {
+			tasks, err := h.Store.ListTasks()
+			if err != nil || len(tasks) != len(titles) {
+				return false
 			}
-		}
-		return false
-	}, 5*time.Second, 20*time.Millisecond)
-	return prompt
-}
-
-func (h *Harness) doneRun() RunView {
-	var run RunView
-	h.R.Eventually(func() bool {
-		var err error
-		run, err = h.Engine.Run(h.id)
-		return err == nil && run.Done()
-	}, 5*time.Second, 20*time.Millisecond)
-	return run
-}
-
-func Start(name, id string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.id = id
-		h.R.NoError(h.Engine.Start(name, id))
-		h.Engine.Await(id, 5*time.Second)
+			for i, task := range tasks {
+				if task.Title != titles[i] {
+					return false
+				}
+			}
+			return true
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }
 
-func ExpectForm(message string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		form := h.pendingForm()
-		h.R.NotNil(form)
-		h.Equal(message, form.Message)
-	}
-}
-
-func Accept(values map[string]string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		form := h.pendingForm()
-		h.R.NotNil(form)
-		h.R.NoError(h.Engine.Resolve(h.id, form.ElicitationID, elicit.ActionAccept, values))
-	}
-}
-
-func Decline() Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		form := h.pendingForm()
-		h.R.NotNil(form)
-		h.R.NoError(h.Engine.Resolve(h.id, form.ElicitationID, elicit.ActionDecline, nil))
-	}
-}
-
-func Edit(key string, values map[string]string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		forkedID, err := h.Engine.EditForm(h.id, h.id+"/"+key, elicit.ActionAccept, values)
-		h.R.NoError(err)
-		h.id = forkedID
-	}
-}
-
-func Fork(key string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		forkedID, err := h.Engine.Fork(h.id, h.id+"/"+key)
-		h.R.NoError(err)
-		h.id = forkedID
-		h.Engine.Await(forkedID, 5*time.Second)
-	}
-}
-
-func ExpectResult(want string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.Equal(want, h.doneRun().Result)
-	}
-}
-
-func ExpectRunResult(id, want string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		run, err := h.Engine.Run(id)
-		h.R.NoError(err)
-		h.Equal(want, run.Result)
-	}
-}
-
-func ExpectDrafts(n int32) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.Equal(n, h.Drafts.Load())
-	}
-}
-
-func ExpectStepCount(n int) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.R.Len(h.doneRun().Steps, n)
-	}
-}
-
-func ExpectStep(index int, check func(*Harness, StepView)) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		steps := h.doneRun().Steps
-		h.R.Greater(len(steps), index)
-		check(h, steps[index])
-	}
-}
-
-func ExpectLastStep(check func(*Harness, StepView)) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		steps := h.doneRun().Steps
-		h.R.NotEmpty(steps)
-		check(h, steps[len(steps)-1])
-	}
+func TestContactIntakeBrowser(t *testing.T) {
+	run(t, []Case{
+		{
+			Name: "elicits a contact form and saves a todo on accept",
+			Path: "/inbox/workflows/1",
+			Seed: []Step{
+				SeedPendingForm("Add Jane Doe jane@example.com from ACME"),
+			},
+			Act: []Step{
+				Visible("#elicit-form"),
+				Type("[name=f_company]", "ACME"),
+				Type("[name=f_notes]", "Met at the conference"),
+				Click("#elicit-accept"),
+			},
+			Assert: []Step{
+				TextContains("#chat-messages", "Added todo #1: Follow up with Jane Doe"),
+				TextContains("#chat-messages", "jane@example.com"),
+				Tasks("Follow up with Jane Doe <jane@example.com>"),
+			},
+		},
+		{
+			Name: "declining the form discards the draft",
+			Path: "/inbox/workflows/1",
+			Seed: []Step{
+				SeedPendingForm("met bob@example.com"),
+			},
+			Act: []Step{
+				Visible("#elicit-form"),
+				Click("#elicit-decline"),
+			},
+			Assert: []Step{
+				TextContains("#chat-messages", "discarded the contact draft"),
+				Tasks(),
+			},
+		},
+		{
+			Name: "renders a pending review form",
+			Path: "/inbox/workflows/1",
+			Seed: []Step{
+				SeedPendingForm("Add Jane Doe jane@example.com from ACME"),
+			},
+			Assert: []Step{
+				Visible("#elicit-form"),
+				TextContains("#chat-messages", "Review the contact before I save it."),
+			},
+		},
+	})
 }

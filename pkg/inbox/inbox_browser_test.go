@@ -18,31 +18,7 @@ func TestInboxTasksBrowser(t *testing.T) {
 				TextContains("#floating-chat", "New chat"),
 			},
 			Name: "new chat action opens a floating chat",
-			Path: "/",
-		},
-		{
-			Act: []Step{
-				SelectOption(`[name="provider_model"]`, "echo:default"),
-			},
-			Assert: []Step{
-				ChatThreadCount(1),
-				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				TextContains("#floating-chat", "New chat"),
-			},
-			Name: "provider selection opens a floating chat",
-			Path: "/",
-		},
-		{
-			Act: []Step{
-				SelectOption(`[name="provider_model"]`, "codex:default"),
-			},
-			Assert: []Step{
-				ChatThreadCount(1),
-				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				TextContains("#floating-chat", "New chat"),
-			},
-			Name: "default provider selection opens a floating chat",
-			Path: "/",
+			Path: "/inbox",
 		},
 		{
 			Act: []Step{
@@ -62,10 +38,10 @@ func TestInboxTasksBrowser(t *testing.T) {
 				Click("#chat-send"),
 			},
 			Assert: []Step{
-				ChatThreadCount(1),
 				TextContains(".mail-reader-title", "buy milk"),
+				TextContains(".mail-reader-labels", "Active"),
 			},
-			Name: "footer composer always starts a chat",
+			Name: "creates a task from the footer",
 			Path: "/inbox/tasks",
 		},
 		{

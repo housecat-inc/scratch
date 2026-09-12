@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,27 +48,48 @@ func TestCoerce(t *testing.T) {
 	schema, err := SchemaFor(contact{})
 	require.NoError(t, err)
 
-	invalid := func(t *tk.T, _ map[string]any, err error) { t.A.True(IsInvalid(err)) }
-
-	tk.Run(t, []tk.Test[map[string]string, map[string]any]{
+	tests := []struct {
+		name    string
+		values  map[string]string
+		want    map[string]any
+		wantErr bool
+	}{
 		{
-			Name: "accepts full form",
-			In:   map[string]string{"company": "ACME", "email": "j@x.com", "name": "Jane", "retries": "3", "urgent": "on"},
-			Out:  map[string]any{"company": "ACME", "email": "j@x.com", "name": "Jane", "retries": int64(3), "urgent": true},
+			name:   "accepts full form",
+			values: map[string]string{"company": "ACME", "email": "j@x.com", "name": "Jane", "retries": "3", "urgent": "on"},
+			want:   map[string]any{"company": "ACME", "email": "j@x.com", "name": "Jane", "retries": int64(3), "urgent": true},
 		},
 		{
-			Name: "unchecked checkbox is false",
-			In:   map[string]string{"email": "j@x.com", "name": "Jane"},
-			Out:  map[string]any{"email": "j@x.com", "name": "Jane", "urgent": false},
+			name:   "unchecked checkbox is false",
+			values: map[string]string{"email": "j@x.com", "name": "Jane"},
+			want:   map[string]any{"email": "j@x.com", "name": "Jane", "urgent": false},
 		},
-		{Name: "missing required field", In: map[string]string{"name": "Jane"}, Assert: invalid},
-		{Name: "non-integer retries", In: map[string]string{"email": "j@x.com", "name": "Jane", "retries": "lots"}, Assert: invalid},
 		{
-			Name: "ignores unknown fields",
-			In:   map[string]string{"email": "j@x.com", "name": "Jane", "sneaky": "x"},
-			Out:  map[string]any{"email": "j@x.com", "name": "Jane", "urgent": false},
+			name:    "missing required field",
+			values:  map[string]string{"name": "Jane"},
+			wantErr: true,
 		},
-	}, func(values map[string]string) (map[string]any, error) {
-		return Coerce(schema, values)
-	})
+		{
+			name:    "non-integer retries",
+			values:  map[string]string{"email": "j@x.com", "name": "Jane", "retries": "lots"},
+			wantErr: true,
+		},
+		{
+			name:   "ignores unknown fields",
+			values: map[string]string{"email": "j@x.com", "name": "Jane", "sneaky": "x"},
+			want:   map[string]any{"email": "j@x.com", "name": "Jane", "urgent": false},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := assert.New(t)
+			got, err := Coerce(schema, tc.values)
+			if tc.wantErr {
+				a.True(IsInvalid(err))
+				return
+			}
+			a.NoError(err)
+			a.Equal(tc.want, got)
+		})
+	}
 }

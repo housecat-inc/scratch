@@ -7,35 +7,36 @@ import (
 	"strings"
 
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/housecat-inc/scratch/uikit"
-	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ InboxPage(p InboxProps) {
 	<!DOCTYPE html>
 	<html lang="en">
-		@MailHead(inboxTitle(p)) {
-			<script src="/static/inbox.js" defer></script>
-		}
+		@InboxHead(inboxTitle(p))
 		<body>
 			@uikit.Shell(uikit.ShellProps{
 				Actions: InboxActions(p),
 				AppName: "scratch",
 				BrandHref: "/",
-				Footer: MailComposer(p),
+				Footer: inboxFooter(p),
 				Nav: inboxNavItems(p),
-				SidebarTop: ComposeActions(),
+				Sidebar: ChatSidebarLoader(),
 			}) {
-				if p.Task != nil {
+				if p.WorkflowWizard {
+					@WorkflowWizard(p.ChatOptions)
+				} else if p.Schedule != nil {
+ @InboxScheduleReader(*p.Schedule)
+ } else if p.Task != nil {
 					@InboxTaskReader(*p.Task)
 				} else if p.Draft != nil {
 					@InboxDraftReader(*p.Draft)
-				} else if p.Schedule != nil {
-					@InboxScheduleReader(*p.Schedule)
-				} else if p.Workflow != nil {
-					@InboxWorkflowReader(*p.Workflow)
 				} else if p.Thread != nil {
-					@InboxThreadReader(*p.Thread)
+					if p.Page != nil {
+ <div class="page-chat-context">Editing <a href={ templ.SafeURL("/pages/" + p.Page.ID) }>{ p.Page.Title }</a><span>Describe what you’d like to change.</span></div>
+ }
+ @InboxThreadReader(*p.Thread)
 				} else {
 					@InboxListView(p)
 				}
@@ -48,60 +49,34 @@ templ InboxActions(p InboxProps) {
 	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 }
 
-templ ComposeActions() {
-	<div class="mail-compose-actions">
-		@composeButton("task", "Task", "New task")
-		@createWorkflowButton()
-	</div>
-}
-
-templ composeButton(mode, label, aria string) {
-	<form class="mail-compose-btn-form" method="post" action="/compose">
-		<input type="hidden" name="mode" value={ mode }/>
-		<input type="hidden" name="create_only" value="true"/>
-		<button class="mail-compose-btn" type="submit" title={ aria } aria-label={ aria }>
-			@lucide.Plus()
-			<span>{ label }</span>
-		</button>
-	</form>
+templ InboxHead(title string) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<title>{ title } · scratch</title>
+		@InboxCSS()
+		@ChatCSS()
+		@uikit.ChatPluginScripts()
+		<script src="/static/inbox.js" defer></script>
+	</head>
 }
 
 templ MailShell(p InboxProps) {
-	<div class="mail-shell">
-		<header class="mail-topbar">
-			<a class="mail-brand" href="/">
-				<img class="mail-brand-logo" src="/static/icon.svg" alt="" aria-hidden="true"/>
-				<span>scratch</span>
-			</a>
-			<div class="mail-create-actions">
-				@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
-				@createButton("task", "New task", lucide.ListChecks())
-				@createWorkflowButton()
-			</div>
-		</header>
-		<div class="mail-body">
-			<aside class="mail-sidebar">
-				<nav class="mail-labels" aria-label="Mail">
-					@mailLabel("/", "inbox", p.View, "Inbox", p.Counts.Inbox, lucide.Inbox())
-					@mailLabel("/starred", "starred", p.View, "Starred", p.Counts.Starred, lucide.Star())
-					<div class="mail-label-group">More</div>
-					@mailLabel("/inbox/chats", "chats", p.View, "Chats", p.Counts.Chats, lucide.MessageSquare())
-					@mailLabel("/inbox/tasks", "tasks", p.View, "Tasks", p.Counts.Tasks, lucide.ListChecks())
-					@mailLabel("/inbox/workflows", "workflows", p.View, "Workflows", p.Counts.Workflows, lucide.Workflow())
-				</nav>
-			</aside>
-			<main class="mail-main">
-				{ children... }
-			</main>
-		</div>
-		<footer class="mail-footer">
-			@MailComposer(p)
-		</footer>
-	</div>
+ @uikit.Shell(uikit.ShellProps{Actions: InboxActions(p), AppName: "scratch", BrandHref: "/", Footer: inboxFooter(p), Nav: inboxNavItems(p), Sidebar: ChatSidebarLoader()}) {
+  { children... }
+ }
+}
+
+func inboxFooter(p InboxProps) templ.Component {
+	if p.View == "chats" && p.Thread == nil && p.Draft == nil {
+		return nil
+	}
+	return MailComposer(p)
 }
 
 templ MailComposer(p InboxProps) {
-	if p.Thread != nil {
+ if p.Schedule != nil {
+ } else if p.Thread != nil {
 		@ChatComposer(threadComposerProps(*p.Thread))
 	} else if p.View != "workflows" {
 		@ChatComposer(composeComposerProps(p))
@@ -111,69 +86,42 @@ templ MailComposer(p InboxProps) {
 templ InboxListView(p InboxProps) {
 	<header class="mail-mainbar">
 		<div class="mail-mainbar-title">
-			<h1>{ inboxTitle(p) }</h1>
+			if uikit.ShellHeader(ctx) == nil {
+ <h1>{ inboxTitle(p) }</h1>
+ }
+			if p.View == "workflows" {
+				<a class="mail-create-btn" href="/inbox/workflows/new">
+					@workflowIcon()
+					<span>New workflow</span>
+				</a>
+			}
 			if showArchiveFilters(p.View) {
 				<nav class="mail-filter-tabs" aria-label="Archive filter">
-					@archiveFilterTab(p.View, p.ArchiveFilter, "all", "All")
+					if p.View == "tasks" {
+						@archiveFilterTab(p.View, p.ArchiveFilter, "all", "All")
+					}
 					@archiveFilterTab(p.View, p.ArchiveFilter, "active", "Active")
 					@archiveFilterTab(p.View, p.ArchiveFilter, "archived", "Archived")
 				</nav>
 			}
 		</div>
-		<span>{ strconv.Itoa(inboxListCount(p)) }</span>
+		<span>{ strconv.Itoa(len(p.Items)) }</span>
 	</header>
-	if len(p.Items) == 0 && (p.View != "workflows" || len(p.Schedules) == 0) {
-		<div class="mail-empty">Nothing here.</div>
+	<div style="overflow:auto;flex:1;min-height:0;">
+	if len(p.Items) == 0 {
+		if p.View == "workflows" {
+			<div class="mail-empty">No workflows yet. Choose New workflow to get started.</div>
+		} else {
+			<div class="mail-empty">Nothing here.</div>
+		}
 	} else {
 		<div class="mail-list">
-			if p.View == "workflows" {
-				for _, sc := range p.Schedules {
-					@ScheduleRow(sc)
-				}
-			}
 			for _, item := range p.Items {
 				@InboxRow(item, p.View, p.ArchiveFilter)
 			}
 		</div>
 	}
-}
-
-templ ScheduleRow(sc WorkflowScheduleView) {
-	@uikit.ListRow(uikit.ListRowProps{
-		Actions: ScheduleRowActions(sc),
-		Href: scheduleInboxURL(sc.Name),
-		ID: sc.Name,
-		Kind: "workflow",
-		Labels: scheduleRowLabels(sc),
-		Primary: ScheduleRowPrimary(sc),
-		Subject: sc.Cron,
-		What: sc.Name,
-		When: sc.LastFired,
-	})
-}
-
-templ ScheduleRowPrimary(sc WorkflowScheduleView) {
-	<button type="button" class="gm-star" title="Star" aria-label="Star" onclick="event.stopPropagation()">
-		@lucide.Star()
-	</button>
-}
-
-templ ScheduleRowActions(sc WorkflowScheduleView) {
-	@scheduleButton(sc.Name, "trigger", "Run now", lucide.Send())
-	if sc.Paused {
-		@scheduleButton(sc.Name, "resume", "Resume", lucide.Play())
-	} else {
-		@scheduleButton(sc.Name, "pause", "Pause", lucide.Pause())
-	}
-}
-
-templ scheduleButton(name, action, label string, icon templ.Component) {
-	<form method="post" action={ templ.SafeURL("/inbox/schedules/" + url.PathEscape(name) + "/" + action) }>
-		<input type="hidden" name="back" value="/inbox/workflows"/>
-		<button type="submit" class="gm-row-action" title={ label } aria-label={ label } data-schedule-btn={ action } onclick="event.stopPropagation()">
-			@icon
-		</button>
-	</form>
+ </div>
 }
 
 templ archiveFilterTab(view, active, value, label string) {
@@ -198,17 +146,11 @@ templ InboxRow(item InboxItem, view, filter string) {
 }
 
 templ InboxRowActions(item InboxItem, view, filter string) {
-	if item.Kind == "workflow" && workflowRowRunning(item.Status) {
-		@rowPostButton(itemActionURL(item, "cancel"), view, filter, "Cancel", lucide.SquareStop(), "gm-row-action danger", "Cancel")
-	}
-	if item.Kind == "workflow" && workflowResumable(item.Status) {
-		@rowPostButton(itemActionURL(item, "resume"), view, filter, "Resume", lucide.Play(), "gm-row-action", "Resume")
-	}
 	if item.Archived {
-		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), lucide.ArchiveRestore(), "gm-row-action", "Unarchive")
+		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), unarchiveIcon(), "gm-row-action", "Unarchive")
 		@rowTrashButton(itemActionURL(item, "trash"), view, filter, trashActionLabel(item), "gm-row-action")
 	} else {
-		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), lucide.Archive(), "gm-row-action", "Archive")
+		@rowPostButton(itemActionURL(item, "archive"), view, filter, archiveActionLabel(item), archiveIcon(), "gm-row-action", "Archive")
 	}
 }
 
@@ -216,7 +158,7 @@ templ InboxRowPrimary(item InboxItem, view, filter string) {
 	if item.Kind == "task" {
 		@rowPostButton(itemActionURL(item, "done"), view, filter, doneActionLabel(item), doneIcon(item.Done), "gm-row-action", "Mark done")
 	} else {
-		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), lucide.Star(), starClass(item.Starred), "Star")
+		@rowPostButton(itemActionURL(item, "star"), view, filter, starActionLabel(item), starIcon(item.Starred), starClass(item.Starred), "Star")
 	}
 }
 
@@ -229,12 +171,12 @@ templ InboxTaskReader(d InboxTaskDetail) {
 	}) {
 			@readerPostButton(taskInboxActionURL(d.Task.ID, "done"), doneActionLabel(taskInboxItem(d.Task)), doneIcon(d.Task.Completed))
 			if d.Task.Archived {
-				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), lucide.ArchiveRestore())
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), unarchiveIcon())
 				@readerTrashButton(taskInboxActionURL(d.Task.ID, "trash"), trashActionLabel(taskInboxItem(d.Task)))
 			} else {
-				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), lucide.Archive())
+				@readerPostButton(taskInboxActionURL(d.Task.ID, "archive"), archiveActionLabel(taskInboxItem(d.Task)), archiveIcon())
 			}
-			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), lucide.Star())
+			@readerPostButton(taskInboxActionURL(d.Task.ID, "star"), starActionLabel(taskInboxItem(d.Task)), starIcon(d.Task.Starred))
 	}
 	<div class="mail-reader-body">
 		<form class="mail-card mail-task-editor" method="post" action={ taskInboxActionURL(d.Task.ID, "") }>
@@ -273,179 +215,35 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			if d.Kind == "chat" {
 				@ChatAccessToggle(d.ID, d.Access)
 			}
-			<button type="button" class="gm-icon-btn" data-chat-popout-thread={ itoa64(d.ID) } title="Open chat popout" aria-label="Open chat popout">
-				@lucide.ExternalLink()
+			<button type="button" class="gm-icon-btn" data-chat-popout-thread={ itoa64(d.ID) } title="Open chat sidebar" aria-label="Open chat sidebar">
+				@popoutIcon()
 			</button>
 			if d.Streaming && d.Kind != "chat" {
 				@readerStopButton(d.Kind, d.ID)
 			}
 			if d.Archived {
-				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), lucide.ArchiveRestore())
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), unarchiveIcon())
 				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))
 			} else {
-				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), lucide.Archive())
+				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), archiveIcon())
 			}
-			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), lucide.Star())
+			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), starIcon(d.Starred))
 	}
 	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body mail-chat-body">
+		if d.Kind == "workflow" {
+			@WorkflowSteps(d.Steps)
+			@WorkflowRunTable(d.RunColumns, d.Runs)
+		}
 		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages" sse-swap="message">
 			@ChatMessages(ChatThreadProps{Agent: d.Agent, ID: d.ID, Messages: d.Messages, Title: d.Title})
 		</div>
 	</div>
 }
 
-templ InboxScheduleReader(d InboxScheduleDetail) {
-	@ReaderHeader(ReaderHeaderProps{
-		BackHref: "/inbox/workflows",
-		Description: d.Cron,
-		Labels: []string{"Scheduled", scheduleStatusLabel(WorkflowScheduleView{Paused: d.Paused})},
-		Title: d.Name,
-	})
-	<div class="mail-reader-body mail-chat-body">
-		<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
-			if len(d.Runs) == 0 {
-				<div class="mail-empty">No executions yet.</div>
-			}
-			for i, run := range d.Runs {
-				@scheduleRunItem(i, run)
-			}
-		</div>
-	</div>
-}
-
-templ InboxWorkflowReader(d InboxWorkflowDetail) {
-	<div id="wf-reader" data-events-url={ workflowEventsURL(d) }>
-		@WorkflowStatus(d)
-		<div class="mail-reader-body mail-chat-body">
-			<div id="wf-body" data-chat-messages class="chat-messages mail-chat-messages">
-				<div id="wf-steps">
-					for _, item := range d.Items {
-						if item.Durable {
-							@WorkflowStep(item)
-						}
-					}
-				</div>
-				@WorkflowPending(d)
-			</div>
-		</div>
-	</div>
-}
-
-templ WorkflowStatus(d InboxWorkflowDetail) {
-	<div id="wf-status">
-		@ReaderHeader(ReaderHeaderProps{
-			BackHref: "/inbox/workflows",
-			Description: workflowStatusLabel(d.Status),
-			Title: d.Title,
-		}) {
-			if d.Running {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "cancel"), "Cancel", lucide.SquareStop())
-			}
-			if workflowResumable(d.Status) {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "resume"), "Resume", lucide.Play())
-			}
-			if d.Archived {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", lucide.ArchiveRestore())
-				@readerTrashButton(threadInboxActionURL("workflow", d.ID, "trash"), "Delete workflow")
-			} else {
-				@readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", lucide.Archive())
-			}
-			@readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), "Star", lucide.Star())
-		}
-	</div>
-}
-
-templ WorkflowStep(item WorkflowItemProps) {
-	<div id={ workflowStepID(item.ID) }>
-		@workflowItem(workflowStepID(item.ID), item)
-	</div>
-}
-
-templ WorkflowPending(d InboxWorkflowDetail) {
-	<div id="wf-pending">
-		for i, item := range d.Items {
-			if !item.Durable {
-				@workflowItem("wf-pending-" + strconv.Itoa(i), item)
-			}
-		}
-	</div>
-}
-
-templ scheduleRunItem(i int, run ScheduleRunProps) {
-	@ChatTurn("assistant") {
-		@chatRow(chatRowProps{
-			Failed:  run.Status == "ERROR",
-			Detail:  run.ID,
-			Key:     "schedule-run-" + strconv.Itoa(i),
-			Kind:    "tool",
-			Label:   "Execution " + run.CreatedAt,
-			Summary: workflowStatusLabel(run.Status),
-		})
-	}
-	for j, item := range run.Items {
-		@workflowItem("sched-" + strconv.Itoa(i) + "-" + strconv.Itoa(j), item)
-	}
-}
-
-templ workflowItem(key string, item WorkflowItemProps) {
-	@ChatTurn("assistant") {
-		@chatRow(chatRowProps{
-			Failed:  item.Failed,
-			Key:     key,
-			Kind:    "tool",
-			Label:   item.Title,
-			Shimmer: item.Running,
-			Summary: item.Duration,
-		}) {
-			@workflowStepDetail(item)
-		}
-	}
-	if item.Kind == "response" && item.Detail != "" {
-		@ChatTurn("assistant") {
-			<div class="chat-md">
-				@Markdown(item.Detail)
-				if item.Copy != "" {
-					<button type="button" class="mail-copy-btn" data-copy={ item.Copy } onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied'">Copy</button>
-				}
-			</div>
-		}
-	}
-	if item.Kind == "form" {
-		@ChatTurn("user") {
-			if item.Form != nil {
-				@ChatForm(*item.Form)
-			} else if item.Answer != "" {
-				<div class="chat-bubble">{ item.Answer }</div>
-			}
-		}
-	}
-}
-
-templ workflowStepDetail(item WorkflowItemProps) {
-	if item.Input != "" {
-		<div class="wf-io">
-			<span class="wf-io-label">Input</span>
-			<pre class="wf-io-value">{ item.Input }</pre>
-		</div>
-	}
-	if item.Kind != "response" && item.Detail != "" {
-		<div class="wf-io">
-			<span class="wf-io-label">Output</span>
-			<pre class="wf-io-value">{ item.Detail }</pre>
-		</div>
-	}
-	if item.Kind == "form" && item.Answer != "" {
-		<div class="wf-io">
-			<span class="wf-io-label">Answer</span>
-			<pre class="wf-io-value">{ item.Answer }</pre>
-		</div>
-	}
-}
-
 templ ReaderHeader(p ReaderHeaderProps) {
 	<header class="mail-reader-head">
 		<a class="gm-icon-btn" href={ templ.SafeURL(p.BackHref) } aria-label="Back">
-			@lucide.ArrowLeft()
+			@backIcon()
 		</a>
 		<div class="mail-reader-title">
 			<h1>{ p.Title }</h1>
@@ -488,21 +286,20 @@ templ createButton(mode, label string, icon templ.Component) {
 }
 
 templ createWorkflowButton() {
-	<form class="mail-compose-combo" method="post" action="/compose">
+	<form class="mail-create-combo" method="post" action="/compose">
 		<input type="hidden" name="mode" value="workflow"/>
 		<input type="hidden" name="create_only" value="true"/>
-		<button class="mail-compose-btn" type="submit" data-new-workflow title="New workflow" aria-label="New workflow">
-			@lucide.Plus()
-			<span>Flow</span>
+		<button class="mail-create-btn" type="submit">
+			@workflowIcon()
+			<span>New workflow</span>
 		</button>
-		<span class="mail-create-select-wrap mail-model-select-wrap">
-			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type" data-submit-on-change>
-				<option value="" selected disabled hidden>Workflow type</option>
+		<span class="mail-create-select-wrap">
+			<select class="mail-create-select" name="workflow_type" aria-label="Workflow type">
 				for _, typ := range workflowTypeOptions() {
 					<option value={ typ }>{ workflowTypeLabel(typ) }</option>
 				}
 			</select>
-			<span class="mail-create-chevron">@lucide.ChevronDown()</span>
+			<span class="mail-create-chevron">@chevronDownIcon()</span>
 		</span>
 	</form>
 }
@@ -520,7 +317,7 @@ templ readerStopButton(kind string, id int64) {
 	<form method="post" action={ threadInboxActionURL(kind, id, "stop") }>
 		<input type="hidden" name="back" value={ threadInboxDetailURL(kind, id) }/>
 		<button type="submit" class="gm-icon-btn" title="Stop chat" aria-label="Stop chat">
-			@lucide.SquareStop()
+			@stopIcon()
 		</button>
 	</form>
 }
@@ -529,7 +326,7 @@ templ readerTrashButton(action, label string) {
 	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
 		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
 		<button type="button" class="gm-icon-btn danger mail-trash-trigger" title={ label } aria-label={ label } data-trash-trigger>
-			@lucide.Trash2()
+			@trashIcon()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
 			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
@@ -555,7 +352,7 @@ templ rowTrashButton(action, view, filter, label, class string) {
 	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
 		<input type="hidden" name="back" value={ archiveFilterHref(view, filter) }/>
 		<button type="button" class={ class + " danger mail-trash-trigger" } title={ label } aria-label={ label } data-trash-trigger>
-			@lucide.Trash2()
+			@trashIcon()
 		</button>
 		<span class="mail-trash-confirm" aria-label="Confirm permanent delete">
 			<button type="button" class="mail-trash-text-btn" data-trash-cancel>
@@ -606,13 +403,13 @@ func rowKindLabel(kind string) string {
 func rowKindIcon(kind string) templ.Component {
 	switch kind {
 	case "chat":
-		return lucide.MessageSquare()
+		return chatIcon()
 	case "task":
-		return lucide.ListChecks()
+		return taskIcon()
 	case "workflow":
-		return lucide.Workflow()
+		return workflowIcon()
 	default:
-		return lucide.Inbox()
+		return inboxIcon()
 	}
 }
 
@@ -640,87 +437,31 @@ func showRowKindLabel(view string) bool {
 
 func workflowTypeLabel(typ string) string {
 	switch typ {
-	case "contact-note":
-		return "Contact note"
-	case "countdown":
-		return "Countdown"
-	case "create-pr":
-		return "Create pull request"
-	case "deploy":
-		return "Deploy"
-	case "fan-out":
-		return "Parallel jobs"
-	case "greet":
-		return "Greet"
-	case "stream":
-		return "Log stream"
-	case "update-claude":
-		return "Update Claude Code"
-	case "webhook":
-		return "Webhook"
+	case "contact":
+		return "Contact chat"
 	default:
 		return agentLabel(typ)
 	}
 }
 
-func scheduleStatusLabel(sc WorkflowScheduleView) string {
-	if sc.Paused {
-		return "Paused"
-	}
-	return "Active"
-}
-
-func scheduleRowLabels(sc WorkflowScheduleView) []string {
-	return []string{"Scheduled", scheduleStatusLabel(sc)}
-}
-
-func scheduleInboxURL(name string) string {
-	return "/inbox/schedules/" + url.PathEscape(name)
-}
-
-func workflowStepID(id int) string {
-	return "wf-step-" + strconv.Itoa(id)
-}
-
-func workflowEventsURL(d InboxWorkflowDetail) string {
-	return fmt.Sprintf("/inbox/workflows/%d/events?after=%d", d.ID, workflowLastStepID(d.Items))
-}
-
-func workflowLastStepID(items []WorkflowItemProps) int {
-	last := 0
-	for _, item := range items {
-		if item.Durable && item.ID > last {
-			last = item.ID
-		}
-	}
-	return last
-}
-
-func workflowRowRunning(status string) bool {
-	return status == "PENDING" || status == "ENQUEUED"
-}
-
-func workflowResumable(status string) bool {
-	return status == "CANCELLED" || status == "MAX_RECOVERY_ATTEMPTS_EXCEEDED"
-}
-
-func workflowStatusLabel(status string) string {
-	switch status {
-	case "SUCCESS":
-		return "Completed"
-	case "ERROR":
-		return "Failed"
-	case "CANCELLED":
-		return "Cancelled"
-	case "ENQUEUED", "PENDING":
-		return "Running"
-	default:
-		return status
-	}
-}
-
 func workflowTypeOptions() []string {
-	return []string{"greet", "contact-note", "update-claude", "create-pr", "countdown", "fan-out", "stream", "deploy", "webhook"}
+	return []string{"contact"}
+}
+
+func chatIcon() templ.Component {
+	return lucideIcon(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>`)
+}
+
+func chevronDownIcon() templ.Component {
+	return lucideIcon(`<path d="m6 9 6 6 6-6"></path>`)
+}
+
+func archiveIcon() templ.Component {
+	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path>`)
+}
+
+func backIcon() templ.Component {
+	return lucideIcon(`<path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path>`)
 }
 
 func currentBackFallback(action string) string {
@@ -733,8 +474,40 @@ func currentBackFallback(action string) string {
 	return "/inbox/tasks"
 }
 
+func composeMode(p InboxProps) string {
+	if p.Draft != nil {
+		return "chat"
+	}
+	switch p.View {
+	case "chats":
+		return "chat"
+	case "tasks":
+		return "task"
+	case "workflows":
+		return "workflow"
+	default:
+		return "auto"
+	}
+}
+
+func composePlaceholder(p InboxProps) string {
+	switch composeMode(p) {
+	case "chat":
+		return "Message Codex..."
+	case "task":
+		return "Create task..."
+	case "workflow":
+		return "Start workflow..."
+	default:
+		return "Message Codex, create task, or start workflow..."
+	}
+}
+
 func composeComposerProps(p InboxProps) ChatComposerProps {
-	var hidden []ChatComposerHiddenProps
+	hidden := []ChatComposerHiddenProps{
+		{Name: "view", Value: p.View},
+		{Name: "mode", Value: composeMode(p)},
+	}
 	if p.Draft != nil {
 		hidden = append(hidden,
 			ChatComposerHiddenProps{Name: "agent", Value: p.Draft.Agent},
@@ -743,9 +516,9 @@ func composeComposerProps(p InboxProps) ChatComposerProps {
 	}
 	return ChatComposerProps{
 		Action:      "/compose",
-		FileName:    "file",
-		Hidden:      hidden,
-		Placeholder: "Chat with agent",
+		FileName:   "file",
+		Hidden:     hidden,
+		Placeholder: composePlaceholder(p),
 	}
 }
 
@@ -777,9 +550,9 @@ func doneActionLabel(item InboxItem) string {
 
 func doneIcon(done bool) templ.Component {
 	if done {
-		return lucide.CircleCheck()
+		return lucideIcon(`<path d="M21.8 10A10 10 0 1 1 17 3.3"></path><path d="m9 11 3 3L22 4"></path>`)
 	}
-	return lucide.Circle()
+	return lucideIcon(`<circle cx="12" cy="12" r="10"></circle>`)
 }
 
 func inboxBackPath(kind string) string {
@@ -790,18 +563,17 @@ func inboxBackPath(kind string) string {
 }
 
 func inboxNavItems(p InboxProps) []uikit.NavItem {
-	return []uikit.NavItem{
-		{Active: p.View == "inbox", Count: p.Counts.Inbox, Href: "/", Icon: lucide.Inbox(), Label: "Inbox", ShowCount: true},
-		{Active: p.View == "starred", Count: p.Counts.Starred, Href: "/starred", Icon: lucide.Star(), Label: "Starred", ShowCount: true},
-		{Active: p.View == "chats", Count: p.Counts.Chats, Group: "More", Href: "/inbox/chats", Icon: lucide.MessageSquare(), Label: "Chats", ShowCount: true},
-		{Active: p.View == "tasks", Count: p.Counts.Tasks, Href: "/inbox/tasks", Icon: lucide.ListChecks(), Label: "Tasks", ShowCount: true},
-		{Active: p.View == "workflows", Count: p.Counts.Workflows, Href: "/inbox/workflows", Icon: lucide.Play(), Label: "Workflows", ShowCount: true},
-		{Group: "Tools", Href: "/setup", Icon: lucide.Settings(), Label: "Setup"},
-		{Href: "/sessions", Icon: lucide.MessageSquare(), Label: "Sessions"},
-		{Href: "/code/", Icon: lucide.CodeXml(), Label: "Code review"},
-		{Href: "/files/", Icon: lucide.File(), Label: "Files"},
-		{Href: "/sql/", Icon: lucide.Database(), Label: "SQL"},
-	}
+ active := p.View
+ if p.Page != nil { active = p.Page.ID }
+ items := pageNavItems(p.Pages, active)
+ for i := range items {
+  switch items[i].Href {
+  case "/inbox/chats": items[i].Count = p.Counts.Chats
+  case "/inbox/tasks": items[i].Count = p.Counts.Tasks
+  case "/inbox/workflows": items[i].Count = p.Counts.Workflows
+  }
+ }
+ return items
 }
 
 templ inboxRowKindIcon(item InboxItem) {
@@ -827,9 +599,6 @@ func inboxTitle(p InboxProps) string {
 	if p.Draft != nil {
 		return p.Draft.Title
 	}
-	if p.Schedule != nil {
-		return p.Schedule.Name
-	}
 	switch p.View {
 	case "chats":
 		return "Chats"
@@ -844,11 +613,12 @@ func inboxTitle(p InboxProps) string {
 	}
 }
 
-func inboxListCount(p InboxProps) int {
-	if p.View == "workflows" {
-		return len(p.Items) + len(p.Schedules)
-	}
-	return len(p.Items)
+func inboxIcon() templ.Component {
+	return lucideIcon(`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`)
+}
+
+func popoutIcon() templ.Component {
+	return lucideIcon(`<path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>`)
 }
 
 func itemActionURL(item InboxItem, action string) string {
@@ -876,8 +646,27 @@ func starClass(on bool) string {
 	return "gm-star"
 }
 
+func starIcon(on bool) templ.Component {
+	if on {
+		return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`)
+	}
+	return lucideIcon(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>`)
+}
+
+func sendIcon() templ.Component {
+	return lucideIcon(`<path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path>`)
+}
+
+func stopIcon() templ.Component {
+	return lucideIcon(`<rect width="14" height="14" x="5" y="5" rx="2"></rect>`)
+}
+
 func showArchiveFilters(view string) bool {
 	return view == "chats" || view == "tasks" || view == "workflows"
+}
+
+func taskIcon() templ.Component {
+	return lucideIcon(`<rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path>`)
 }
 
 func trashActionLabel(item InboxItem) string {
@@ -885,10 +674,14 @@ func trashActionLabel(item InboxItem) string {
 	case "task":
 		return "Delete task permanently"
 	case "workflow":
-		return "Delete workflow"
+		return "Delete workflow permanently"
 	default:
-		return "Delete chat"
+		return "Delete chat permanently"
 	}
+}
+
+func trashIcon() templ.Component {
+	return lucideIcon(`<path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`)
 }
 
 func taskInboxActionURL(id int64, action string) string {
@@ -913,7 +706,10 @@ func taskStatusLabel(item InboxItem) string {
 }
 
 func threadComposePlaceholder(d InboxThreadDetail) string {
-	return "Chat with agent"
+	if d.Kind == "workflow" {
+		return "Message the workflow..."
+	}
+	return "Message " + agentLabel(d.Agent) + "..."
 }
 
 func threadInboxActionURL(kind string, id int64, action string) string {
@@ -932,4 +728,135 @@ func threadInboxDetailURL(kind string, id int64) string {
 
 func threadInboxItem(d InboxThreadDetail) InboxItem {
 	return InboxItem{Archived: d.Archived, ID: d.ID, Kind: d.Kind, Starred: d.Starred}
+}
+
+func lucideIcon(body string) templ.Component {
+	return templ.Raw(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + body + `</svg>`)
+}
+
+func unarchiveIcon() templ.Component {
+	return lucideIcon(`<rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="m9 15 3-3 3 3"></path><path d="M12 12v6"></path>`)
+}
+
+func workflowIcon() templ.Component {
+	return lucideIcon(`<circle cx="12" cy="4.5" r="2.5"></circle><circle cx="4.5" cy="12" r="2.5"></circle><circle cx="19.5" cy="12" r="2.5"></circle><circle cx="12" cy="19.5" r="2.5"></circle><path d="m10.2 6.3-3.9 3.9"></path><path d="M7 12h10"></path><path d="m13.8 17.7 3.9-3.9"></path>`)
+}
+
+
+templ InboxScheduleReader(d InboxScheduleDetail) {
+
+ <div class="mail-reader-body workflow-detail">
+  <a class="workflow-back" href="/inbox/workflows">← Workflows</a>
+  <header class="workflow-detail-header">
+   <div><h1>{ d.Title }</h1><p>Created { d.Created } · Updated { d.Updated }</p></div>
+   <div class="workflow-detail-actions">
+    <form method="post" action={ threadInboxActionURL("workflow", d.ID, "schedule/run") }><button class="workflow-run-button" type="submit">@lucideIcon(`<polygon points="6 3 20 12 6 21 6 3"></polygon>`) Run now</button></form>
+    <form method="get" action="/chat/popout/new" data-chat-popout-new>
+     <input type="hidden" name="workflow_id" value={ itoa64(d.ID) }/>
+     <input type="hidden" name="workflow_field" value="schedule"/>
+     <input type="hidden" name="workflow_value" value={ d.ScheduleLabel }/>
+     <button class="workflow-edit-button" type="submit" aria-label="Edit Schedule">@lucideIcon(`<path d="m16 3 5 5-13 13H3v-5Z"></path><path d="m14 5 5 5"></path>`) Edit</button>
+    </form>
+    <details class="workflow-more"><summary aria-label="More workflow actions">⋮</summary><div>
+     @readerPostButton(threadInboxActionURL("workflow", d.ID, "star"), starActionLabel(threadInboxItem(InboxThreadDetail{Starred: d.Starred})), starIcon(d.Starred))
+     if d.Archived {
+      @readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Unarchive", unarchiveIcon())
+     } else {
+      @readerPostButton(threadInboxActionURL("workflow", d.ID, "archive"), "Archive", archiveIcon())
+     }
+     if d.Status == "Active" {
+      <form method="post" action={ threadInboxActionURL("workflow", d.ID, "schedule/pause") }><button type="submit">Pause schedule</button></form>
+     } else {
+      <form method="post" action={ threadInboxActionURL("workflow", d.ID, "schedule/resume") }><button type="submit">Resume schedule</button></form>
+     }
+    </div></details>
+   </div>
+  </header>
+  <dl class="workflow-metadata">
+   <dt>Status</dt><dd><span class={ "workflow-status-badge", templ.KV("active", d.Status == "Active") }>{ d.Status }</span></dd>
+   <dt>Schedule</dt><dd>{ d.ScheduleLabel }</dd>
+   <dt>Last run</dt><dd>{ d.LastRun }</dd>
+   <dt>Next run</dt><dd>{ d.NextRun }</dd>
+   <dt>Triggers</dt><dd>@workflowSetting(d.ID, "triggers", "Triggers", d.Triggers)</dd>
+   <dt>Description</dt><dd>{ d.Description }</dd>
+  </dl>
+  @WorkflowSteps(d.Steps)
+  <section class="workflow-stats" aria-label="Workflow statistics">
+   <h2>Stats</h2>
+   <div class="workflow-stat-grid">
+    <div class="workflow-stat"><span>Total runs</span><strong>{ strconv.FormatInt(d.TotalRuns, 10) }</strong></div>
+    <div class="workflow-stat"><span>Success rate</span><strong>{ d.SuccessRate }</strong></div>
+    <div class="workflow-stat"><span>Last 24h</span><strong>{ strconv.FormatInt(d.Last24h, 10) }</strong></div>
+   </div>
+  </section>
+  if d.AuditURL != "" {
+   <p><a href={ templ.SafeURL(d.AuditURL) }>View full audit history</a></p>
+  }
+  @WorkflowRunTable(d.RunColumns, d.Runs)
+ </div>
+}
+
+
+templ WorkflowSteps(steps []workflow.StepDefinition) {
+ if len(steps) > 0 {
+  <section class="workflow-steps" aria-label="Workflow steps">
+   <h2>Workflow steps</h2>
+   <p class="workflow-steps-description">Named DBOS steps in execution order. Conditional steps run only when their condition is met; an error stops the run.</p>
+   <ol>
+    for _, step := range steps {
+     <li><code>{ step.Name }</code><p>{ step.Description }</p></li>
+    }
+   </ol>
+  </section>
+ }
+}
+
+templ WorkflowRunTable(columns []string, runs []InboxScheduleRun) {
+ <section class="mail-card workflow-schedule-card workflow-runs">
+  <h2>Recent runs</h2>
+  <p>Completion status and key results. Select a run to see its inputs, output, and steps.</p>
+  <div class="workflow-table-scroll" tabindex="0" role="region" aria-label="Workflow runs">
+   <table class="workflow-run-table">
+    <thead><tr><th scope="col">Run</th><th scope="col">Status</th>
+     for _, column := range columns {
+      <th scope="col">{ column }</th>
+     }
+    </tr></thead>
+    <tbody>
+     for _, run := range runs {
+      <tr>
+       <td><a class="workflow-run-link" href={ templ.SafeURL("/workflows/audit?run=" + url.QueryEscape(run.ID)) } aria-label={ "View run details: " + run.At + " · " + run.ID }>{ run.At }</a>
+        if run.AuditURL != "" {
+         <a class="workflow-transcript-link" href={ templ.SafeURL(run.AuditURL) }>Chat and tool transcript</a>
+        }
+       </td>
+       <td><span class="workflow-run-status" title={ run.Result }>{ run.Status }</span></td>
+       for _, cell := range run.Cells {
+        <td>{ cell }</td>
+       }
+      </tr>
+     }
+     if len(runs) == 0 {
+      <tr><td colspan={ strconv.Itoa(len(columns) + 2) }>No runs yet. Runs will appear here when this workflow starts.</td></tr>
+     }
+    </tbody>
+   </table>
+  </div>
+  if len(runs) == 20 {
+   <p>Showing the latest 20 runs. <a href="/workflows/audit">View full run history</a></p>
+  }
+ </section>
+}
+
+
+templ workflowSetting(id int64, field, label, value string) {
+ <div class="workflow-setting">
+  <p>{ label + ": " }<strong>{ value }</strong></p>
+  <form method="get" action="/chat/popout/new" data-chat-popout-new>
+   <input type="hidden" name="workflow_id" value={ itoa64(id) }/>
+   <input type="hidden" name="workflow_field" value={ field }/>
+   <input type="hidden" name="workflow_value" value={ value }/>
+   <button class="mail-save-btn" type="submit" aria-label={ "Edit " + label }>Edit</button>
+  </form>
+ </div>
 }

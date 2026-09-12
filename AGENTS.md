@@ -14,6 +14,16 @@ Subdirectory `AGENTS.md` / `CLAUDE.md` files take precedence within their subtre
 
 Static assets (JS, CSS, icons) live in `pkg/ui/static` and are served from an `//go:embed` filesystem.
 
+## Workflow implementation
+
+- Implement application jobs and their business logic in idiomatic Go inside Scratch. Do not add Python or shell job implementations, or wrap an entire external script in a DBOS step, unless the user explicitly requests that approach. Existing script wrappers are migration debt, not examples to copy.
+- Use DBOS for durable execution, not just scheduling. Split multi-operation jobs into meaningful steps at recovery boundaries: fetching inputs, transforming or validating data, and publishing or persisting results. Use per-item steps or child workflows when items need independent recovery. A single step is appropriate only for a genuinely single operation.
+- Keep workflow orchestration deterministic. Put network calls, database operations, model calls, and other side effects or nondeterministic work inside DBOS steps using the supported durable APIs. Persist serializable step outputs so recovery can reuse completed work without fetching or computing it again. Do not rely on process memory or temporary files as the only handoff between steps.
+- Configure bounded retries, backoff, and timeouts appropriate to each operation. Distinguish transient failures from permanent errors. Make writes, notifications, and external mutations safe to retry using stable idempotency keys, uniqueness constraints, or reconciliation. A DBOS checkpoint alone does not guarantee an external side effect happens exactly once; handle a crash after the effect but before its completion is recorded.
+- Show actual executable steps and their recorded status, results, and errors in Scratch's Workflows UI. Descriptive labels for operations inside one opaque step do not count as durable steps.
+- When refactoring existing workflows, preserve matching schedules, timezone, pause state, run history, and user-visible behavior. Account for in-flight runs and replay compatibility when changing step order or outputs. Retire obsolete script execution paths and duplicate schedules once migration is verified.
+- Validate recovery as well as the happy path: fail after a completed step, resume the run, and verify that completed work is reused and side effects are not duplicated. Use isolated fixtures or test services for notifications and external writes unless live execution is explicitly authorized.
+
 ## Style
 
 - Write self-commenting code; do not write comments
@@ -35,6 +45,10 @@ Never hand-edit generated code. `mage build` regenerates before compiling; edit 
 - `*.templ` → templ (`pkg/ui/*_templ.go`) — gitignored
 - `pkg/db/queries/*.sql`, `pkg/db/schema/*.sql` → sqlc (`pkg/db/internal/sqlite`) — gitignored
 - API route definitions → OpenAPI (`docs/openapi.json`) — committed as the API contract
+
+## Activate changes
+
+After implementing Scratch changes, run `go tool mage build` to stage the updated executable. Leave the running app alive so chats can finish. The sidebar shows "Pending changes, restart" when the installed executable differs from the running one; the user chooses when to apply it. Do not run `mage deploy`, restart Scratch, or schedule a deferred restart unless explicitly requested. Report that the build is pending activation. Scratch's systemd unit must set `SCRATCH_SERVICE` to its user service name for the restart button to be available.
 
 ## Database
 

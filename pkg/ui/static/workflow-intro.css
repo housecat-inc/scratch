@@ -1,0 +1,34 @@
+.workflow-intro {
+  border-bottom: 1px solid #e5e7eb;
+  color: #475569;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  padding: 1.5rem 2rem;
+}
+.workflow-intro > p { margin: 0.5rem 0; max-width: 48rem; }
+.workflow-intro h2 { color: #111827; font-size: 1.125rem; font-weight: 650; margin: 0 0 0.75rem; }
+.workflow-intro h3 { color: #111827; font-size: 0.875rem; font-weight: 600; margin: 0 0 0.375rem; }
+.workflow-intro-steps { display: grid; gap: 1.25rem; list-style: decimal; margin: 1.5rem 0 0; padding-left: 1.25rem; }
+.workflow-intro-steps > li { padding-left: 0.25rem; }
+.workflow-intro-steps p { margin: 0; max-width: 48rem; }
+.workflow-intro-triggers { display: flex; flex-wrap: wrap; gap: 0.75rem 2.5rem; list-style: none; margin: 0; padding: 0; }
+.workflow-intro-triggers strong { color: #334155; display: block; font-weight: 600; }
+.workflow-intro-triggers span { display: block; }
+@media (max-width: 600px) {
+  .workflow-intro { padding: 1.25rem; }
+  .workflow-intro-triggers { flex-direction: column; }
+}
+.workflow-wizard [hidden] { display: none !important; }
+.workflow-wizard-cancel { color: #475569; font-size: 0.82rem; margin-left: auto; padding: 0.5rem 0; text-decoration: none; }
+.workflow-wizard-cancel:hover { color: #111827; text-decoration: underline; }
+.workflow-wizard fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.workflow-wizard fieldset > p { color: #64748b; margin: 0 0 0.75rem; }
+.workflow-wizard label { color: #334155; display: block; font-weight: 600; margin: 1rem 0 0.375rem; }
+.workflow-wizard input, .workflow-wizard textarea, .workflow-wizard select { background: white; border: 1px solid #d8dee9; border-radius: 0.5rem; color: #111827; font: inherit; padding: 0.55rem 0.65rem; width: 100%; }
+.workflow-wizard textarea { resize: vertical; }
+.workflow-wizard button[type="submit"]:disabled { cursor: wait; opacity: 0.6; }
+.workflow-wizard dt { color: #334155; font-weight: 600; margin-top: 1rem; }
+.workflow-wizard dd { margin: 0.25rem 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+@media (max-width: 600px) {
+  .workflow-wizard input, .workflow-wizard textarea, .workflow-wizard select { font-size: 1rem; }
+}

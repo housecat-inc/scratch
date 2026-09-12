@@ -1,0 +1,23 @@
+package ui
+
+templ WorkflowIntroduction() {
+	<link rel="stylesheet" href="/static/workflow-intro.css"/>
+	<section class="workflow-intro" aria-labelledby="workflow-intro-title">
+		<h2 id="workflow-intro-title">How workflows work</h2>
+		<p>Workflows are durable processes that run consistently when you need them. They keep track of progress and can pick up where they left off if interrupted.</p>
+		<p>They can follow fixed, deterministic steps, use an LLM to interpret or generate content, or include an agent that uses tools to complete a task.</p>
+		<ol class="workflow-intro-steps">
+			<li>
+				<h3>First, describe what you’re trying to do.</h3>
+				<p>For example, prepare a morning news briefing, collect metrics for a weekly report, or review incoming feedback.</p>
+			</li>
+			<li>
+				<h3>Then, when do you want it to happen?</h3>
+				<ul class="workflow-intro-triggers">
+					<li><strong>On a schedule</strong><span>Every weekday at 9 AM.</span></li>
+					<li><strong>From an external trigger</strong><span>When new feedback arrives or a file is uploaded.</span></li>
+				</ul>
+			</li>
+		</ol>
+	</section>
+}

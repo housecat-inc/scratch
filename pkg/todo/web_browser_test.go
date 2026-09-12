@@ -40,10 +40,13 @@ func runWebBrowser(t *testing.T, cases []testkit.BrowserCase[*webHarness]) {
 			mux := http.NewServeMux()
 			mux.Handle("/chat/", chat.NewServer(chatSvc, slog.Default()).Handler())
 			mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			mux.Handle("/", NewWebServerWithChat(tasks, chatSvc, slog.Default()).Handler())
+			web := NewWebServerWithChat(tasks, chatSvc, slog.Default()).Handler()
+			mux.Handle("/inbox/tasks", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { r.URL.Path = "/tasks"; web.ServeHTTP(w, r) }))
+			mux.Handle("/inbox/chats", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { r.URL.Path = "/chats"; web.ServeHTTP(w, r) }))
+			mux.Handle("/", web)
 
 			return &webHarness{
-				Harness: testkit.NewHarnessWithT(t, kit, mux),
+				Harness: testkit.NewHarnessWithT(t, kit, testkit.ShellFixture(mux)),
 				Chat:    chatSvc,
 				Tasks:   tasks,
 			}
@@ -70,10 +73,10 @@ func TestTodoWebBrowser(t *testing.T) {
 			Act: []webStep{
 				testkit.ClickStep[*webHarness]("[data-new-chat]"),
 				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				testkit.ClickStep[*webHarness](`.gm-label[href="/tasks"]`),
+				testkit.ClickStep[*webHarness](`.gm-label[href="/inbox/tasks"]`),
 			},
 			Assert: []webStep{
-				webPathEventuallyEquals("/tasks"),
+				webPathEventuallyEquals("/inbox/tasks"),
 				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
 				testkit.TextContainsStep[*webHarness]("#floating-chat", "New chat"),
 			},
@@ -84,14 +87,14 @@ func TestTodoWebBrowser(t *testing.T) {
 			Act: []webStep{
 				testkit.ClickStep[*webHarness]("[data-new-chat]"),
 				webElementEventuallyPresent("#floating-chat"),
-				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
+				testkit.ClickStep[*webHarness](`.gm-label[href="/inbox/chats"]`),
 			},
 			Assert: []webStep{
-				webPathEventuallyEquals("/chats"),
+				webPathEventuallyEquals("/inbox/chats"),
 				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Chats"),
-				webElementAbsent("#floating-chat"),
+				webElementEventuallyPresent("#floating-chat"),
 			},
-			Name: "chat history action opens chats",
+			Name: "sidebar opens chats while keeping the conversation",
 			Path: "/",
 			Seed: []webStep{
 				seedWebChat("old chat", chatLabelTodo),
@@ -101,23 +104,24 @@ func TestTodoWebBrowser(t *testing.T) {
 			Act: []webStep{
 				testkit.ClickStep[*webHarness]("[data-new-chat]"),
 				webElementEventuallyPresent("#floating-chat"),
-				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
+				testkit.ClickStep[*webHarness](`.gm-label[href="/inbox/chats"]`),
 			},
 			Assert: []webStep{
-				webPathEventuallyEquals("/chats"),
+				webPathEventuallyEquals("/inbox/chats"),
 				webChatThreadCount(1),
 				webElementEventuallyPresent(`[data-kind="chat"][data-id="1"]`),
-				webElementAbsent("#floating-chat"),
+				webElementEventuallyPresent("#floating-chat"),
 			},
-			Name: "chat history action refreshes current chats page",
+			Name: "sidebar refreshes the current chats page",
 			Path: "/chats",
 		},
 		{
 			Act: []webStep{
-				testkit.ClickStep[*webHarness](`[aria-label="New task"]`),
+				testkit.TypeStep[*webHarness](".todo-new-input", "buy milk"),
+				testkit.ClickStep[*webHarness](".todo-create-form button"),
 			},
 			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "New task"),
+				testkit.TextContainsStep[*webHarness](".mail-reader-title", "buy milk"),
 				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Active"),
 				webElementAbsent("section.mail-card"),
 			},

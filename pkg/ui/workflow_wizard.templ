@@ -1,0 +1,54 @@
+package ui
+
+import "github.com/housecat-inc/scratch/uikit"
+
+templ WorkflowWizard(options []uikit.SelectOption) {
+	<link rel="stylesheet" href="/static/guided-flow.css"/>
+	<link rel="stylesheet" href="/static/workflow-intro.css"/>
+	<script src="/static/workflow-wizard.js" defer></script>
+	<header class="mail-mainbar">
+		<div class="mail-mainbar-title"><h1>New workflow</h1></div>
+		<a class="workflow-wizard-cancel" href="/inbox/workflows">Cancel</a>
+	</header>
+	<div class="mail-tool-body">
+		<div class="workflow-wizard guide">
+			@guidedProgress("Workflow steps", []guidedStep{{label: "Describe"}, {label: "Trigger"}, {label: "Build"}}, 0)
+			<form method="post" action="/inbox/workflows/new" id="workflow-wizard" class="mail-card guide-panel">
+				<fieldset data-step="0">
+					<legend>First, describe what you’re trying to do.</legend>
+					<p>Workflows are durable processes that run consistently when you need them. They keep track of progress and can pick up where they left off if interrupted.</p>
+					<p>They can follow fixed, deterministic steps, use an LLM to interpret or generate content, or include an agent that uses tools to complete a task.</p>
+					<label for="workflow-description">What should your workflow do?</label>
+					<textarea id="workflow-description" name="description" rows="5" maxlength="12000" required placeholder="Prepare a morning news briefing about the topics I follow…"></textarea>
+					<p>Try a news briefing, a weekly metrics report, or reviewing incoming feedback.</p>
+				</fieldset>
+				<fieldset data-step="1">
+					<legend>When do you want it to happen?</legend>
+					<label for="workflow-trigger">Trigger</label>
+					<select id="workflow-trigger" name="trigger"><option value="schedule">On a schedule</option><option value="external">From an external trigger</option></select>
+					<label for="workflow-timing" id="workflow-timing-label">Describe the schedule</label>
+					<textarea id="workflow-timing" name="timing" rows="3" maxlength="4000" required placeholder="Every weekday at 9 AM"></textarea>
+					<div id="workflow-zone"><label for="workflow-timezone">Timezone</label><input id="workflow-timezone" name="timezone" value="UTC" required maxlength="100"/><p>For example, America/Los_Angeles or Europe/London.</p></div>
+				</fieldset>
+				<fieldset data-step="2">
+					<legend>Build your workflow</legend>
+					<dl id="workflow-review"></dl>
+					<label for="workflow-provider">Build with</label>
+					<select id="workflow-provider" name="provider_model">
+						for _, option := range options {
+							<option value={ option.Value }>{ option.Label }</option>
+						}
+					</select>
+					<p>This opens a chat with your setup details. Your agent will help build the workflow and configure any connections it needs.</p>
+				</fieldset>
+				<div class="guide-footer">
+					<button class="guide-back" type="button" id="wizard-back" hidden>← Back</button>
+					<div class="guide-footer-actions">
+						<button class="mail-save-btn guide-button" type="button" id="wizard-next" hidden>Continue <span aria-hidden="true">→</span></button>
+						<button class="mail-save-btn guide-button" type="submit" id="wizard-submit">Build workflow →</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+}

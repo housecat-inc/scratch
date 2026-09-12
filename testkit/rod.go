@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
-	"github.com/go-rod/rod/lib/proto"
 )
 
 var keys = map[string]input.Key{
@@ -93,14 +92,7 @@ func (t *T) ElementTextContains(page *rod.Page, selector string, expected string
 
 func (t *T) Click(page *rod.Page, selector string) {
 	t.t.Helper()
-
-	t.R.Eventually(func() bool {
-		el, err := page.Timeout(BrowserOperationTimeout).Element(selector)
-		if err != nil {
-			return false
-		}
-		return el.Click(proto.InputMouseButtonLeft, 1) == nil
-	}, BrowserWaitTimeout, BrowserPollInterval)
+	page.MustElement(selector).MustClick()
 }
 
 func (t *T) ElementAbsent(page *rod.Page, selector string) {
@@ -125,7 +117,7 @@ func (t *T) Press(page *rod.Page, selector string, chord string) {
 		pressed[i] = k
 	}
 
-	page.Timeout(BrowserOperationTimeout).MustElement(selector).MustFocus()
+	page.MustElement(selector).MustFocus()
 	for _, k := range pressed[:len(pressed)-1] {
 		if err := page.Keyboard.Press(k); err != nil {
 			t.t.Fatal(err)
@@ -141,14 +133,7 @@ func (t *T) Press(page *rod.Page, selector string, chord string) {
 
 func (t *T) Type(page *rod.Page, selector string, text string) {
 	t.t.Helper()
-	page.Timeout(BrowserOperationTimeout).MustElement(selector).MustInput(text)
-}
-
-func (t *T) Fill(page *rod.Page, selector string, text string) {
-	t.t.Helper()
-	el := page.Timeout(BrowserOperationTimeout).MustElement(selector)
-	el.MustSelectAllText()
-	el.MustInput(text)
+	page.MustElement(selector).MustInput(text)
 }
 
 func (t *T) Load(page *rod.Page, baseURL string, path string) {

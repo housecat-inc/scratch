@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/housecat-inc/scratch/pkg/db"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 	"github.com/housecat-inc/scratch/uikit"
 )
 
@@ -24,7 +25,6 @@ type InboxItem struct {
 	Kind      string
 	Snippet   string
 	Starred   bool
-	Status    string
 	Title     string
 	UpdatedAt time.Time
 	When      string
@@ -32,48 +32,24 @@ type InboxItem struct {
 }
 
 type InboxProps struct {
-	ArchiveFilter string
-	ChatOptions   []uikit.SelectOption
-	Counts        InboxCounts
-	Draft         *InboxDraftDetail
-	Items         []InboxItem
-	Schedule      *InboxScheduleDetail
-	Schedules     []WorkflowScheduleView
-	Selected      InboxSelection
-	Task          *InboxTaskDetail
-	Thread        *InboxThreadDetail
-	View          string
-	Workflow      *InboxWorkflowDetail
-}
-
-type WorkflowScheduleView struct {
-	Cron      string
-	LastFired string
-	Name      string
-	Paused    bool
-	Status    string
-}
-
-type InboxScheduleDetail struct {
-	Cron      string
-	LastFired string
-	Name      string
-	Paused    bool
-	Runs      []ScheduleRunProps
-	Status    string
-}
-
-type ScheduleRunProps struct {
-	CreatedAt string
-	ID        string
-	Items     []WorkflowItemProps
-	Status    string
+	Page           *db.Page
+	Pages          []db.Page
+	ArchiveFilter  string
+	ChatOptions    []uikit.SelectOption
+	Counts         InboxCounts
+	Draft          *InboxDraftDetail
+	Items          []InboxItem
+	Schedule       *InboxScheduleDetail
+	Selected       InboxSelection
+	Task           *InboxTaskDetail
+	Thread         *InboxThreadDetail
+	View           string
+	WorkflowWizard bool
 }
 
 type InboxSelection struct {
 	ID   int64
 	Kind string
-	Name string
 }
 
 type InboxDraftDetail struct {
@@ -94,36 +70,12 @@ type InboxThreadDetail struct {
 	ID          int64
 	Kind        string
 	Messages    []ChatMessageProps
+	RunColumns  []string
+	Runs        []InboxScheduleRun
 	Starred     bool
+	Steps       []workflow.StepDefinition
 	Streaming   bool
 	Title       string
-}
-
-type InboxWorkflowDetail struct {
-	Archived bool
-	Awaiting bool
-	ID       int64
-	Items    []WorkflowItemProps
-	Running  bool
-	Starred  bool
-	Status   string
-	Title    string
-}
-
-type WorkflowItemProps struct {
-	Answer   string
-	Copy     string
-	Detail   string
-	Durable  bool
-	Duration string
-	Failed   bool
-	Form     *ChatFormProps
-	ID       int
-	Input    string
-	Kind     string
-	Running  bool
-	Summary  string
-	Title    string
 }
 
 type ReaderHeaderProps struct {
@@ -131,4 +83,37 @@ type ReaderHeaderProps struct {
 	Description string
 	Labels      []string
 	Title       string
+}
+
+type InboxScheduleDetail struct {
+	Created       string
+	Updated       string
+	Cron          string
+	Timezone      string
+	LastRun       string
+	Last24h       int64
+	SuccessRate   string
+	ScheduleLabel string
+	AuditURL      string
+	Description   string
+	Archived      bool
+	ID            int64
+	NextRun       string
+	RunColumns    []string
+	Runs          []InboxScheduleRun
+	Starred       bool
+	Status        string
+	Steps         []workflow.StepDefinition
+	Title         string
+	TotalRuns     int64
+	Triggers      string
+}
+
+type InboxScheduleRun struct {
+	AuditURL string
+	At       string
+	Cells    []string
+	ID       string
+	Result   string
+	Status   string
 }

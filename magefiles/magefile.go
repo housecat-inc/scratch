@@ -295,13 +295,14 @@ Description=scratch web UI
 After=default.target
 
 [Service]
+Environment=SCRATCH_SERVICE=%s
 ExecStart=%s --port %s
 Restart=on-failure
 RestartSec=2s
 
 [Install]
 WantedBy=default.target
-`, bin(), port())
+`, service, bin(), port())
 	if err := os.WriteFile(unitPath(), []byte(unit), 0o644); err != nil {
 		return err
 	}

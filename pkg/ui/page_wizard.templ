@@ -1,0 +1,66 @@
+package ui
+
+import "github.com/housecat-inc/scratch/uikit"
+
+templ PageWizardPage(p InboxProps) {
+ <!DOCTYPE html>
+ <html lang="en">
+  @InboxHead("New page")
+  <body>
+   @uikit.Shell(uikit.ShellProps{Actions: InboxActions(p), AppName: "scratch", BrandHref: "/", Nav: inboxNavItems(p), Sidebar: ChatSidebarLoader()}) {
+    @PageWizard(p.ChatOptions)
+   }
+  </body>
+ </html>
+}
+
+templ PageWizard(options []uikit.SelectOption) {
+ <link rel="stylesheet" href="/static/guided-flow.css"/>
+ <link rel="stylesheet" href="/static/workflow-intro.css"/>
+ <script src="/static/page-wizard.js" defer></script>
+ <header class="mail-mainbar">
+  <div class="mail-mainbar-title"><h1>New page</h1></div>
+  <a class="workflow-wizard-cancel" href="/pages">Cancel</a>
+ </header>
+ <div class="mail-tool-body">
+  <div class="workflow-wizard guide">
+   @guidedProgress("Page steps", []guidedStep{{label: "Describe"}, {label: "Content"}, {label: "Build"}}, 0)
+   <form method="post" action="/pages/new" id="page-wizard" class="mail-card guide-panel">
+    <fieldset data-step="0">
+     <legend>What would you like to make?</legend>
+     <p>Pages give your dashboards, boards, and tools a home in Scratch.</p>
+     <label for="page-title">Page name</label>
+     <input id="page-title" name="title" maxlength="200" required placeholder="Team dashboard"/>
+     <label for="page-description">What should your page do?</label>
+     <textarea id="page-description" name="description" rows="5" maxlength="12000" required placeholder="Help me track our projects and see what needs attention…"></textarea>
+     <p>Try a project board, a reading list, or a dashboard for your key metrics.</p>
+    </fieldset>
+    <fieldset data-step="1">
+     <legend>What belongs on your page?</legend>
+     <p>Describe the information you want to see and what you want to do with it.</p>
+     <label for="page-details">Content, data, and actions (optional)</label>
+     <textarea id="page-details" name="details" rows="6" maxlength="12000" placeholder="Show projects grouped by status, with due dates and owners. Let me add a project and mark it complete…"></textarea>
+     <p>Include any data sources or layout preferences. You can leave this blank and let your agent suggest a starting point.</p>
+    </fieldset>
+    <fieldset data-step="2">
+     <legend>Build your page</legend>
+     <dl id="page-review"></dl>
+     <label for="page-provider">Build with</label>
+     <select id="page-provider" name="provider_model">
+      for _, option := range options {
+       <option value={ option.Value }>{ option.Label }</option>
+      }
+     </select>
+     <p>This opens a chat with your setup details. Your agent will help build the page and add it to your Pages library.</p>
+    </fieldset>
+    <div class="guide-footer">
+     <button class="guide-back" type="button" id="wizard-back" hidden>← Back</button>
+     <div class="guide-footer-actions">
+      <button class="mail-save-btn guide-button" type="button" id="wizard-next" hidden>Continue <span aria-hidden="true">→</span></button>
+      <button class="mail-save-btn guide-button" type="submit" id="wizard-submit">Build page →</button>
+     </div>
+    </div>
+   </form>
+  </div>
+ </div>
+}

@@ -14,8 +14,10 @@ import (
 )
 
 type Workflows struct {
-	conn *sql.DB
-	ctx  dbos.DBOSContext
+	schedules  map[string]ScheduleDefinition
+	conn       *sql.DB
+	ctx        dbos.DBOSContext
+	runSchemas map[string][]SummaryField
 }
 
 func New(path string) (*Workflows, error) {
@@ -32,6 +34,7 @@ func New(path string) (*Workflows, error) {
 	}
 	ctx, err := dbos.NewDBOSContext(context.Background(), dbos.Config{
 		AppName:        "scratch",
+		EnablePatching: true,
 		SqliteSystemDB: conn,
 	})
 	if err != nil {
@@ -39,7 +42,12 @@ func New(path string) (*Workflows, error) {
 		return nil, errors.Wrap(err, "new dbos context")
 	}
 	dbos.RegisterWorkflow(ctx, Greet)
-	return &Workflows{conn: conn, ctx: ctx}, nil
+	w := &Workflows{conn: conn, ctx: ctx}
+	if err := w.SetRunSchema("contact-intake", []SummaryField{{Label: "Request", Path: "input.Prompt"}, {Label: "Decision", Path: "output"}}); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return w, nil
 }
 
 func (w *Workflows) Ctx() dbos.DBOSContext { return w.ctx }

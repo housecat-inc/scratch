@@ -1,9 +1,8 @@
 (() => {
-  if (window.scratchChat) return;
-
   const draftKeyPrefix = "scratch.chat.draft:";
   const providerModelKey = "scratch.chat.provider_model";
   const popoutKey = "scratch.chat.popout";
+  const popoutSnapshotKey = "scratch.chat.popout.snapshot";
 
   const showAlert = (text) => {
     let alert = document.getElementById("chat-alert");
@@ -41,36 +40,89 @@
     sessionStorage.setItem(popoutKey, JSON.stringify(merged));
   };
 
-  const clearState = () => sessionStorage.removeItem(popoutKey);
+  const mainNavigationItem = Array.from(document.querySelectorAll(".mail-labels .gm-label.active")).at(-1);
+
+  const updateNavigationSelection = () => {
+    const url = new URL(location.href);
+    let creation = "";
+    if (url.pathname === "/pages/new") creation = "page";
+    if (url.pathname === "/inbox/workflows/new") creation = "workflow";
+    if (url.pathname === "/inbox/chats/new") {
+      creation = ["page", "workflow"].includes(url.searchParams.get("intent")) ? url.searchParams.get("intent") : "chat";
+    }
+    const items = Array.from(document.querySelectorAll(".mail-labels .gm-label"));
+    const mainThreadID = url.pathname.match(/^\/inbox\/chats\/(\d+)$/)?.[1];
+    const main = creation
+      ? items.find((item) => item.dataset.newItem === creation)
+      : items.find((item) => mainThreadID && item.dataset.chatPopoutThread === mainThreadID) || mainNavigationItem;
+    const panel = document.getElementById("floating-chat");
+    const chat = panel && !panel.classList.contains("collapsed")
+      ? items.find((item) => panel.dataset.empty === "true"
+        ? item.dataset.newItem === "chat"
+        : item.dataset.chatPopoutThread === panel.dataset.threadId)
+      : null;
+    items.forEach((item) => {
+      item.classList.toggle("active", item === main);
+      item.classList.toggle("chat-selected", item === chat && item !== main);
+      if (item === main) item.setAttribute("aria-current", "page");
+      else if (item === chat) item.setAttribute("aria-current", "true");
+      else item.removeAttribute("aria-current");
+    });
+  };
+
+  const clearState = () => {
+    storageRemove(popoutKey);
+    storageRemove(popoutSnapshotKey);
+  };
+
+  const setMobileView = (view) => {
+    document.body.dataset.mobileView = view;
+    document.querySelectorAll("button[data-mobile-view]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.mobileView === view));
+    });
+    saveState({ mobileView: view });
+  };
 
   const panelMode = (panel) => {
+    if (panel.classList.contains("collapsed")) return "collapsed";
     if (panel.classList.contains("fullscreen")) return "fullscreen";
-    if (panel.classList.contains("minimized")) return "minimized";
     return "open";
   };
 
   const applyPanelMode = (panel, mode) => {
     panel.classList.toggle("fullscreen", mode === "fullscreen");
-    panel.classList.toggle("minimized", mode === "minimized");
+    panel.classList.toggle("collapsed", mode === "collapsed");
+    document.querySelectorAll("[data-chat-collapse]").forEach((button) => {
+      const label = mode === "collapsed" ? "Expand chat sidebar" : "Collapse chat sidebar";
+      button.setAttribute("aria-expanded", String(mode !== "collapsed"));
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    });
+    mode = ["collapsed", "fullscreen"].includes(mode) ? mode : "open";
     saveState({ mode, threadID: panel.dataset.threadId });
+    updateNavigationSelection();
   };
 
-  const insertPopout = (html, mode = "open") => {
+  const insertPopout = (html, mode = "open", focus = true) => {
     document.getElementById("floating-chat")?.remove();
     document.body.insertAdjacentHTML("beforeend", html);
     const panel = document.getElementById("floating-chat");
     if (!panel) return null;
-    panel.classList.add("no-anim");
     applyPanelMode(panel, mode);
-    void panel.offsetWidth;
-    requestAnimationFrame(() => panel.classList.remove("no-anim"));
     window.htmx?.process(panel);
     initAll(panel);
-    panel.querySelector("[data-chat-input]")?.focus();
+    setMobileView("chat");
+    if (focus && mode !== "collapsed") panel.querySelector("[data-chat-input]")?.focus();
     return panel;
   };
 
   const openPopout = async (url, mode = "open") => {
+    const current = document.getElementById("floating-chat");
+    if (current && url === `/chat/${current.dataset.threadId}/popout`) {
+      applyPanelMode(current, mode);
+      setMobileView("chat");
+      return current;
+    }
     const res = await fetch(url);
     if (!res.ok) {
       showAlert(await res.text());
@@ -79,10 +131,24 @@
     return insertPopout(await res.text(), mode);
   };
 
-  const restorePopout = () => {
+  const restorePopout = async () => {
     const saved = state();
     if (!saved.threadID) return;
-    openPopout(`/chat/${saved.threadID}/popout`, saved.mode || "open");
+    let snapshot;
+    try {
+      snapshot = JSON.parse(storageGet(popoutSnapshotKey));
+    } catch {}
+    if (snapshot?.threadID === saved.threadID && snapshot.html) {
+      const panel = insertPopout(snapshot.html, saved.mode || "open", false);
+      const scroller = panel?.querySelector("[data-chat-scroller]");
+      if (scroller) {
+        scroller.scrollTop = snapshot.scrollTop || 0;
+        scroller.dispatchEvent(new Event("scroll"));
+      }
+    } else {
+      await openPopout(`/chat/${saved.threadID}/popout`, saved.mode || "open");
+    }
+    if (saved.mobileView === "work") setMobileView("work");
   };
 
   const showInboxBehindPopout = (threadID) => {
@@ -207,7 +273,6 @@
     const clearTextDraft = () => storageRemove(draftKey);
 
     const resize = () => {
-      if (input.offsetParent === null) return;
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 200) + "px";
     };
@@ -294,6 +359,7 @@
         strip.replaceChildren();
         requestAnimationFrame(resize);
         form.closest("[data-chat-popout]")?.setAttribute("data-empty", "false");
+        updateNavigationSelection();
       }
     });
     form.addEventListener("submit", () => {
@@ -304,40 +370,6 @@
     });
 
     initCapture(form, input, upload, addDraftFiles, setComposeMode);
-  };
-
-  const initEditableElicit = (form) => {
-    if (form.dataset.elicitEditableInitialized === "true") return;
-    form.dataset.elicitEditableInitialized = "true";
-    const fields = Array.from(form.querySelectorAll("input[name^='f_'], select[name^='f_'], textarea[name^='f_']"));
-    const original = fields.map((field) => ({
-      checked: field.checked,
-      field,
-      value: field.value,
-    }));
-    const lock = () => {
-      form.classList.remove("editing");
-      for (const { checked, field, value } of original) {
-        if ("checked" in field) field.checked = checked;
-        field.value = value;
-        field.disabled = true;
-      }
-    };
-    const unlock = () => {
-      form.classList.add("editing");
-      for (const field of fields) field.disabled = false;
-      fields.find((field) => field.matches("input, select, textarea"))?.focus();
-    };
-    form.addEventListener("click", (e) => {
-      if (!e.target.closest("[data-elicit-edit]") || form.classList.contains("editing")) return;
-      e.preventDefault();
-      unlock();
-    });
-    form.addEventListener("click", (e) => {
-      if (!e.target.closest("[data-elicit-cancel]")) return;
-      e.preventDefault();
-      lock();
-    });
   };
 
   const initCapture = (form, input, upload, addDraftFiles, setComposeMode) => {
@@ -490,7 +522,7 @@
       }
     });
 
-    const toggled = new Map();
+    const toggled = new Map(Array.from(messages.querySelectorAll("details[data-key]"), (details) => [details.dataset.key, details.open]));
     messages.addEventListener("click", (e) => {
       const details = e.target.closest("details[data-key]");
       if (!details || !e.target.closest("summary")) return;
@@ -521,30 +553,30 @@
     scroller.scrollTo(0, scroller.scrollHeight);
   };
 
-  const openPanel = (panel) => {
-    applyPanelMode(panel, "open");
-    panel.querySelectorAll("[data-chat-input]").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
-    const scroller = panel.querySelector("[data-chat-scroller]");
-    if (scroller) requestAnimationFrame(() => scroller.scrollTo(0, scroller.scrollHeight));
-  };
-
   const initPopout = (panel) => {
     if (panel.dataset.chatPanelInitialized === "true") return;
     panel.dataset.chatPanelInitialized = "true";
 
     panel.addEventListener("click", async (e) => {
-      const minimize = e.target.closest("[data-chat-minimize]");
-      if (minimize) {
-        if (panel.classList.contains("minimized")) {
-          openPanel(panel);
-        } else {
-          applyPanelMode(panel, "minimized");
+      const archive = e.target.closest("[data-chat-archive]");
+      if (archive) {
+        if (archive.disabled) return;
+        archive.disabled = true;
+        try {
+          const res = await fetch(archive.dataset.chatArchive, { method: "POST" });
+          if (!res.ok) {
+            showAlert(await res.text());
+            return;
+          }
+          clearState();
+          panel.remove();
+          updateNavigationSelection();
+          location.reload();
+        } catch (err) {
+          showAlert(err.message);
+        } finally {
+          archive.disabled = false;
         }
-        return;
-      }
-      const restore = e.target.closest("[data-chat-restore]");
-      if (restore) {
-        openPanel(panel);
         return;
       }
       const fullscreen = e.target.closest("[data-chat-fullscreen]");
@@ -557,12 +589,11 @@
         const empty = panel.dataset.empty === "true";
         const threadID = panel.dataset.threadId;
         panel.remove();
+        updateNavigationSelection();
         clearState();
+        setMobileView("work");
         if (empty && threadID) await fetch(`/chat/${threadID}`, { method: "DELETE" });
         return;
-      }
-      if (panel.classList.contains("minimized") && e.target.closest(".floating-chat-head")) {
-        openPanel(panel);
       }
     });
   };
@@ -572,22 +603,36 @@
     form.dataset.chatNewInitialized = "true";
     const select = form.querySelector('[name="provider_model"]');
     if (!select) return;
+    const stored = storageGet(providerModelKey);
+    if (stored && Array.from(select.options).some((option) => option.value === stored)) {
+      select.value = stored;
+    }
     select.addEventListener("change", () => storageSet(providerModelKey, select.value));
     form.addEventListener("submit", () => storageSet(providerModelKey, select.value));
   };
 
   const initAll = (root = document) => {
     if (root.matches?.("[data-chat-form]")) initComposer(root);
-    if (root.matches?.(".chat-elicit-editable")) initEditableElicit(root);
     if (root.matches?.("[data-chat-messages]")) initMessages(root);
     if (root.matches?.("[data-chat-popout-new]")) initNewChatAction(root);
     if (root.matches?.("[data-chat-popout]")) initPopout(root);
     root.querySelectorAll("[data-chat-form]").forEach(initComposer);
-    root.querySelectorAll(".chat-elicit-editable").forEach(initEditableElicit);
     root.querySelectorAll("[data-chat-messages]").forEach(initMessages);
     root.querySelectorAll("[data-chat-popout-new]").forEach(initNewChatAction);
     root.querySelectorAll("[data-chat-popout]").forEach(initPopout);
   };
+
+  document.body.addEventListener("htmx:beforeSwap", (e) => {
+    if (!e.detail.target?.matches(".chat-sidebar-chats")) return;
+    const incoming = new DOMParser().parseFromString(e.detail.serverResponse, "text/html").querySelector(".chat-sidebar-chats");
+    if (!incoming) return;
+    const current = e.detail.target.cloneNode(true);
+    current.querySelectorAll(".gm-label").forEach((item) => {
+      item.classList.remove("active", "chat-selected");
+      item.removeAttribute("aria-current");
+    });
+    if (current.innerHTML === incoming.innerHTML) e.detail.shouldSwap = false;
+  });
 
   document.body.addEventListener("htmx:responseError", (e) => {
     showAlert(e.detail.xhr.responseText);
@@ -606,6 +651,33 @@
   });
 
   document.addEventListener("click", async (e) => {
+    const collapse = e.target.closest("[data-chat-collapse]");
+    if (collapse) {
+      const panel = document.getElementById("floating-chat");
+      if (panel) applyPanelMode(panel, panel.classList.contains("collapsed") ? "open" : "collapsed");
+      return;
+    }
+    const viewButton = e.target.closest("button[data-mobile-view], button[data-chat-launcher]");
+    if (viewButton) {
+      const view = viewButton.dataset.mobileView || "chat";
+      if (view === "chat" && !document.getElementById("floating-chat")) {
+        viewButton.disabled = true;
+        try {
+          const form = document.querySelector("[data-chat-popout-new]");
+          const params = new URLSearchParams(form ? new FormData(form) : undefined);
+          await openPopout(`/chat/popout/new?${params.toString()}`);
+        } catch (err) {
+          showAlert(err.message);
+        } finally {
+          viewButton.disabled = false;
+        }
+      } else {
+        document.activeElement?.blur();
+        if (view === "chat") applyPanelMode(document.getElementById("floating-chat"), "open");
+        setMobileView(view);
+      }
+      return;
+    }
     const historyLink = e.target.closest("[data-chat-history]");
     if (historyLink) {
       clearState();
@@ -632,9 +704,37 @@
         if (node.nodeType === 1) initAll(node);
       }
     }
+    updateNavigationSelection();
   }).observe(document.body, { childList: true, subtree: true });
+
+  window.addEventListener("pagehide", () => {
+    const panel = document.getElementById("floating-chat");
+    if (!panel) {
+      storageRemove(popoutSnapshotKey);
+      return;
+    }
+    const snapshot = panel.cloneNode(true);
+    [snapshot, ...snapshot.querySelectorAll("*")].forEach((element) => {
+      delete element.dataset.chatInitialized;
+      delete element.dataset.chatMessagesInitialized;
+      delete element.dataset.chatNewInitialized;
+      delete element.dataset.chatPanelInitialized;
+      element.classList.remove("htmx-request");
+      if (element.hasAttribute("data-disabled-by-htmx")) {
+        element.removeAttribute("disabled");
+        element.removeAttribute("data-disabled-by-htmx");
+      }
+    });
+    storageRemove(popoutSnapshotKey);
+    storageSet(popoutSnapshotKey, JSON.stringify({
+      html: snapshot.outerHTML,
+      scrollTop: panel.querySelector("[data-chat-scroller]")?.scrollTop || 0,
+      threadID: panel.dataset.threadId,
+    }));
+  });
 
   window.scratchChat = { init: initAll, openPopout };
   initAll();
+  updateNavigationSelection();
   restorePopout();
 })();

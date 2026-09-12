@@ -10,9 +10,9 @@ func TestSetupBrowser(t *testing.T) {
 	testkit.RunBrowserCases(t, []testkit.BrowserCase[*testkit.Harness]{
 		{
 			Assert: []testkit.BrowserStep[*testkit.Harness]{
-				testkit.TextContainsStep[*testkit.Harness](".mail-brand", "scratch"),
+				testkit.TextContainsStep[*testkit.Harness](".mail-sidebar [data-new-chat]", "New chat"),
 				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "Setup"),
-				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "Code review"),
+				testkit.TextContainsStep[*testkit.Harness](".mail-labels", "Pages"),
 				testkit.ClassContainsStep[*testkit.Harness](`a[href="/setup"]`, "active"),
 				testkit.TextContainsStep[*testkit.Harness]("#card-install", "Install"),
 				testkit.TextContainsStep[*testkit.Harness]("#card-login", "Sign in"),
@@ -29,7 +29,7 @@ func TestSetupBrowser(t *testing.T) {
 			fake := fakeDeps{}
 			s, err := NewServer(fake.deps())
 			kit.R.NoError(err)
-			return testkit.NewHarnessWithT(t, kit, s.Handler())
+			return testkit.NewHarnessWithT(t, kit, testkit.ShellFixture(s.Handler()))
 		},
 	})
 }

@@ -1,64 +1,67 @@
 package inbox
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/cockroachdb/errors"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
-	"github.com/housecat-inc/scratch/pkg/elicit"
-	"github.com/housecat-inc/scratch/pkg/flow"
 	"github.com/housecat-inc/scratch/pkg/server/httperr"
 	"github.com/housecat-inc/scratch/pkg/server/logging"
 	"github.com/housecat-inc/scratch/pkg/todo"
 	"github.com/housecat-inc/scratch/pkg/ui"
+	"github.com/housecat-inc/scratch/pkg/workflow"
 )
 
 type Server struct {
-	chat     *chat.Service
-	contacts db.ContactStore
-	flows    *flow.Engine
-	log      *slog.Logger
-	tasks    *todo.Service
+	pageMu      sync.Mutex
+	pages       db.PageStore
+	scheduleIDs map[int64]string
+	workflows   *workflow.Workflows
+	chat        *chat.Service
+	log         *slog.Logger
+	tasks       *todo.Service
 }
 
-func NewServer(tasks *todo.Service, chat *chat.Service, flows *flow.Engine, log *slog.Logger) *Server {
+func NewServer(tasks *todo.Service, chat *chat.Service, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Server{chat: chat, flows: flows, log: log, tasks: tasks}
-}
-
-func (s *Server) SetContacts(contacts db.ContactStore) {
-	s.contacts = contacts
+	return &Server{chat: chat, log: log, tasks: tasks}
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
-	mux.HandleFunc("GET /{$}", s.handleInbox)
+	mux.HandleFunc("GET /{$}", s.handleHome)
+	mux.HandleFunc("GET /pages", s.handlePages)
+	mux.HandleFunc("GET /pages/new", s.handlePageWizard)
+	mux.HandleFunc("POST /pages/new", s.handlePageWizardSubmit)
+	mux.HandleFunc("GET /pages/{page}", s.handlePage)
+	mux.HandleFunc("POST /pages/{page}/pin", s.handlePagePin)
+	mux.HandleFunc("POST /pages/{page}/home", s.handlePageHome)
+	mux.HandleFunc("POST /pages/{page}/chat", s.handlePageChat)
 	mux.HandleFunc("GET /inbox", s.handleInbox)
 	mux.HandleFunc("GET /inbox/chats", s.handleChats)
 	mux.HandleFunc("GET /inbox/chats/new", s.handleNewChat)
 	mux.HandleFunc("GET /inbox/tasks", s.handleTasks)
 	mux.HandleFunc("GET /inbox/workflows", s.handleWorkflows)
+	mux.HandleFunc("GET /inbox/workflows/running-count", s.handleRunningWorkflowCount)
+	mux.HandleFunc("GET /inbox/workflows/new", s.handleWorkflowWizard)
+	mux.HandleFunc("POST /inbox/workflows/new", s.handleWorkflowWizardSubmit)
+	mux.HandleFunc("POST /inbox/workflows/{id}/schedule/{action}", s.handleScheduleAction)
 	mux.HandleFunc("GET /starred", s.handleStarred)
 	mux.HandleFunc("GET /inbox/chats/{id}", s.handleChat)
 	mux.HandleFunc("GET /inbox/tasks/{id}", s.handleTask)
-	mux.HandleFunc("GET /inbox/schedules/{name}", s.handleSchedule)
 	mux.HandleFunc("GET /inbox/workflows/{id}", s.handleWorkflow)
-	mux.HandleFunc("GET /inbox/workflows/{id}/events", s.handleWorkflowEvents)
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
@@ -69,18 +72,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /inbox/tasks/{id}/star", s.handleStarTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/trash", s.handleTrashTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}", s.handleUpdateTask)
-	mux.HandleFunc("POST /inbox/schedules/{name}/pause", s.handlePauseSchedule)
-	mux.HandleFunc("POST /inbox/schedules/{name}/resume", s.handleResumeSchedule)
-	mux.HandleFunc("POST /inbox/schedules/{name}/trigger", s.handleTriggerSchedule)
 	mux.HandleFunc("POST /inbox/workflows/{id}/archive", s.handleArchiveThread)
-	mux.HandleFunc("POST /inbox/workflows/{id}/cancel", s.handleCancelWorkflow)
-	mux.HandleFunc("POST /inbox/workflows/{id}/edit", s.handleEditWorkflow)
-	mux.HandleFunc("POST /inbox/workflows/{id}/fork", s.handleForkWorkflow)
-	mux.HandleFunc("POST /inbox/workflows/{id}/resolve", s.handleResolveWorkflow)
-	mux.HandleFunc("POST /inbox/workflows/{id}/resume", s.handleResumeWorkflow)
 	mux.HandleFunc("POST /inbox/workflows/{id}/star", s.handleStarThread)
+	mux.HandleFunc("POST /inbox/workflows/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/workflows/{id}/trash", s.handleTrashThread)
-	mux.HandleFunc("POST /webhooks/{id}", s.handleWebhook)
 	return logging.Middleware(s.log, mux)
 }
 
@@ -152,6 +147,12 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request) {
 		Model: model,
 		Title: "New chat",
 	}
+	if r.URL.Query().Get("intent") == "page" {
+		props.Draft.Title = "Build a new page"
+	}
+	if r.URL.Query().Get("intent") == "workflow" {
+		props.Draft.Title = "Build a new workflow"
+	}
 	s.render(w, r, ui.InboxPage(props))
 }
 
@@ -164,9 +165,10 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		model = chatModel(agent, model)
 	}
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
-	mode := resolveComposeMode(strings.TrimSpace(r.FormValue("mode")))
+	mode := strings.TrimSpace(r.FormValue("mode"))
 	createOnly := r.FormValue("create_only") == "true"
 	hasFiles := composeHasFiles(r)
+	mode, prompt = resolveComposeMode(mode, prompt, r.FormValue("view"), hasFiles)
 	if prompt == "" && !createOnly && !hasFiles {
 		s.redirectBack(w, r)
 		return
@@ -183,17 +185,26 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, "/inbox/tasks/"+strconv.FormatInt(task.ID, 10), http.StatusSeeOther)
 	case "workflow":
-		workflowType := workflowAgent(r.FormValue("workflow_type"))
-		thread, workflowID, err := s.chat.CreateWorkflowThread(workflowType, workflowTitle(workflowType))
+
+		thread, err := s.chat.CreateThread(workflowAgent(r.FormValue("workflow_type")), createTitle(prompt, "New workflow", createOnly))
 		if err != nil {
 			s.fail(w, err)
 			return
 		}
-		if err := s.flows.Start(workflowType, workflowID); err != nil {
+		attachmentIDs, err := s.composeAttachments(r, thread.ID)
+		if err != nil {
 			s.fail(w, err)
 			return
 		}
-		s.flows.Await(workflowID, 2*time.Second)
+		if (prompt != "" || len(attachmentIDs) > 0) && !createOnly {
+			if prompt == "" {
+				prompt = "See attached files."
+			}
+			if _, err := s.chat.Send(thread.ID, prompt, attachmentIDs...); err != nil {
+				s.fail(w, err)
+				return
+			}
+		}
 		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
 	default:
 		thread, err := s.chat.CreateThreadWithModel(agent, model, createTitle(prompt, "New chat", createOnly))
@@ -319,17 +330,11 @@ func (s *Server) handleTrashThread(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	thread, err := s.chat.Thread(id)
-	if err != nil {
-		s.notFoundOr(w, err)
+	if s.scheduleIDs[id] != "" && s.workflows != nil {
+		http.Error(w, "Pause and archive this scheduled workflow instead of deleting its run history.", http.StatusConflict)
 		return
 	}
-	if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
-		if err := s.flows.Cancel(workflowID); err != nil {
-			s.log.Warn("cancel workflow before trash", "id", workflowID, "err", err)
-		}
-	}
-	if err := s.chat.TrashThread(id); err != nil {
+	if err := s.chat.DeleteThread(id); err != nil {
 		s.notFoundOr(w, err)
 		return
 	}
@@ -375,146 +380,6 @@ func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "workflows", ui.InboxSelection{})
 }
 
-const workflowEventInterval = 400 * time.Millisecond
-
-func (s *Server) handleWorkflowEvents(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-	thread, err := s.chat.Thread(id)
-	if err != nil {
-		s.notFoundOr(w, err)
-		return
-	}
-	if s.chat.ThreadWorkflowID(thread) == "" {
-		http.Error(w, "not a workflow", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Content-Type", "text/event-stream")
-
-	after, _ := strconv.Atoi(r.URL.Query().Get("after"))
-	if last, err := strconv.Atoi(r.Header.Get("Last-Event-ID")); err == nil && last > after {
-		after = last
-	}
-
-	ticker := time.NewTicker(workflowEventInterval)
-	defer ticker.Stop()
-
-	ctx := r.Context()
-	var lastStatus, lastPending string
-	for {
-		detail, err := s.workflowDetail(id)
-		if err != nil {
-			return
-		}
-		if err := s.writeWorkflowChanged(w, ctx, "status", ui.WorkflowStatus(detail), &lastStatus); err != nil {
-			return
-		}
-		for _, item := range detail.Items {
-			if !item.Durable || item.ID <= after {
-				continue
-			}
-			if err := s.writeWorkflowEvent(w, ctx, "step", strconv.Itoa(item.ID), ui.WorkflowStep(item)); err != nil {
-				return
-			}
-			after = item.ID
-		}
-		if err := s.writeWorkflowChanged(w, ctx, "pending", ui.WorkflowPending(detail), &lastPending); err != nil {
-			return
-		}
-		flusher.Flush()
-		if !detail.Running {
-			fmt.Fprint(w, "event: done\ndata: done\n\n")
-			flusher.Flush()
-			return
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
-func (s *Server) writeWorkflowChanged(w io.Writer, ctx context.Context, event string, comp templ.Component, last *string) error {
-	var buf bytes.Buffer
-	if err := comp.Render(ctx, &buf); err != nil {
-		return err
-	}
-	if buf.String() == *last {
-		return nil
-	}
-	*last = buf.String()
-	return writeWorkflowSSE(w, event, "", buf.String())
-}
-
-func (s *Server) writeWorkflowEvent(w io.Writer, ctx context.Context, event, id string, comp templ.Component) error {
-	var buf bytes.Buffer
-	if err := comp.Render(ctx, &buf); err != nil {
-		return err
-	}
-	return writeWorkflowSSE(w, event, id, buf.String())
-}
-
-func writeWorkflowSSE(w io.Writer, event, id, html string) error {
-	if id != "" {
-		if _, err := fmt.Fprintf(w, "id: %s\n", id); err != nil {
-			return err
-		}
-	}
-	if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
-		return err
-	}
-	for line := range strings.SplitSeq(strings.ReplaceAll(html, "\r", ""), "\n") {
-		if _, err := fmt.Fprintf(w, "data: %s\n", line); err != nil {
-			return err
-		}
-	}
-	_, err := fmt.Fprint(w, "\n")
-	return err
-}
-
-func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
-	s.renderPage(w, r, "workflows", ui.InboxSelection{Kind: "schedule", Name: r.PathValue("name")})
-}
-
-func (s *Server) handleCancelWorkflow(w http.ResponseWriter, r *http.Request) {
-	s.workflowLifecycle(w, r, s.flows.Cancel)
-}
-
-func (s *Server) handleResumeWorkflow(w http.ResponseWriter, r *http.Request) {
-	s.workflowLifecycle(w, r, s.flows.Resume)
-}
-
-func (s *Server) workflowLifecycle(w http.ResponseWriter, r *http.Request, action func(string) error) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	thread, err := s.chat.Thread(id)
-	if err != nil {
-		s.notFoundOr(w, err)
-		return
-	}
-	workflowID := s.chat.ThreadWorkflowID(thread)
-	if workflowID == "" {
-		http.Error(w, "not a workflow", http.StatusNotFound)
-		return
-	}
-	if err := action(workflowID); err != nil {
-		s.fail(w, err)
-		return
-	}
-	s.redirectBack(w, r)
-}
-
 func composeHasFiles(r *http.Request) bool {
 	if r.MultipartForm == nil {
 		return false
@@ -557,7 +422,7 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
-	if db.IsTaskNotFound(err) || db.IsThreadNotFound(err) || errors.Is(err, flow.ErrScheduleNotFound) {
+	if db.IsTaskNotFound(err) || db.IsThreadNotFound(err) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -603,12 +468,18 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 		Items:         items,
 		View:          view,
 	}
-	if view == "workflows" {
-		schedules, err := s.schedules()
+	if s.pages != nil {
+		props.Pages, err = s.pages.ListPages()
 		if err != nil {
 			return ui.InboxProps{}, err
 		}
-		props.Schedules = schedules
+		for _, page := range props.Pages {
+			if selected.Kind == "chat" && page.ThreadID == selected.ID {
+				p := page
+				props.Page = &p
+				break
+			}
+		}
 	}
 	props.Selected = selected
 	if selected.Kind == "" {
@@ -621,24 +492,38 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 			return ui.InboxProps{}, err
 		}
 		props.Task = &detail
-	case "chat":
+	case "chat", "workflow":
+		if s.scheduleIDs[selected.ID] != "" && s.workflows != nil {
+			detail, err := s.scheduleDetail(selected.ID)
+			if err != nil {
+				return ui.InboxProps{}, err
+			}
+			props.Schedule = &detail
+			return props, nil
+		}
 		detail, err := s.chatDetail(selected.ID, selected.Kind)
 		if err != nil {
 			return ui.InboxProps{}, err
 		}
+		if selected.Kind == "workflow" && s.workflows != nil {
+			fields := s.workflows.RunSchema("contact-intake")
+			for _, field := range fields {
+				detail.RunColumns = append(detail.RunColumns, field.Label)
+			}
+			var ids []string
+			for _, message := range detail.Messages {
+				ids = append(ids, fmt.Sprintf("chat-message-%d", message.ID))
+			}
+			runs, err := s.workflows.RunsByID(ids)
+			if err != nil {
+				return ui.InboxProps{}, err
+			}
+			for _, run := range runs {
+				summary := workflow.SummarizeRun(run, fields)
+				detail.Runs = append(detail.Runs, ui.InboxScheduleRun{At: run.CreatedAt.UTC().Format("Jan 2, 2006 at 15:04 UTC"), Cells: summary.Cells, ID: run.ID, Status: summary.Status})
+			}
+		}
 		props.Thread = &detail
-	case "workflow":
-		detail, err := s.workflowDetail(selected.ID)
-		if err != nil {
-			return ui.InboxProps{}, err
-		}
-		props.Workflow = &detail
-	case "schedule":
-		detail, err := s.scheduleDetail(selected.Name)
-		if err != nil {
-			return ui.InboxProps{}, err
-		}
-		props.Schedule = &detail
 	}
 	return props, nil
 }
@@ -653,6 +538,12 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 		return nil, ui.InboxCounts{}, errors.Wrap(err, "list threads")
 	}
 	counts := ui.InboxCounts{}
+	if s.workflows != nil {
+		counts.Workflows, err = s.workflows.RunningCount()
+		if err != nil {
+			return nil, counts, err
+		}
+	}
 	all := make([]ui.InboxItem, 0, len(tasks)+len(threads))
 	for _, task := range tasks {
 		item := taskItem(task)
@@ -662,22 +553,30 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 		}
 	}
 	for _, thread := range threads {
-		if workflowID := s.chat.ThreadWorkflowID(thread); workflowID != "" {
-			status, _ := s.flows.Status(workflowID)
-			item := threadItem(thread, "workflow", "", workflowStatusSnippet(status))
-			item.Status = status
-			addCounts(&counts, item)
-			if includeItem(view, filter, item) {
-				all = append(all, item)
-			}
-			continue
-		}
+		kind := "chat"
 		agent := s.chat.AgentName(thread)
+		if isWorkflowAgent(agent) {
+			kind = "workflow"
+		}
 		prompt, err := s.threadPrompt(thread.ID)
 		if err != nil {
 			return nil, ui.InboxCounts{}, errors.Wrap(err, "first thread prompt")
 		}
-		item := threadItem(thread, "chat", agent, prompt)
+		item := threadItem(thread, kind, agent, prompt)
+		if s.scheduleIDs[thread.ID] != "" && s.workflows != nil {
+			schedule, _, err := s.workflows.ScheduleStatus(s.scheduleIDs[thread.ID])
+			if err != nil {
+				return nil, counts, err
+			}
+			if schedule == nil {
+				return nil, counts, errors.New("workflow schedule missing")
+			}
+			label, err := describeSchedule(schedule.Schedule, schedule.CronTimezone)
+			if err != nil {
+				return nil, counts, err
+			}
+			item.Snippet = label + " · " + string(schedule.Status)
+		}
 		addCounts(&counts, item)
 		if includeItem(view, filter, item) {
 			all = append(all, item)
@@ -716,371 +615,10 @@ func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error)
 		Kind:        kind,
 		Messages:    messages,
 		Starred:     view.Thread.Starred,
+		Steps:       workflowSteps(agent),
 		Streaming:   view.Streaming,
 		Title:       title,
 	}, nil
-}
-
-func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
-	thread, err := s.chat.Thread(id)
-	if err != nil {
-		return ui.InboxWorkflowDetail{}, err
-	}
-	workflowID := s.chat.ThreadWorkflowID(thread)
-	run, err := s.flows.Run(workflowID)
-	if errors.Is(err, flow.ErrRunNotFound) {
-		run = flow.RunView{ID: workflowID, Status: "PENDING"}
-	} else if err != nil {
-		return ui.InboxWorkflowDetail{}, err
-	}
-	title := thread.Title
-	if title == "" {
-		title = "New workflow"
-	}
-	detail := ui.InboxWorkflowDetail{
-		Archived: thread.State == db.ThreadStateArchived,
-		Awaiting: run.Blocked,
-		ID:       id,
-		Running:  run.Running(),
-		Starred:  thread.Starred,
-		Status:   run.Status,
-		Title:    title,
-	}
-	for _, step := range run.Steps {
-		detail.Items = append(detail.Items, s.workflowItemProps(id, step))
-	}
-	return detail, nil
-}
-
-func (s *Server) scheduleDetail(name string) (ui.InboxScheduleDetail, error) {
-	schedules, err := s.schedules()
-	if err != nil {
-		return ui.InboxScheduleDetail{}, err
-	}
-	var schedule ui.WorkflowScheduleView
-	found := false
-	for _, sc := range schedules {
-		if sc.Name == name {
-			schedule = sc
-			found = true
-			break
-		}
-	}
-	if !found {
-		return ui.InboxScheduleDetail{}, flow.ErrScheduleNotFound
-	}
-	runs, err := s.flows.ScheduleRuns(name)
-	if err != nil {
-		return ui.InboxScheduleDetail{}, err
-	}
-	detail := ui.InboxScheduleDetail{
-		Cron:      schedule.Cron,
-		LastFired: schedule.LastFired,
-		Name:      schedule.Name,
-		Paused:    schedule.Paused,
-		Status:    schedule.Status,
-	}
-	for _, run := range runs {
-		item := ui.ScheduleRunProps{
-			CreatedAt: run.CreatedAt,
-			ID:        run.ID,
-			Status:    run.Status,
-		}
-		for _, step := range run.Steps {
-			item.Items = append(item.Items, s.workflowItemProps(0, step))
-		}
-		detail.Runs = append(detail.Runs, item)
-	}
-	return detail, nil
-}
-
-func (s *Server) workflowItemProps(threadID int64, step flow.StepView) ui.WorkflowItemProps {
-	item := ui.WorkflowItemProps{
-		Answer:   step.Answer,
-		Copy:     step.Copy,
-		Detail:   step.Detail,
-		Durable:  step.Durable,
-		Duration: step.Duration,
-		Failed:   step.Failed,
-		ID:       step.ID,
-		Input:    step.Input,
-		Kind:     step.Kind,
-		Running:  step.Status == flow.StepRunning,
-		Summary:  step.Summary,
-		Title:    step.Title,
-	}
-	if threadID == 0 || step.Kind != flow.KindForm || step.Form == nil {
-		return item
-	}
-	form := chat.FormProps(fmt.Sprintf("/inbox/workflows/%d/resolve", threadID), *step.Form)
-	form.HideMessage = true
-	if step.Pending {
-		form.Plain = true
-	} else {
-		form.Action = fmt.Sprintf("/inbox/workflows/%d/edit", threadID)
-		form.Editable = true
-		form.ForkAction = fmt.Sprintf("/inbox/workflows/%d/fork", threadID)
-		for i := range form.Fields {
-			if v, ok := step.Values[form.Fields[i].Name]; ok {
-				form.Fields[i].Value = v
-			}
-		}
-		s.setContactFieldLabels(&form)
-	}
-	item.Form = &form
-	return item
-}
-
-func (s *Server) setContactFieldLabels(form *ui.ChatFormProps) {
-	if s.contacts == nil {
-		return
-	}
-	for i := range form.Fields {
-		if form.Fields[i].Type != "contact" {
-			continue
-		}
-		form.Fields[i].ValueLabel = ui.ContactValueLabel(s.contacts, form.Fields[i].Value)
-	}
-}
-
-func (s *Server) schedules() ([]ui.WorkflowScheduleView, error) {
-	schedules, err := s.flows.Schedules()
-	if err != nil {
-		return nil, err
-	}
-	views := make([]ui.WorkflowScheduleView, 0, len(schedules))
-	for _, sc := range schedules {
-		views = append(views, ui.WorkflowScheduleView{
-			Cron:      sc.Cron,
-			LastFired: scheduleLastFired(sc.LastFiredAt),
-			Name:      sc.Name,
-			Paused:    sc.Paused,
-			Status:    sc.Status,
-		})
-	}
-	return views, nil
-}
-
-func workflowStatusSnippet(status string) string {
-	switch status {
-	case "":
-		return ""
-	case "SUCCESS":
-		return "Completed"
-	case "ERROR":
-		return "Failed"
-	case "CANCELLED":
-		return "Cancelled"
-	default:
-		return "Running"
-	}
-}
-
-func (s *Server) handleResolveWorkflow(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	thread, err := s.chat.Thread(id)
-	if err != nil {
-		s.notFoundOr(w, err)
-		return
-	}
-	workflowID := s.chat.ThreadWorkflowID(thread)
-	if workflowID == "" {
-		http.Error(w, "not a workflow", http.StatusNotFound)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
-		return
-	}
-	action := r.PostForm.Get("action")
-	elicitationID := r.PostForm.Get("elicitation_id")
-	values := formValues(r)
-	err = s.flows.Resolve(workflowID, elicitationID, action, values)
-	switch {
-	case err == nil, errors.Is(err, flow.ErrFormResolved):
-		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
-	case errors.Is(err, flow.ErrFormStale):
-		if !s.recoverStaleWorkflowForm(w, id, workflowID, elicitationID, action, values) {
-			return
-		}
-		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
-	case elicit.IsInvalid(err):
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-	case errors.Is(err, flow.ErrFormNotFound):
-		http.Error(w, "form not found", http.StatusNotFound)
-	default:
-		s.fail(w, err)
-	}
-}
-
-func (s *Server) recoverStaleWorkflowForm(w http.ResponseWriter, threadID int64, workflowID, elicitationID, action string, values map[string]string) bool {
-	forkedID, err := s.flows.EditForm(workflowID, elicitationID, action, values)
-	switch {
-	case err == nil:
-	case elicit.IsInvalid(err):
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-		return false
-	case errors.Is(err, flow.ErrFormNotFound):
-		http.Error(w, "form not found", http.StatusNotFound)
-		return false
-	default:
-		s.fail(w, err)
-		return false
-	}
-	if err := s.flows.Cancel(workflowID); err != nil {
-		s.log.Warn("cancel stale workflow", "id", workflowID, "err", err)
-	}
-	if err := s.chat.SetThreadWorkflowID(threadID, forkedID); err != nil {
-		s.fail(w, err)
-		return false
-	}
-	return true
-}
-
-func (s *Server) handleEditWorkflow(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	thread, err := s.chat.Thread(id)
-	if err != nil {
-		s.notFoundOr(w, err)
-		return
-	}
-	workflowID := s.chat.ThreadWorkflowID(thread)
-	if workflowID == "" {
-		http.Error(w, "not a workflow", http.StatusNotFound)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
-		return
-	}
-	forkedID, err := s.flows.EditForm(workflowID, r.PostForm.Get("elicitation_id"), elicit.ActionAccept, formValues(r))
-	switch {
-	case err == nil:
-	case elicit.IsInvalid(err):
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-		return
-	case errors.Is(err, flow.ErrFormNotFound):
-		http.Error(w, "form not found", http.StatusNotFound)
-		return
-	default:
-		s.fail(w, err)
-		return
-	}
-	if err := s.flows.Cancel(workflowID); err != nil {
-		s.log.Warn("cancel superseded workflow", "id", workflowID, "err", err)
-	}
-	if err := s.chat.SetThreadWorkflowID(id, forkedID); err != nil {
-		s.fail(w, err)
-		return
-	}
-	http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
-}
-
-func (s *Server) handleForkWorkflow(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	thread, err := s.chat.Thread(id)
-	if err != nil {
-		s.notFoundOr(w, err)
-		return
-	}
-	workflowID := s.chat.ThreadWorkflowID(thread)
-	if workflowID == "" {
-		http.Error(w, "not a workflow", http.StatusNotFound)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
-		return
-	}
-	forkedID, err := s.flows.Fork(workflowID, r.PostForm.Get("elicitation_id"))
-	switch {
-	case err == nil:
-	case errors.Is(err, flow.ErrFormNotFound):
-		http.Error(w, "form not found", http.StatusNotFound)
-		return
-	default:
-		s.fail(w, err)
-		return
-	}
-	forked, err := s.chat.CreateForkedWorkflowThread(s.chat.WorkflowName(thread), forkedID, forkTitle(thread.Title))
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	s.flows.Await(forkedID, 2*time.Second)
-	http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(forked.ID, 10), http.StatusSeeOther)
-}
-
-const maxWebhookBody = 64 << 10
-
-func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
-	var payload flow.WebhookPayload
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxWebhookBody)).Decode(&payload); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
-		return
-	}
-	if err := s.flows.DeliverWebhook(r.PathValue("id"), payload, r.Header.Get("Idempotency-Key")); err != nil {
-		if errors.Is(err, flow.ErrRunNotFound) {
-			http.Error(w, "workflow not found", http.StatusNotFound)
-			return
-		}
-		s.fail(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusAccepted)
-}
-
-func (s *Server) handlePauseSchedule(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	if err := s.flows.PauseSchedule(name); err != nil {
-		s.fail(w, err)
-		return
-	}
-	s.redirectBack(w, r)
-}
-
-func (s *Server) handleResumeSchedule(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	if err := s.flows.ResumeSchedule(name); err != nil {
-		s.fail(w, err)
-		return
-	}
-	s.redirectBack(w, r)
-}
-
-func (s *Server) handleTriggerSchedule(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	if _, err := s.flows.TriggerSchedule(name); err != nil {
-		s.fail(w, err)
-		return
-	}
-	s.redirectBack(w, r)
-}
-
-func formValues(r *http.Request) map[string]string {
-	values := map[string]string{}
-	for key := range r.PostForm {
-		if name, ok := strings.CutPrefix(key, "f_"); ok {
-			values[name] = r.PostForm.Get(key)
-		}
-	}
-	return values
-}
-
-func forkTitle(title string) string {
-	if strings.TrimSpace(title) == "" {
-		title = "Workflow"
-	}
-	return title + " (fork)"
 }
 
 func (s *Server) taskDetail(id int64) (ui.InboxTaskDetail, error) {
@@ -1105,8 +643,23 @@ func addCounts(counts *ui.InboxCounts, item ui.InboxItem) {
 		counts.Chats++
 	case "task":
 		counts.Tasks++
-	case "workflow":
-		counts.Workflows++
+	}
+}
+
+func (s *Server) handleRunningWorkflowCount(w http.ResponseWriter, r *http.Request) {
+	count := 0
+	if s.workflows != nil {
+		var err error
+		count, err = s.workflows.RunningCount()
+		if err != nil {
+			httperr.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if count > 0 {
+		fmt.Fprint(w, count)
 	}
 }
 
@@ -1118,7 +671,10 @@ func archiveFilter(view, filter string) string {
 	case "active", "archived":
 		return filter
 	default:
-		return "all"
+		if view == "tasks" {
+			return "all"
+		}
+		return "active"
 	}
 }
 
@@ -1159,13 +715,17 @@ func includeTaskFilter(filter string, item ui.InboxItem) bool {
 	}
 }
 
+func isWorkflowAgent(agent string) bool {
+	return agent == "contact" || strings.HasPrefix(agent, "workflow")
+}
+
 func chatAgent(agent string, agents []string) string {
 	agent = strings.TrimSpace(agent)
-	if agent == "" {
+	if agent == "" || isWorkflowAgent(agent) {
 		return ""
 	}
 	for _, known := range agents {
-		if agent == known {
+		if agent == known && !isWorkflowAgent(known) {
 			return agent
 		}
 	}
@@ -1175,7 +735,7 @@ func chatAgent(agent string, agents []string) string {
 func chatAgentOptions(agents []string) []string {
 	out := make([]string, 0, len(agents))
 	for _, agent := range agents {
-		if agent == "" {
+		if agent == "" || isWorkflowAgent(agent) {
 			continue
 		}
 		out = append(out, agent)
@@ -1189,47 +749,10 @@ func chatModel(agent, model string) string {
 
 func workflowAgent(typ string) string {
 	switch strings.TrimSpace(typ) {
-	case "contact-note":
-		return "contact-note"
-	case "countdown":
-		return "countdown"
-	case "create-pr":
-		return "create-pr"
-	case "deploy":
-		return "deploy"
-	case "fan-out":
-		return "fan-out"
-	case "stream":
-		return "stream"
-	case "update-claude":
-		return "update-claude"
-	case "webhook":
-		return "webhook"
+	case "", "contact":
+		return "contact"
 	default:
-		return "greet"
-	}
-}
-
-func workflowTitle(typ string) string {
-	switch typ {
-	case "contact-note":
-		return "Contact note"
-	case "countdown":
-		return "Countdown"
-	case "create-pr":
-		return "Create pull request"
-	case "deploy":
-		return "Deploy"
-	case "fan-out":
-		return "Parallel jobs"
-	case "stream":
-		return "Log stream"
-	case "update-claude":
-		return "Update Claude Code"
-	case "webhook":
-		return "Webhook"
-	default:
-		return "Greet"
+		return "contact"
 	}
 }
 
@@ -1249,13 +772,26 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
-func resolveComposeMode(mode string) string {
-	switch mode {
-	case "task", "workflow":
-		return mode
-	default:
-		return "chat"
+func resolveComposeMode(mode, prompt, view string, hasFiles bool) (string, string) {
+	if mode == "auto" || mode == "" {
+		for _, prefix := range []string{"chat", "task", "workflow"} {
+			if rest, ok := strings.CutPrefix(strings.ToLower(prompt), prefix+":"); ok {
+				return prefix, strings.TrimSpace(prompt[len(prompt)-len(rest):])
+			}
+		}
+		if hasFiles {
+			return "chat", prompt
+		}
+		switch view {
+		case "tasks":
+			return "task", prompt
+		case "workflows":
+			return "workflow", prompt
+		default:
+			return "chat", prompt
+		}
 	}
+	return mode, prompt
 }
 
 func taskItem(task db.Task) ui.InboxItem {
@@ -1318,13 +854,6 @@ func titleKindPath(kind string) string {
 		return "tasks"
 	}
 	return "chats"
-}
-
-func scheduleLastFired(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return "last at " + when(t)
 }
 
 func when(t time.Time) string {

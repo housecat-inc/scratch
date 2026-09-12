@@ -15,7 +15,7 @@ import (
 const (
 	BrowserOperationTimeout = 5 * time.Second
 	BrowserPollInterval     = 50 * time.Millisecond
-	BrowserSessionTimeout   = 60 * time.Second
+	BrowserSessionTimeout   = 30 * time.Second
 	BrowserWaitTimeout      = 5 * time.Second
 )
 
@@ -43,16 +43,21 @@ func NewHarnessWithT(t *testing.T, kit *T, handler http.Handler) *Harness {
 	server := httptest.NewServer(handler)
 	ctx, cancel := context.WithTimeout(t.Context(), BrowserSessionTimeout)
 
-	controlURL := launcher.New().
+	launch := launcher.New().
 		Headless(true).
 		NoSandbox(true).
-		MustLaunch()
-	browser := rod.New().Context(ctx).ControlURL(controlURL).MustConnect()
-	page := browser.MustPage().Context(ctx)
+		UserDataDir(t.TempDir())
+	controlURL := launch.MustLaunch()
+	t.Cleanup(func() {
+		launch.Kill()
+		launch.Cleanup()
+	})
+	browser := rod.New().Context(ctx).ControlURL(controlURL).Timeout(BrowserOperationTimeout).MustConnect()
+	page := browser.MustPage().Context(ctx).Timeout(BrowserOperationTimeout)
 
 	t.Cleanup(func() {
 		_ = page.Close()
-		_ = browser.Close()
+		_ = browser.Context(context.Background()).Timeout(2 * time.Second).Close()
 		cancel()
 		server.Close()
 	})
@@ -92,10 +97,6 @@ func (h *Harness) ElementTextContains(selector string, expected string) {
 
 func (h *Harness) ElementVisible(selector string) {
 	h.T.ElementVisible(h.Page, selector)
-}
-
-func (h *Harness) Fill(selector string, text string) {
-	h.T.Fill(h.Page, selector, text)
 }
 
 func (h *Harness) Load(path string) {

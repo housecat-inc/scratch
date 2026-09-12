@@ -12,42 +12,20 @@ import (
 var chatCSS string
 
 type ChatFormFieldProps struct {
-	Label      string
-	Name       string
-	Options    []string
-	Required   bool
-	Type       string
-	Value      string
-	ValueLabel string
+	Label    string
+	Name     string
+	Options  []string
+	Required bool
+	Type     string
+	Value    string
 }
 
 type ChatFormProps struct {
-	AcceptLabel   string
 	Action        string
-	DeclineLabel  string
-	Disabled      bool
-	Editable      bool
 	ElicitationID string
 	Fields        []ChatFormFieldProps
-	ForkAction    string
-	HideMessage   bool
 	Message       string
 	MessageID     int64
-	Plain         bool
-}
-
-func acceptLabel(f ChatFormProps) string {
-	if f.AcceptLabel != "" {
-		return f.AcceptLabel
-	}
-	return "Accept"
-}
-
-func declineLabel(f ChatFormProps) string {
-	if f.DeclineLabel != "" {
-		return f.DeclineLabel
-	}
-	return "Decline"
 }
 
 type ChatAttachmentProps struct {
@@ -101,7 +79,6 @@ type chatRowProps struct {
 	Kind    string
 	Label   string
 	Live    bool
-	Shimmer bool
 	Summary string
 }
 
@@ -134,9 +111,21 @@ type ChatThreadProps struct {
 	Title    string
 }
 
+type ChatSidebarItem struct {
+	ID    int64
+	Title string
+}
+
+type ChatSidebarProps struct {
+	ID      int64
+	Recent  []ChatSidebarItem
+	Running []ChatSidebarItem
+}
+
 type FloatingChatProps struct {
 	Access      string
 	Agent       string
+	Archived    bool
 	Description string
 	ID          int64
 	Messages    []ChatMessageProps

@@ -5,11 +5,11 @@ import (
 
 	"github.com/templui/templui/components/button"
 	"github.com/templui/templui/components/card"
-	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ SetupPage(v SessionsProps) {
-	@Layout("Setup", "setup", v.Shell) {
+	@Layout("Setup", "setup") {
+		<a href="/getting-started" class="text-sm underline">New to Scratch? Get started →</a>
 		<div class="setup-list">
 			<div class="setup-group-title">Claude Code</div>
 			@InstallCard(v)
@@ -24,7 +24,7 @@ templ SetupPage(v SessionsProps) {
 }
 
 templ SessionsPage(v SessionsProps) {
-	@Layout("Sessions", "sessions", v.Shell) {
+	@Layout("Sessions", "sessions") {
 		@SessionsCard(v)
 	}
 }
@@ -282,11 +282,11 @@ templ SessionsCard(v SessionsProps) {
 						}
 					}
 					@card.Content() {
-						<fieldset class="space-y-4 p-0 m-0 border-0 min-w-0">
+						<fieldset class="space-y-4 p-0 m-0 border-0">
 							<div class="space-y-2">
 								<label class="block text-sm font-medium text-foreground">Working directory</label>
 								<div class="flex items-center gap-2">
-									<span id="dir-text" class="flex-1 min-w-0 font-mono text-sm text-foreground truncate bg-muted px-3 py-2 border border-border rounded-md">{ v.SessionDir }</span>
+									<span id="dir-text" class="flex-1 font-mono text-sm text-foreground truncate bg-muted px-3 py-2 border border-border rounded-md">{ v.SessionDir }</span>
 									@button.Button(button.Props{
 										Variant: button.VariantOutline,
 										Type:    button.TypeButton,
@@ -311,7 +311,10 @@ templ SessionsCard(v SessionsProps) {
 					}
 					@card.Footer(card.FooterProps{Class: "justify-end gap-2"}) {
 						<span class="session-spinner items-center gap-1.5 text-xs text-muted-foreground">
-							@lucide.LoaderCircle(templ.Attributes{"class": "w-3 h-3"})
+							<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+								<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-opacity="0.25"></circle>
+								<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+							</svg>
 							<span>Starting session…</span>
 						</span>
 						@button.Button(button.Props{Type: button.TypeSubmit}) {

@@ -1,0 +1,28 @@
+package ui
+
+import "strconv"
+
+type guidedStep struct {
+	href string
+	label string
+}
+
+templ guidedProgress(label string, steps []guidedStep, current int) {
+	<nav class="guide-progress" aria-label={ label }>
+		for i, step := range steps {
+			if step.href != "" {
+				<a class="guide-step" href={ templ.SafeURL(step.href) }
+					if i == current {
+						aria-current="step"
+					}
+				><span>{ strconv.Itoa(i + 1) }.</span>{ step.label }</a>
+			} else {
+				<button class="guide-step" type="button" data-wizard-step={ strconv.Itoa(i) } disabled?={ i > current }
+					if i == current {
+						aria-current="step"
+					}
+				><span>{ strconv.Itoa(i + 1) }.</span>{ step.label }</button>
+			}
+		}
+	</nav>
+}

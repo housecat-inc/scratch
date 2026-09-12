@@ -29,6 +29,7 @@ type TaskNote struct {
 }
 
 type TaskStore interface {
+	AddWorkflowTask(key, title string) (Task, error)
 	AddTask(title string) (Task, error)
 	AddTaskNote(taskID int64, body string) (TaskNote, error)
 	AddTaskSubitem(taskID int64, title string) (TaskSubitem, error)

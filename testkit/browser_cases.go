@@ -5,37 +5,25 @@ import (
 	"testing"
 )
 
-type Case[H any] struct {
-	Act     []Step[H]
-	Assert  []Step[H]
+type BrowserCase[H any] struct {
+	Act     []BrowserStep[H]
+	Assert  []BrowserStep[H]
 	Console []string
-	Data    any
 	Name    string
 	Path    string
-	Seed    []Step[H]
+	Seed    []BrowserStep[H]
 }
 
-type CaseRunner[H any] struct {
+type BrowserCaseRunner[H any] struct {
 	BeforeAct     func(H)
 	ConsoleErrors func(H) []string
 	Load          func(H, string)
-	Setup         func(*testing.T, *T, Case[H]) H
+	Setup         func(*testing.T, *T, BrowserCase[H]) H
 }
 
-type Step[H any] func(*testing.T, H)
+type BrowserStep[H any] func(*testing.T, H)
 
-type BrowserCase[H any] = Case[H]
-
-type BrowserCaseRunner[H any] = CaseRunner[H]
-
-type BrowserStep[H any] = Step[H]
-
-func RunBrowserCases[H any](t *testing.T, cases []Case[H], runner CaseRunner[H]) {
-	t.Helper()
-	RunCases(t, cases, runner)
-}
-
-func RunCases[H any](t *testing.T, cases []Case[H], runner CaseRunner[H]) {
+func RunBrowserCases[H any](t *testing.T, cases []BrowserCase[H], runner BrowserCaseRunner[H]) {
 	t.Helper()
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
@@ -46,9 +34,7 @@ func RunCases[H any](t *testing.T, cases []Case[H], runner CaseRunner[H]) {
 				step(t, h)
 			}
 
-			if runner.Load != nil {
-				runner.Load(h, tc.Path)
-			}
+			runner.Load(h, tc.Path)
 
 			if runner.BeforeAct != nil {
 				runner.BeforeAct(h)
@@ -82,31 +68,6 @@ func ClassContainsStep[H interface {
 	}
 }
 
-func AbsentStep[H interface{ ElementAbsent(string) }](selector string) Step[H] {
-	return func(t *testing.T, h H) {
-		t.Helper()
-		h.ElementAbsent(selector)
-	}
-}
-
-func AttributeContainsStep[H interface {
-	ElementAttributeContains(string, string, string)
-}](selector, name, expected string) Step[H] {
-	return func(t *testing.T, h H) {
-		t.Helper()
-		h.ElementAttributeContains(selector, name, expected)
-	}
-}
-
-func AttributeEqualsStep[H interface {
-	ElementAttributeEquals(string, string, string)
-}](selector, name, expected string) Step[H] {
-	return func(t *testing.T, h H) {
-		t.Helper()
-		h.ElementAttributeEquals(selector, name, expected)
-	}
-}
-
 func ClickStep[H interface{ Click(string) }](selector string) BrowserStep[H] {
 	return func(t *testing.T, h H) {
 		t.Helper()
@@ -114,38 +75,10 @@ func ClickStep[H interface{ Click(string) }](selector string) BrowserStep[H] {
 	}
 }
 
-func HiddenStep[H interface{ ElementHidden(string) }](selector string) Step[H] {
-	return func(t *testing.T, h H) {
-		t.Helper()
-		h.ElementHidden(selector)
-	}
-}
-
-func SelectOptionStep[H interface{ SelectOption(string, string) }](selector, value string) Step[H] {
-	return func(t *testing.T, h H) {
-		t.Helper()
-		h.SelectOption(selector, value)
-	}
-}
-
-func PresentStep[H interface{ ElementPresent(string) }](selector string) Step[H] {
-	return func(t *testing.T, h H) {
-		t.Helper()
-		h.ElementPresent(selector)
-	}
-}
-
 func PressStep[H interface{ Press(string, string) }](selector, key string) BrowserStep[H] {
 	return func(t *testing.T, h H) {
 		t.Helper()
 		h.Press(selector, key)
-	}
-}
-
-func FillStep[H interface{ Fill(string, string) }](selector, text string) Step[H] {
-	return func(t *testing.T, h H) {
-		t.Helper()
-		h.Fill(selector, text)
 	}
 }
 

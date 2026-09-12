@@ -2,8 +2,8 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -145,74 +145,8 @@ func (s *Service) CreateThreadWithLabel(agent, model, label, title string) (db.T
 	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
 }
 
-func (s *Service) CreateWorkflowThread(workflow, title string) (db.Thread, string, error) {
-	anchor, err := json.Marshal(map[string]string{"workflow": workflow})
-	if err != nil {
-		return db.Thread{}, "", errors.Wrap(err, "marshal anchor")
-	}
-	thread, err := s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
-	if err != nil {
-		return db.Thread{}, "", err
-	}
-	workflowID := fmt.Sprintf("%s-%d", workflow, thread.ID)
-	full, err := json.Marshal(map[string]string{"workflow": workflow, "workflow_id": workflowID})
-	if err != nil {
-		return db.Thread{}, "", errors.Wrap(err, "marshal anchor")
-	}
-	if err := s.store.SetThreadAnchor(thread.ID, string(full)); err != nil {
-		return db.Thread{}, "", err
-	}
-	thread.Anchor = string(full)
-	return thread, workflowID, nil
-}
-
-func (s *Service) CreateForkedWorkflowThread(workflow, workflowID, title string) (db.Thread, error) {
-	anchor, err := json.Marshal(map[string]string{"workflow": workflow, "workflow_id": workflowID})
-	if err != nil {
-		return db.Thread{}, errors.Wrap(err, "marshal anchor")
-	}
-	return s.store.AddThread(db.ThreadKindChat, strings.TrimSpace(title), string(anchor))
-}
-
-func (s *Service) SetThreadWorkflowID(threadID int64, workflowID string) error {
-	thread, err := s.store.GetThread(threadID)
-	if err != nil {
-		return err
-	}
-	anchor := map[string]any{}
-	if err := json.Unmarshal([]byte(thread.Anchor), &anchor); err != nil {
-		anchor = map[string]any{}
-	}
-	anchor["workflow_id"] = workflowID
-	data, err := json.Marshal(anchor)
-	if err != nil {
-		return errors.Wrap(err, "marshal anchor")
-	}
-	return s.store.SetThreadAnchor(threadID, string(data))
-}
-
 func (s *Service) DeleteThread(threadID int64) error {
 	return s.store.DeleteThread(threadID)
-}
-
-func (s *Service) TrashThread(threadID int64) error {
-	return s.store.TrashThread(threadID)
-}
-
-func (s *Service) ThreadWorkflowID(thread db.Thread) string {
-	var anchor struct {
-		WorkflowID string `json:"workflow_id"`
-	}
-	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
-	return anchor.WorkflowID
-}
-
-func (s *Service) WorkflowName(thread db.Thread) string {
-	var anchor struct {
-		Workflow string `json:"workflow"`
-	}
-	_ = json.Unmarshal([]byte(thread.Anchor), &anchor)
-	return anchor.Workflow
 }
 
 func (s *Service) Publish(threadID int64) {
@@ -396,12 +330,19 @@ func (s *Service) startTurn(thread db.Thread, agent Agent, user db.Message) (db.
 	}
 	s.broker.Publish(thread.ID, StructuralUpdate)
 
+	prompt := user.Body
+	var editContext struct {
+		WorkflowEdit string `json:"workflow_edit"`
+	}
+	if json.Unmarshal([]byte(thread.Anchor), &editContext) == nil && editContext.WorkflowEdit != "" {
+		prompt = "You are editing an existing Scratch workflow. Find its configuration in the current workspace and apply the requested change.\n\n" + editContext.WorkflowEdit + "\n\nUser request:\n" + prompt
+	}
 	turn := Turn{
 		Anchor:      thread.Anchor,
 		Attachments: files,
 		MessageID:   asst.ID,
 		Meta:        asst.Meta,
-		Prompt:      user.Body,
+		Prompt:      prompt,
 		ThreadID:    thread.ID,
 	}
 	s.wg.Add(1)
@@ -534,6 +475,9 @@ func mergeThreadAnchor(current, next string) string {
 			nextData["label"] = label
 		}
 	}
+	if edit, ok := currentData["workflow_edit"]; ok {
+		nextData["workflow_edit"] = edit
+	}
 	data, err := json.Marshal(nextData)
 	if err != nil {
 		return next
@@ -649,25 +593,11 @@ func collectEvents(view *ThreadView, m db.Message, events []db.MessageEvent) {
 }
 
 func (s *Service) emit(threadID, messageID int64, ev Event) {
-	s.emitWith(threadID, messageID, ev, nil)
-}
-
-func (s *Service) emitWith(threadID, messageID int64, ev Event, dedup *dedupState) {
 	if !s.messageStreaming(messageID) {
-		return
-	}
-	if dedup != nil {
-		if dedup.stored(ev) {
-			return
-		}
-	} else if s.eventAlreadyStored(messageID, ev) {
 		return
 	}
 	if _, err := s.store.AddMessageEvent(messageID, ev.Type, ev.Data); err != nil {
 		s.log.Error("chat.event", "error", err.Error())
-	}
-	if dedup != nil {
-		dedup.record(ev)
 	}
 	switch ev.Type {
 	case EventAnchor:
@@ -697,64 +627,6 @@ func (s *Service) emitWith(threadID, messageID int64, ev Event, dedup *dedupStat
 	s.broker.Publish(threadID, messageID)
 }
 
-type dedupState struct {
-	count int
-	last  string
-	seen  map[string]bool
-}
-
-func eventDedupKey(ev Event) string {
-	return ev.Type + "\x00" + ev.Data
-}
-
-func (d *dedupState) stored(ev Event) bool {
-	if ev.Type == EventDelta {
-		return d.count > 0 && d.last == eventDedupKey(ev)
-	}
-	return d.seen[eventDedupKey(ev)]
-}
-
-func (d *dedupState) record(ev Event) {
-	key := eventDedupKey(ev)
-	d.seen[key] = true
-	d.last = key
-	d.count++
-}
-
-func (s *Service) newDedupState(messageID int64) *dedupState {
-	d := &dedupState{seen: map[string]bool{}}
-	events, err := s.store.ListMessageEvents(messageID, 0)
-	if err != nil {
-		s.log.Error("chat.events", "error", err.Error())
-		return d
-	}
-	for _, e := range events {
-		d.record(Event{Data: e.Data, Type: e.Type})
-	}
-	return d
-}
-
-func (s *Service) eventAlreadyStored(messageID int64, ev Event) bool {
-	events, err := s.store.ListMessageEvents(messageID, 0)
-	if err != nil {
-		s.log.Error("chat.events", "error", err.Error())
-		return false
-	}
-	if ev.Type == EventDelta {
-		if len(events) == 0 {
-			return false
-		}
-		last := events[len(events)-1]
-		return last.Type == ev.Type && last.Data == ev.Data
-	}
-	for _, stored := range events {
-		if stored.Type == ev.Type && stored.Data == ev.Data {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *Service) resolveAgent(thread db.Thread) (Agent, error) {
 	name := s.AgentName(thread)
 	agent, ok := s.agents[name]
@@ -780,10 +652,21 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 		s.activeMu.Unlock()
 	}()
 
-	dedup := s.newDedupState(turn.MessageID)
-	anchor, err := agent.Run(ctx, turn, func(ev Event) {
-		s.emitWith(thread.ID, turn.MessageID, ev, dedup)
-	})
+	var pageErr error
+	if pages, ok := s.store.(db.PageStore); ok {
+		page, err := pages.GetPageByThread(thread.ID)
+		if err == nil {
+			turn.Prompt = "You are editing the Scratch page " + page.Title + " (/pages/" + page.ID + "). " + page.Description + "\nFind its existing implementation in the current workspace and update it according to the user's request. Preserve existing data.\n\nUser request:\n" + turn.Prompt
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			pageErr = err
+		}
+	}
+	anchor, err := "", pageErr
+	if err == nil {
+		anchor, err = agent.Run(ctx, turn, func(ev Event) {
+			s.emit(thread.ID, turn.MessageID, ev)
+		})
+	}
 
 	if errors.Is(err, ErrTurnPending) {
 		s.log.Info("chat.pending", "message", turn.MessageID, "thread", thread.ID)
@@ -797,7 +680,7 @@ func (s *Service) run(agent Agent, thread db.Thread, turn Turn) {
 	if err != nil {
 		status = db.MessageStatusError
 		s.log.Error("chat.run", "error", err.Error(), "message", turn.MessageID, "thread", thread.ID)
-		s.emitWith(thread.ID, turn.MessageID, Event{Data: errorData(err), Type: EventError}, dedup)
+		s.emit(thread.ID, turn.MessageID, Event{Data: errorData(err), Type: EventError})
 	}
 	if _, err := s.store.FinishMessage(turn.MessageID, status); err != nil {
 		s.log.Error("chat.finish", "error", err.Error())

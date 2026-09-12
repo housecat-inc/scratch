@@ -2,11 +2,11 @@ package ui
 
 import (
 	"strconv"
+ "context"
 	"strings"
 
 	"github.com/housecat-inc/scratch/uikit"
 	"github.com/templui/templui/components/card"
-	lucide "github.com/wux4an/lucide-templ/icons"
 )
 
 templ AppCard(extra ...string) {
@@ -34,6 +34,7 @@ templ InboxNav(active string, tasks, chats int) {
 		@inboxNavLink("/inbox/chats", "chat", active, "Chat", chats)
 		@inboxNavLink("/code/", "code", active, "Code", 0)
 		@inboxNavLink("/files/", "files", active, "Files", 0)
+		@inboxNavLink("/getting-started", "getting-started", active, "Getting Started", 0)
 		@inboxNavLink("/setup", "setup", active, "Setup", 0)
 	</nav>
 }
@@ -50,7 +51,7 @@ templ InboxLayout(active string, tasks, chats int) {
 	</div>
 }
 
-templ MailHead(title string) {
+templ Head(title string) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
@@ -67,55 +68,45 @@ templ MailHead(title string) {
 		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
 		@InboxCSS()
 		@ChatCSS()
-		@DataTableCSS()
 		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-		@ToolShellCSS()
-		<script src="/static/htmx.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
 		<script src="/static/htmx-ext-sse.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>
 		<script src="/static/ptr.js" defer></script>
 		<script src="/static/html2canvas.min.js" defer></script>
 		<script src="/static/chat.js" defer></script>
-		<script src="/static/contacts.js" defer></script>
-		{ children... }
+		<script src="/static/inbox.js" defer></script>
 	</head>
 }
 
-templ Head(title string) {
-	@MailHead(title)
-}
-
-templ ToolShellCSS() {
-	<style>
-		.mail-shell svg { display: inline; vertical-align: baseline; }
-		@media (max-width: 767px) {
-			.split-pane:not(.show-editor) .editor-pane { display: none; }
-			.split-pane.show-editor .tree-pane { display: none; }
-		}
-	</style>
-}
-
-templ Layout(title, nav string, shells ...ToolShellProps) {
+templ Layout(title, nav string, actions ...templ.Component) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@Head(title)
 		<body>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(toolShell(shells)),
-				AppName:    "scratch",
-				BrandHref:  "/",
-				Footer:     ToolComposer(),
-				MainClass:  "mail-tool-main",
-				Nav:        toolNavItems(nav, toolShell(shells).Counts),
-				SidebarTop: ComposeActions(),
+				AppName: "scratch",
+				BrandHref: "/",
+				MainClass: "mail-tool-main",
+				Nav: toolNavItems(ctx, nav),
+				Sidebar: ChatSidebarLoader(),
 			}) {
 				<div class="mail-tool-content">
-					<header class="mail-mainbar">
+					if uikit.ShellHeader(ctx) == nil {
+ <header class={ "mail-mainbar", templ.KV("page-header", len(actions) > 0) }>
 						<div class="mail-mainbar-title">
 							<h1>{ title }</h1>
 						</div>
+						if len(actions) > 0 {
+							<div class="page-header-actions">
+								for _, action := range actions {
+									@action
+								}
+							</div>
+						}
 					</header>
+ }
 					<div class="mail-tool-body">
 						{ children... }
 					</div>
@@ -125,38 +116,8 @@ templ Layout(title, nav string, shells ...ToolShellProps) {
 	</html>
 }
 
-func toolNavItems(active string, counts InboxCounts) []uikit.NavItem {
-	return []uikit.NavItem{
-		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: lucide.Inbox(), Label: "Inbox", ShowCount: true},
-		{Active: active == "starred", Count: counts.Starred, Href: "/starred", Icon: lucide.Star(), Label: "Starred", ShowCount: true},
-		{Active: active == "chats", Count: counts.Chats, Group: "More", Href: "/inbox/chats", Icon: lucide.MessageSquare(), Label: "Chats", ShowCount: true},
-		{Active: active == "tasks", Count: counts.Tasks, Href: "/inbox/tasks", Icon: lucide.ListChecks(), Label: "Tasks", ShowCount: true},
-		{Active: active == "workflows", Count: counts.Workflows, Href: "/inbox/workflows", Icon: lucide.Play(), Label: "Workflows", ShowCount: true},
-		{Active: active == "setup", Group: "Tools", Href: "/setup", Icon: lucide.Settings(), Label: "Setup"},
-		{Active: active == "sessions", Href: "/sessions", Icon: lucide.MessageSquare(), Label: "Sessions"},
-		{Active: active == "code", Href: "/code/", Icon: lucide.CodeXml(), Label: "Code review"},
-		{Active: active == "files", Href: "/files/", Icon: lucide.File(), Label: "Files"},
-		{Active: active == "sql", Href: "/sql/", Icon: lucide.Database(), Label: "SQL"},
-	}
-}
-
-templ ToolComposer() {
-	@ChatComposer(ChatComposerProps{
-		Action:      "/compose",
-		FileName:    "file",
-		Placeholder: "Chat with agent",
-	})
-}
-
-templ toolActions(p ToolShellProps) {
-	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
-}
-
-func toolShell(shells []ToolShellProps) ToolShellProps {
-	if len(shells) == 0 {
-		return ToolShellProps{}
-	}
-	return shells[0]
+func toolNavItems(ctx context.Context, active string) []uikit.NavItem {
+ return pageNavItems(navigationPages(ctx), active)
 }
 
 templ inboxNavLink(href, name, active, label string, count int) {

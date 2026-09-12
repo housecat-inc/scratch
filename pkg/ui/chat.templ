@@ -1,10 +1,6 @@
 package ui
 
-import (
-	"strconv"
-
-	lucide "github.com/wux4an/lucide-templ/icons"
-)
+import "strconv"
 
 templ ChatComposer(p ChatComposerProps) {
 	if p.UploadURL != "" {
@@ -48,24 +44,24 @@ templ chatComposerBody(p ChatComposerProps) {
 		autocomplete="off"
 		autofocus
 	></textarea>
-		<div class="chat-compose-row">
-			<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
-				@lucide.Paperclip()
-				<input id={ chatDOMID(p, "chat-file") } data-chat-file name={ p.FileName } type="file" multiple hidden/>
-			</label>
-			<button type="button" id={ chatDOMID(p, "chat-snap") } data-chat-snap class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
-				@lucide.Crosshair()
+	<div class="chat-compose-row">
+		<label class="chat-icon-circle" title="Attach files" aria-label="Attach files">
+			@paperclipIcon()
+			<input id={ chatDOMID(p, "chat-file") } data-chat-file name={ p.FileName } type="file" multiple hidden/>
+		</label>
+		<button type="button" id={ chatDOMID(p, "chat-snap") } data-chat-snap class="chat-icon-circle" title="Inspect a section of the page" aria-label="Inspect a section of the page">
+			@crosshairIcon()
+		</button>
+		if p.StopAction != "" {
+			<button type="button" class="chat-icon-circle" title="Stop chat" aria-label="Stop chat" hx-post={ p.StopAction } hx-swap="none">
+				@stopIcon()
 			</button>
-			if p.StopAction != "" {
-				<button type="button" class="chat-icon-circle" title="Stop chat" aria-label="Stop chat" hx-post={ p.StopAction } hx-swap="none">
-					@lucide.SquareStop()
-				</button>
-			}
-			<div id={ chatDOMID(p, "chat-attachments") } data-chat-attachments class="chat-attachments"></div>
-			<button id={ chatDOMID(p, "chat-send") } data-chat-send class="mail-send-btn" type="submit" aria-label="Send">
-				@lucide.Send()
-				<span>Send</span>
-			</button>
+		}
+		<div id={ chatDOMID(p, "chat-attachments") } data-chat-attachments class="chat-attachments"></div>
+		<button id={ chatDOMID(p, "chat-send") } data-chat-send class="mail-send-btn" type="submit" aria-label="Send">
+			@sendIcon()
+			<span>Send</span>
+		</button>
 	</div>
 }
 
@@ -85,7 +81,7 @@ templ FloatingChatPanel(p FloatingChatProps) {
 		data-chat-popout
 		data-thread-id={ itoa64(p.ID) }
 		data-empty={ strconv.FormatBool(len(p.Messages) == 0) }
-		aria-label="Chat popout"
+		aria-label="Chat sidebar"
 	>
 		<header class="floating-chat-head">
 			<div class="floating-chat-title">
@@ -94,19 +90,20 @@ templ FloatingChatPanel(p FloatingChatProps) {
 					<small>{ p.Description }</small>
 				}
 			</div>
-				<div class="floating-chat-actions">
-					<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
-						@lucide.Minus()
-					</button>
-					<button type="button" class="floating-chat-icon" data-chat-restore title="Restore floating chat" aria-label="Restore floating chat">
-						@lucide.PanelTopOpen()
-					</button>
-					<button type="button" class="floating-chat-icon" data-chat-fullscreen title="Fullscreen" aria-label="Fullscreen chat">
-						@lucide.Maximize2()
-					</button>
-					<button type="button" class="floating-chat-icon" data-chat-close title="Close" aria-label="Close chat">
-						@lucide.X()
-					</button>
+			<div class="floating-chat-actions">
+				<button type="button" class="floating-chat-icon" data-chat-archive={ threadInboxActionURL("chat", p.ID, "archive") } title={ archiveActionLabel(InboxItem{Archived: p.Archived}) } aria-label={ archiveActionLabel(InboxItem{Archived: p.Archived}) + " chat" }>
+					if p.Archived {
+						@unarchiveIcon()
+					} else {
+						@archiveIcon()
+					}
+				</button>
+				<button type="button" class="floating-chat-icon" data-chat-fullscreen title="Fullscreen" aria-label="Fullscreen chat">
+					@fullscreenIcon()
+				</button>
+				<button type="button" class="floating-chat-icon" data-chat-close title="Close" aria-label="Close chat">
+					@closeIcon()
+				</button>
 			</div>
 		</header>
 		<div hx-ext="sse" sse-connect={ "/chat/" + itoa64(p.ID) + "/events" } class="floating-chat-body" data-chat-scroller>
@@ -144,39 +141,29 @@ templ ChatMessage(m ChatMessageProps) {
 				}
 			}
 			if m.Form != nil {
-				@ChatForm(*m.Form)
+				@chatForm(*m.Form)
 			}
 			if m.Status == "streaming" && m.Form == nil {
 				<span class="chat-cursor"></span>
 			}
 		} else {
-			@userBubble(m)
-		}
-	</div>
-}
-
-templ userBubble(m ChatMessageProps) {
-	if len(m.Attachments) > 0 {
-		<div class="chat-bubble-attachments">
-				for _, a := range m.Attachments {
-					<a class="chat-attachment-chip" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
-						if a.IsImage {
-							@lucide.Image()
-							<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
-						} else {
-							@lucide.Paperclip()
-						}
-					<span class="chat-chip-name">{ a.Name }</span>
-				</a>
+			if len(m.Attachments) > 0 {
+				<div class="chat-bubble-attachments">
+					for _, a := range m.Attachments {
+						<a class="chat-attachment-chip" href={ templ.SafeURL(attachmentURL(a)) } target="_blank">
+							if a.IsImage {
+								@imageIcon()
+								<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
+							} else {
+								@paperclipIcon()
+							}
+							<span class="chat-chip-name">{ a.Name }</span>
+						</a>
+					}
+				</div>
 			}
-		</div>
-	}
-	<div class="chat-bubble">{ m.Body }</div>
-}
-
-templ ChatTurn(role string) {
-	<div class={ "chat-turn", "role-" + role }>
-		{ children... }
+			<div class="chat-bubble">{ m.Body }</div>
+		}
 	</div>
 }
 
@@ -184,14 +171,18 @@ templ ChatAttachmentChip(a ChatAttachmentProps) {
 	<span class="chat-attachment-chip" data-id={ itoa64(a.ID) }>
 		<input type="hidden" name="attachment_id" value={ itoa64(a.ID) }/>
 		if a.IsImage {
-			@lucide.Image()
+			@imageIcon()
 			<img class="chat-chip-preview" src={ attachmentURL(a) } alt={ a.Name } loading="lazy"/>
 		} else {
-			@lucide.Paperclip()
+			@paperclipIcon()
 		}
 		<span class="chat-chip-name">{ a.Name }</span>
 		<button type="button" class="chat-attachment-remove" data-id={ itoa64(a.ID) } aria-label={ "Remove " + a.Name }>×</button>
 	</span>
+}
+
+templ imageIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-4.6-4.6a2 2 0 00-2.8 0L5 19"></path></svg>
 }
 
 templ ChatAccessToggle(threadID int64, access string) {
@@ -206,12 +197,40 @@ templ ChatAccessToggle(threadID int64, access string) {
 		aria-label={ accessLabel(access) }
 	>
 		<span class="chat-switch-icon">
-			@lucide.Zap()
+			@boltIcon()
 		</span>
 		<span class="chat-switch-track">
 			<span class="chat-switch-knob"></span>
 		</span>
 	</button>
+}
+
+templ paperclipIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path></svg>
+}
+
+templ boltIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+}
+
+templ crosshairIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg>
+}
+
+templ closeIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+}
+
+templ fullscreenIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M21 16v3a2 2 0 0 1-2 2h-3"></path></svg>
+}
+
+templ minusIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14"></path></svg>
+}
+
+templ restoreIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"></path></svg>
 }
 
 templ chatPart(m ChatMessageProps, part ChatPartProps, last bool) {
@@ -270,7 +289,7 @@ templ chatRow(r chatRowProps) {
 					@rowIcon(r.Kind, r.Failed)
 				</span>
 			}
-			if r.Shimmer || (r.Live && r.Kind == "thinking") {
+			if r.Live && r.Kind == "thinking" {
 				<span class="chat-row-label chat-shimmer">{ r.Label }</span>
 			} else {
 				<span class="chat-row-label">{ r.Label }</span>
@@ -282,7 +301,6 @@ templ chatRow(r chatRowProps) {
 		if r.Detail != "" {
 			<pre class="chat-row-detail">{ r.Detail }</pre>
 		}
-		{ children... }
 	</details>
 }
 
@@ -321,91 +339,69 @@ templ chatToolGroup(m ChatMessageProps, g chatPartGroup) {
 
 templ rowIcon(kind string, failed bool) {
 	if failed {
-		@lucide.CircleX()
+		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.2"></circle><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"></path></svg>
 	} else if kind == "thinking" {
-		@lucide.Globe()
+		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.2"></circle><path d="M8 1.8v12.4M1.8 8h12.4M3.6 3.6c2.6 2.6 6.2 2.6 8.8 0M3.6 12.4c2.6-2.6 6.2-2.6 8.8 0"></path></svg>
 	} else {
-		@lucide.Terminal()
+		<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 3.5l4 4-4 4M8.5 12h5"></path></svg>
 	}
 }
 
-templ ChatForm(f ChatFormProps) {
-	if f.Editable {
-		<form class="chat-elicit chat-elicit-editable" method="post" action={ templ.SafeURL(f.Action) }>
-			<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
-			@chatFormBody(f)
-		</form>
-	} else if f.Disabled {
-		<div class="chat-elicit chat-elicit-filled">
-			@chatFormBody(f)
-		</div>
-	} else if f.Plain {
-		<form id="elicit-form" class="chat-elicit" method="post" action={ templ.SafeURL(f.Action) }>
-			<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
-			@chatFormBody(f)
-		</form>
-	} else {
-		<form id="elicit-form" class="chat-elicit" hx-post={ f.Action } hx-swap="none">
-			<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
-			<input type="hidden" name="message_id" value={ itoa64(f.MessageID) }/>
-			@chatFormBody(f)
-		</form>
-	}
-}
-
-templ chatFormBody(f ChatFormProps) {
-	if !f.HideMessage {
+templ chatForm(f ChatFormProps) {
+	<form id="elicit-form" class="chat-elicit" hx-post={ f.Action } hx-swap="none">
+		<input type="hidden" name="elicitation_id" value={ f.ElicitationID }/>
+		<input type="hidden" name="message_id" value={ itoa64(f.MessageID) }/>
 		<p class="chat-elicit-message">{ f.Message }</p>
-	}
-	if f.Editable {
-		<div class="chat-elicit-header">
-				<div class="chat-elicit-actions">
-					<button class="gm-icon-btn" type="button" title="Edit and re-run" aria-label="Edit and re-run" data-elicit-edit>
-						@lucide.Pencil()
-					</button>
-					<button class="gm-icon-btn" formaction={ string(templ.SafeURL(f.ForkAction)) } formmethod="post" type="submit" formnovalidate title="Fork" aria-label="Fork" data-elicit-fork>
-						@lucide.GitFork()
-					</button>
-			</div>
+		for _, field := range f.Fields {
+			<label class="chat-elicit-field">
+				<span>{ field.Label }</span>
+				switch field.Type {
+					case "select":
+						<select name={ "f_" + field.Name }>
+							for _, option := range field.Options {
+								<option value={ option } selected?={ option == field.Value }>{ option }</option>
+							}
+						</select>
+					case "checkbox":
+						<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" }/>
+					default:
+						<input
+							type={ field.Type }
+							name={ "f_" + field.Name }
+							value={ field.Value }
+							required?={ field.Required }
+						/>
+				}
+			</label>
+		}
+		<div class="chat-elicit-actions">
+			<button id="elicit-accept" name="action" value="accept" type="submit">Accept</button>
+			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>Decline</button>
 		</div>
-	}
-	for _, field := range f.Fields {
-		<label class="chat-elicit-field">
-			<span>{ field.Label }</span>
-			switch field.Type {
-				case "select":
-					<select name={ "f_" + field.Name } disabled?={ f.Disabled || f.Editable }>
-						for _, option := range field.Options {
-							<option value={ option } selected?={ option == field.Value }>{ option }</option>
-						}
-					</select>
-				case "checkbox":
-					<input type="checkbox" name={ "f_" + field.Name } checked?={ field.Value == "true" } disabled?={ f.Disabled || f.Editable }/>
-				case "textarea":
-					<textarea class="chat-elicit-textarea" name={ "f_" + field.Name } rows="8" required?={ field.Required } disabled?={ f.Disabled || f.Editable }>{ field.Value }</textarea>
-				case "contact":
-					@contactField(field, f.Disabled || f.Editable)
-				default:
-					<input
-						type={ field.Type }
-						name={ "f_" + field.Name }
-						value={ field.Value }
-						required?={ field.Required }
-						disabled?={ f.Disabled || f.Editable }
-					/>
-			}
-		</label>
-	}
-	if f.Editable {
-		<div class="chat-elicit-edit-controls">
-			<button name="action" value="accept" type="submit" data-elicit-submit>Submit</button>
-			<button type="button" data-elicit-cancel>Cancel</button>
-		</div>
-	}
-	if !f.Editable && !f.Disabled {
-		<div class="chat-elicit-actions chat-elicit-decisions">
-			<button id="elicit-decline" name="action" value="decline" type="submit" formnovalidate>{ declineLabel(f) }</button>
-			<button id="elicit-accept" name="action" value="accept" type="submit">{ acceptLabel(f) }</button>
-		</div>
-	}
+	</form>
+}
+
+templ ChatSidebarLoader() {
+ if sidebar := initialChatSidebar(ctx); sidebar != nil {
+  @sidebar
+ } else {
+  <div hx-get="/chat/sidebar" hx-trigger="load" hx-swap="outerHTML"></div>
+ }
+}
+
+templ ChatSidebarChats(p ChatSidebarProps) {
+ <nav class="chat-sidebar-chats" aria-label="Other chats" hx-get="/chat/sidebar" hx-trigger="every 3s" hx-swap="outerHTML">
+  if len(p.Running) > 0 {
+   for _, item := range p.Running {
+    <button type="button" class="gm-label gm-label-child chat-sidebar-thread" data-chat-popout-thread={ itoa64(item.ID) } title={ item.Title }>
+     <span class="chat-sidebar-title">{ item.Title }</span><span class="chat-spinner" role="img" aria-label="Agent running"></span>
+    </button>
+   }
+  }
+  if len(p.Recent) > 0 {
+   for _, item := range p.Recent {
+    <button type="button" class="gm-label gm-label-child chat-sidebar-thread" data-chat-popout-thread={ itoa64(item.ID) } title={ item.Title }><span class="chat-sidebar-title">{ item.Title }</span></button>
+   }
+  }
+ </nav>
 }

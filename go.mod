@@ -3,7 +3,6 @@ module github.com/housecat-inc/scratch
 go 1.26.3
 
 require (
-	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/a-h/templ v0.3.1020
 	github.com/cockroachdb/errors v1.13.0
 	github.com/creack/pty v1.1.24
@@ -12,14 +11,12 @@ require (
 	github.com/go-fuego/fuego v0.19.0
 	github.com/go-rod/rod v0.116.2
 	github.com/google/jsonschema-go v0.4.3
-	github.com/gorilla/websocket v1.5.3
 	github.com/magefile/mage v1.17.2
 	github.com/pressly/goose/v3 v3.27.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/templui/templui v1.10.1
-	github.com/wux4an/lucide-templ v0.0.1
 	github.com/yuin/goldmark v1.8.3
 	modernc.org/sqlite v1.52.0
 )
@@ -32,7 +29,6 @@ require (
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e // indirect
 	github.com/air-verse/air v1.65.3 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
-	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/bep/godartsass/v2 v2.5.0 // indirect
 	github.com/bep/golibsass v1.2.0 // indirect
@@ -62,6 +58,7 @@ require (
 	github.com/google/cel-go v0.28.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/schema v1.4.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

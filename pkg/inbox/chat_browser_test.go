@@ -105,6 +105,24 @@ func ElementEventuallyPresent(selector string) Step {
 	}
 }
 
+func ChatSidebarDocked() Step {
+	return func(t *testing.T, h *Harness) {
+		t.Helper()
+		h.R.Eventually(func() bool {
+			result, err := h.Page.Eval(`() => {
+				const panel = document.querySelector("#floating-chat");
+				if (!panel) return false;
+				const rect = panel.getBoundingClientRect();
+				const reserved = parseFloat(getComputedStyle(document.body).paddingRight);
+				return rect.top === 0 && Math.abs(rect.right - innerWidth) < 1 &&
+					Math.abs(rect.height - innerHeight) < 1 &&
+					(innerWidth <= 720 ? reserved === 0 : Math.abs(reserved - rect.width) < 1);
+			}`)
+			return err == nil && result.Value.Bool()
+		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+	}
+}
+
 func FloatingChatControlsFit() Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
@@ -116,7 +134,7 @@ func FloatingChatControlsFit() Step {
 				const minimize = document.querySelector("#floating-chat [data-chat-minimize]");
 				const restore = document.querySelector("#floating-chat [data-chat-restore]");
 				const access = document.querySelector("#floating-chat .chat-access-switch");
-				if (!panel || !close || !expand || !minimize || !restore || access) return false;
+				if (!panel || !close || !expand || minimize || restore || access) return false;
 				const panelRect = panel.getBoundingClientRect();
 				const visible = (el) => {
 					const style = getComputedStyle(el);
@@ -127,7 +145,7 @@ func FloatingChatControlsFit() Step {
 					const rect = el.getBoundingClientRect();
 					return rect.left >= panelRect.left && rect.right <= panelRect.right && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom;
 				};
-				return !visible(minimize) && visible(close) && visible(expand) && visible(restore) && inside(close) && inside(expand) && inside(restore);
+				return visible(close) && visible(expand) && inside(close) && inside(expand);
 			}`)
 			return err == nil && result.Value.Bool()
 		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
@@ -166,7 +184,7 @@ func WaitChatReady() Step {
 	return func(t *testing.T, h *Harness) {
 		t.Helper()
 		h.R.Eventually(func() bool {
-			result, err := h.Page.Eval(`() => Boolean(window.htmx && document.querySelector("#chat-form"))`)
+			result, err := h.Page.Eval(`() => Boolean(window.htmx && document.querySelector('#chat-form[data-chat-initialized="true"]'))`)
 			return err == nil && result.Value.Bool()
 		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
@@ -175,8 +193,50 @@ func WaitChatReady() Step {
 func TestChatBrowser(t *testing.T) {
 	runBrowser(t, []testkit.BrowserCase[*Harness]{
 		{
+			Name: "restores right sidebar without fetching the panel again",
+			Path: "/inbox/chats",
+			Seed: []Step{SeedChatThread()},
+			Act: []Step{
+				ElementEventuallyPresent(`[data-chat-popout-thread="1"]`),
+				Click(`[data-chat-popout-thread="1"]`),
+				ElementEventuallyPresent("#floating-chat"),
+				Type("#floating-chat [data-chat-input]", "saved sidebar draft"),
+				Click("[data-chat-collapse]"),
+				Load("/pages"),
+				ElementEventuallyPresent("#floating-chat.collapsed"),
+				InputValueContains("#floating-chat [data-chat-input]", "saved sidebar draft"),
+				func(t *testing.T, h *Harness) {
+					result := h.Page.MustEval(`() => performance.getEntriesByType("resource").filter(entry => new URL(entry.name).pathname === "/chat/1/popout").length`)
+					h.R.Zero(result.Int())
+				},
+				Click("[data-chat-launcher]"),
+				Click("#floating-chat [data-chat-send]"),
+			},
+			Assert: []Step{
+				TextEventuallyContains("#floating-chat .role-assistant", "You said: saved sidebar draft"),
+				ChatSidebarDocked(),
+			},
+		},
+		{
+			Name: "switches chats from the sidebar",
+			Path: "/inbox/chats/1",
+			Seed: []Step{SeedChatThreadTitle("First chat"), SeedChatThreadTitle("Second chat")},
+			Act: []Step{
+				WaitChatReady(),
+				Click(`[data-chat-popout-thread="1"]`),
+				PathEventuallyEquals("/inbox/chats"),
+				ElementEventuallyPresent(`#mail-navigation .chat-sidebar-chats [data-chat-popout-thread="2"]`),
+				Click(`#mail-navigation .chat-sidebar-chats [data-chat-popout-thread="2"]`),
+			},
+			Assert: []Step{
+				TextEventuallyContains("#floating-chat .floating-chat-title", "Second chat"),
+				TextEventuallyContains("#mail-navigation .chat-sidebar-chats", "First chat"),
+				ChatSidebarDocked(),
+			},
+		},
+		{
 			Name: "inspects a page section before creating a chat",
-			Path: "/",
+			Path: "/inbox",
 			Act: []Step{
 				WaitChatReady(),
 				CaptureElement(".mail-mainbar"),
@@ -231,9 +291,10 @@ func TestChatBrowser(t *testing.T) {
 			},
 		},
 		{
-			Name: "restores an unsent chat draft after navigation",
-			Path: "/inbox/chats/1",
-			Seed: []Step{SeedChatThread()},
+			Console: []string{"htmx:afterRequest", "htmx:sendAbort"},
+			Name:    "restores an unsent chat draft after navigation",
+			Path:    "/inbox/chats/1",
+			Seed:    []Step{SeedChatThread()},
 			Act: []Step{
 				WaitChatReady(),
 				Type("#chat-input", "unfinished draft"),
@@ -245,7 +306,7 @@ func TestChatBrowser(t *testing.T) {
 			},
 		},
 		{
-			Name: "opens an existing thread in a floating chat",
+			Name: "opens an existing thread in a right sidebar",
 			Path: "/inbox/chats/1",
 			Seed: []Step{SeedChatThread()},
 			Act: []Step{
@@ -257,12 +318,13 @@ func TestChatBrowser(t *testing.T) {
 				Click("#floating-chat [data-chat-send]"),
 			},
 			Assert: []Step{
+				ChatSidebarDocked(),
 				TextEventuallyContains("#floating-chat .role-user .chat-bubble", "from popout"),
 				TextEventuallyContains("#floating-chat .role-assistant", "You said: from popout"),
 			},
 		},
 		{
-			Name: "keeps minimized floating chat actions visible",
+			Name: "keeps sidebar actions visible without minimize",
 			Path: "/inbox/chats/1",
 			Seed: []Step{
 				SeedChatThreadTitle(strings.Repeat("long thread title ", 20)),
@@ -272,11 +334,11 @@ func TestChatBrowser(t *testing.T) {
 				WaitChatReady(),
 				Click(`[data-chat-popout-thread="1"]`),
 				ElementEventuallyPresent("#floating-chat"),
-				Click("#floating-chat [data-chat-minimize]"),
+				PathEventuallyEquals("/inbox/chats"),
 				FloatingChatControlsFit(),
-				Click("#floating-chat [data-chat-restore]"),
 			},
 			Assert: []Step{
+				ChatSidebarDocked(),
 				Visible("#floating-chat [data-chat-input]"),
 			},
 		},
@@ -295,7 +357,6 @@ func TestChatBrowser(t *testing.T) {
 			},
 			Act: []Step{
 				WaitChatReady(),
-				ElementEventuallyPresent(".chat-row.row-tool summary"),
 				Click(".chat-row.row-tool summary"),
 			},
 			Assert: []Step{

@@ -1,0 +1,23 @@
+.gs-primitives { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.gs h3 { color: #111827; font-size: 0.9rem; font-weight: 650; line-height: 1.5; margin: 0.5rem 0 0.25rem; }
+.gs-primitives p, .gs-choice p { color: #64748b; font-size: 0.8rem; line-height: 1.6; margin: 0; }
+.gs-symbol, .gs-choice-icon { color: #64748b; display: inline-flex; }
+.gs svg { height: 1.25rem; width: 1.25rem; }
+.gs-providers, .gs-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+.gs-provider, .gs-choice { margin: 0; min-width: 0; width: 100%; }
+.gs-provider-heading { margin-bottom: 1rem; }
+.gs-provider-heading h3 { margin: 0; }
+.gs-provider-heading p { color: #64748b; font-size: 0.8rem; margin: 0.25rem 0 0; }
+.gs-provider .setup-row form, .gs-provider input { min-width: 0; }
+.gs-provider .setup-hint { overflow-wrap: anywhere; }
+.gs-provider #card-login.is-done .setup-title::after, .gs-provider #card-codex-login.is-done .setup-title::after { content: ' · Connected'; }
+.gs-provider-note, .gs-caption { color: #64748b; font-size: 0.8rem; line-height: 1.6; margin: 1rem 0 0; }
+.gs-choice { align-items: flex-start; color: inherit; display: flex; flex-direction: column; text-decoration: none; }
+.gs-choice:hover { background: #f8fafc; border-color: #cbd5e1; }
+.gs-choice p { flex: 1; }
+.gs-choice-cta { color: #1d4ed8; font-size: 0.8rem; font-weight: 600; padding-top: 1rem; }
+.gs-notice { background: #f1f5f9; border-radius: 0.5rem; color: #475569; font-size: 0.8rem; line-height: 1.6; padding: 0.75rem; }
+.gs-notice a { color: #1d4ed8; text-decoration: underline; }
+@media (max-width: 700px) {
+  .gs-primitives, .gs-providers, .gs-choices { grid-template-columns: 1fr; }
+}

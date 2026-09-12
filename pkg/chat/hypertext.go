@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -41,6 +40,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
 	mux.HandleFunc("GET /chat/popout/new", s.handleNewPopout)
+	mux.HandleFunc("GET /chat/sidebar", s.handleSidebar)
 	mux.HandleFunc("GET /chat/{id}", http.NotFound)
 	mux.HandleFunc("DELETE /chat/{id}", s.handleDelete)
 	mux.HandleFunc("POST /chat/{id}/access", s.handleAccess)
@@ -51,11 +51,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
 	mux.HandleFunc("GET /chat/{id}/popout", s.handlePopout)
+	mux.HandleFunc("GET /chat/{id}/sidebar", s.handleSidebar)
 	mux.HandleFunc("POST /chat/{id}/stop", s.handleStop)
 	return logging.Middleware(s.log, mux)
 }
 
 func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
+	title, question, err := s.workflowEditQuestion(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	agent := strings.TrimSpace(r.URL.Query().Get("agent"))
 	model := strings.TrimSpace(r.URL.Query().Get("model"))
 	if providerModel := r.URL.Query().Get("provider_model"); providerModel != "" {
@@ -67,10 +74,36 @@ func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
 		modelAgent = s.svc.defaultName
 	}
 	model = NormalizeModel(modelAgent, model)
-	thread, err := s.svc.CreateThreadWithLabel(agent, model, label, "")
+	thread, err := s.svc.CreateThreadWithLabel(agent, model, label, title)
 	if err != nil {
 		s.notFoundOr(w, err)
 		return
+	}
+	if question != "" {
+		var anchor map[string]any
+		if err := json.Unmarshal([]byte(thread.Anchor), &anchor); err != nil {
+			s.fail(w, err)
+			return
+		}
+		anchor["workflow_edit"] = question
+		data, err := json.Marshal(anchor)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if err := s.svc.store.SetThreadAnchor(thread.ID, string(data)); err != nil {
+			s.fail(w, err)
+			return
+		}
+		if _, err := s.svc.store.AddMessage(db.NewMessage{
+			Author:   "agent:" + s.svc.AgentName(thread),
+			Body:     question,
+			Role:     db.MessageRoleAssistant,
+			ThreadID: thread.ID,
+		}); err != nil {
+			s.fail(w, err)
+			return
+		}
 	}
 	if err := s.renderPopout(w, r, thread.ID); err != nil {
 		s.fail(w, err)
@@ -105,7 +138,8 @@ func (s *Server) renderPopout(w http.ResponseWriter, r *http.Request, threadID i
 		return err
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	return ui.FloatingChatPanel(s.toFloatingProps(view)).Render(r.Context(), w)
+	props := s.toFloatingProps(view)
+	return ui.FloatingChatPanel(props).Render(r.Context(), w)
 }
 
 func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
@@ -432,6 +466,7 @@ func (s *Server) toFloatingProps(v ThreadView) ui.FloatingChatProps {
 	return ui.FloatingChatProps{
 		Access:      s.svc.ThreadAccess(v.Thread),
 		Agent:       thread.Agent,
+		Archived:    v.Thread.State == db.ThreadStateArchived,
 		Description: FriendlyDescription(threadPromptFromMessages(v.Messages)),
 		ID:          thread.ID,
 		Messages:    thread.Messages,
@@ -511,18 +546,11 @@ func summaryLine(text string) string {
 }
 
 func toFormProps(threadID, messageID int64, prompt elicit.Prompt) ui.ChatFormProps {
-	form := FormProps(fmt.Sprintf("/chat/%d/elicitations", threadID), prompt)
-	form.MessageID = messageID
-	return form
-}
-
-func FormProps(action string, prompt elicit.Prompt) ui.ChatFormProps {
 	form := ui.ChatFormProps{
-		AcceptLabel:   prompt.AcceptLabel,
-		Action:        action,
-		DeclineLabel:  prompt.DeclineLabel,
+		Action:        fmt.Sprintf("/chat/%d/elicitations", threadID),
 		ElicitationID: prompt.ElicitationID,
 		Message:       prompt.Message,
+		MessageID:     messageID,
 	}
 	schema := prompt.RequestedSchema
 	if schema == nil {
@@ -561,13 +589,6 @@ func toFieldProps(name string, prop *jsonschema.Schema, required bool) ui.ChatFo
 	if prop.Format == "email" {
 		field.Type = "email"
 	}
-	switch name {
-	case "body", "description", "notes":
-		field.Type = "textarea"
-	}
-	if name == "contact" || strings.HasSuffix(name, "_contact") {
-		field.Type = "contact"
-	}
 	for _, option := range prop.Enum {
 		if s, ok := option.(string); ok {
 			field.Options = append(field.Options, s)
@@ -579,10 +600,68 @@ func toFieldProps(name string, prop *jsonschema.Schema, required bool) ui.ChatFo
 	if len(prop.Default) > 0 {
 		var s string
 		if err := json.Unmarshal(prop.Default, &s); err == nil {
-			field.Value = html.UnescapeString(s)
+			field.Value = s
 		} else {
-			field.Value = html.UnescapeString(string(prop.Default))
+			field.Value = string(prop.Default)
 		}
 	}
 	return field
+}
+
+func (s *Server) sidebarProps(id int64) (ui.ChatSidebarProps, error) {
+	return s.svc.SidebarProps(id)
+}
+
+func (s *Service) SidebarProps(id int64) (ui.ChatSidebarProps, error) {
+	props := ui.ChatSidebarProps{ID: id}
+	threads, err := s.Threads()
+	if err != nil {
+		return props, err
+	}
+	messages, err := s.store.ListMessagesByStatus(db.MessageStatusStreaming)
+	if err != nil {
+		return props, err
+	}
+	running := make(map[int64]bool)
+	for _, message := range messages {
+		if message.Role == db.MessageRoleAssistant {
+			running[message.ThreadID] = true
+		}
+	}
+	for _, thread := range threads {
+		if thread.ID == id || strings.HasPrefix(s.AgentName(thread), "workflow:schedule:") {
+			continue
+		}
+		title := thread.Title
+		if title == "" {
+			title = "New chat"
+		}
+		item := ui.ChatSidebarItem{ID: thread.ID, Title: title}
+		if running[thread.ID] {
+			props.Running = append(props.Running, item)
+		} else if len(props.Recent) < 3 {
+			props.Recent = append(props.Recent, item)
+		}
+	}
+	return props, nil
+}
+
+func (s *Server) handleSidebar(w http.ResponseWriter, r *http.Request) {
+	var id int64
+	if r.PathValue("id") != "" {
+		var ok bool
+		id, ok = threadID(w, r)
+		if !ok {
+			return
+		}
+	}
+	props, err := s.sidebarProps(id)
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := ui.ChatSidebarChats(props).Render(r.Context(), w); err != nil {
+		s.notFoundOr(w, err)
+	}
 }
