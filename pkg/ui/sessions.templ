@@ -173,7 +173,7 @@ templ CodexLoginRow(v SessionsProps) {
 				}
 				@codexLoginCancel()
 				<form hx-post="/codex/login/callback" hx-target="#card-codex-login" hx-swap="outerHTML" hx-disabled-elt="find button" class="flex gap-2 mt-2 basis-full">
-					<input type="url" name="callback" placeholder="http://localhost:1455/auth/callback?code=…" autocomplete="off" required
+					<input type="url" name="callback" placeholder="paste the URL your browser landed on" autocomplete="off" required
 						class="flex-1 min-w-0 px-3 py-2 text-sm border border-input rounded-md bg-background shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 outline-none"/>
 					@button.Button(button.Props{Size: button.SizeSm, Type: button.TypeSubmit}) {
 						Submit
