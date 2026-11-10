@@ -152,6 +152,9 @@ func (h *HTML) dispatch(el *goquery.Selection) {
 		body = h.do(method, path, strings.NewReader(values.Encode()), true)
 	}
 
+	if h.Status == http.StatusNoContent {
+		return
+	}
 	h.applySwap(target, swap, body)
 }
 

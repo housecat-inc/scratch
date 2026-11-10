@@ -35,7 +35,7 @@ type Deps struct {
 	SessionQR          func(id string) ([]byte, error)
 	Shell              func() ui.ToolShellProps
 	SlugForPrompt      func(prompt string) string
-	StartCodexLogin    func() (CodexLogin, error)
+	StartCodexLogin    func(device bool) (CodexLogin, error)
 	StartLogin         func() (Login, error)
 	StartSession       func(name, dir, prompt string) (*claudecode.Session, error)
 	StopSession        func(id string) error
@@ -52,6 +52,7 @@ type CodexLogin interface {
 	Code() string
 	Done() bool
 	Err() error
+	SubmitCallback(url string) error
 	URL() string
 }
 
@@ -105,8 +106,11 @@ func DefaultDeps() Deps {
 		SlugForPrompt: func(prompt string) string {
 			return claudecode.SlugForPrompt(mgr.ClaudeBin, prompt)
 		},
-		StartCodexLogin: func() (CodexLogin, error) {
-			return codexcode.StartDeviceLogin()
+		StartCodexLogin: func(device bool) (CodexLogin, error) {
+			if device {
+				return codexcode.StartDeviceLogin()
+			}
+			return codexcode.StartBrowserLogin()
 		},
 		StartLogin: func() (Login, error) {
 			return claudecode.StartLogin()
@@ -161,8 +165,10 @@ func (s *Server) Register(mux *http.ServeMux, includeRoot bool) {
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleManifest)
 	mux.HandleFunc("GET /sw.js", s.handleServiceWorker)
 	mux.HandleFunc("GET /setup", s.handleSetup)
+	mux.HandleFunc("DELETE /codex/login", s.handleCodexLoginCancel)
 	mux.HandleFunc("GET /codex/login", s.handleCodexLoginPoll)
 	mux.HandleFunc("POST /codex/login", s.handleCodexLogin)
+	mux.HandleFunc("POST /codex/login/callback", s.handleCodexLoginCallback)
 	mux.HandleFunc("POST /configure", s.handleConfigure)
 	mux.HandleFunc("POST /install", s.handleInstall)
 	mux.HandleFunc("POST /login", s.handleLogin)
@@ -320,7 +326,7 @@ func (s *Server) handleCodexLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	l, err := s.deps.StartCodexLogin()
+	l, err := s.deps.StartCodexLogin(r.FormValue("mode") == "device")
 	if err != nil {
 		slog.Error("start codex login failed", "error", err.Error())
 		vm.CodexLoginError = err.Error()
@@ -337,7 +343,53 @@ func (s *Server) handleCodexLogin(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, ui.CodexLoginRow(vm))
 }
 
+func (s *Server) handleCodexLoginCallback(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	l := s.codexLogin
+	s.mu.Unlock()
+
+	var submitErr error
+	switch {
+	case l == nil:
+		submitErr = errors.New("no codex sign in in progress")
+	case strings.TrimSpace(r.FormValue("callback")) == "":
+		submitErr = errors.New("callback URL is required")
+	default:
+		submitErr = l.SubmitCallback(r.FormValue("callback"))
+	}
+	if submitErr != nil {
+		slog.Error("codex login callback failed", "error", submitErr.Error())
+	}
+
+	vm := s.viewModel()
+	vm.Nav = "setup"
+	if submitErr != nil && vm.CodexLoginError == "" {
+		vm.CodexLoginError = submitErr.Error()
+	}
+	s.render(w, r, ui.CodexLoginRow(vm))
+}
+
+func (s *Server) handleCodexLoginCancel(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	l := s.codexLogin
+	s.codexLogin = nil
+	s.mu.Unlock()
+	if l != nil {
+		_ = l.Close()
+	}
+	vm := s.viewModel()
+	vm.Nav = "setup"
+	s.render(w, r, ui.CodexLoginRow(vm))
+}
+
 func (s *Server) handleCodexLoginPoll(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	pending := s.codexLogin != nil && !s.codexLogin.Done()
+	s.mu.Unlock()
+	if pending {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	vm := s.viewModel()
 	vm.Nav = "setup"
 	s.render(w, r, ui.CodexLoginRow(vm))
@@ -556,6 +608,9 @@ func (s *Server) viewModel() ui.SessionsProps {
 			vm.CodexAuthenticated = true
 		case s.codexLogin.Done():
 			vm.CodexLoginError = "codex login did not complete"
+			if err := s.codexLogin.Err(); err != nil {
+				vm.CodexLoginError = err.Error()
+			}
 			_ = s.codexLogin.Close()
 			s.codexLogin = nil
 		default:

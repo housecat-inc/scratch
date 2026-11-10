@@ -30,18 +30,28 @@ func (f *fakeLogin) SubmitCode(code string) error {
 func (f *fakeLogin) URL() string { return f.url }
 
 type fakeCodexLogin struct {
-	closed bool
-	code   string
-	done   bool
-	err    error
-	url    string
+	callback    string
+	callbackErr error
+	closed      bool
+	code        string
+	done        bool
+	err         error
+	url         string
 }
 
 func (f *fakeCodexLogin) Close() error { f.closed = true; return nil }
 func (f *fakeCodexLogin) Code() string { return f.code }
 func (f *fakeCodexLogin) Done() bool   { return f.done }
 func (f *fakeCodexLogin) Err() error   { return f.err }
-func (f *fakeCodexLogin) URL() string  { return f.url }
+func (f *fakeCodexLogin) SubmitCallback(url string) error {
+	f.callback = url
+	if f.callbackErr != nil {
+		return f.callbackErr
+	}
+	f.done = true
+	return nil
+}
+func (f *fakeCodexLogin) URL() string { return f.url }
 
 type fakeDeps struct {
 	agents             agents.State
@@ -57,6 +67,7 @@ type fakeDeps struct {
 	installErr    error
 	loginErr      error
 	login         *fakeLogin
+	codexDevice   bool
 	codexLogin    *fakeCodexLogin
 	codexLoginErr error
 
@@ -122,7 +133,8 @@ func (f *fakeDeps) deps() Deps {
 			}
 			return ""
 		},
-		StartCodexLogin: func() (CodexLogin, error) {
+		StartCodexLogin: func(device bool) (CodexLogin, error) {
+			f.codexDevice = device
 			if f.codexLoginErr != nil {
 				return nil, f.codexLoginErr
 			}

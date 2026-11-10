@@ -1,131 +1,201 @@
 package codexcode
 
 import (
+	"context"
+	"encoding/json"
 	"io"
+	"net"
+	"net/http"
+	"net/url"
 	"os/exec"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/creack/pty"
+	"github.com/housecat-inc/scratch/pkg/harness/codexcode/appserver"
 )
 
 var (
-	ansiRe          = regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
-	deviceCodeRe    = regexp.MustCompile(`\b[A-Z0-9]{4}-[A-Z0-9]{4,6}\b`)
-	deviceURLRe     = regexp.MustCompile(`https://auth\.openai\.com/codex/device[^\s]*`)
-	loginURLTimeout = 30 * time.Second
+	callbackTimeout   = 30 * time.Second
+	clientInfo        = appserver.ClientInfo{Name: "scratch", Title: "scratch", Version: "dev"}
+	loginStartTimeout = 30 * time.Second
 )
 
-type DeviceLogin struct {
-	buf  strings.Builder
-	code string
-	cmd  *exec.Cmd
-	done bool
-	err  error
-	mu   sync.Mutex
-	pty  io.ReadWriteCloser
-	url  string
+type Login struct {
+	client   *appserver.Client
+	done     chan struct{}
+	err      error
+	finished bool
+	mu       sync.Mutex
+	res      appserver.LoginResponse
+	unsub    func()
 }
 
-func StartDeviceLogin() (*DeviceLogin, error) {
-	return StartDeviceLoginCmd(exec.Command("codex", "login", "--device-auth"))
+func StartBrowserLogin() (*Login, error) {
+	return StartLoginCmd(appserver.Command(), appserver.LoginTypeChatGPT)
 }
 
-func StartDeviceLoginCmd(cmd *exec.Cmd) (*DeviceLogin, error) {
-	f, err := pty.Start(cmd)
-	if err != nil {
-		return nil, errors.Wrap(err, "pty start")
-	}
-	l := &DeviceLogin{cmd: cmd, pty: f}
-	go l.readLoop()
-	go l.waitLoop()
+func StartDeviceLogin() (*Login, error) {
+	return StartLoginCmd(appserver.Command(), appserver.LoginTypeDeviceCode)
+}
 
-	url, err := l.waitFor(deviceURLRe, loginURLTimeout)
+func StartLoginCmd(cmd *exec.Cmd, loginType string) (*Login, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), loginStartTimeout)
+	defer cancel()
+
+	c, err := appserver.Start(ctx, cmd, clientInfo)
+	if err != nil {
+		return nil, errors.Wrap(err, "start codex app-server")
+	}
+	l := &Login{client: c, done: make(chan struct{})}
+	l.unsub = c.Subscribe(l.onNotification)
+	go func() {
+		<-c.Done()
+		l.finish(errors.New("codex app-server exited before login completed"))
+	}()
+
+	res, err := c.LoginStart(ctx, appserver.LoginParams{Type: loginType})
 	if err != nil {
 		_ = l.Close()
-		return nil, errors.Wrap(err, "wait for device url")
+		return nil, errors.Wrap(err, "start codex login")
 	}
-	code, err := l.waitFor(deviceCodeRe, loginURLTimeout)
-	if err != nil {
-		_ = l.Close()
-		return nil, errors.Wrap(err, "wait for device code")
-	}
-
 	l.mu.Lock()
-	l.url, l.code = url, code
+	l.res = res
 	l.mu.Unlock()
 	return l, nil
 }
 
-func (l *DeviceLogin) Close() error {
-	if l.cmd != nil && l.cmd.Process != nil {
-		_ = l.cmd.Process.Kill()
+func (l *Login) Close() error {
+	l.mu.Lock()
+	finished, id := l.finished, l.res.LoginID
+	l.mu.Unlock()
+	if !finished && id != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_ = l.client.LoginCancel(ctx, id)
+		cancel()
 	}
-	if l.pty != nil {
-		_ = l.pty.Close()
-	}
-	if l.cmd != nil {
-		_ = l.cmd.Wait()
-	}
-	return nil
+	l.unsub()
+	return l.client.Close()
 }
 
-func (l *DeviceLogin) Code() string { return l.code }
-
-func (l *DeviceLogin) URL() string { return l.url }
-
-func (l *DeviceLogin) Done() bool {
+func (l *Login) Code() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.done
+	return l.res.UserCode
 }
 
-func (l *DeviceLogin) Err() error {
+func (l *Login) Done() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.finished
+}
+
+func (l *Login) Err() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.err
 }
 
-func (l *DeviceLogin) readLoop() {
-	buf := make([]byte, 4096)
-	for {
-		n, err := l.pty.Read(buf)
-		if n > 0 {
-			l.mu.Lock()
-			l.buf.Write(buf[:n])
-			l.mu.Unlock()
-		}
-		if err != nil {
-			return
-		}
+func (l *Login) SubmitCallback(raw string) error {
+	target, err := l.callbackTarget(raw)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), callbackTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return errors.Wrap(err, "build callback request")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "forward callback to codex")
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	select {
+	case <-l.done:
+		return l.Err()
+	case <-ctx.Done():
+		return errors.New("codex did not finish sign in")
 	}
 }
 
-func (l *DeviceLogin) waitLoop() {
-	err := l.cmd.Wait()
+func (l *Login) URL() string {
 	l.mu.Lock()
-	l.done = true
-	l.err = err
-	l.mu.Unlock()
+	defer l.mu.Unlock()
+	if l.res.AuthURL != "" {
+		return l.res.AuthURL
+	}
+	return l.res.VerificationURL
 }
 
-func (l *DeviceLogin) waitFor(re *regexp.Regexp, timeout time.Duration) (string, error) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		l.mu.Lock()
-		s := ansiRe.ReplaceAllString(l.buf.String(), "")
-		done := l.done
-		l.mu.Unlock()
-		if m := re.FindString(s); m != "" {
-			return m, nil
-		}
-		if done {
-			return "", errors.New("process exited before match")
-		}
-		time.Sleep(50 * time.Millisecond)
+func (l *Login) callbackTarget(raw string) (string, error) {
+	l.mu.Lock()
+	authURL := l.res.AuthURL
+	l.mu.Unlock()
+	if authURL == "" {
+		return "", errors.New("not a browser sign in")
 	}
-	return "", errors.New("timeout")
+
+	au, err := url.Parse(authURL)
+	if err != nil {
+		return "", errors.Wrap(err, "parse auth url")
+	}
+	redirect, err := url.Parse(au.Query().Get("redirect_uri"))
+	if err != nil || redirect.Port() == "" {
+		return "", errors.New("auth url has no local redirect")
+	}
+
+	pasted, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", errors.New("paste the full URL from your browser's address bar")
+	}
+	q := pasted.Query()
+	if q.Get("state") == "" || (q.Get("code") == "" && q.Get("error") == "") {
+		return "", errors.New("paste the full URL from your browser's address bar")
+	}
+	if pasted.Path != redirect.Path {
+		return "", errors.Errorf("expected a %s URL", redirect.Path)
+	}
+
+	return (&url.URL{
+		Host:     net.JoinHostPort("127.0.0.1", redirect.Port()),
+		Path:     redirect.Path,
+		RawQuery: pasted.RawQuery,
+		Scheme:   "http",
+	}).String(), nil
+}
+
+func (l *Login) finish(err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.finished {
+		return
+	}
+	l.finished = true
+	l.err = err
+	close(l.done)
+}
+
+func (l *Login) onNotification(n appserver.Notification) {
+	if n.Method != appserver.MethodAccountLoginCompleted {
+		return
+	}
+	var lc appserver.LoginCompleted
+	if err := json.Unmarshal(n.Params, &lc); err != nil {
+		return
+	}
+	if lc.Success {
+		l.finish(nil)
+		return
+	}
+	msg := "codex sign in failed"
+	if lc.Error != nil && *lc.Error != "" {
+		msg = *lc.Error
+	}
+	l.finish(errors.New(msg))
 }

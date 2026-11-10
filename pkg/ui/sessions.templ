@@ -161,7 +161,26 @@ func codexInstallHint(v SessionsProps) string {
 templ CodexLoginRow(v SessionsProps) {
 	@setupRow("card-codex-login", false, v.CodexAuthenticated, "Sign in", codexLoginHint(v)) {
 		if !v.CodexAuthenticated {
-			if v.CodexLoginURL != "" {
+			if v.CodexLoginURL != "" && v.CodexLoginCode == "" {
+				@button.Button(button.Props{
+					Size:       button.SizeSm,
+					Variant:    button.VariantSecondary,
+					Href:       v.CodexLoginURL,
+					Target:     "_blank",
+					Attributes: templ.Attributes{"rel": "noopener"},
+				}) {
+					Sign in with ChatGPT →
+				}
+				@codexLoginCancel()
+				<form hx-post="/codex/login/callback" hx-target="#card-codex-login" hx-swap="outerHTML" hx-disabled-elt="find button" class="flex gap-2 mt-2 basis-full">
+					<input type="url" name="callback" placeholder="http://localhost:1455/auth/callback?code=…" autocomplete="off" required
+						class="flex-1 min-w-0 px-3 py-2 text-sm border border-input rounded-md bg-background shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 outline-none"/>
+					@button.Button(button.Props{Size: button.SizeSm, Type: button.TypeSubmit}) {
+						Submit
+					}
+				</form>
+				@codexLoginPoll()
+			} else if v.CodexLoginURL != "" {
 				@button.Button(button.Props{
 					Size:       button.SizeSm,
 					Variant:    button.VariantSecondary,
@@ -172,13 +191,18 @@ templ CodexLoginRow(v SessionsProps) {
 					Open auth.openai.com →
 				}
 				<code class="setup-cmd">{ v.CodexLoginCode }</code>
-				<span class="setup-hint basis-full inline-flex items-center gap-1"
-					hx-get="/codex/login" hx-trigger="every 3s" hx-target="#card-codex-login" hx-swap="outerHTML">
-					Waiting for authorization…
-				</span>
+				@codexLoginCancel()
+				@codexLoginPoll()
 			} else if v.CodexInstalled {
 				@button.Button(button.Props{Size: button.SizeSm, Attributes: hxAction("post", "/codex/login", "#card-codex-login")}) {
 					Connect
+				}
+				@button.Button(button.Props{
+					Size:       button.SizeSm,
+					Variant:    button.VariantGhost,
+					Attributes: codexDeviceAction(),
+				}) {
+					Use device code
 				}
 			}
 		}
@@ -188,10 +212,31 @@ templ CodexLoginRow(v SessionsProps) {
 	}
 }
 
+templ codexLoginCancel() {
+	@button.Button(button.Props{Size: button.SizeSm, Variant: button.VariantGhost, Attributes: hxAction("delete", "/codex/login", "#card-codex-login")}) {
+		Cancel
+	}
+}
+
+templ codexLoginPoll() {
+	<span class="setup-hint basis-full inline-flex items-center gap-1"
+		hx-get="/codex/login" hx-trigger="every 3s" hx-target="#card-codex-login" hx-swap="outerHTML">
+		Waiting for sign in…
+	</span>
+}
+
+func codexDeviceAction() templ.Attributes {
+	a := hxAction("post", "/codex/login", "#card-codex-login")
+	a["hx-vals"] = `{"mode":"device"}`
+	return a
+}
+
 func codexLoginHint(v SessionsProps) string {
 	switch {
 	case v.CodexAuthenticated:
 		return "OpenAI subscription"
+	case v.CodexLoginURL != "" && v.CodexLoginCode == "":
+		return "Sign in, then paste the localhost URL if it doesn't load"
 	case v.CodexLoginURL != "":
 		return "Enter this code at auth.openai.com"
 	case !v.CodexInstalled:
