@@ -1,7 +1,6 @@
 package testkit
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/go-rod/rod"
@@ -120,7 +119,7 @@ func (t *T) Press(page *rod.Page, selector string, chord string) {
 	for i, part := range parts {
 		k, ok := keys[part]
 		if !ok {
-			t.t.Fatal(fmt.Errorf("unknown key %q", part))
+			t.t.Fatalf("unknown key %q", part)
 		}
 		pressed[i] = k
 	}

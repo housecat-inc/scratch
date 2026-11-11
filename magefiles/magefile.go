@@ -5,10 +5,12 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,9 +24,11 @@ import (
 var Default = Build
 
 const (
-	appDevPort = "8000"
-	pkg        = "./cmd/scratch"
-	service    = "scratch.service"
+	appDevPort   = "8000"
+	coveragePath = "docs/coverage.txt"
+	pkg          = "./cmd/scratch"
+	service      = "scratch.service"
+	testsPath    = "docs/tests.txt"
 )
 
 var devPorts = []devPort{
@@ -279,6 +283,64 @@ func Generate() error {
 		return err
 	}
 	return sh.RunV("go", "generate", "./pkg/api/...")
+}
+
+func Check() error {
+	mg.Deps(Generate)
+	if err := sh.RunV("go", "vet", "./..."); err != nil {
+		return err
+	}
+	checks, err := filepath.Abs(filepath.Join("tmp", "checks"))
+	if err != nil {
+		return errors.Wrap(err, "resolve checks path")
+	}
+	if err := sh.RunV("go", "build", "-o", checks, "./cmd/checks"); err != nil {
+		return err
+	}
+	if err := sh.RunV("go", "vet", "-vettool="+checks, "./..."); err != nil {
+		return err
+	}
+	if err := Tests(); err != nil {
+		return err
+	}
+	untracked, err := sh.Output("git", "ls-files", "--others", "--exclude-standard", "--", testsPath)
+	if err != nil {
+		return err
+	}
+	if untracked != "" || exec.Command("git", "diff", "--quiet", "--", testsPath).Run() != nil {
+		return errors.Errorf("%s is out of date; run mage tests and commit it", testsPath)
+	}
+	return nil
+}
+
+func Cover() error {
+	mg.Deps(Generate)
+	var out bytes.Buffer
+	if _, err := sh.Exec(nil, io.MultiWriter(&out, os.Stdout), os.Stderr, "go", "test", "-count=1", "-cover", "./..."); err != nil {
+		return err
+	}
+	var b strings.Builder
+	for _, line := range strings.Split(out.String(), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || !strings.Contains(line, "coverage:") {
+			continue
+		}
+		path := fields[0]
+		if path == "ok" {
+			path = fields[1]
+		}
+		path = strings.TrimPrefix(path, "github.com/housecat-inc/scratch/")
+		fmt.Fprintf(&b, "%-48s %s\n", path, fields[slices.Index(fields, "coverage:")+1])
+	}
+	return errors.Wrap(os.WriteFile(coveragePath, []byte(b.String()), 0o644), "write coverage")
+}
+
+func Tests() error {
+	out, err := sh.Output("go", "run", "./cmd/checks", "spec", ".")
+	if err != nil {
+		return err
+	}
+	return errors.Wrap(os.WriteFile(testsPath, []byte(out+"\n"), 0o644), "write tests")
 }
 
 func Install() error {

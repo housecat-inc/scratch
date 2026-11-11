@@ -1,0 +1,85 @@
+package testspec
+
+import (
+	"cmp"
+	"fmt"
+	"go/parser"
+	"go/token"
+	"io"
+	"io/fs"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/cockroachdb/errors"
+)
+
+var skipDirs = []string{".git", "node_modules", "testdata", "tmp", "vendor"}
+
+func Tree(root string) (map[string][]*Node, error) {
+	fset := token.NewFileSet()
+	pkgs := map[string][]*Node{}
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != root && slices.Contains(skipDirs, d.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return errors.Wrapf(err, "parse %s", path)
+		}
+		dir, err := filepath.Rel(root, filepath.Dir(path))
+		if err != nil {
+			return errors.Wrapf(err, "relative path %s", path)
+		}
+		dir = filepath.ToSlash(dir)
+		pkgs[dir] = append(pkgs[dir], Parse(path, f).Tests...)
+		return nil
+	})
+	return pkgs, errors.Wrapf(err, "walk %s", root)
+}
+
+func Write(w io.Writer, pkgs map[string][]*Node) error {
+	dirs := make([]string, 0, len(pkgs))
+	for dir, nodes := range pkgs {
+		if len(nodes) > 0 {
+			dirs = append(dirs, dir)
+		}
+	}
+	slices.Sort(dirs)
+	for i, dir := range dirs {
+		if i > 0 {
+			if _, err := fmt.Fprintln(w); err != nil {
+				return errors.Wrap(err, "write")
+			}
+		}
+		if _, err := fmt.Fprintln(w, dir); err != nil {
+			return errors.Wrap(err, "write")
+		}
+		if err := writeNodes(w, pkgs[dir], 1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeNodes(w io.Writer, nodes []*Node, depth int) error {
+	nodes = slices.SortedFunc(slices.Values(nodes), func(a, b *Node) int { return cmp.Compare(a.Name, b.Name) })
+	for _, n := range nodes {
+		if _, err := fmt.Fprintf(w, "%s%s\n", strings.Repeat("  ", depth), n.Name); err != nil {
+			return errors.Wrap(err, "write")
+		}
+		if err := writeNodes(w, n.Children, depth+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}

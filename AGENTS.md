@@ -19,15 +19,51 @@ Static assets (JS, CSS, icons) live in `pkg/ui/static` and are served from an `/
 - Write self-commenting code; do not write comments
 - Sort things lexicographically — struct fields, DB columns, map keys, switch cases
 - Errors: `github.com/cockroachdb/errors`
-- Tests: table-driven, `github.com/stretchr/testify` with `a := assert.New(t)` and `r := require.New(t)`
+
+## Tests
+
+Stdlib table-driven tests whose names read like a spec. `docs/tests.txt` is the committed tree of every test name; review its diff to see behavior added or removed. The `testspec` analyzer enforces:
+
+- One `Test<Subject>` per `_test.go` file, named after the file (`comments_test.go` → `TestComments`)
+- At most three levels: `TestComments` › group (`AddComment` or "when the branch is missing") › case ("rejects an empty body")
+- Case names are literal lowercase sentences — no `_` or `/` — via `t.Run("...")` or a literal table's `name` field
+- `t.Run` only inside the Test function, never in helpers; no `testkit` runners
+- `github.com/stretchr/testify` with `a := assert.New(t)` and `r := require.New(t)` inside each case
+
+```go
+func TestComments(t *testing.T) {
+	t.Run("AddComment", func(t *testing.T) {
+		tests := []struct {
+			body string
+			err  string
+			name string
+		}{
+			{name: "rejects an empty body", err: "body required"},
+			{name: "stores the line and side", body: "looks off"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				a := assert.New(t)
+				r := require.New(t)
+				...
+			})
+		}
+	})
+}
+```
+
+Packages not yet migrated are listed in `Pending` in `cmd/checks/testspec`; remove a package once its tests conform.
 
 ## Build & codegen
 
 Build and dev tasks run through [mage](https://magefile.org); Go tools are invoked with `go tool`:
 
 - `mage build` — build `cmd/scratch`
+- `mage check` — `go vet` plus custom analyzers in `cmd/checks`, and verify `docs/tests.txt` is current
+- `mage cover` — write per-package coverage to `docs/coverage.txt`
 - `mage dev` — hot-reload dev servers via air
 - `mage generate` — run all code generation (`go generate ./...`)
+- `mage tests` — write the test spec tree to `docs/tests.txt`
 - `go test ./...` — run tests
 
 Never hand-edit generated code. `mage build` regenerates before compiling; edit the source instead:

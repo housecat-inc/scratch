@@ -1,0 +1,3 @@
+package testkit
+
+func Run() {}

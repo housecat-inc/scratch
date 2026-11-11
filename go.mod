@@ -21,6 +21,7 @@ require (
 	github.com/templui/templui v1.10.1
 	github.com/wux4an/lucide-templ v0.0.1
 	github.com/yuin/goldmark v1.8.3
+	golang.org/x/tools v0.51.0
 	modernc.org/sqlite v1.52.0
 )
 
@@ -125,7 +126,6 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
-	golang.org/x/tools v0.51.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260817212433-ac3dfec99bb1 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260817212433-ac3dfec99bb1 // indirect
 	google.golang.org/grpc v1.85.0 // indirect

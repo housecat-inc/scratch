@@ -1,0 +1,436 @@
+cmd/checks/errors
+  Errors
+    Analyzer
+      reports std and pkg errors but allows cockroachdb errors
+
+cmd/checks/testspec
+  Testspec
+    Analyzer
+      reports every naming and structure violation
+    Write
+      prints the sorted Test, group, case hierarchy
+
+pkg/agents
+  Dir
+
+pkg/api
+  Spec
+    greet
+
+pkg/chat
+  AddAttachmentRejectsOversize
+  AgentInstructionsDescribeExistingWorkspace
+  AgentName
+  AttachmentLifecycle
+  ChatMessageTransport
+  ChatMessageTransportQueuesWhileStreaming
+  ChatStopTransport
+  ClaudeArgsAccessAndAttachments
+  ClaudeLineEvents
+    first text block no separator
+    input json delta ignored
+    result
+    subagent lines skipped
+    text block separator
+    text delta
+    thinking delta
+    tool result
+    tool result error
+    tool use
+  CodexArgs
+    new session
+    new session with model
+    resume uses config override for sandbox
+    safe mode stays read-only
+    safe resume stays read-only
+  CodexArgsAttachments
+  CodexArgsDoesNotAddWorkspaceWriteRoots
+  CodexItemEvents
+    agent message
+    agent message separator
+    command completed
+    command failed
+    command started
+    command update ignored
+    file change
+    reasoning
+    todo list
+    web search
+  DeleteDraftAttachmentRemovesFile
+  FoldPartsDanglingToolCompletesWithMessage
+  FoldPartsLegacyToolCall
+  FoldPartsPlanUpdatesInPlace
+  FoldPartsTextAndThinking
+  FoldPartsToolCallMerge
+  FoldPartsToolDiffDetail
+  FormPropsUnescapesDefaultEntities
+  FriendlyDescription
+  FriendlyTitle
+  HasRunner
+  LegacyChatPagesAreNotMounted
+  NewPopoutNormalizesProviderModel
+    invalid model
+    valid model
+  ParseProviderModel
+  ProviderModelOptions
+  RecoverFinishesOrphanedStreaming
+  RecoverLeavesAliveTurns
+  ResolveElicitationRecordsResultBeforeDeliver
+  RunTurnAttachesToFinishedRunner
+  RunTurnInterruptedRunnerFails
+  RunTurnNoPromptNoRunner
+  RunTurnSpawnsAndCompletes
+  SanitizeFilename
+  SendAgentError
+  SendBusyQueuesNextTurn
+  SendDeduplicatesReplayedEvents
+  SendEcho
+  SendMissingThread
+  SendPreservesThreadLabel
+  SendRejectsInvalidAttachment
+  StopRunnerTerminatesProcessGroup
+  StopThreadCancelsRunningTurn
+  StopThreadNotBusy
+  StopThreadStartsQueuedTurn
+  ThreadPromptEmptyThread
+  ThreadsByLabel
+  ToggleThreadAccess
+  ToolTitle
+  Truncate
+    boundary
+    long
+    short
+    trims
+    unicode
+  ViewPicksFirstUnresolvedForm
+  WithDir
+  WriteMessagesEventStripsCarriageReturns
+
+pkg/db
+  CommentAnchorStable
+  CommentCRUD
+  CommentDeleteMissing
+  CommentGetMissing
+  CommentUpdateAndResolve
+  DeleteThreadDeletesMessagesAndEvents
+  MessageErrors
+    append missing
+    finish missing
+    get missing
+  MessageLifecycle
+  MigrateUpgradesExistingDatabase
+  TaskCRUD
+  TaskErrors
+    delete missing
+    describe missing
+    get missing
+    toggle missing
+    update missing
+  ThreadCRUD
+  ThreadErrors
+    anchor missing
+    delete missing
+    get missing
+    state missing
+    title missing
+    touch missing
+    trash missing
+  TrashThreadHidesFromList
+
+pkg/elicit
+  Coerce
+  SchemaFor
+
+pkg/flow
+  CountdownWorkflow
+  CreatePRWorkflow
+  DeployWorkflow
+  FanoutEnqueuesChildWorkflows
+  FanoutWorkflow
+  ForkUsesCurrentApplicationVersion
+  GreetProgressWhileRunning
+  GreetWorkflow
+  NormalizePullRequestUnescapesHTMLEntities
+  ResolveOldApplicationVersionReturnsStale
+  ResolveUnknownForm
+  ScheduleLifecycle
+  StreamWorkflow
+  UpdateClaudeWorkflow
+  WebhookIdempotentDelivery
+  WebhookUnknownWorkflow
+  WebhookWorkflow
+
+pkg/git
+  Branch
+  CommitLog
+  ComputeStatus
+    behind by one
+    clean and current
+    dirty working tree
+    diverged ahead
+  DefaultBranch
+  Diff
+  HunkCommit
+  HunkKeyStable
+  Installed
+    dir with .git is installed
+    dir without .git is not installed
+    missing dir is not installed
+  InstalledRecognizesWorktreeFile
+  LastCommit
+  ParseDiff
+  ParseSlug
+  Pull
+  RemoteSlug
+  ShowFile
+
+pkg/harness/claudecode
+  Authenticated
+  ConfiguredAfterClaudeRewrite
+  ConfiguredAt
+    agents installed but symlinks missing
+    all four complete
+    claude.json missing key
+    neither file present
+    only claude.json complete
+    only settings complete
+    settings complete but agents missing
+  EnsureSymlinksAt
+    creates all symlinks from clean home
+    creates parent dir for nested link
+    errors when target is a regular directory
+    errors when target is a regular file
+    idempotent when correct symlinks exist
+    replaces stale symlink
+  EnsureTmuxInstalledAlreadyOnPath
+  ExtractLastAssistantMessage
+    ignores TUI chrome
+    lowercase word + parens is prose, not tool call
+    plain assistant message
+    skips tool call before assistant
+    skips trailing tool call to find prior assistant
+    treats nested-parens tool call as tool call
+  HasDefaults
+    complete file has defaults
+    different scalar still satisfies presence
+    missing file has no defaults
+    missing top-level key fails
+  HasSymlinksAt
+    all correct returns true
+    missing returns false
+    partial returns false
+    regular file returns false
+    wrong target returns false
+  Login
+    invalid code errors
+    valid code returns nil
+  ManagerRecover
+  ManagerRecoverIgnoresUnreadySessions
+  ManagerRecoverIsIdempotent
+  ManagerStart
+  ManagerStartErrors
+  ManagerStopAll
+  MergeDefaults
+    creates claude.json with all defaults
+    creates settings.json with all defaults
+    empty file is treated as empty object
+    preserves existing projects map
+    preserves existing theme in settings
+    preserves nested scalar inside permissions
+    preserves unknown fields not declared in struct
+  MergeDefaultsCreatesParentDir
+  MergeDefaultsNoChangeNoRewrite
+    claude.json already complete
+    extra fields present, defaults satisfied
+    settings already complete
+  SanitizeSlug
+  SessionPrefix
+  SessionQRPNG
+  SlugForPromptNoBinary
+  StartLoginNoURLTimesOut
+  SubmitCodeAfterBrowserSuccess
+  TmuxInstallCommandLinux
+    apk
+    apt-get
+    dnf
+    pacman
+    prefers apk over yum when both present
+    yum
+  TmuxInstallCommandLinuxNoManager
+  TrustProjectAt
+  URLRegex
+    claude.ai session URL
+    code.claude.com session URL
+    ignores environment redirect URL
+    ignores non-session paths
+    ignores other domains
+    no URL
+
+pkg/harness/codexcode
+  AppServerHelper
+  BrowserLogin
+    missing code is rejected locally
+    rejected code surfaces codex error
+    valid callback completes sign in
+    wrong path is rejected locally
+  DeviceLogin
+  LoginCloseCancels
+  Version
+    bare version
+    codex-cli prefix
+    command error
+    empty output
+
+pkg/harness/codexcode/appserver
+  AppServerHelper
+  Client
+    browser login returns auth url
+    calls fail after close
+    cancel emits login completed
+    device code login returns user code
+    rpc error is returned
+    server requests are rejected
+
+pkg/inbox
+  ArchiveFilter
+    active group filter
+    archived group filter
+    inbox ignores filter
+    unknown group filter defaults all
+  ChatAgent
+    default
+    known chat agent
+    unknown agent
+  ChatAgentOptions
+  ChatBrowser
+  ChatModel
+    claude model
+    codex model
+    default
+    unsupported
+    wrong provider
+  InboxTasksBrowser
+  IncludeArchiveFilter
+    active excludes archived
+    active includes active
+    all includes active
+    all includes archived
+    archived excludes active
+    archived includes archived
+  IncludeTaskFilter
+    active excludes archived
+    active excludes done
+    active includes open
+    all includes active
+    all includes done
+    archived excludes open
+    archived includes archived
+  LegacyTaskPagesAreNotMounted
+  PopoutClickMinimizeCollapses
+  PopoutExpandFromMinimizedRestoresComposer
+  PopoutMinimizedTruncatesDescription
+  PopoutReloadRestoresCollapsedMinimized
+  PopoutRestoreScrollsToBottom
+  ResolveComposeMode
+  ScheduleLastFired
+  WebhookRouteDeliversToWorkflow
+  WebhookRouteRejectsOversizedBody
+  WebhookRouteUnknownWorkflowIs404
+  WorkflowAgent
+    default
+    greet
+    unknown
+  WorkflowCancelResumeBrowser
+  WorkflowEventsRejectsNonWorkflowThread
+  WorkflowGreetBrowser
+  WorkflowLiveUpdatesPreserveEarlierSteps
+  WorkflowSchedulesBrowser
+  WorkflowStreamAutoRefreshesToCompleted
+
+pkg/repo
+  Find
+  Scan
+  ScanIncludingPrefersExplicitWorktree
+  ScanSkipsReposWithoutOrigin
+
+pkg/server/code
+  CodeBrowser
+  CodePagesHTML
+  CommentDeleteReturnsOK
+  CommentEditFlow
+  CommentListPage
+  CommentResolveToggle
+  CommentRoutesValidation
+    empty body
+    form bad line
+    invalid side
+    missing slug
+  ContextEndpoint
+    down to end
+    down with more available
+    expand all
+    up to boundary
+  HandlerSurfacesErrors
+
+pkg/server/sessions
+  LoginCodeMissing
+  LoginFlowsHTML
+  SessionFlowsHTML
+  SessionQR
+  SessionQRMissing
+  SessionStartNoPromptUsesEmptyName
+  SessionsPageOmitsAgentsHints
+  SessionsRouteWithoutRoot
+  SetupBrowser
+  SetupPageHTML
+  TopNav
+    root highlights sessions
+    setup highlights setup
+
+pkg/server/sql
+  LSPBridge
+  MissingDBSurfacesError
+  Page
+  QueryReadOnly
+    delete
+    drop
+    insert
+    pragma bypass
+  SQLBrowser
+  SQLHTML
+  SQLSavedQueriesHTML
+  Schema
+
+pkg/todo
+  TodoWebBrowser
+
+pkg/ui
+  ChatPartGroups
+  ChatToolGroupSummary
+
+pkg/workflow
+  Greet
+    empty
+    name
+  SingleDBSharesSchemas
+    app
+    workflow
+
+pkg/workspace
+  ResolveInRepo
+  ResolveOutsideRepo
+
+testkit
+  HTML
+
+testkit/v2
+  Atoi
+  AtoiTable
+  DB
+  Fixture
+  Server
+  SetupTeardownTable
+  Split
+  Steps
+  Upper
+  UpperTable
