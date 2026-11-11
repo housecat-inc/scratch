@@ -37,33 +37,48 @@ func (f fakeDrafter) Draft(context.Context, string) (PullRequest, error) {
 	return f.pr, nil
 }
 
-func runCases(t *testing.T, cases []testkit.Case[*Harness]) {
-	testkit.RunCases(t, cases, testkit.CaseRunner[*Harness]{
-		Setup: func(t *testing.T, kit *testkit.T, _ testkit.Case[*Harness]) *Harness {
-			wf, err := workflow.New(t.TempDir() + "/flow.db")
-			kit.R.NoError(err)
-			h := &Harness{
-				T:       kit,
-				Drafts:  &atomic.Int32{},
-				greetFn: func(_ context.Context, name string) (string, error) { return "Hi " + name, nil },
-			}
-			h.Engine = New(Deps{
-				CountdownStep: 5 * time.Millisecond,
-				DBOS:          wf.Ctx(),
-				Drafter:       fakeDrafter{drafts: h.Drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
-				Greeter:       GreeterFunc(func(ctx context.Context, name string) (string, error) { return h.greetFn(ctx, name) }),
-				Log:           slog.Default(),
-				StageStep:     5 * time.Millisecond,
-				Updater: UpdaterFuncs{
-					UpdateFn:  func(context.Context) (string, error) { return "Updated to claude 2.0", nil },
-					VersionFn: func(context.Context) (string, error) { return "claude 1.0", nil },
-				},
-			})
-			kit.R.NoError(wf.Launch())
-			t.Cleanup(func() { wf.Close() })
-			return h
+type flowCase struct {
+	act    []Step
+	assert []Step
+	name   string
+}
+
+func newHarness(t *testing.T) *Harness {
+	t.Helper()
+	kit := testkit.New(t)
+	wf, err := workflow.New(t.TempDir() + "/flow.db")
+	kit.R.NoError(err)
+	h := &Harness{
+		T:       kit,
+		Drafts:  &atomic.Int32{},
+		greetFn: func(_ context.Context, name string) (string, error) { return "Hi " + name, nil },
+	}
+	h.Engine = New(Deps{
+		CountdownStep: 5 * time.Millisecond,
+		DBOS:          wf.Ctx(),
+		Drafter:       fakeDrafter{drafts: h.Drafts, pr: PullRequest{Body: "- Add thing", Title: "Add thing"}, summary: "Commits:\nabc Add thing"},
+		Greeter:       GreeterFunc(func(ctx context.Context, name string) (string, error) { return h.greetFn(ctx, name) }),
+		Log:           slog.Default(),
+		StageStep:     5 * time.Millisecond,
+		Updater: UpdaterFuncs{
+			UpdateFn:  func(context.Context) (string, error) { return "Updated to claude 2.0", nil },
+			VersionFn: func(context.Context) (string, error) { return "claude 1.0", nil },
 		},
 	})
+	kit.R.NoError(wf.Launch())
+	t.Cleanup(func() { wf.Close() })
+	return h
+}
+
+func runFlowCase(t *testing.T, tc flowCase) {
+	t.Helper()
+	h := newHarness(t)
+	for _, step := range tc.act {
+		step(t, h)
+	}
+	for _, step := range tc.assert {
+		step(t, h)
+	}
 }
 
 func (h *Harness) pendingForm() *elicit.Prompt {

@@ -17,7 +17,6 @@ var Pending = []string{
 	"github.com/housecat-inc/scratch/pkg/chat",
 	"github.com/housecat-inc/scratch/pkg/db",
 	"github.com/housecat-inc/scratch/pkg/elicit",
-	"github.com/housecat-inc/scratch/pkg/flow",
 	"github.com/housecat-inc/scratch/pkg/git",
 	"github.com/housecat-inc/scratch/pkg/harness/claudecode",
 	"github.com/housecat-inc/scratch/pkg/harness/codexcode",
