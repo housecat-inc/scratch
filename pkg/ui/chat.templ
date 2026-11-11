@@ -78,50 +78,6 @@ templ ChatMessages(p ChatThreadProps) {
 	}
 }
 
-templ ChatRailPanel(p ChatRailProps) {
-	<section
-		id="chat-rail-panel"
-		class="chat-rail-panel"
-		data-chat-rail-panel
-		data-thread-id={ itoa64(p.ID) }
-		data-empty={ strconv.FormatBool(len(p.Messages) == 0) }
-		aria-label="Chat"
-	>
-		<header class="chat-rail-head">
-			<div class="chat-rail-title">
-				<span>{ p.Title }</span>
-				if p.Description != "" {
-					<small>{ p.Description }</small>
-				}
-			</div>
-			<div class="chat-rail-actions">
-				<a class="chat-rail-icon" href={ templ.SafeURL("/inbox/chats/" + itoa64(p.ID)) } data-chat-rail-expand title="Open as page" aria-label="Open chat as page">
-					@lucide.Maximize2()
-				</a>
-				<button type="button" class="chat-rail-icon" data-chat-rail-close title="Close" aria-label="Close chat panel">
-					@lucide.X()
-				</button>
-			</div>
-		</header>
-		<div class="chat-rail-body" data-chat-scroller>
-			<div id={ "chat-rail-" + itoa64(p.ID) + "-messages" } data-chat-messages class="chat-messages chat-rail-messages" hx-sse:connect={ "/chat/" + itoa64(p.ID) + "/events" } hx-swap="innerMorph">
-				@ChatMessages(ChatThreadProps{Agent: p.Agent, ID: p.ID, Messages: p.Messages, Title: p.Title})
-			</div>
-		</div>
-		<footer class="chat-rail-compose">
-			@ChatComposer(ChatComposerProps{
-				Action:      "/chat/" + itoa64(p.ID) + "/messages",
-				FileName:    "",
-				HXPost:      "/chat/" + itoa64(p.ID) + "/messages",
-				IDPrefix:    "chat-rail-" + itoa64(p.ID),
-				Placeholder: "Message " + p.Agent + "...",
-				StopAction:  "/chat/" + itoa64(p.ID) + "/stop",
-				UploadURL:   "/chat/" + itoa64(p.ID) + "/attachments",
-			})
-		</footer>
-	</section>
-}
-
 templ ChatMessage(m ChatMessageProps) {
 	<div
 		id={ "message-" + itoa64(m.ID) }

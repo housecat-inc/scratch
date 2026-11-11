@@ -67,13 +67,6 @@ func historyHref(href string) string {
 	return href
 }
 
-func newChatAction(action string) string {
-	if action == "" {
-		return "/chat/rail/new"
-	}
-	return action
-}
-
 func countLabel(count int) string {
 	return strconv.Itoa(count)
 }

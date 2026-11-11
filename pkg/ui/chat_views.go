@@ -135,16 +135,6 @@ type ChatThreadProps struct {
 	Title    string
 }
 
-type ChatRailProps struct {
-	Access      string
-	Agent       string
-	Description string
-	ID          int64
-	Messages    []ChatMessageProps
-	Streaming   bool
-	Title       string
-}
-
 func ChatCSS() templ.Component {
 	return templ.Raw(`<style>` + chatCSS + `</style>`)
 }

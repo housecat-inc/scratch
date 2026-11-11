@@ -121,9 +121,6 @@ pkg/chat/codex_test.go
 pkg/chat/hypertext_test.go
   FormProps
     unescapes html entities in field defaults
-  HandleNewRail
-    drops an unknown model from the anchor
-    keeps a known model in the anchor
   HandleSend
     queues the posted prompt while a turn is streaming
     sends the posted prompt to the agent
