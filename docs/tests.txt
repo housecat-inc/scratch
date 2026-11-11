@@ -118,6 +118,14 @@ pkg/chat/codex_test.go
     titles a web search by its query
     turns a todo list into a plan
 
+pkg/chat/codexui_test.go
+  CodexServer
+    answers a retried send without sending twice
+    rejects a follow-up before its thread exists
+    renders the thread's turns for the rail
+    sends a follow-up to the thread its first message started
+    starts a labeled thread from the first message
+
 pkg/chat/hypertext_test.go
   FormProps
     unescapes html entities in field defaults
