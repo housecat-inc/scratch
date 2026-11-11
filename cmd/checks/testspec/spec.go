@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,8 +13,9 @@ import (
 const maxDepth = 2
 
 var (
-	identName = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
-	titleWord = regexp.MustCompile(`^[A-Z][a-z]`)
+	identName   = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+	subjectName = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+	titleWord   = regexp.MustCompile(`^[A-Z][a-z]`)
 )
 
 type File struct {
@@ -57,15 +57,8 @@ func Parse(filename string, f *ast.File) File {
 		p.forbidRuns(fn.Body)
 	}
 
-	subject := strings.TrimSuffix(filepath.Base(filename), "_test.go")
 	var nodes []*Node
-	for i, fn := range tests {
-		if i > 0 {
-			p.report(fn.Name.Pos(), "one Test per file: %s already declares %s", filepath.Base(filename), tests[0].Name.Name)
-		}
-		if normalize(fn.Name.Name[len("Test"):]) != normalize(subject) {
-			p.report(fn.Name.Pos(), "%s must be named after its file %s, like Test%s", fn.Name.Name, filepath.Base(filename), camel(subject))
-		}
+	for _, fn := range tests {
 		t, _ := testingParam(fn.Type)
 		children := p.walk(fn.Body, t, 1, tables{})
 		if len(children) == 0 {
@@ -137,6 +130,9 @@ func (p *walker) run(call *ast.CallExpr, stack []ast.Node, scope tables, depth i
 	var nodes []*Node
 	for _, n := range p.names(call.Args[0], stack, scope) {
 		p.checkName(n)
+		if depth == 1 && len(children) > 0 && subjectName.MatchString(n.Name) && strings.ToLower(n.Name) != n.Name {
+			p.report(n.Pos, "group %q names a subject; make it its own Test%s", n.Name, upperFirst(n.Name))
+		}
 		nodes = append(nodes, &Node{Children: children, Name: n.Name, Pos: n.Pos})
 	}
 	return nodes
@@ -211,14 +207,6 @@ func (p *walker) checkName(n *Node) {
 
 func (p *walker) report(pos token.Pos, format string, args ...any) {
 	p.problems = append(p.problems, Problem{Message: fmt.Sprintf(format, args...), Pos: pos})
-}
-
-func camel(s string) string {
-	var b strings.Builder
-	for _, part := range strings.FieldsFunc(s, func(r rune) bool { return r == '_' || r == '-' }) {
-		b.WriteString(strings.ToUpper(part[:1]) + part[1:])
-	}
-	return b.String()
 }
 
 func collectTables(body *ast.BlockStmt, parent tables) tables {
@@ -308,8 +296,10 @@ func nameField(elt ast.Expr) *Node {
 	return nil
 }
 
-func normalize(s string) string {
-	return strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(s))
+func upperFirst(s string) string {
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }
 
 func resolve(x ast.Expr, scope tables) *ast.CompositeLit {

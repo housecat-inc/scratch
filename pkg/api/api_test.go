@@ -8,28 +8,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAPI(t *testing.T) {
-	t.Run("Spec", func(t *testing.T) {
-		spec := Spec(filepath.Join(t.TempDir(), "openapi.json"))
-		require.New(t).NotNil(spec)
+func TestSpec(t *testing.T) {
+	spec := Spec(filepath.Join(t.TempDir(), "openapi.json"))
+	require.New(t).NotNil(spec)
 
-		tests := []struct {
-			name    string
-			path    string
-			summary string
-		}{
-			{name: "documents the greet workflow route", path: "/api/workflows/greet", summary: "Run the durable greet workflow"},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				a := assert.New(t)
-				r := require.New(t)
+	tests := []struct {
+		name    string
+		path    string
+		summary string
+	}{
+		{name: "documents the greet workflow route", path: "/api/workflows/greet", summary: "Run the durable greet workflow"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
 
-				item := spec.Paths.Find(tt.path)
-				r.NotNil(item)
-				r.NotNil(item.Post)
-				a.Equal(tt.summary, item.Post.Summary)
-			})
-		}
-	})
+			item := spec.Paths.Find(tt.path)
+			r.NotNil(item)
+			r.NotNil(item.Post)
+			a.Equal(tt.summary, item.Post.Summary)
+		})
+	}
 }

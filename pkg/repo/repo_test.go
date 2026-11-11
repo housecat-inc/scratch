@@ -10,89 +10,87 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRepo(t *testing.T) {
-	t.Run("Find", func(t *testing.T) {
-		t.Run("locates a repo by slug and misses unknown slugs", func(t *testing.T) {
-			requireGit(t)
-			a := assert.New(t)
-			r := require.New(t)
+func TestFind(t *testing.T) {
+	t.Run("locates a repo by slug and misses unknown slugs", func(t *testing.T) {
+		requireGit(t)
+		a := assert.New(t)
+		r := require.New(t)
 
-			home := t.TempDir()
-			makeRepo(t, filepath.Join(home, "alpha"), "https://example.com/acme/alpha.git")
+		home := t.TempDir()
+		makeRepo(t, filepath.Join(home, "alpha"), "https://example.com/acme/alpha.git")
 
-			got, ok := Find(home, "acme/alpha")
-			r.True(ok)
-			a.Equal(filepath.Join(home, "alpha"), got.Path)
+		got, ok := Find(home, "acme/alpha")
+		r.True(ok)
+		a.Equal(filepath.Join(home, "alpha"), got.Path)
 
-			_, ok = Find(home, "acme/missing")
-			a.False(ok)
-		})
+		_, ok = Find(home, "acme/missing")
+		a.False(ok)
 	})
+}
 
-	t.Run("Scan", func(t *testing.T) {
-		t.Run("lists git repos with an origin sorted by slug", func(t *testing.T) {
-			requireGit(t)
-			a := assert.New(t)
-			r := require.New(t)
+func TestScan(t *testing.T) {
+	t.Run("lists git repos with an origin sorted by slug", func(t *testing.T) {
+		requireGit(t)
+		a := assert.New(t)
+		r := require.New(t)
 
-			home := t.TempDir()
-			r.NoError(os.MkdirAll(filepath.Join(home, "not-a-repo"), 0o755))
-			r.NoError(os.WriteFile(filepath.Join(home, "loose-file"), []byte("x"), 0o644))
+		home := t.TempDir()
+		r.NoError(os.MkdirAll(filepath.Join(home, "not-a-repo"), 0o755))
+		r.NoError(os.WriteFile(filepath.Join(home, "loose-file"), []byte("x"), 0o644))
 
-			makeRepo(t, filepath.Join(home, "alpha"), "https://example.com/acme/alpha.git")
-			makeRepo(t, filepath.Join(home, "beta"), "https://example.com/acme/beta.git")
+		makeRepo(t, filepath.Join(home, "alpha"), "https://example.com/acme/alpha.git")
+		makeRepo(t, filepath.Join(home, "beta"), "https://example.com/acme/beta.git")
 
-			repos, err := Scan(home)
-			r.NoError(err)
-			r.Len(repos, 2)
-			a.Equal("acme/alpha", repos[0].Slug())
-			a.Equal("acme/beta", repos[1].Slug())
-			a.NotEmpty(repos[0].LastCommit.SHA)
-			a.NotEmpty(repos[0].Branch)
-		})
-		t.Run("skips repos without an origin remote", func(t *testing.T) {
-			requireGit(t)
-			a := assert.New(t)
-			r := require.New(t)
-
-			home := t.TempDir()
-			path := filepath.Join(home, "no-origin")
-			r.NoError(os.MkdirAll(path, 0o755))
-			runGit(t, path, "init", "--initial-branch=main")
-			runGit(t, path, "config", "user.email", "t@t.t")
-			runGit(t, path, "config", "user.name", "t")
-			r.NoError(os.WriteFile(filepath.Join(path, "README"), []byte("x"), 0o644))
-			runGit(t, path, "add", ".")
-			runGit(t, path, "commit", "-m", "init")
-
-			repos, err := Scan(home)
-			r.NoError(err)
-			a.Empty(repos)
-		})
+		repos, err := Scan(home)
+		r.NoError(err)
+		r.Len(repos, 2)
+		a.Equal("acme/alpha", repos[0].Slug())
+		a.Equal("acme/beta", repos[1].Slug())
+		a.NotEmpty(repos[0].LastCommit.SHA)
+		a.NotEmpty(repos[0].Branch)
 	})
+	t.Run("skips repos without an origin remote", func(t *testing.T) {
+		requireGit(t)
+		a := assert.New(t)
+		r := require.New(t)
 
-	t.Run("ScanIncluding", func(t *testing.T) {
-		t.Run("prefers an explicit worktree over the home checkout", func(t *testing.T) {
-			requireGit(t)
-			a := assert.New(t)
-			r := require.New(t)
+		home := t.TempDir()
+		path := filepath.Join(home, "no-origin")
+		r.NoError(os.MkdirAll(path, 0o755))
+		runGit(t, path, "init", "--initial-branch=main")
+		runGit(t, path, "config", "user.email", "t@t.t")
+		runGit(t, path, "config", "user.name", "t")
+		r.NoError(os.WriteFile(filepath.Join(path, "README"), []byte("x"), 0o644))
+		runGit(t, path, "add", ".")
+		runGit(t, path, "commit", "-m", "init")
 
-			home := t.TempDir()
-			main := filepath.Join(home, "scratch")
-			makeRepo(t, main, "https://github.com/housecat-inc/scratch.git")
-			worktree := filepath.Join(t.TempDir(), "conductor", "workspaces", "scratch", "newport-beach")
-			runGit(t, main, "worktree", "add", "-b", "feature", worktree)
+		repos, err := Scan(home)
+		r.NoError(err)
+		a.Empty(repos)
+	})
+}
 
-			repos, err := ScanIncluding(home, worktree)
-			r.NoError(err)
-			r.Len(repos, 1)
-			a.Equal("housecat-inc/scratch", repos[0].Slug())
-			a.Equal(worktree, repos[0].Path)
+func TestScanIncluding(t *testing.T) {
+	t.Run("prefers an explicit worktree over the home checkout", func(t *testing.T) {
+		requireGit(t)
+		a := assert.New(t)
+		r := require.New(t)
 
-			got, ok := FindIncluding(home, "housecat-inc/scratch", worktree)
-			r.True(ok)
-			a.Equal(worktree, got.Path)
-		})
+		home := t.TempDir()
+		main := filepath.Join(home, "scratch")
+		makeRepo(t, main, "https://github.com/housecat-inc/scratch.git")
+		worktree := filepath.Join(t.TempDir(), "conductor", "workspaces", "scratch", "newport-beach")
+		runGit(t, main, "worktree", "add", "-b", "feature", worktree)
+
+		repos, err := ScanIncluding(home, worktree)
+		r.NoError(err)
+		r.Len(repos, 1)
+		a.Equal("housecat-inc/scratch", repos[0].Slug())
+		a.Equal(worktree, repos[0].Path)
+
+		got, ok := FindIncluding(home, "housecat-inc/scratch", worktree)
+		r.True(ok)
+		a.Equal(worktree, got.Path)
 	})
 }
 

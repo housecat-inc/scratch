@@ -64,67 +64,65 @@ func formSummary(r *http.Request) string {
 	return "<span id=\"echoed\">" + strings.Join(pairs, " ") + "</span>"
 }
 
-func TestHTML(t *testing.T) {
-	load := func(t *testing.T) *testkit.HTML {
-		h := testkit.NewHTML(t, htmlHandler())
-		h.Load("/")
-		return h
-	}
+func loadPage(t *testing.T) *testkit.HTML {
+	h := testkit.NewHTML(t, htmlHandler())
+	h.Load("/")
+	return h
+}
 
-	t.Run("Load", func(t *testing.T) {
-		t.Run("renders and queries the page", func(t *testing.T) {
-			h := load(t)
-			h.ElementTextContains(".brand", "scratch")
-			h.ElementTextContains("#list", "alpha")
-			h.ElementAttributeContains(".nav", "class", "active")
-			h.ElementHidden("#secret")
-			h.ElementTextContains("#panel", "original")
-		})
+func TestLoad(t *testing.T) {
+	t.Run("renders and queries the page", func(t *testing.T) {
+		h := loadPage(t)
+		h.ElementTextContains(".brand", "scratch")
+		h.ElementTextContains("#list", "alpha")
+		h.ElementAttributeContains(".nav", "class", "active")
+		h.ElementHidden("#secret")
+		h.ElementTextContains("#panel", "original")
 	})
+}
 
-	t.Run("Click", func(t *testing.T) {
-		t.Run("submit button posts the enclosing form", func(t *testing.T) {
-			h := load(t)
-			h.Fill(`[name="q"]`, "hello")
-			h.Click("#form button")
-			h.ElementTextContains("#out", "q=hello")
-			h.ElementTextContains("#out", "color=green")
-		})
-		t.Run("hx-include gathers external fields", func(t *testing.T) {
-			h := load(t)
-			h.Fill("#inc", "sidecar")
-			h.Click("#save")
-			h.ElementTextContains("#out", "extra=sidecar")
-		})
-		t.Run("outerHTML swap replaces the target", func(t *testing.T) {
-			h := load(t)
-			h.Click("#frag")
-			h.ElementTextContains("#panel", "reloaded")
-			h.ElementAbsent("#out span")
-		})
-		t.Run("none swap leaves the dom unchanged", func(t *testing.T) {
-			h := load(t)
-			h.Click("#del")
-			h.ElementTextContains("#panel", "original")
-		})
+func TestClick(t *testing.T) {
+	t.Run("submit button posts the enclosing form", func(t *testing.T) {
+		h := loadPage(t)
+		h.Fill(`[name="q"]`, "hello")
+		h.Click("#form button")
+		h.ElementTextContains("#out", "q=hello")
+		h.ElementTextContains("#out", "color=green")
 	})
-
-	t.Run("SelectOption", func(t *testing.T) {
-		t.Run("changes the posted value", func(t *testing.T) {
-			h := load(t)
-			h.SelectOption(`[name="color"]`, "red")
-			h.Click("#form button")
-			h.ElementTextContains("#out", "color=red")
-		})
+	t.Run("hx-include gathers external fields", func(t *testing.T) {
+		h := loadPage(t)
+		h.Fill("#inc", "sidecar")
+		h.Click("#save")
+		h.ElementTextContains("#out", "extra=sidecar")
 	})
+	t.Run("outerHTML swap replaces the target", func(t *testing.T) {
+		h := loadPage(t)
+		h.Click("#frag")
+		h.ElementTextContains("#panel", "reloaded")
+		h.ElementAbsent("#out span")
+	})
+	t.Run("none swap leaves the dom unchanged", func(t *testing.T) {
+		h := loadPage(t)
+		h.Click("#del")
+		h.ElementTextContains("#panel", "original")
+	})
+}
 
-	t.Run("Type", func(t *testing.T) {
-		t.Run("appends to the field value", func(t *testing.T) {
-			h := load(t)
-			h.Type(`[name="q"]`, "ab")
-			h.Type(`[name="q"]`, "cd")
-			h.Click("#form button")
-			h.ElementTextContains("#out", "q=abcd")
-		})
+func TestSelectOption(t *testing.T) {
+	t.Run("changes the posted value", func(t *testing.T) {
+		h := loadPage(t)
+		h.SelectOption(`[name="color"]`, "red")
+		h.Click("#form button")
+		h.ElementTextContains("#out", "color=red")
+	})
+}
+
+func TestType(t *testing.T) {
+	t.Run("appends to the field value", func(t *testing.T) {
+		h := loadPage(t)
+		h.Type(`[name="q"]`, "ab")
+		h.Type(`[name="q"]`, "cd")
+		h.Click("#form button")
+		h.ElementTextContains("#out", "q=abcd")
 	})
 }

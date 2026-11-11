@@ -68,64 +68,6 @@ func TestThreads(t *testing.T) {
 		a.Equal("2026-07-11T12:04:00Z", got.UpdatedAt.Format(time.RFC3339))
 	})
 
-	t.Run("DeleteThread", func(t *testing.T) {
-		t.Run("removes the thread messages and events", func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
-
-			d := newTestDB(t)
-
-			thread, err := d.AddThread(ThreadKindChat, "chat", "")
-			r.NoError(err)
-			msg, err := d.AddMessage(NewMessage{
-				Author:   "noah",
-				Body:     "hello",
-				Role:     MessageRoleUser,
-				ThreadID: thread.ID,
-			})
-			r.NoError(err)
-			_, err = d.AddMessageEvent(msg.ID, "delta", `{"text":"hello"}`)
-			r.NoError(err)
-
-			r.NoError(d.DeleteThread(thread.ID))
-
-			_, err = d.GetThread(thread.ID)
-			a.True(IsThreadNotFound(err))
-			_, err = d.GetMessage(msg.ID)
-			a.True(IsMessageNotFound(err))
-			events, err := d.ListMessageEvents(msg.ID, 0)
-			r.NoError(err)
-			a.Empty(events)
-		})
-	})
-
-	t.Run("TrashThread", func(t *testing.T) {
-		t.Run("hides the thread from lists and unstars it", func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
-
-			d := newTestDB(t)
-
-			kept, err := d.AddThread(ThreadKindChat, "Kept", "")
-			r.NoError(err)
-			trashed, err := d.AddThread(ThreadKindChat, "Trashed", "")
-			r.NoError(err)
-			r.NoError(d.SetThreadStarred(trashed.ID, true))
-
-			r.NoError(d.TrashThread(trashed.ID))
-
-			chats, err := d.ListThreads(ThreadKindChat)
-			r.NoError(err)
-			r.Len(chats, 1)
-			a.Equal(kept.ID, chats[0].ID)
-
-			got, err := d.GetThread(trashed.ID)
-			r.NoError(err)
-			a.NotNil(got.TrashedAt)
-			a.False(got.Starred)
-		})
-	})
-
 	t.Run("when the thread does not exist", func(t *testing.T) {
 		tests := []struct {
 			act  func(d *DB) error
@@ -253,5 +195,63 @@ func TestThreads(t *testing.T) {
 				a.True(IsMessageNotFound(tt.act(d)))
 			})
 		}
+	})
+}
+
+func TestDeleteThread(t *testing.T) {
+	t.Run("removes the thread messages and events", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+
+		d := newTestDB(t)
+
+		thread, err := d.AddThread(ThreadKindChat, "chat", "")
+		r.NoError(err)
+		msg, err := d.AddMessage(NewMessage{
+			Author:   "noah",
+			Body:     "hello",
+			Role:     MessageRoleUser,
+			ThreadID: thread.ID,
+		})
+		r.NoError(err)
+		_, err = d.AddMessageEvent(msg.ID, "delta", `{"text":"hello"}`)
+		r.NoError(err)
+
+		r.NoError(d.DeleteThread(thread.ID))
+
+		_, err = d.GetThread(thread.ID)
+		a.True(IsThreadNotFound(err))
+		_, err = d.GetMessage(msg.ID)
+		a.True(IsMessageNotFound(err))
+		events, err := d.ListMessageEvents(msg.ID, 0)
+		r.NoError(err)
+		a.Empty(events)
+	})
+}
+
+func TestTrashThread(t *testing.T) {
+	t.Run("hides the thread from lists and unstars it", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+
+		d := newTestDB(t)
+
+		kept, err := d.AddThread(ThreadKindChat, "Kept", "")
+		r.NoError(err)
+		trashed, err := d.AddThread(ThreadKindChat, "Trashed", "")
+		r.NoError(err)
+		r.NoError(d.SetThreadStarred(trashed.ID, true))
+
+		r.NoError(d.TrashThread(trashed.ID))
+
+		chats, err := d.ListThreads(ThreadKindChat)
+		r.NoError(err)
+		r.Len(chats, 1)
+		a.Equal(kept.ID, chats[0].ID)
+
+		got, err := d.GetThread(trashed.ID)
+		r.NoError(err)
+		a.NotNil(got.TrashedAt)
+		a.False(got.Starred)
 	})
 }

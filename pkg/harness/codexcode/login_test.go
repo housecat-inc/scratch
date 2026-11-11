@@ -42,18 +42,6 @@ func waitDone(l *Login) bool {
 }
 
 func TestLogin(t *testing.T) {
-	t.Run("Close", func(t *testing.T) {
-		t.Run("cancels a pending login", func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
-
-			l, err := StartLoginCmd(appservertest.Command(), appserver.LoginTypeChatGPT)
-			r.NoError(err)
-			r.NoError(l.Close())
-			a.True(waitDone(l))
-			a.Error(l.Err())
-		})
-	})
 
 	t.Run("when signing in with the browser", func(t *testing.T) {
 		tests := []struct {
@@ -125,5 +113,18 @@ func TestLogin(t *testing.T) {
 			a.True(waitDone(l))
 			a.NoError(l.Err())
 		})
+	})
+}
+
+func TestClose(t *testing.T) {
+	t.Run("cancels a pending login", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+
+		l, err := StartLoginCmd(appservertest.Command(), appserver.LoginTypeChatGPT)
+		r.NoError(err)
+		r.NoError(l.Close())
+		a.True(waitDone(l))
+		a.Error(l.Err())
 	})
 }

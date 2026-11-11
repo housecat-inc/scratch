@@ -11,7 +11,7 @@ func TestGood(t *testing.T) {
 		{name: "accepts one", in: 1},
 	}
 
-	t.Run("Add", func(t *testing.T) {
+	t.Run("when the input is a slice", func(t *testing.T) {
 		for _, tt := range shared {
 			t.Run(tt.name, func(t *testing.T) { _ = tt.in })
 		}

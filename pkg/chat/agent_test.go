@@ -8,22 +8,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAgent(t *testing.T) {
-	t.Run("agentInstructions", func(t *testing.T) {
-		t.Run("describes the existing workspace and its branch", func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
+func TestAgentInstructions(t *testing.T) {
+	t.Run("describes the existing workspace and its branch", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
 
-			dir := t.TempDir()
-			cmd := exec.Command("git", "init", "--initial-branch=feature", dir)
-			r.NoError(cmd.Run())
+		dir := t.TempDir()
+		cmd := exec.Command("git", "init", "--initial-branch=feature", dir)
+		r.NoError(cmd.Run())
 
-			got := agentInstructions(dir)
-			a.Contains(got, "existing local workspace")
-			a.Contains(got, "Do not create, switch, rename, or reset git branches")
-			a.Contains(got, "AGENTS.md")
-			a.Contains(got, "Current working directory: "+dir)
-			a.Contains(got, "Current git branch: feature")
-		})
+		got := agentInstructions(dir)
+		a.Contains(got, "existing local workspace")
+		a.Contains(got, "Do not create, switch, rename, or reset git branches")
+		a.Contains(got, "AGENTS.md")
+		a.Contains(got, "Current working directory: "+dir)
+		a.Contains(got, "Current git branch: feature")
 	})
 }

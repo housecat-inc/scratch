@@ -12,91 +12,89 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSSE(t *testing.T) {
-	t.Run("writeMessagesEvent", func(t *testing.T) {
-		t.Run("strips carriage returns so every line stays valid SSE", func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
+func TestWriteMessagesEvent(t *testing.T) {
+	t.Run("strips carriage returns so every line stays valid SSE", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
 
-			store, err := db.New(":memory:")
-			r.NoError(err)
-			t.Cleanup(func() { store.Close() })
-			svc := NewService(store, EchoAgent{}, nil)
-			t.Cleanup(svc.Close)
+		store, err := db.New(":memory:")
+		r.NoError(err)
+		t.Cleanup(func() { store.Close() })
+		svc := NewService(store, EchoAgent{}, nil)
+		t.Cleanup(svc.Close)
 
-			thread, err := svc.CreateThread("", "")
-			r.NoError(err)
-			_, err = store.AddMessage(db.NewMessage{
-				Author:   "you",
-				Body:     "line one\r\nline two\rline three",
-				Role:     db.MessageRoleUser,
-				ThreadID: thread.ID,
-			})
-			r.NoError(err)
+		thread, err := svc.CreateThread("", "")
+		r.NoError(err)
+		_, err = store.AddMessage(db.NewMessage{
+			Author:   "you",
+			Body:     "line one\r\nline two\rline three",
+			Role:     db.MessageRoleUser,
+			ThreadID: thread.ID,
+		})
+		r.NoError(err)
 
-			srv := NewServer(svc, slog.Default())
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/chat/1/events", nil)
-			r.NoError(srv.writeMessagesEvent(rec, req, thread.ID))
+		srv := NewServer(svc, slog.Default())
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/chat/1/events", nil)
+		r.NoError(srv.writeMessagesEvent(rec, req, thread.ID))
 
-			body := rec.Body.String()
-			a.NotContains(body, "\r")
-			a.Contains(body, "line one")
-			for line := range strings.Lines(body) {
-				trimmed := strings.TrimRight(line, "\n")
-				if trimmed == "" || strings.HasPrefix(trimmed, "event: ") {
-					continue
-				}
-				a.True(strings.HasPrefix(trimmed, "data: "), "unexpected SSE line %q", trimmed)
+		body := rec.Body.String()
+		a.NotContains(body, "\r")
+		a.Contains(body, "line one")
+		for line := range strings.Lines(body) {
+			trimmed := strings.TrimRight(line, "\n")
+			if trimmed == "" || strings.HasPrefix(trimmed, "event: ") {
+				continue
 			}
-		})
+			a.True(strings.HasPrefix(trimmed, "data: "), "unexpected SSE line %q", trimmed)
+		}
 	})
+}
 
-	t.Run("View", func(t *testing.T) {
-		t.Run("shows the first unresolved form until every form is answered", func(t *testing.T) {
-			a := assert.New(t)
-			r := require.New(t)
+func TestView(t *testing.T) {
+	t.Run("shows the first unresolved form until every form is answered", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
 
-			store, err := db.New(":memory:")
-			r.NoError(err)
-			t.Cleanup(func() { store.Close() })
-			svc := NewService(store, EchoAgent{}, nil)
-			t.Cleanup(svc.Close)
+		store, err := db.New(":memory:")
+		r.NoError(err)
+		t.Cleanup(func() { store.Close() })
+		svc := NewService(store, EchoAgent{}, nil)
+		t.Cleanup(svc.Close)
 
-			thread, err := svc.CreateThread("", "")
-			r.NoError(err)
-			asst, err := store.AddMessage(db.NewMessage{
-				Author:   "workflow:contact",
-				Role:     db.MessageRoleAssistant,
-				Status:   db.MessageStatusStreaming,
-				ThreadID: thread.ID,
-			})
-			r.NoError(err)
-
-			_, err = store.AddMessageEvent(asst.ID, EventElicitation, `{"elicitationId":"wf/first","message":"first"}`)
-			r.NoError(err)
-			_, err = store.AddMessageEvent(asst.ID, EventElicitation, `{"elicitationId":"wf/second","message":"second"}`)
-			r.NoError(err)
-
-			view, err := svc.View(thread.ID)
-			r.NoError(err)
-			a.Equal("wf/first", view.Forms[asst.ID].ElicitationID)
-
-			_, err = store.AddMessageEvent(asst.ID, EventElicitationResult, `{"action":"accept","elicitationId":"wf/first"}`)
-			r.NoError(err)
-
-			view, err = svc.View(thread.ID)
-			r.NoError(err)
-			a.Equal("wf/second", view.Forms[asst.ID].ElicitationID)
-
-			_, err = store.AddMessageEvent(asst.ID, EventElicitationResult, `{"action":"decline","elicitationId":"wf/second"}`)
-			r.NoError(err)
-
-			view, err = svc.View(thread.ID)
-			r.NoError(err)
-			_, pending := view.Forms[asst.ID]
-			a.False(pending)
-			a.Equal(map[int64]elicit.Prompt{}, view.Forms)
+		thread, err := svc.CreateThread("", "")
+		r.NoError(err)
+		asst, err := store.AddMessage(db.NewMessage{
+			Author:   "workflow:contact",
+			Role:     db.MessageRoleAssistant,
+			Status:   db.MessageStatusStreaming,
+			ThreadID: thread.ID,
 		})
+		r.NoError(err)
+
+		_, err = store.AddMessageEvent(asst.ID, EventElicitation, `{"elicitationId":"wf/first","message":"first"}`)
+		r.NoError(err)
+		_, err = store.AddMessageEvent(asst.ID, EventElicitation, `{"elicitationId":"wf/second","message":"second"}`)
+		r.NoError(err)
+
+		view, err := svc.View(thread.ID)
+		r.NoError(err)
+		a.Equal("wf/first", view.Forms[asst.ID].ElicitationID)
+
+		_, err = store.AddMessageEvent(asst.ID, EventElicitationResult, `{"action":"accept","elicitationId":"wf/first"}`)
+		r.NoError(err)
+
+		view, err = svc.View(thread.ID)
+		r.NoError(err)
+		a.Equal("wf/second", view.Forms[asst.ID].ElicitationID)
+
+		_, err = store.AddMessageEvent(asst.ID, EventElicitationResult, `{"action":"decline","elicitationId":"wf/second"}`)
+		r.NoError(err)
+
+		view, err = svc.View(thread.ID)
+		r.NoError(err)
+		_, pending := view.Forms[asst.ID]
+		a.False(pending)
+		a.Equal(map[int64]elicit.Prompt{}, view.Forms)
 	})
 }

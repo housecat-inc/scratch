@@ -12,7 +12,7 @@ func TestNames(t *testing.T) {
 	t.Run("works", func(t *testing.T) {})               // want `duplicate test name "works"`
 	t.Run(fmt.Sprint("dynamic"), func(t *testing.T) {}) // want `t.Run name must be a string literal or tt.name from a literal table`
 
-	t.Run("Table", func(t *testing.T) {
+	t.Run("when using a table", func(t *testing.T) {
 		tests := []struct {
 			in   string
 			name string

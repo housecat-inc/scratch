@@ -12,178 +12,6 @@ import (
 )
 
 func TestWorkflows(t *testing.T) {
-	t.Run("CreatePRWorkflow", func(t *testing.T) {
-		tests := []flowCase{
-			{
-				name: "drafts and finalizes the pull request on accept",
-				act: []Step{
-					Start("create-pr", "pr-accept"),
-					ExpectForm("Review the pull request"),
-					Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
-				},
-				assert: []Step{
-					ExpectResult("Add thing"),
-					ExpectStep(0, func(h *Harness, s StepView) {
-						h.Equal("Collect changes", s.Title)
-					}),
-					ExpectStep(1, func(h *Harness, s StepView) {
-						h.Equal("Draft release notes", s.Title)
-					}),
-					ExpectLastStep(func(h *Harness, s StepView) {
-						h.R.Contains(s.Detail, "Add thing")
-					}),
-				},
-			},
-			{
-				name: "reuses the cached draft when the review is edited",
-				act: []Step{
-					Start("create-pr", "pr-edit"),
-					Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
-					ExpectResult("Add thing"),
-					ExpectDrafts(1),
-					Edit("review", map[string]string{"body": "- Add a better thing", "title": "Add a better thing"}),
-				},
-				assert: []Step{
-					ExpectResult("Add a better thing"),
-					ExpectDrafts(1),
-					ExpectLastStep(func(h *Harness, s StepView) {
-						h.R.Contains(s.Detail, "Add a better thing")
-					}),
-				},
-			},
-			{
-				name: "shows a fresh review form with the cached draft when forked",
-				act: []Step{
-					Start("create-pr", "pr-fork"),
-					Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
-					ExpectResult("Add thing"),
-					ExpectDrafts(1),
-					Fork("review"),
-				},
-				assert: []Step{
-					ExpectForm("Review the pull request"),
-					ExpectDrafts(1),
-				},
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) { runFlowCase(t, tt) })
-		}
-	})
-
-	t.Run("GreetWorkflow", func(t *testing.T) {
-		tests := []flowCase{
-			{
-				name: "prompts for a name then greets on accept",
-				act: []Step{
-					Start("greet", "greet-accept"),
-					ExpectForm("What should I call you?"),
-					Accept(map[string]string{"name": "Ada"}),
-				},
-				assert: []Step{
-					ExpectResult("Hi Ada"),
-					ExpectStepCount(2),
-					ExpectStep(0, func(h *Harness, s StepView) {
-						h.Equal(KindForm, s.Kind)
-						h.Equal(StepDone, s.Status)
-						h.Equal("Ada", s.Values["name"])
-					}),
-					ExpectStep(1, func(h *Harness, s StepView) {
-						h.Equal(KindResponse, s.Kind)
-						h.Equal("Generate greeting", s.Title)
-						h.Equal("Hi Ada", s.Detail)
-					}),
-				},
-			},
-			{
-				name: "ends without a greeting on decline",
-				act: []Step{
-					Start("greet", "greet-decline"),
-					ExpectForm("What should I call you?"),
-					Decline(),
-				},
-				assert: []Step{
-					ExpectResult(""),
-					ExpectStepCount(1),
-					ExpectStep(0, func(h *Harness, s StepView) {
-						h.Equal(KindForm, s.Kind)
-						h.Equal("Declined", s.Answer)
-					}),
-				},
-			},
-			{
-				name: "reruns from the edited name form and keeps the original run",
-				act: []Step{
-					Start("greet", "greet-edit"),
-					Accept(map[string]string{"name": "Ada"}),
-					ExpectResult("Hi Ada"),
-					Edit("name", map[string]string{"name": "Grace"}),
-				},
-				assert: []Step{
-					ExpectResult("Hi Grace"),
-					ExpectStepCount(2),
-					ExpectStep(0, func(h *Harness, s StepView) {
-						h.Equal("Grace", s.Values["name"])
-					}),
-					ExpectLastStep(func(h *Harness, s StepView) {
-						h.Equal("Hi Grace", s.Detail)
-					}),
-					ExpectRunResult("greet-edit", "Hi Ada"),
-				},
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) { runFlowCase(t, tt) })
-		}
-	})
-
-	t.Run("normalizePullRequest", func(t *testing.T) {
-		t.Run("unescapes HTML entities", func(t *testing.T) {
-			r := require.New(t)
-
-			pr := normalizePullRequest(PullRequest{
-				Body:  "- Add edit &amp; fork actions",
-				Title: "Add edit &amp; fork actions",
-			})
-
-			r.Equal("- Add edit & fork actions", pr.Body)
-			r.Equal("Add edit & fork actions", pr.Title)
-		})
-	})
-
-	t.Run("UpdateClaudeWorkflow", func(t *testing.T) {
-		tests := []flowCase{
-			{
-				name: "runs the update on accept",
-				act: []Step{
-					Start("update-claude", "update-accept"),
-					ExpectForm("Update Claude Code to the latest version?"),
-					Accept(nil),
-				},
-				assert: []Step{
-					ExpectResult("Updated to claude 2.0"),
-					ExpectStep(0, func(h *Harness, s StepView) {
-						h.Equal("Check installed version", s.Title)
-					}),
-					ExpectLastStep(func(h *Harness, s StepView) {
-						h.Equal(KindResponse, s.Kind)
-					}),
-				},
-			},
-			{
-				name: "skips the update on decline",
-				act: []Step{
-					Start("update-claude", "update-decline"),
-					ExpectForm("Update Claude Code to the latest version?"),
-					Decline(),
-				},
-				assert: []Step{ExpectResult("")},
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) { runFlowCase(t, tt) })
-		}
-	})
 
 	t.Run("when the application version changes", func(t *testing.T) {
 		t.Run("forks a run onto the current version", func(t *testing.T) {
@@ -277,4 +105,177 @@ func TestWorkflows(t *testing.T) {
 			r.Equal("Add thing", run.Result)
 		})
 	})
+}
+
+func TestCreatePRWorkflow(t *testing.T) {
+	tests := []flowCase{
+		{
+			name: "drafts and finalizes the pull request on accept",
+			act: []Step{
+				Start("create-pr", "pr-accept"),
+				ExpectForm("Review the pull request"),
+				Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
+			},
+			assert: []Step{
+				ExpectResult("Add thing"),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal("Collect changes", s.Title)
+				}),
+				ExpectStep(1, func(h *Harness, s StepView) {
+					h.Equal("Draft release notes", s.Title)
+				}),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.R.Contains(s.Detail, "Add thing")
+				}),
+			},
+		},
+		{
+			name: "reuses the cached draft when the review is edited",
+			act: []Step{
+				Start("create-pr", "pr-edit"),
+				Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
+				ExpectResult("Add thing"),
+				ExpectDrafts(1),
+				Edit("review", map[string]string{"body": "- Add a better thing", "title": "Add a better thing"}),
+			},
+			assert: []Step{
+				ExpectResult("Add a better thing"),
+				ExpectDrafts(1),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.R.Contains(s.Detail, "Add a better thing")
+				}),
+			},
+		},
+		{
+			name: "shows a fresh review form with the cached draft when forked",
+			act: []Step{
+				Start("create-pr", "pr-fork"),
+				Accept(map[string]string{"body": "- Add thing", "title": "Add thing"}),
+				ExpectResult("Add thing"),
+				ExpectDrafts(1),
+				Fork("review"),
+			},
+			assert: []Step{
+				ExpectForm("Review the pull request"),
+				ExpectDrafts(1),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) { runFlowCase(t, tt) })
+	}
+}
+
+func TestGreetWorkflow(t *testing.T) {
+	tests := []flowCase{
+		{
+			name: "prompts for a name then greets on accept",
+			act: []Step{
+				Start("greet", "greet-accept"),
+				ExpectForm("What should I call you?"),
+				Accept(map[string]string{"name": "Ada"}),
+			},
+			assert: []Step{
+				ExpectResult("Hi Ada"),
+				ExpectStepCount(2),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal(KindForm, s.Kind)
+					h.Equal(StepDone, s.Status)
+					h.Equal("Ada", s.Values["name"])
+				}),
+				ExpectStep(1, func(h *Harness, s StepView) {
+					h.Equal(KindResponse, s.Kind)
+					h.Equal("Generate greeting", s.Title)
+					h.Equal("Hi Ada", s.Detail)
+				}),
+			},
+		},
+		{
+			name: "ends without a greeting on decline",
+			act: []Step{
+				Start("greet", "greet-decline"),
+				ExpectForm("What should I call you?"),
+				Decline(),
+			},
+			assert: []Step{
+				ExpectResult(""),
+				ExpectStepCount(1),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal(KindForm, s.Kind)
+					h.Equal("Declined", s.Answer)
+				}),
+			},
+		},
+		{
+			name: "reruns from the edited name form and keeps the original run",
+			act: []Step{
+				Start("greet", "greet-edit"),
+				Accept(map[string]string{"name": "Ada"}),
+				ExpectResult("Hi Ada"),
+				Edit("name", map[string]string{"name": "Grace"}),
+			},
+			assert: []Step{
+				ExpectResult("Hi Grace"),
+				ExpectStepCount(2),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal("Grace", s.Values["name"])
+				}),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.Equal("Hi Grace", s.Detail)
+				}),
+				ExpectRunResult("greet-edit", "Hi Ada"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) { runFlowCase(t, tt) })
+	}
+}
+
+func TestNormalizePullRequest(t *testing.T) {
+	t.Run("unescapes HTML entities", func(t *testing.T) {
+		r := require.New(t)
+
+		pr := normalizePullRequest(PullRequest{
+			Body:  "- Add edit &amp; fork actions",
+			Title: "Add edit &amp; fork actions",
+		})
+
+		r.Equal("- Add edit & fork actions", pr.Body)
+		r.Equal("Add edit & fork actions", pr.Title)
+	})
+}
+
+func TestUpdateClaudeWorkflow(t *testing.T) {
+	tests := []flowCase{
+		{
+			name: "runs the update on accept",
+			act: []Step{
+				Start("update-claude", "update-accept"),
+				ExpectForm("Update Claude Code to the latest version?"),
+				Accept(nil),
+			},
+			assert: []Step{
+				ExpectResult("Updated to claude 2.0"),
+				ExpectStep(0, func(h *Harness, s StepView) {
+					h.Equal("Check installed version", s.Title)
+				}),
+				ExpectLastStep(func(h *Harness, s StepView) {
+					h.Equal(KindResponse, s.Kind)
+				}),
+			},
+		},
+		{
+			name: "skips the update on decline",
+			act: []Step{
+				Start("update-claude", "update-decline"),
+				ExpectForm("Update Claude Code to the latest version?"),
+				Decline(),
+			},
+			assert: []Step{ExpectResult("")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) { runFlowCase(t, tt) })
+	}
 }

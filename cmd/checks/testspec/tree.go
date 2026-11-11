@@ -18,7 +18,7 @@ var skipDirs = []string{".git", "node_modules", "testdata", "tmp", "vendor"}
 
 func Tree(root string) (map[string][]*Node, error) {
 	fset := token.NewFileSet()
-	pkgs := map[string][]*Node{}
+	files := map[string][]*Node{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -36,35 +36,34 @@ func Tree(root string) (map[string][]*Node, error) {
 		if err != nil {
 			return errors.Wrapf(err, "parse %s", path)
 		}
-		dir, err := filepath.Rel(root, filepath.Dir(path))
+		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return errors.Wrapf(err, "relative path %s", path)
 		}
-		dir = filepath.ToSlash(dir)
-		pkgs[dir] = append(pkgs[dir], Parse(path, f).Tests...)
+		files[filepath.ToSlash(rel)] = Parse(path, f).Tests
 		return nil
 	})
-	return pkgs, errors.Wrapf(err, "walk %s", root)
+	return files, errors.Wrapf(err, "walk %s", root)
 }
 
-func Write(w io.Writer, pkgs map[string][]*Node) error {
-	dirs := make([]string, 0, len(pkgs))
-	for dir, nodes := range pkgs {
+func Write(w io.Writer, files map[string][]*Node) error {
+	paths := make([]string, 0, len(files))
+	for path, nodes := range files {
 		if len(nodes) > 0 {
-			dirs = append(dirs, dir)
+			paths = append(paths, path)
 		}
 	}
-	slices.Sort(dirs)
-	for i, dir := range dirs {
+	slices.Sort(paths)
+	for i, path := range paths {
 		if i > 0 {
 			if _, err := fmt.Fprintln(w); err != nil {
 				return errors.Wrap(err, "write")
 			}
 		}
-		if _, err := fmt.Fprintln(w, dir); err != nil {
+		if _, err := fmt.Fprintln(w, path); err != nil {
 			return errors.Wrap(err, "write")
 		}
-		if err := writeNodes(w, pkgs[dir], 1); err != nil {
+		if err := writeNodes(w, files[path], 1); err != nil {
 			return err
 		}
 	}

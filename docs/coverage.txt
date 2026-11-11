@@ -1,7 +1,7 @@
 cmd/app                                          0.0%
 cmd/checks                                       0.0%
 cmd/checks/errors                                86.4%
-cmd/checks/testspec                              88.0%
+cmd/checks/testspec                              88.1%
 cmd/openapi                                      0.0%
 cmd/scratch                                      0.0%
 pkg/agents                                       6.4%
