@@ -1,6 +1,8 @@
 package chat
 
 import (
+	"bufio"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -107,4 +109,90 @@ func TestCodexServer(t *testing.T) {
 		a.Contains(rec.Body.String(), `data-turn-id="1/1"`)
 		a.Contains(rec.Body.String(), "You said: ping")
 	})
+
+	t.Run("reports a recorded send by client id", func(t *testing.T) {
+		a := assert.New(t)
+		_, h := setup(t)
+		post(h, "/codex/threads", url.Values{"client_id": {"c1"}, "prompt": {"hello"}})
+
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/codex/sends?id=c1&id=missing", nil))
+
+		a.JSONEq(`{"c1":{"status":"sent","threadId":"1","turnId":"1"}}`, rec.Body.String())
+	})
+
+	t.Run("deletes a thread and tells the rail", func(t *testing.T) {
+		a := assert.New(t)
+		svc, h := setup(t)
+		post(h, "/codex/threads", url.Values{"client_id": {"c1"}, "prompt": {"bye"}})
+
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/codex/threads/1", nil))
+
+		a.Equal(http.StatusNoContent, rec.Code)
+		a.Contains(rec.Header().Get("HX-Trigger"), "thread-deleted")
+		threads, err := svc.Threads()
+		a.NoError(err)
+		a.Empty(threads)
+	})
+
+	t.Run("streams the thread as server sent events", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+		svc, h := setup(t)
+		post(h, "/codex/threads", url.Values{"client_id": {"c1"}, "prompt": {"ping"}})
+		r.Eventually(func() bool {
+			view, err := svc.View(1)
+			return err == nil && !view.Streaming && len(view.Messages) == 2
+		}, 5*time.Second, 10*time.Millisecond)
+		srv := httptest.NewServer(h)
+		t.Cleanup(srv.Close)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		t.Cleanup(cancel)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/codex/chat/events?thread=1", nil)
+		r.NoError(err)
+
+		res, err := http.DefaultClient.Do(req)
+		r.NoError(err)
+		t.Cleanup(func() { res.Body.Close() })
+		a.Equal("text/event-stream", res.Header.Get("Content-Type"))
+		frame, err := bufio.NewReader(res.Body).ReadString('\n')
+		r.NoError(err)
+		a.True(strings.HasPrefix(frame, "data: "))
+	})
+}
+
+func TestCodexServerMiddleware(t *testing.T) {
+	tests := []struct {
+		location string
+		method   string
+		name     string
+		referer  string
+		want     string
+	}{
+		{location: "/inbox/tasks/1", method: http.MethodPost, name: "carries the open chat through a post redirect", referer: "http://example.com/inbox/tasks?chat=3", want: "/inbox/tasks/1?chat=3"},
+		{location: "/inbox/tasks/1", method: http.MethodPost, name: "leaves a redirect alone when no chat is open", referer: "http://example.com/inbox/tasks", want: "/inbox/tasks/1"},
+		{location: "/inbox/tasks?chat=4", method: http.MethodPost, name: "keeps a chat the redirect already names", referer: "http://example.com/?chat=3", want: "/inbox/tasks?chat=4"},
+		{location: "/inbox/tasks/1", method: http.MethodPost, name: "ignores a chat from another site", referer: "http://other.com/?chat=3", want: "/inbox/tasks/1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			store, err := db.New(":memory:")
+			require.NoError(t, err)
+			t.Cleanup(func() { store.Close() })
+			svc := NewService(store, EchoAgent{}, nil)
+			t.Cleanup(svc.Close)
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, tt.location, http.StatusSeeOther)
+			})
+			req := httptest.NewRequest(tt.method, "http://example.com/inbox/tasks", nil)
+			req.Header.Set("Referer", tt.referer)
+			rec := httptest.NewRecorder()
+
+			NewCodexServer(svc).Middleware(next).ServeHTTP(rec, req)
+
+			a.Equal(tt.want, rec.Header().Get("Location"))
+		})
+	}
 }

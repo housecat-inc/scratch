@@ -538,9 +538,16 @@ func archiveActionLabel(item InboxItem) string {
 	return "Archive"
 }
 
+func DefaultArchiveFilter(view string) string {
+	if view == "chats" {
+		return "active"
+	}
+	return "all"
+}
+
 func archiveFilterHref(view, filter string) string {
 	base := inboxViewHref(view)
-	if filter == "all" {
+	if filter == DefaultArchiveFilter(view) {
 		return base
 	}
 	return base + "?archived=" + filter

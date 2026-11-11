@@ -1,5 +1,6 @@
 import "../../assets/ui";
 import { registerScripts } from "../../dom/scripts";
+import { carryChat } from "./chat_carry";
 import { chat_rail } from "./chat_rail";
 import { content_navigation } from "./content_navigation";
 import { mail_navigation } from "./mail_navigation";
@@ -11,3 +12,5 @@ registerScripts({
   "mail-navigation": mail_navigation,
   "mail-sidebar": mail_sidebar,
 });
+
+carryChat();

@@ -82,6 +82,73 @@ func TestChatRailBrowser(t *testing.T) {
 			h.EventuallyTrue(`() => !new URLSearchParams(location.search).has("chat")`)
 		})
 
+		t.Run("keeps the chat open while the left nav changes pages", func(t *testing.T) {
+			a := assert.New(t)
+			h := newHarness(t)
+			threadID := h.SeedRailThread("stay with me")
+			h.Open(fmt.Sprintf("/?chat=%d", threadID))
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "stay with me")
+			h.Click(`#mail-sidebar a[href="/inbox/tasks"]`)
+
+			h.PathEventuallyEquals("/inbox/tasks")
+			h.EventuallyTrue(`() => document.querySelector('#mail-sidebar a[href="/inbox/tasks"]').getAttribute("aria-current") === "page"`)
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "stay with me")
+			a.True(h.EvalBool(`(id) => new URLSearchParams(location.search).get("chat") === id`, fmt.Sprint(threadID)))
+		})
+
+		t.Run("creates a task in the main section with the chat open", func(t *testing.T) {
+			h := newHarness(t)
+			threadID := h.SeedRailThread("beside the task")
+			h.Open(fmt.Sprintf("/inbox/tasks?chat=%d", threadID))
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "beside the task")
+			h.Click(`[aria-label="New task"]`)
+
+			h.TaskCount(1)
+			h.TextEventuallyContains(`[data-mail-content]`, "New task")
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "beside the task")
+		})
+
+		t.Run("starts a new chat from the rail header", func(t *testing.T) {
+			h := newHarness(t)
+			threadID := h.SeedRailThread("old thread")
+			h.Open(fmt.Sprintf("/?chat=%d", threadID))
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "old thread")
+			h.Click(`#mail-chat-rail-content [data-chat-new]`)
+
+			h.EventuallyTrue(`() => new URLSearchParams(location.search).get("chat") === "new"`)
+			h.EventuallyTrue(`() => !document.querySelector('#mail-chat-rail-content article[aria-label="You"]')`)
+			h.Type(railPrompt, "fresh start")
+			h.Press(railPrompt, "Enter")
+			h.TextEventuallyContains("#mail-chat-rail-content [data-chat-entries]", "You said: fresh start")
+			h.ChatThreadCount(2)
+		})
+
+		t.Run("reopens the last chat from the toggle", func(t *testing.T) {
+			h := newHarness(t)
+			threadID := h.SeedRailThread("remember me")
+			h.Open(fmt.Sprintf("/?chat=%d", threadID))
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "remember me")
+			h.Click("[data-chat-rail-toggle]")
+			h.EventuallyTrue(`() => document.querySelector("[data-chat-rail]").getAttribute("data-docked") === "collapsed"`)
+			h.Click("[data-chat-rail-toggle]")
+
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "remember me")
+			h.EventuallyTrue(`(id) => new URLSearchParams(location.search).get("chat") === id`, fmt.Sprint(threadID))
+		})
+
+		t.Run("closes and reopens with back and forward", func(t *testing.T) {
+			h := newHarness(t)
+			h.Open("/")
+			h.Click("[data-chat-rail-toggle]")
+			h.ElementEventuallyPresent(railPrompt)
+			h.EventuallyTrue(`() => document.querySelector("[data-chat-rail]").getAttribute("data-docked") === "expanded"`)
+			h.Page.MustNavigateBack()
+
+			h.EventuallyTrue(`() => document.querySelector("[data-chat-rail]").getAttribute("data-docked") === "collapsed"`)
+			h.Page.MustNavigateForward()
+			h.EventuallyTrue(`() => document.querySelector("[data-chat-rail]").getAttribute("data-docked") === "expanded"`)
+		})
+
 		t.Run("renders thinking, tool, plan, and markdown parts", func(t *testing.T) {
 			h := newHarness(t)
 			h.SeedChatThread("e2e chat")
@@ -116,6 +183,18 @@ func TestChatRailBrowser(t *testing.T) {
 	})
 
 	t.Run("when narrow", func(t *testing.T) {
+		t.Run("opens the left nav from the bottom bar and navigates", func(t *testing.T) {
+			h := newHarness(t)
+			h.Page.MustSetViewport(390, 844, 1, false)
+			h.Open("/")
+			h.Click(`[aria-controls="mail-sidebar"][data-drawer-trigger]`)
+
+			h.EventuallyTrue(`() => document.querySelector("#mail-sidebar").hasAttribute("data-drawer-open")`)
+			h.Click(`#mail-sidebar a[href="/inbox/tasks"]`)
+			h.PathEventuallyEquals("/inbox/tasks")
+			h.EventuallyTrue(`() => !document.querySelector("#mail-sidebar").hasAttribute("data-drawer-open")`)
+		})
+
 		t.Run("switches between the page and the chat from the bottom bar", func(t *testing.T) {
 			h := newHarness(t)
 			h.Page.MustSetViewport(390, 844, 1, false)

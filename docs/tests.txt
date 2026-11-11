@@ -121,10 +121,18 @@ pkg/chat/codex_test.go
 pkg/chat/codexui_test.go
   CodexServer
     answers a retried send without sending twice
+    deletes a thread and tells the rail
     rejects a follow-up before its thread exists
     renders the thread's turns for the rail
+    reports a recorded send by client id
     sends a follow-up to the thread its first message started
     starts a labeled thread from the first message
+    streams the thread as server sent events
+  CodexServerMiddleware
+    carries the open chat through a post redirect
+    ignores a chat from another site
+    keeps a chat the redirect already names
+    leaves a redirect alone when no chat is open
 
 pkg/chat/hypertext_test.go
   FormProps
@@ -527,16 +535,28 @@ pkg/inbox/cancel_browser_test.go
 pkg/inbox/chat_rail_browser_test.go
   ChatRailBrowser
     when docked
+      closes and reopens with back and forward
       closes from the toggle
       continues an existing thread
+      creates a task in the main section with the chat open
+      keeps the chat open while the left nav changes pages
       opens a chat page link in the rail
       opens a new chat beside the page from the toggle
       opens a thread from a deep link
       renders thinking, tool, plan, and markdown parts
+      reopens the last chat from the toggle
+      starts a new chat from the rail header
       starts a thread and streams the reply
       stops a streaming turn
     when narrow
+      opens the left nav from the bottom bar and navigates
       switches between the page and the chat from the bottom bar
+
+pkg/inbox/codex_chat_browser_test.go
+  CodexChatBrowser
+    lists the new chat under chats
+    resumes the codex thread for a follow-up
+    starts a new chat and streams the codex reply
 
 pkg/inbox/events_test.go
   Events
@@ -544,6 +564,11 @@ pkg/inbox/events_test.go
 
 pkg/inbox/inbox_browser_test.go
   InboxBrowser
+    chats
+      archives a chat from its row and drops it from the list
+      hides archived chats by default
+      opens a row in the chat rail
+      shows archived chats under the all filter
     tasks
       hides done and archived tasks under the active filter
       saves an edited description
@@ -551,8 +576,9 @@ pkg/inbox/inbox_browser_test.go
 pkg/inbox/inbox_test.go
   ArchiveFilter
     defaults an unknown filter to all
+    defaults chats to active
     ignores the filter in the inbox view
-    keeps the active filter for chats
+    keeps the all filter for chats
     keeps the archived filter for tasks
   ChatAgent
     accepts a known agent

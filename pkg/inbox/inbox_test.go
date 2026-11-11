@@ -30,7 +30,8 @@ func TestArchiveFilter(t *testing.T) {
 		view   string
 		want   string
 	}{
-		{filter: "active", name: "keeps the active filter for chats", view: "chats", want: "active"},
+		{filter: "", name: "defaults chats to active", view: "chats", want: "active"},
+		{filter: "all", name: "keeps the all filter for chats", view: "chats", want: "all"},
 		{filter: "archived", name: "keeps the archived filter for tasks", view: "tasks", want: "archived"},
 		{filter: "other", name: "defaults an unknown filter to all", view: "workflows", want: "all"},
 		{filter: "archived", name: "ignores the filter in the inbox view", view: "inbox", want: ""},

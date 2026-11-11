@@ -1100,10 +1100,10 @@ func archiveFilter(view, filter string) string {
 		return ""
 	}
 	switch filter {
-	case "active", "archived":
+	case "active", "all", "archived":
 		return filter
 	default:
-		return "all"
+		return ui.DefaultArchiveFilter(view)
 	}
 }
 

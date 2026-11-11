@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -49,6 +51,33 @@ type TaskOption func(*todo.Service, db.Task) (db.Task, error)
 
 func newHarness(t *testing.T) *Harness {
 	t.Helper()
+	return newHarnessWithAgent(t, chat.EchoAgent{Delay: 10 * time.Millisecond})
+}
+
+func newCodexHarness(t *testing.T) *Harness {
+	t.Helper()
+	bin := t.TempDir()
+	stub := `#!/bin/sh
+for last; do :; done
+resume=""
+[ "$2" = "resume" ] && resume="again "
+echo '{"type":"thread.started","thread_id":"stub-thread"}'
+echo '{"type":"item.completed","item":{"id":"r1","type":"reasoning","text":"reading the stub"}}'
+echo '{"type":"item.started","item":{"id":"c1","type":"command_execution","command":"ls"}}'
+echo '{"type":"item.completed","item":{"id":"c1","type":"command_execution","command":"ls","aggregated_output":"main.go","exit_code":0}}'
+printf '{"type":"item.completed","item":{"id":"m1","type":"agent_message","text":"codex %sheard: %s"}}\n' "$resume" "$(printf %s "$last" | tail -n 1)"
+echo '{"type":"turn.completed","usage":{}}'
+`
+	if err := os.WriteFile(filepath.Join(bin, "codex"), []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HOME", t.TempDir())
+	return newHarnessWithAgent(t, chat.CodexAgent{Dir: t.TempDir()})
+}
+
+func newHarnessWithAgent(t *testing.T, agent chat.Agent) *Harness {
+	t.Helper()
 	kit := testkit.New(t)
 	clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
 	t.Cleanup(restore)
@@ -72,7 +101,7 @@ func newHarness(t *testing.T) *Harness {
 	kit.R.NoError(workflows.Launch())
 	t.Cleanup(func() { workflows.Close() })
 
-	chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.New(logs))
+	chatSvc := chat.NewService(store, agent, slog.New(logs))
 	t.Cleanup(chatSvc.Close)
 	taskSvc := todo.NewService(store)
 

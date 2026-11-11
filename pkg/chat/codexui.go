@@ -60,7 +60,11 @@ func (s *CodexServer) Handler() http.Handler {
 
 func (s *CodexServer) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.Header.Get("HX-Request") == "true" {
+		if r.Method != http.MethodGet {
+			next.ServeHTTP(carryChatWriter{ResponseWriter: w, r: r}, r)
+			return
+		}
+		if r.Header.Get("HX-Request") == "true" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -76,6 +80,36 @@ func (s *CodexServer) Middleware(next http.Handler) http.Handler {
 		ctx := app.WithRail(r.Context(), app.Rail{Chat: codexui.Chat(in), Open: open})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+type carryChatWriter struct {
+	http.ResponseWriter
+	r *http.Request
+}
+
+func (w carryChatWriter) WriteHeader(status int) {
+	if status >= 300 && status < 400 {
+		if location := carryChat(w.r, w.Header().Get("Location")); location != "" {
+			w.Header().Set("Location", location)
+		}
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func carryChat(r *http.Request, location string) string {
+	referer, err := url.Parse(r.Referer())
+	if err != nil || referer.Host != r.Host {
+		return ""
+	}
+	chat := referer.Query().Get("chat")
+	to, err := url.Parse(location)
+	if chat == "" || err != nil || (to.Host != "" && to.Host != r.Host) || to.Query().Has("chat") {
+		return ""
+	}
+	q := to.Query()
+	q.Set("chat", chat)
+	to.RawQuery = q.Encode()
+	return to.String()
 }
 
 func (s *CodexServer) handleChat(w http.ResponseWriter, r *http.Request) {
