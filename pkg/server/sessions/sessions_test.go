@@ -173,120 +173,160 @@ func (f *fakeDeps) deps() Deps {
 	}
 }
 
-func TestTopNav(t *testing.T) {
-	tests := []struct {
-		name   string
-		path   string
-		active string
-	}{
-		{name: "root highlights sessions", path: "/", active: "sessions"},
-		{name: "setup highlights setup", path: "/setup", active: "setup"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+func TestSessions(t *testing.T) {
+	t.Run("nav", func(t *testing.T) {
+		tests := []struct {
+			active string
+			name   string
+			path   string
+		}{
+			{active: "sessions", name: "highlights sessions on the root page", path: "/"},
+			{active: "setup", name: "highlights setup on the setup page", path: "/setup"},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				a := assert.New(t)
+				r := require.New(t)
+
+				fd := fakeDeps{}
+				s, err := NewServer(fd.deps())
+				r.NoError(err)
+				req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+				rec := httptest.NewRecorder()
+				s.Handler().ServeHTTP(rec, req)
+
+				body := rec.Body.String()
+				a.Contains(body, `>Sessions</span>`)
+				a.Contains(body, `>Code review</span>`)
+				a.Contains(body, `>Setup</span>`)
+				a.Contains(body, `href="/code/"`)
+
+				activeNeedle := map[string]string{
+					"sessions": `href="/sessions" class="gm-label active"`,
+					"setup":    `href="/setup" class="gm-label active"`,
+				}[tc.active]
+				a.Contains(body, activeNeedle)
+			})
+		}
+	})
+
+	t.Run("sessions page", func(t *testing.T) {
+		t.Run("omits agents repo hints", func(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
 
-			fd := fakeDeps{}
+			fd := fakeDeps{
+				agents:        agents.State{Behind: 2, Dirty: true, Installed: true},
+				authenticated: true, configured: true, installed: true,
+			}
 			s, err := NewServer(fd.deps())
 			r.NoError(err)
-			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rec := httptest.NewRecorder()
 			s.Handler().ServeHTTP(rec, req)
 
+			a.Equal(http.StatusOK, rec.Code)
 			body := rec.Body.String()
-			a.Contains(body, `>Sessions</span>`)
-			a.Contains(body, `>Code review</span>`)
-			a.Contains(body, `>Setup</span>`)
-			a.Contains(body, `href="/code/"`)
-
-			activeNeedle := map[string]string{
-				"sessions": `href="/sessions" class="gm-label active"`,
-				"setup":    `href="/setup" class="gm-label active"`,
-			}[tc.active]
-			a.Contains(body, activeNeedle)
+			for _, miss := range []string{"Local changes in ./scratch", "Upstream changes to ./scratch", ">Commit & Push<", ">Pull<"} {
+				a.NotContains(body, miss)
+			}
 		})
-	}
-}
+		t.Run("serves the sessions route when not mounted at root", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
 
-func TestSessionsPageOmitsAgentsHints(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
+			fd := fakeDeps{authenticated: true, configured: true, installed: true}
+			s, err := NewServer(fd.deps())
+			r.NoError(err)
 
-	fd := fakeDeps{
-		installed: true, configured: true, authenticated: true,
-		agents: agents.State{Installed: true, Behind: 2, Dirty: true},
-	}
-	s, err := NewServer(fd.deps())
-	r.NoError(err)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
+			mux := http.NewServeMux()
+			s.Register(mux, false)
 
-	a.Equal(http.StatusOK, rec.Code)
-	body := rec.Body.String()
-	for _, miss := range []string{"Local changes in ./scratch", "Upstream changes to ./scratch", ">Commit & Push<", ">Pull<"} {
-		a.NotContains(body, miss)
-	}
-}
+			req := httptest.NewRequest(http.MethodGet, "/sessions", nil)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
 
-func TestSessionsRouteWithoutRoot(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
+			a.Equal(http.StatusOK, rec.Code)
+			a.Contains(rec.Body.String(), "New session")
+		})
+	})
 
-	fd := fakeDeps{installed: true, configured: true, authenticated: true}
-	s, err := NewServer(fd.deps())
-	r.NoError(err)
+	t.Run("sign in", func(t *testing.T) {
+		t.Run("reports no login in progress for a stray code", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
 
-	mux := http.NewServeMux()
-	s.Register(mux, false)
+			fd := fakeDeps{installed: true}
+			s, err := NewServer(fd.deps())
+			r.NoError(err)
 
-	req := httptest.NewRequest(http.MethodGet, "/sessions", nil)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
+			req := httptest.NewRequest(http.MethodPost, "/login/code", strings.NewReader("code=abc"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, req)
 
-	a.Equal(http.StatusOK, rec.Code)
-	a.Contains(rec.Body.String(), "New session")
-}
+			a.Contains(rec.Body.String(), "no login in progress")
+		})
+	})
 
-func TestLoginCodeMissing(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
+	t.Run("start", func(t *testing.T) {
+		t.Run("skips the prompt slug when no prompt is given", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
 
-	fd := fakeDeps{installed: true}
-	s, err := NewServer(fd.deps())
-	r.NoError(err)
+			var gotName string
+			fd := fakeDeps{
+				authenticated: true, configured: true, installed: true,
+				slugForPrompt: func(p string) string { return "should-not-be-called" },
+				startSessionFn: func(name, dir, prompt string) (*claudecode.Session, error) {
+					gotName = name
+					return &claudecode.Session{ID: "x", Name: name, Dir: dir, URL: "https://claude.ai/code/x"}, nil
+				},
+			}
+			srv, err := NewServer(fd.deps())
+			r.NoError(err)
 
-	req := httptest.NewRequest(http.MethodPost, "/login/code", strings.NewReader("code=abc"))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
+			req := httptest.NewRequest(http.MethodPost, "/sessions", strings.NewReader("dir=/tmp"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, req)
 
-	a.Contains(rec.Body.String(), "no login in progress")
-}
+			a.Empty(gotName, "no prompt — slug call is skipped, falls back to manager default")
+		})
+	})
 
-func TestSessionStartNoPromptUsesEmptyName(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
+	t.Run("QR code", func(t *testing.T) {
+		t.Run("serves the session QR code as png", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
 
-	var gotName string
-	fd := fakeDeps{
-		installed: true, configured: true, authenticated: true,
-		slugForPrompt: func(p string) string { return "should-not-be-called" },
-		startSessionFn: func(name, dir, prompt string) (*claudecode.Session, error) {
-			gotName = name
-			return &claudecode.Session{ID: "x", Name: name, Dir: dir, URL: "https://claude.ai/code/x"}, nil
-		},
-	}
-	srv, err := NewServer(fd.deps())
-	r.NoError(err)
+			fd := fakeDeps{sessionQR: []byte{0x89, 'P', 'N', 'G', 0xff}}
+			srv, err := NewServer(fd.deps())
+			r.NoError(err)
 
-	req := httptest.NewRequest(http.MethodPost, "/sessions", strings.NewReader("dir=/tmp"))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
+			req := httptest.NewRequest(http.MethodGet, "/sessions/abcd/qr", nil)
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, req)
 
-	a.Empty(gotName, "no prompt — slug call is skipped, falls back to manager default")
+			a.Equal(http.StatusOK, rec.Code)
+			a.Equal("image/png", rec.Header().Get("Content-Type"))
+			a.Equal([]byte{0x89, 'P', 'N', 'G', 0xff}, rec.Body.Bytes())
+		})
+		t.Run("returns not found for an unknown session", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+
+			fd := fakeDeps{sessionQRErr: errors.New("session not found")}
+			srv, err := NewServer(fd.deps())
+			r.NoError(err)
+
+			req := httptest.NewRequest(http.MethodGet, "/sessions/nope/qr", nil)
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, req)
+
+			a.Equal(http.StatusNotFound, rec.Code)
+		})
+	})
 }
 
 func wrapAppend(fd *fakeDeps, inner func(name, dir, prompt string) (*claudecode.Session, error)) func(name, dir, prompt string) (*claudecode.Session, error) {
@@ -304,36 +344,4 @@ func mustHome(t *testing.T) string {
 	home, err := os.UserHomeDir()
 	require.New(t).NoError(err)
 	return home
-}
-
-func TestSessionQR(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	fd := fakeDeps{sessionQR: []byte{0x89, 'P', 'N', 'G', 0xff}}
-	srv, err := NewServer(fd.deps())
-	r.NoError(err)
-
-	req := httptest.NewRequest(http.MethodGet, "/sessions/abcd/qr", nil)
-	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
-
-	a.Equal(http.StatusOK, rec.Code)
-	a.Equal("image/png", rec.Header().Get("Content-Type"))
-	a.Equal([]byte{0x89, 'P', 'N', 'G', 0xff}, rec.Body.Bytes())
-}
-
-func TestSessionQRMissing(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	fd := fakeDeps{sessionQRErr: errors.New("session not found")}
-	srv, err := NewServer(fd.deps())
-	r.NoError(err)
-
-	req := httptest.NewRequest(http.MethodGet, "/sessions/nope/qr", nil)
-	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
-
-	a.Equal(http.StatusNotFound, rec.Code)
 }
