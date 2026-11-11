@@ -273,7 +273,7 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			if d.Kind == "chat" {
 				@ChatAccessToggle(d.ID, d.Access)
 			}
-			<button type="button" class="gm-icon-btn" data-chat-popout-thread={ itoa64(d.ID) } title="Open chat popout" aria-label="Open chat popout">
+			<button type="button" class="gm-icon-btn" data-chat-rail-thread={ itoa64(d.ID) } title="Open chat in panel" aria-label="Open chat in panel">
 				@lucide.ExternalLink()
 			</button>
 			if d.Streaming && d.Kind != "chat" {

@@ -121,7 +121,7 @@ pkg/chat/codex_test.go
 pkg/chat/hypertext_test.go
   FormProps
     unescapes html entities in field defaults
-  HandleNewPopout
+  HandleNewRail
     drops an unknown model from the anchor
     keeps a known model in the anchor
   HandleSend
@@ -521,21 +521,35 @@ pkg/inbox/cancel_browser_test.go
 
 pkg/inbox/chat_browser_test.go
   ChatBrowser
+    chat panel
+      continues an existing thread
+      keeps its header actions inside the panel with a long thread
     composer
       restores an unsent draft after navigation
       sends a message and streams the echoed reply
       sends an uploaded attachment as a pill
       stops a streaming turn
       toggles between full access and safe mode
-    floating chat
-      continues an existing thread
-      keeps its actions inside the panel when minimized
     inspector
       captures a message as image and html attachments
       starts a chat from a captured inbox section
       starts a chat from a task page without creating a task
     transcript
       renders thinking, tool, plan, and markdown parts
+
+pkg/inbox/chat_rail_browser_test.go
+  ChatRailBrowser
+    when docked
+      closes from the header and stays closed after reload
+      discards an empty new chat on close
+      keeps the chat open across navigation
+      keeps the header actions visible with a long description
+      opens a deep linked chat from the chat query
+      opens beside the page and narrows the main column
+      reopens the last chat from the toggle
+      streams a reply into the panel
+    when narrow
+      covers the page and closes on escape
 
 pkg/inbox/events_test.go
   Events
@@ -547,9 +561,9 @@ pkg/inbox/inbox_browser_test.go
       creates the thread when sending from a draft chat
       starts a chat from the tasks footer
     new chat
-      opens a floating chat from the new chat action
-      opens a floating chat when a provider is selected
-      opens a floating chat when the default provider is selected
+      opens the chat panel from the new chat action
+      opens the chat panel when a provider is selected
+      opens the chat panel when the default provider is selected
     tasks
       hides done and archived tasks under the active filter
       saves an edited description
@@ -606,17 +620,6 @@ pkg/inbox/inbox_test.go
 pkg/inbox/poll_browser_test.go
   PollBrowser
     appends later workflow steps without re-rendering earlier ones
-
-pkg/inbox/popout_browser_test.go
-  PopoutBrowser
-    minimize
-      collapses the popout to its header
-    restore
-      brings back a usable composer
-      scrolls to the latest message
-    when minimized
-      keeps the action icons visible with a long description
-      stays fully collapsed with visible actions after reload
 
 pkg/inbox/schedule_browser_test.go
   ScheduleBrowser
@@ -782,14 +785,14 @@ pkg/server/sql/sql_test.go
 
 pkg/todo/web_browser_test.go
   WebBrowser
-    chats list
-      lists todo chats without scratch chats
-      opens a todo chat row in a floating chat
-    floating chat
+    chat panel
       chat history action opens chats
       chat history action refreshes the current chats page
-      new chat action opens a floating chat
+      new chat action opens the chat panel
       survives navigation
+    chats list
+      lists todo chats without scratch chats
+      opens a todo chat row in the chat panel
     inbox
       archives and unarchives from list actions
       creates a task

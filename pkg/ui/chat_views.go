@@ -135,7 +135,7 @@ type ChatThreadProps struct {
 	Title    string
 }
 
-type FloatingChatProps struct {
+type ChatRailProps struct {
 	Access      string
 	Agent       string
 	Description string

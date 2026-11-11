@@ -3,7 +3,8 @@
 
   const draftKeyPrefix = "scratch.chat.draft:";
   const providerModelKey = "scratch.chat.provider_model";
-  const popoutKey = "scratch.chat.popout";
+  const railCookie = "scratch_chat_rail";
+  const railWidthQuery = window.matchMedia("(max-width: 760px)");
 
   const showAlert = (text) => {
     let alert = document.getElementById("chat-alert");
@@ -24,71 +25,89 @@
   const paperclipIconHTML = () =>
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path></svg>`;
 
-  const state = () => {
-    try {
-      return JSON.parse(sessionStorage.getItem(popoutKey) || "{}");
-    } catch {
-      return {};
-    }
+  const railState = () => {
+    const match = document.cookie.match(new RegExp(`(?:^|; )${railCookie}=([^;]*)`));
+    const [open, thread] = decodeURIComponent(match?.[1] || "").split(":");
+    return { open: open === "open", thread: thread || "" };
   };
 
-  const saveState = (next) => {
-    const merged = { ...state(), ...next };
-    if (!merged.threadID) {
-      sessionStorage.removeItem(popoutKey);
-      return;
-    }
-    sessionStorage.setItem(popoutKey, JSON.stringify(merged));
+  const saveRail = ({ open, thread }) => {
+    document.cookie = `${railCookie}=${encodeURIComponent(`${open ? "open" : "closed"}:${thread || ""}`)}; path=/; max-age=31536000; samesite=lax`;
+    document.documentElement.dataset.chatRail = open ? "open" : "closed";
+    document.querySelectorAll("[data-chat-rail-toggle]").forEach((toggle) => toggle.setAttribute("aria-expanded", String(open)));
   };
 
-  const clearState = () => sessionStorage.removeItem(popoutKey);
+  const railPanel = () => document.querySelector("[data-chat-rail-panel]");
 
-  const panelMode = (panel) => {
-    if (panel.classList.contains("fullscreen")) return "fullscreen";
-    if (panel.classList.contains("minimized")) return "minimized";
-    return "open";
-  };
-
-  const applyPanelMode = (panel, mode) => {
-    panel.classList.toggle("fullscreen", mode === "fullscreen");
-    panel.classList.toggle("minimized", mode === "minimized");
-    saveState({ mode, threadID: panel.dataset.threadId });
-  };
-
-  const insertPopout = (html, mode = "open") => {
-    document.getElementById("floating-chat")?.remove();
-    document.body.insertAdjacentHTML("beforeend", html);
-    const panel = document.getElementById("floating-chat");
+  const showRail = (html) => {
+    const rail = document.getElementById("chat-rail");
+    if (!rail) return null;
+    rail.innerHTML = html;
+    const panel = railPanel();
     if (!panel) return null;
-    panel.classList.add("no-anim");
-    applyPanelMode(panel, mode);
-    void panel.offsetWidth;
-    requestAnimationFrame(() => panel.classList.remove("no-anim"));
     window.htmx?.process(panel);
     initAll(panel);
-    panel.querySelector("[data-chat-input]")?.focus();
+    saveRail({ open: true, thread: panel.dataset.threadId });
+    if (!window.matchMedia("(pointer: coarse)").matches) panel.querySelector("[data-chat-input]")?.focus();
     return panel;
   };
 
-  const openPopout = async (url, mode = "open") => {
+  const openRail = async (url) => {
     const res = await fetch(url);
     if (!res.ok) {
-      showAlert(await res.text());
+      if (res.status === 404) saveRail({ open: false, thread: "" });
+      else showAlert(await res.text());
       return null;
     }
-    return insertPopout(await res.text(), mode);
+    return showRail(await res.text());
   };
 
-  const restorePopout = () => {
-    const saved = state();
-    if (!saved.threadID) return;
-    openPopout(`/chat/${saved.threadID}/popout`, saved.mode || "open");
+  const closeRail = async ({ discardEmpty = true } = {}) => {
+    const panel = railPanel();
+    const threadID = panel?.dataset.threadId || "";
+    const empty = panel?.dataset.empty === "true";
+    const rail = document.getElementById("chat-rail");
+    if (rail) rail.replaceChildren();
+    saveRail({ open: false, thread: empty ? "" : threadID });
+    document.querySelector("[data-chat-rail-toggle]")?.focus();
+    if (discardEmpty && empty && threadID) await fetch(`/chat/${threadID}`, { method: "DELETE" });
   };
 
-  const showInboxBehindPopout = (threadID) => {
-    if (location.pathname === `/inbox/chats/${threadID}`) {
-      location.assign("/inbox/chats");
+  const newRailURL = (params = new URLSearchParams()) => {
+    const saved = storageGet(providerModelKey);
+    if (saved && !params.get("provider_model")) params.set("provider_model", saved);
+    return `/chat/rail/new?${params.toString()}`;
+  };
+
+  const threadRailURL = (threadID) => `/chat/${threadID}/rail`;
+
+  const toggleRail = () => {
+    if (railPanel()) {
+      closeRail();
+      return;
     }
+    const { thread } = railState();
+    openRail(thread ? threadRailURL(thread) : newRailURL());
+  };
+
+  const openThreadInRail = async (threadID) => {
+    const panel = await openRail(threadRailURL(threadID));
+    if (panel && location.pathname === `/inbox/chats/${threadID}`) location.assign("/inbox/chats");
+  };
+
+  const restoreRail = () => {
+    const param = new URLSearchParams(location.search).get("chat");
+    if (param === "new") {
+      openRail(newRailURL());
+      return;
+    }
+    if (param && /^\d+$/.test(param)) {
+      openRail(threadRailURL(param));
+      return;
+    }
+    const { open, thread } = railState();
+    if (open && thread) openRail(threadRailURL(thread));
+    else saveRail({ open: false, thread });
   };
 
   const storageGet = (key) => {
@@ -117,9 +136,9 @@
     const agent = form.querySelector('[name="agent"]')?.value || "";
     const mode = form.querySelector('[name="mode"]')?.value || "";
     const model = form.querySelector('[name="model"]')?.value || "";
-    const popoutThreadID = form.closest("[data-chat-popout]")?.dataset.threadId || "";
+    const railThreadID = form.closest("[data-chat-rail-panel]")?.dataset.threadId || "";
     const threadMatch = action.match(/^\/chat\/(\d+)\/messages$/);
-    if (popoutThreadID || threadMatch) return draftKeyPrefix + "thread:" + (popoutThreadID || threadMatch[1]);
+    if (railThreadID || threadMatch) return draftKeyPrefix + "thread:" + (railThreadID || threadMatch[1]);
     return draftKeyPrefix + ["compose", action, mode, agent, model].join(":");
   };
 
@@ -293,7 +312,7 @@
         input.value = "";
         strip.replaceChildren();
         requestAnimationFrame(resize);
-        form.closest("[data-chat-popout]")?.setAttribute("data-empty", "false");
+        form.closest("[data-chat-rail-panel]")?.setAttribute("data-empty", "false");
       }
     });
     form.addEventListener("submit", () => {
@@ -379,7 +398,7 @@
     const onMove = (e) => {
       overlay.style.display = "none";
       let el = document.elementFromPoint(e.clientX, e.clientY);
-      if (el && (el.closest("[data-chat-popout]") || el.closest("[data-chat-form]") || el.closest(".mail-footer"))) {
+      if (el && (el.closest("[data-chat-rail-panel]") || el.closest("[data-chat-form]") || el.closest(".mail-footer"))) {
         el = null;
       }
       if (!el || el === document.body || el === document.documentElement) {
@@ -521,52 +540,6 @@
     scroller.scrollTo(0, scroller.scrollHeight);
   };
 
-  const openPanel = (panel) => {
-    applyPanelMode(panel, "open");
-    panel.querySelectorAll("[data-chat-input]").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
-    const scroller = panel.querySelector("[data-chat-scroller]");
-    if (scroller) requestAnimationFrame(() => scroller.scrollTo(0, scroller.scrollHeight));
-  };
-
-  const initPopout = (panel) => {
-    if (panel.dataset.chatPanelInitialized === "true") return;
-    panel.dataset.chatPanelInitialized = "true";
-
-    panel.addEventListener("click", async (e) => {
-      const minimize = e.target.closest("[data-chat-minimize]");
-      if (minimize) {
-        if (panel.classList.contains("minimized")) {
-          openPanel(panel);
-        } else {
-          applyPanelMode(panel, "minimized");
-        }
-        return;
-      }
-      const restore = e.target.closest("[data-chat-restore]");
-      if (restore) {
-        openPanel(panel);
-        return;
-      }
-      const fullscreen = e.target.closest("[data-chat-fullscreen]");
-      if (fullscreen) {
-        applyPanelMode(panel, panel.classList.contains("fullscreen") ? "open" : "fullscreen");
-        return;
-      }
-      const close = e.target.closest("[data-chat-close]");
-      if (close) {
-        const empty = panel.dataset.empty === "true";
-        const threadID = panel.dataset.threadId;
-        panel.remove();
-        clearState();
-        if (empty && threadID) await fetch(`/chat/${threadID}`, { method: "DELETE" });
-        return;
-      }
-      if (panel.classList.contains("minimized") && e.target.closest(".floating-chat-head")) {
-        openPanel(panel);
-      }
-    });
-  };
-
   const initNewChatAction = (form) => {
     if (form.dataset.chatNewInitialized === "true") return;
     form.dataset.chatNewInitialized = "true";
@@ -580,13 +553,11 @@
     if (root.matches?.("[data-chat-form]")) initComposer(root);
     if (root.matches?.(".chat-elicit-editable")) initEditableElicit(root);
     if (root.matches?.("[data-chat-messages]")) initMessages(root);
-    if (root.matches?.("[data-chat-popout-new]")) initNewChatAction(root);
-    if (root.matches?.("[data-chat-popout]")) initPopout(root);
+    if (root.matches?.("[data-chat-rail-new]")) initNewChatAction(root);
     root.querySelectorAll("[data-chat-form]").forEach(initComposer);
     root.querySelectorAll(".chat-elicit-editable").forEach(initEditableElicit);
     root.querySelectorAll("[data-chat-messages]").forEach(initMessages);
-    root.querySelectorAll("[data-chat-popout-new]").forEach(initNewChatAction);
-    root.querySelectorAll("[data-chat-popout]").forEach(initPopout);
+    root.querySelectorAll("[data-chat-rail-new]").forEach(initNewChatAction);
   };
 
   document.body.addEventListener("htmx:response:error", (e) => {
@@ -599,18 +570,16 @@
 
 
   document.addEventListener("submit", (e) => {
-    const form = e.target.closest("[data-chat-popout-new]");
+    const form = e.target.closest("[data-chat-rail-new]");
     if (!form) return;
     e.preventDefault();
-    const params = new URLSearchParams(new FormData(form));
-    openPopout(`/chat/popout/new?${params.toString()}`);
+    openRail(newRailURL(new URLSearchParams(new FormData(form))));
   });
 
   document.addEventListener("click", async (e) => {
     const historyLink = e.target.closest("[data-chat-history]");
     if (historyLink) {
-      clearState();
-      document.getElementById("floating-chat")?.remove();
+      closeRail({ discardEmpty: false });
       const url = new URL(historyLink.href, location.href);
       if (url.pathname === location.pathname && url.search === location.search) {
         e.preventDefault();
@@ -619,12 +588,29 @@
       return;
     }
 
-    const trigger = e.target.closest("[data-chat-popout-thread]");
+    if (e.target.closest("[data-chat-rail-toggle]")) {
+      toggleRail();
+      return;
+    }
+
+    if (e.target.closest("[data-chat-rail-close]")) {
+      closeRail();
+      return;
+    }
+
+    if (e.target.closest("[data-chat-rail-expand]")) {
+      saveRail({ open: false, thread: railPanel()?.dataset.threadId || "" });
+      return;
+    }
+
+    const trigger = e.target.closest("[data-chat-rail-thread]");
     if (!trigger) return;
     e.preventDefault();
-    const threadID = trigger.dataset.chatPopoutThread;
-    const panel = await openPopout(`/chat/${threadID}/popout`);
-    if (panel) showInboxBehindPopout(threadID);
+    openThreadInRail(trigger.dataset.chatRailThread);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && railWidthQuery.matches && railPanel()) closeRail({ discardEmpty: false });
   });
 
   new MutationObserver((mutations) => {
@@ -635,7 +621,7 @@
     }
   }).observe(document.body, { childList: true, subtree: true });
 
-  window.scratchChat = { init: initAll, openPopout };
+  window.scratchChat = { init: initAll, openRail };
   initAll();
-  restorePopout();
+  restoreRail();
 })();

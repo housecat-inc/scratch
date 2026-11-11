@@ -99,7 +99,7 @@ templ TodoChatRow(item TodoChatItem) {
 		Kind: "chat",
 		Labels: []string{"Chat"},
 		LinkAttrs: templ.Attributes{
-			"data-chat-popout-thread": strconv.FormatInt(item.ID, 10),
+			"data-chat-rail-thread": strconv.FormatInt(item.ID, 10),
 		},
 		Primary: TodoChatRowPrimary(item),
 		Subject: item.Description,
@@ -109,7 +109,7 @@ templ TodoChatRow(item TodoChatItem) {
 }
 
 templ TodoChatRowPrimary(item TodoChatItem) {
-	<button type="button" class="gm-row-action" data-chat-popout-thread={ strconv.FormatInt(item.ID, 10) } aria-label="Open chat">
+	<button type="button" class="gm-row-action" data-chat-rail-thread={ strconv.FormatInt(item.ID, 10) } aria-label="Open chat">
 		@lucide.MessageSquare()
 	</button>
 }

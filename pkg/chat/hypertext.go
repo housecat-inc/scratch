@@ -40,7 +40,7 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
-	mux.HandleFunc("GET /chat/popout/new", s.handleNewPopout)
+	mux.HandleFunc("GET /chat/rail/new", s.handleNewRail)
 	mux.HandleFunc("GET /chat/{id}", http.NotFound)
 	mux.HandleFunc("DELETE /chat/{id}", s.handleDelete)
 	mux.HandleFunc("POST /chat/{id}/access", s.handleAccess)
@@ -50,12 +50,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /chat/{id}/elicitations", s.handleElicitation)
 	mux.HandleFunc("GET /chat/{id}/events", s.handleEvents)
 	mux.HandleFunc("POST /chat/{id}/messages", s.handleSend)
-	mux.HandleFunc("GET /chat/{id}/popout", s.handlePopout)
+	mux.HandleFunc("GET /chat/{id}/rail", s.handleRail)
 	mux.HandleFunc("POST /chat/{id}/stop", s.handleStop)
 	return logging.Middleware(s.log, mux)
 }
 
-func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleNewRail(w http.ResponseWriter, r *http.Request) {
 	agent := strings.TrimSpace(r.URL.Query().Get("agent"))
 	model := strings.TrimSpace(r.URL.Query().Get("model"))
 	if providerModel := r.URL.Query().Get("provider_model"); providerModel != "" {
@@ -72,7 +72,7 @@ func (s *Server) handleNewPopout(w http.ResponseWriter, r *http.Request) {
 		s.notFoundOr(w, err)
 		return
 	}
-	if err := s.renderPopout(w, r, thread.ID); err != nil {
+	if err := s.renderRail(w, r, thread.ID); err != nil {
 		s.fail(w, err)
 	}
 }
@@ -89,23 +89,23 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) handlePopout(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleRail(w http.ResponseWriter, r *http.Request) {
 	id, ok := threadID(w, r)
 	if !ok {
 		return
 	}
-	if err := s.renderPopout(w, r, id); err != nil {
+	if err := s.renderRail(w, r, id); err != nil {
 		s.notFoundOr(w, err)
 	}
 }
 
-func (s *Server) renderPopout(w http.ResponseWriter, r *http.Request, threadID int64) error {
+func (s *Server) renderRail(w http.ResponseWriter, r *http.Request, threadID int64) error {
 	view, err := s.svc.View(threadID)
 	if err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	return ui.FloatingChatPanel(s.toFloatingProps(view)).Render(r.Context(), w)
+	return ui.ChatRailPanel(s.toRailProps(view)).Render(r.Context(), w)
 }
 
 func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
@@ -427,9 +427,9 @@ func (s *Server) toThreadProps(v ThreadView) ui.ChatThreadProps {
 	return props
 }
 
-func (s *Server) toFloatingProps(v ThreadView) ui.FloatingChatProps {
+func (s *Server) toRailProps(v ThreadView) ui.ChatRailProps {
 	thread := s.toThreadProps(v)
-	return ui.FloatingChatProps{
+	return ui.ChatRailProps{
 		Access:      s.svc.ThreadAccess(v.Thread),
 		Agent:       thread.Agent,
 		Description: FriendlyDescription(threadPromptFromMessages(v.Messages)),

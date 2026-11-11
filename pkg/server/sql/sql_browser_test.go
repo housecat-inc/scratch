@@ -41,7 +41,7 @@ func TestSQLBrowser(t *testing.T) {
 		h.ElementTextContains(`a[href="/inbox/chats"] .gm-label-count`, "3")
 		h.ElementTextContains(`a[href="/inbox/tasks"] .gm-label-count`, "4")
 		h.ElementVisible(".mail-footer [data-chat-input]")
-		h.ElementVisible("#floating-chat [data-chat-input]")
+		h.ElementVisible("#chat-rail-panel [data-chat-input]")
 	})
 }
 

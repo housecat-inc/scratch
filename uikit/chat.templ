@@ -3,7 +3,7 @@ package uikit
 import lucide "github.com/wux4an/lucide-templ/icons"
 
 templ NewChatAction(p NewChatActionProps) {
-	<form class="mail-create-combo" method="get" action={ newChatAction(p.Action) } data-chat-popout-new>
+	<form class="mail-create-combo" method="get" action={ newChatAction(p.Action) } data-chat-rail-new>
 		if p.Label != "" {
 			<input type="hidden" name="chat_label" value={ p.Label }/>
 		}

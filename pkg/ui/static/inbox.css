@@ -366,10 +366,11 @@ textarea {
 }
 
 .mail-shell {
+  --chat-rail-width: 0px;
   background: #f8fafc;
   color: #202124;
   display: grid;
-  grid-template-columns: 16rem minmax(0, 1fr);
+  grid-template-columns: 16rem minmax(0, 1fr) var(--chat-rail-width);
   grid-template-rows: 56px minmax(0, 1fr) auto;
   height: 100vh;
   overflow: hidden;
@@ -382,7 +383,7 @@ textarea {
   display: flex;
   flex-wrap: nowrap;
   gap: 1rem;
-  grid-column: 1 / 3;
+  grid-column: 1 / -1;
   grid-row: 1;
   height: 56px;
   min-width: 0;
@@ -1489,7 +1490,43 @@ textarea {
   width: 1rem;
 }
 
+html[data-chat-rail="open"] .mail-shell {
+  --chat-rail-width: 400px;
+}
+
+.chat-rail {
+  background: #fff;
+  border-left: 1px solid #e5e7eb;
+  display: flex;
+  grid-column: 3;
+  grid-row: 2 / 4;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+html:not([data-chat-rail="open"]) .chat-rail {
+  border-left: 0;
+  visibility: hidden;
+}
+
+html[data-chat-rail="open"] .chat-rail-toggle {
+  background: #e8f0fe;
+  color: #0b57d0;
+}
+
 @media (max-width: 760px) {
+  html[data-chat-rail="open"] .mail-shell {
+    --chat-rail-width: 0px;
+  }
+
+  .chat-rail {
+    border-left: 0;
+    inset: 56px 0 0 0;
+    position: fixed;
+    z-index: 90;
+  }
+
   .mail-shell {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 56px auto minmax(0, 1fr) 68px;

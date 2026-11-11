@@ -62,7 +62,7 @@ func TestFormProps(t *testing.T) {
 	})
 }
 
-func TestHandleNewPopout(t *testing.T) {
+func TestHandleNewRail(t *testing.T) {
 	tests := []struct {
 		name       string
 		provider   string
@@ -93,7 +93,7 @@ func TestHandleNewPopout(t *testing.T) {
 			srv := NewServer(svc, nil).Handler()
 
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/chat/popout/new?provider_model="+url.QueryEscape(tt.provider), nil)
+			req := httptest.NewRequest(http.MethodGet, "/chat/rail/new?provider_model="+url.QueryEscape(tt.provider), nil)
 			srv.ServeHTTP(rec, req)
 			a.Equal(http.StatusOK, rec.Code)
 

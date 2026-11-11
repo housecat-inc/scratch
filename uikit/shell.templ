@@ -1,5 +1,7 @@
 package uikit
 
+import lucide "github.com/wux4an/lucide-templ/icons"
+
 templ Shell(p ShellProps) {
 	<div class={ shellClass(p.Class) }>
 		<header class="mail-topbar">
@@ -11,6 +13,9 @@ templ Shell(p ShellProps) {
 				if p.Actions != nil {
 					@p.Actions
 				}
+				<button type="button" class="mail-create-btn chat-rail-toggle" data-chat-rail-toggle aria-controls="chat-rail" aria-expanded="false" title="Toggle chat panel" aria-label="Toggle chat panel">
+					@lucide.PanelRight()
+				</button>
 			</div>
 		</header>
 		<div class="mail-body">
@@ -42,6 +47,7 @@ templ Shell(p ShellProps) {
 			<main class={ mainClass(p.MainClass, p.Footer) }>
 				{ children... }
 			</main>
+			<aside id="chat-rail" class="chat-rail" data-chat-rail aria-label="Chat panel"></aside>
 		</div>
 		if p.Footer != nil {
 			<footer class="mail-footer">

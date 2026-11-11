@@ -8,8 +8,8 @@ func TestInboxBrowser(t *testing.T) {
 			model string
 			name  string
 		}{
-			{model: "codex:default", name: "opens a floating chat when the default provider is selected"},
-			{model: "echo:default", name: "opens a floating chat when a provider is selected"},
+			{model: "codex:default", name: "opens the chat panel when the default provider is selected"},
+			{model: "echo:default", name: "opens the chat panel when a provider is selected"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -18,19 +18,19 @@ func TestInboxBrowser(t *testing.T) {
 				h.SelectOption(`[name="provider_model"]`, tt.model)
 
 				h.ChatThreadCount(1)
-				h.ElementEventuallyPresent("#floating-chat [data-chat-input]")
-				h.ElementTextContains("#floating-chat", "New chat")
+				h.ElementEventuallyPresent("#chat-rail-panel [data-chat-input]")
+				h.ElementTextContains("#chat-rail-panel", "New chat")
 			})
 		}
 
-		t.Run("opens a floating chat from the new chat action", func(t *testing.T) {
+		t.Run("opens the chat panel from the new chat action", func(t *testing.T) {
 			h := newHarness(t)
 			h.Open("/")
 			h.Click("[data-new-chat]")
 
 			h.ChatThreadCount(1)
-			h.ElementEventuallyPresent("#floating-chat [data-chat-input]")
-			h.ElementTextContains("#floating-chat", "New chat")
+			h.ElementEventuallyPresent("#chat-rail-panel [data-chat-input]")
+			h.ElementTextContains("#chat-rail-panel", "New chat")
 		})
 	})
 

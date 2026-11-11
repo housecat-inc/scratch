@@ -78,48 +78,42 @@ templ ChatMessages(p ChatThreadProps) {
 	}
 }
 
-templ FloatingChatPanel(p FloatingChatProps) {
+templ ChatRailPanel(p ChatRailProps) {
 	<section
-		id="floating-chat"
-		class="floating-chat"
-		data-chat-popout
+		id="chat-rail-panel"
+		class="chat-rail-panel"
+		data-chat-rail-panel
 		data-thread-id={ itoa64(p.ID) }
 		data-empty={ strconv.FormatBool(len(p.Messages) == 0) }
-		aria-label="Chat popout"
+		aria-label="Chat"
 	>
-		<header class="floating-chat-head">
-			<div class="floating-chat-title">
+		<header class="chat-rail-head">
+			<div class="chat-rail-title">
 				<span>{ p.Title }</span>
 				if p.Description != "" {
 					<small>{ p.Description }</small>
 				}
 			</div>
-				<div class="floating-chat-actions">
-					<button type="button" class="floating-chat-icon" data-chat-minimize title="Minimize" aria-label="Minimize chat">
-						@lucide.Minus()
-					</button>
-					<button type="button" class="floating-chat-icon" data-chat-restore title="Restore floating chat" aria-label="Restore floating chat">
-						@lucide.PanelTopOpen()
-					</button>
-					<button type="button" class="floating-chat-icon" data-chat-fullscreen title="Fullscreen" aria-label="Fullscreen chat">
-						@lucide.Maximize2()
-					</button>
-					<button type="button" class="floating-chat-icon" data-chat-close title="Close" aria-label="Close chat">
-						@lucide.X()
-					</button>
+			<div class="chat-rail-actions">
+				<a class="chat-rail-icon" href={ templ.SafeURL("/inbox/chats/" + itoa64(p.ID)) } data-chat-rail-expand title="Open as page" aria-label="Open chat as page">
+					@lucide.Maximize2()
+				</a>
+				<button type="button" class="chat-rail-icon" data-chat-rail-close title="Close" aria-label="Close chat panel">
+					@lucide.X()
+				</button>
 			</div>
 		</header>
-		<div class="floating-chat-body" data-chat-scroller>
-			<div id={ "floating-chat-" + itoa64(p.ID) + "-messages" } data-chat-messages class="chat-messages floating-chat-messages" hx-sse:connect={ "/chat/" + itoa64(p.ID) + "/events" } hx-swap="innerMorph">
+		<div class="chat-rail-body" data-chat-scroller>
+			<div id={ "chat-rail-" + itoa64(p.ID) + "-messages" } data-chat-messages class="chat-messages chat-rail-messages" hx-sse:connect={ "/chat/" + itoa64(p.ID) + "/events" } hx-swap="innerMorph">
 				@ChatMessages(ChatThreadProps{Agent: p.Agent, ID: p.ID, Messages: p.Messages, Title: p.Title})
 			</div>
 		</div>
-		<footer class="floating-chat-compose">
+		<footer class="chat-rail-compose">
 			@ChatComposer(ChatComposerProps{
 				Action:      "/chat/" + itoa64(p.ID) + "/messages",
-				FileName:   "",
-				HXPost:     "/chat/" + itoa64(p.ID) + "/messages",
-				IDPrefix:    "floating-chat-" + itoa64(p.ID),
+				FileName:    "",
+				HXPost:      "/chat/" + itoa64(p.ID) + "/messages",
+				IDPrefix:    "chat-rail-" + itoa64(p.ID),
 				Placeholder: "Message " + p.Agent + "...",
 				StopAction:  "/chat/" + itoa64(p.ID) + "/stop",
 				UploadURL:   "/chat/" + itoa64(p.ID) + "/attachments",

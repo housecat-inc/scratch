@@ -210,7 +210,7 @@ func (h *Harness) SeedChatThread(title string) {
 	h.R.NoError(err)
 }
 
-func (h *Harness) SeedPopoutThread(messages ...string) int64 {
+func (h *Harness) SeedRailThread(messages ...string) int64 {
 	h.t.Helper()
 	thread, err := h.Chat.CreateThread("", "")
 	h.R.NoError(err)
@@ -275,9 +275,13 @@ func (h *Harness) SelectOption(selector, value string) {
 	h.R.True(ok.Value.Bool())
 }
 
-func (h *Harness) SetPopoutState(mode string, threadID int64) {
+func (h *Harness) SetRailCookie(open bool, threadID int64) {
 	h.t.Helper()
-	_, err := h.Page.Eval(`(mode, id) => sessionStorage.setItem('scratch.chat.popout', JSON.stringify({mode, threadID: String(id)}))`, mode, threadID)
+	state := "closed"
+	if open {
+		state = "open"
+	}
+	_, err := h.Page.Eval(`(state, id) => { document.cookie = "scratch_chat_rail=" + encodeURIComponent(state + ":" + id) + "; path=/" }`, state, threadID)
 	h.R.NoError(err)
 }
 

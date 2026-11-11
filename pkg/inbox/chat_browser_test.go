@@ -132,57 +132,47 @@ func TestChatBrowser(t *testing.T) {
 		})
 	})
 
-	t.Run("floating chat", func(t *testing.T) {
+	t.Run("chat panel", func(t *testing.T) {
 		t.Run("continues an existing thread", func(t *testing.T) {
 			h := newHarness(t)
 			h.SeedChatThread("e2e chat")
 			h.Open("/inbox/chats/1")
 			h.WaitChatReady()
-			h.Click(`[data-chat-popout-thread="1"]`)
+			h.Click(`[data-chat-rail-thread="1"]`)
 			h.PathEventuallyEquals("/inbox/chats")
-			h.ElementEventuallyPresent("#floating-chat")
-			h.Type("#floating-chat [data-chat-input]", "from popout")
-			h.Click("#floating-chat [data-chat-send]")
+			h.ElementEventuallyPresent("#chat-rail-panel [data-chat-input]")
+			h.Type("#chat-rail-panel [data-chat-input]", "from the panel")
+			h.Click("#chat-rail-panel [data-chat-send]")
 
-			h.TextEventuallyContains("#floating-chat .role-user .chat-bubble", "from popout")
-			h.TextEventuallyContains("#floating-chat .role-assistant", "You said: from popout")
+			h.TextEventuallyContains("#chat-rail-panel .role-user .chat-bubble", "from the panel")
+			h.TextEventuallyContains("#chat-rail-panel .role-assistant", "You said: from the panel")
 		})
 
-		t.Run("keeps its actions inside the panel when minimized", func(t *testing.T) {
+		t.Run("keeps its header actions inside the panel with a long thread", func(t *testing.T) {
 			r := require.New(t)
 			h := newHarness(t)
 			h.SeedChatThread(strings.Repeat("long thread title ", 20))
 			h.SeedAssistantMessage(strings.Repeat("long thread content ", 120))
 			h.Open("/inbox/chats/1")
 			h.WaitChatReady()
-			h.Click(`[data-chat-popout-thread="1"]`)
-			h.ElementEventuallyPresent("#floating-chat")
-			h.Click("#floating-chat [data-chat-minimize]")
+			h.Click(`[data-chat-rail-thread="1"]`)
+			h.ElementEventuallyPresent("#chat-rail-panel")
 			r.Eventually(func() bool {
 				return h.EvalBool(`() => {
-					const panel = document.querySelector("#floating-chat");
-					const close = document.querySelector("#floating-chat [data-chat-close]");
-					const expand = document.querySelector("#floating-chat [data-chat-fullscreen]");
-					const minimize = document.querySelector("#floating-chat [data-chat-minimize]");
-					const restore = document.querySelector("#floating-chat [data-chat-restore]");
-					const access = document.querySelector("#floating-chat .chat-access-switch");
-					if (!panel || !close || !expand || !minimize || !restore || access) return false;
+					const panel = document.querySelector("#chat-rail-panel");
+					const close = document.querySelector("#chat-rail-panel [data-chat-rail-close]");
+					const expand = document.querySelector("#chat-rail-panel [data-chat-rail-expand]");
+					if (!panel || !close || !expand) return false;
 					const panelRect = panel.getBoundingClientRect();
-					const visible = (el) => {
-						const style = getComputedStyle(el);
-						const rect = el.getBoundingClientRect();
-						return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-					};
 					const inside = (el) => {
 						const rect = el.getBoundingClientRect();
-						return rect.left >= panelRect.left && rect.right <= panelRect.right && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom;
+						return rect.width > 0 && rect.left >= panelRect.left && rect.right <= panelRect.right && rect.top >= panelRect.top;
 					};
-					return !visible(minimize) && visible(close) && visible(expand) && visible(restore) && inside(close) && inside(expand) && inside(restore);
+					return inside(close) && inside(expand);
 				}`)
 			}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-			h.Click("#floating-chat [data-chat-restore]")
 
-			h.ElementVisible("#floating-chat [data-chat-input]")
+			h.ElementVisible("#chat-rail-panel [data-chat-input]")
 		})
 	})
 

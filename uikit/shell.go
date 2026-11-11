@@ -61,7 +61,7 @@ func shellClass(extra string) string {
 
 func newChatAction(action string) string {
 	if action == "" {
-		return "/chat/popout/new"
+		return "/chat/rail/new"
 	}
 	return action
 }
