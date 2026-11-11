@@ -45,9 +45,10 @@
     rail.innerHTML = html;
     const panel = railPanel();
     if (!panel) return null;
+    saveRail({ open: true, thread: panel.dataset.threadId });
     window.htmx?.process(panel);
     initAll(panel);
-    saveRail({ open: true, thread: panel.dataset.threadId });
+    requestAnimationFrame(() => panel.querySelectorAll("[data-chat-input]").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true }))));
     if (!window.matchMedia("(pointer: coarse)").matches) panel.querySelector("[data-chat-input]")?.focus();
     return panel;
   };

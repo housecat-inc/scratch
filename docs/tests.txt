@@ -547,6 +547,7 @@ pkg/inbox/chat_rail_browser_test.go
       opens a deep linked chat from the chat query
       opens beside the page and narrows the main column
       reopens the last chat from the toggle
+      sizes the composer to one line when opened from the toggle
       streams a reply into the panel
     when narrow
       covers the page and closes on escape

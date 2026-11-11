@@ -27,6 +27,15 @@ func TestChatRailBrowser(t *testing.T) {
 			a.True(h.EvalBool(`() => document.documentElement.dataset.chatRail === "open"`))
 		})
 
+		t.Run("sizes the composer to one line when opened from the toggle", func(t *testing.T) {
+			h := newHarness(t)
+			h.Open("/")
+			h.Click("[data-chat-rail-toggle]")
+			h.ElementEventuallyPresent("#chat-rail-panel [data-chat-input]")
+
+			h.EventuallyTrue(`() => document.querySelector("#chat-rail-panel [data-chat-input]").getBoundingClientRect().height < 60`)
+		})
+
 		t.Run("keeps the chat open across navigation", func(t *testing.T) {
 			h := newHarness(t)
 			threadID := h.SeedRailThread("carry me along")
