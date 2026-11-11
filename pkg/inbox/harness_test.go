@@ -4,9 +4,14 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
@@ -18,15 +23,15 @@ import (
 
 type Harness struct {
 	*testkit.Harness
-	Chat  *chat.Service
-	Clock *ts.MockTime
-	Flows *flow.Engine
-	Logs  *testkit.LogRecorder
-	Store *db.DB
-	Tasks *todo.Service
+	Chat    *chat.Service
+	Clock   *ts.MockTime
+	Flows   *flow.Engine
+	Logs    *testkit.LogRecorder
+	Store   *db.DB
+	Tasks   *todo.Service
+	console []string
+	t       *testing.T
 }
-
-type Step = testkit.BrowserStep[*Harness]
 
 type stubUpdater struct{}
 
@@ -43,113 +48,280 @@ func (stubDrafter) Draft(context.Context, string) (flow.PullRequest, error) {
 	return flow.PullRequest{Body: "- Add a widget", Title: "Add a widget"}, nil
 }
 
-func runBrowser(t *testing.T, cases []testkit.BrowserCase[*Harness]) {
-	testkit.RunBrowserCases(t, cases, testkit.BrowserCaseRunner[*Harness]{
-		BeforeAct: func(h *Harness) {
-			h.Logs.Reset()
-		},
-		ConsoleErrors: func(h *Harness) []string {
-			return h.Console.Errors()
-		},
-		Load: func(h *Harness, path string) {
-			h.Load(path)
-		},
-		Setup: func(t *testing.T, kit *testkit.T, _ testkit.BrowserCase[*Harness]) *Harness {
-			clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
-			t.Cleanup(restore)
-			logs := testkit.NewLogRecorder(t, kit.Artifacts)
-
-			store, err := db.New(":memory:")
-			kit.R.NoError(err)
-			t.Cleanup(func() { store.Close() })
-
-			workflows, err := workflow.New(t.TempDir() + "/workflows.db")
-			kit.R.NoError(err)
-			flows := flow.New(flow.Deps{
-				CountdownStep: 400 * time.Millisecond,
-				DBOS:          workflows.Ctx(),
-				Drafter:       stubDrafter{},
-				Greeter:       flow.HeuristicGreeter(),
-				Log:           slog.New(logs),
-				StageStep:     700 * time.Millisecond,
-				Updater:       stubUpdater{},
-			})
-			kit.R.NoError(workflows.Launch())
-			t.Cleanup(func() { workflows.Close() })
-
-			chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.New(logs))
-			t.Cleanup(chatSvc.Close)
-			taskSvc := todo.NewService(store)
-
-			mux := http.NewServeMux()
-			mux.Handle("/chat/", chat.NewServer(chatSvc, slog.New(logs)).Handler())
-			mux.Handle("/", NewServer(taskSvc, chatSvc, flows, slog.New(logs)).Handler())
-
-			return &Harness{
-				Harness: testkit.NewHarnessWithT(t, kit, mux),
-				Chat:    chatSvc,
-				Clock:   clock,
-				Flows:   flows,
-				Logs:    logs,
-				Store:   store,
-				Tasks:   taskSvc,
-			}
-		},
-	})
-}
-
-var Click = testkit.ClickStep[*Harness]
-var ElementAbsent = func(selector string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.ElementAbsent(selector)
-	}
-}
-var Fill = testkit.FillStep[*Harness]
-var Hover = func(selector string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.Page.MustElement(selector).MustHover()
-	}
-}
-var Press = testkit.PressStep[*Harness]
-var SelectOption = func(selector, value string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		ok, err := h.Page.Eval(`(selector, value) => {
-			const select = document.querySelector(selector);
-			if (!select) return false;
-			select.value = value;
-			select.dispatchEvent(new Event("change", { bubbles: true }));
-			return true;
-		}`, selector, value)
-		h.R.NoError(err)
-		h.R.True(ok.Value.Bool())
-	}
-}
-var TextContains = testkit.TextContainsStep[*Harness]
-var Type = testkit.TypeStep[*Harness]
-var Visible = testkit.VisibleStep[*Harness]
-
-func Load(path string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.Load(path)
-	}
-}
-
 type TaskOption func(*todo.Service, db.Task) (db.Task, error)
 
-func SeedTask(title string, options ...TaskOption) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		task, err := h.Tasks.Create(title)
-		h.R.NoError(err)
-		for _, option := range options {
-			task, err = option(h.Tasks, task)
-			h.R.NoError(err)
+func newHarness(t *testing.T) *Harness {
+	t.Helper()
+	kit := testkit.New(t)
+	clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
+	t.Cleanup(restore)
+	logs := testkit.NewLogRecorder(t, kit.Artifacts)
+
+	store, err := db.New(":memory:")
+	kit.R.NoError(err)
+	t.Cleanup(func() { store.Close() })
+
+	workflows, err := workflow.New(t.TempDir() + "/workflows.db")
+	kit.R.NoError(err)
+	flows := flow.New(flow.Deps{
+		CountdownStep: 400 * time.Millisecond,
+		DBOS:          workflows.Ctx(),
+		Drafter:       stubDrafter{},
+		Greeter:       flow.HeuristicGreeter(),
+		Log:           slog.New(logs),
+		StageStep:     700 * time.Millisecond,
+		Updater:       stubUpdater{},
+	})
+	kit.R.NoError(workflows.Launch())
+	t.Cleanup(func() { workflows.Close() })
+
+	chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.New(logs))
+	t.Cleanup(chatSvc.Close)
+	taskSvc := todo.NewService(store)
+
+	mux := http.NewServeMux()
+	mux.Handle("/chat/", chat.NewServer(chatSvc, slog.New(logs)).Handler())
+	mux.Handle("/", NewServer(taskSvc, chatSvc, flows, slog.New(logs)).Handler())
+
+	h := &Harness{
+		Harness: testkit.NewHarnessWithT(t, kit, mux),
+		Chat:    chatSvc,
+		Clock:   clock,
+		Flows:   flows,
+		Logs:    logs,
+		Store:   store,
+		Tasks:   taskSvc,
+		t:       t,
+	}
+	t.Cleanup(h.checkConsole)
+	return h
+}
+
+func (h *Harness) AllowConsole(messages ...string) {
+	h.console = append(h.console, messages...)
+}
+
+func (h *Harness) AttachFile(name, contents string) {
+	h.t.Helper()
+	path := filepath.Join(h.t.TempDir(), name)
+	h.R.NoError(os.WriteFile(path, []byte(contents), 0o644))
+	h.Page.MustElement("#chat-file").MustSetFiles(path)
+}
+
+func (h *Harness) AwaitWorkflowRunning(running bool) {
+	h.t.Helper()
+	h.R.Eventually(func() bool {
+		threads, err := h.Chat.Threads()
+		if err != nil || len(threads) == 0 {
+			return false
 		}
-		h.Clock.Advance(time.Minute)
+		id := h.Chat.ThreadWorkflowID(threads[0])
+		if id == "" {
+			return false
+		}
+		run, err := h.Flows.Run(id)
+		return err == nil && run.Running() == running
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+}
+
+func (h *Harness) CaptureElement(selector string) {
+	h.t.Helper()
+	h.Page.MustElement("#chat-snap").MustClick()
+	el := h.Page.MustElement(selector)
+	box := el.MustShape().Box()
+	h.Page.Mouse.MustMoveTo(box.X+box.Width/2, box.Y+box.Height/2)
+	h.ElementVisible("#chat-select-overlay")
+	h.Page.Mouse.MustClick(proto.InputMouseButtonLeft)
+}
+
+func (h *Harness) ChatThreadCount(want int) {
+	h.t.Helper()
+	h.R.Eventually(func() bool {
+		threads, err := h.Chat.Threads()
+		return err == nil && len(threads) == want
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+}
+
+func (h *Harness) ElementEventuallyPresent(selector string) {
+	h.t.Helper()
+	h.R.Eventuallyf(func() bool {
+		_, err := h.Page.Element(selector)
+		return err == nil
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s should be present", selector)
+}
+
+func (h *Harness) EvalBool(js string, args ...any) bool {
+	v, err := h.Page.Eval(js, args...)
+	return err == nil && v.Value.Bool()
+}
+
+func (h *Harness) EventuallyTrue(js string, args ...any) {
+	h.t.Helper()
+	h.R.Eventually(func() bool {
+		return h.EvalBool(js, args...)
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+}
+
+func (h *Harness) Hover(selector string) {
+	h.t.Helper()
+	h.Page.MustElement(selector).MustHover()
+}
+
+func (h *Harness) InputValueContains(selector, expected string) {
+	h.t.Helper()
+	h.R.Eventuallyf(func() bool {
+		el, err := h.Page.Element(selector)
+		return err == nil && strings.Contains(el.MustProperty("value").Str(), expected)
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s value should contain %q", selector, expected)
+}
+
+func (h *Harness) Open(path string) {
+	h.t.Helper()
+	h.Load(path)
+	h.Logs.Reset()
+}
+
+func (h *Harness) PathEventuallyEquals(expected string) {
+	h.t.Helper()
+	h.R.Eventuallyf(func() bool {
+		result, err := h.Page.Eval(`() => location.pathname`)
+		return err == nil && result.Value.Str() == expected
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "path should equal %q", expected)
+}
+
+func (h *Harness) SeedAssistantMessage(body string, events ...[2]string) {
+	h.t.Helper()
+	msg, err := h.Store.AddMessage(db.NewMessage{
+		Author:   "agent:echo",
+		Body:     body,
+		Role:     db.MessageRoleAssistant,
+		ThreadID: 1,
+	})
+	h.R.NoError(err)
+	for _, ev := range events {
+		_, err := h.Store.AddMessageEvent(msg.ID, ev[0], ev[1])
+		h.R.NoError(err)
+	}
+}
+
+func (h *Harness) SeedChatThread(title string) {
+	h.t.Helper()
+	_, err := h.Chat.CreateThread("", title)
+	h.R.NoError(err)
+}
+
+func (h *Harness) SeedPopoutThread(messages ...string) int64 {
+	h.t.Helper()
+	thread, err := h.Chat.CreateThread("", "")
+	h.R.NoError(err)
+	for _, message := range messages {
+		_, err = h.Chat.Send(thread.ID, message)
+		h.R.NoError(err)
+	}
+	return thread.ID
+}
+
+func (h *Harness) SeedSchedule() {
+	h.t.Helper()
+	h.R.NoError(h.Flows.EnsureSchedules())
+}
+
+func (h *Harness) SeedScheduleRuns(n int) {
+	h.t.Helper()
+	runIDs := make([]string, 0, n)
+	for range n {
+		runID, err := h.Flows.TriggerSchedule("heartbeat")
+		h.R.NoError(err)
+		runIDs = append(runIDs, runID)
+	}
+	for _, runID := range runIDs {
+		h.Flows.Await(runID, 5*time.Second)
+	}
+}
+
+func (h *Harness) SeedStreamingAssistant(body string) {
+	h.t.Helper()
+	_, err := h.Store.AddMessage(db.NewMessage{
+		Author:   "agent:echo",
+		Body:     body,
+		Role:     db.MessageRoleAssistant,
+		Status:   db.MessageStatusStreaming,
+		ThreadID: 1,
+	})
+	h.R.NoError(err)
+}
+
+func (h *Harness) SeedTask(title string, options ...TaskOption) {
+	h.t.Helper()
+	task, err := h.Tasks.Create(title)
+	h.R.NoError(err)
+	for _, option := range options {
+		task, err = option(h.Tasks, task)
+		h.R.NoError(err)
+	}
+	h.Clock.Advance(time.Minute)
+}
+
+func (h *Harness) SelectOption(selector, value string) {
+	h.t.Helper()
+	ok, err := h.Page.Eval(`(selector, value) => {
+		const select = document.querySelector(selector);
+		if (!select) return false;
+		select.value = value;
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+		return true;
+	}`, selector, value)
+	h.R.NoError(err)
+	h.R.True(ok.Value.Bool())
+}
+
+func (h *Harness) SetPopoutState(mode string, threadID int64) {
+	h.t.Helper()
+	_, err := h.Page.Eval(`(mode, id) => sessionStorage.setItem('scratch.chat.popout', JSON.stringify({mode, threadID: String(id)}))`, mode, threadID)
+	h.R.NoError(err)
+}
+
+func (h *Harness) TaskCount(want int) {
+	h.t.Helper()
+	h.R.Eventually(func() bool {
+		tasks, err := h.Tasks.All()
+		return err == nil && len(tasks) == want
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+}
+
+func (h *Harness) TaskDescription(id int64, want string) {
+	h.t.Helper()
+	h.R.Eventually(func() bool {
+		task, err := h.Tasks.Get(id)
+		return err == nil && task.Description == want
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+}
+
+func (h *Harness) TextEventuallyContains(selector, expected string) {
+	h.t.Helper()
+	h.R.Eventuallyf(func() bool {
+		el, err := h.Page.Element(selector)
+		if err != nil {
+			return false
+		}
+		text, err := el.Text()
+		return err == nil && strings.Contains(text, expected)
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s text should contain %q", selector, expected)
+}
+
+func (h *Harness) WaitChatReady() {
+	h.t.Helper()
+	h.EventuallyTrue(`() => Boolean(window.htmx && document.querySelector("#chat-form"))`)
+}
+
+func (h *Harness) checkConsole() {
+	if h.t.Failed() {
+		return
+	}
+	for _, msg := range h.Console.Errors() {
+		if !slices.Contains(h.console, msg) {
+			h.t.Errorf("unexpected console error: %s", msg)
+		}
 	}
 }
 
@@ -162,15 +334,5 @@ func TaskArchived(archived bool) TaskOption {
 func TaskCompleted(completed bool) TaskOption {
 	return func(tasks *todo.Service, task db.Task) (db.Task, error) {
 		return tasks.SetCompleted(task.ID, completed)
-	}
-}
-
-func TaskDescription(id int64, want string) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			task, err := h.Tasks.Get(id)
-			return err == nil && task.Description == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 	}
 }

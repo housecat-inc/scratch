@@ -1,121 +1,83 @@
 package inbox
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/housecat-inc/scratch/testkit"
-)
+func TestInboxBrowser(t *testing.T) {
+	t.Run("new chat", func(t *testing.T) {
+		tests := []struct {
+			model string
+			name  string
+		}{
+			{model: "codex:default", name: "opens a floating chat when the default provider is selected"},
+			{model: "echo:default", name: "opens a floating chat when a provider is selected"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := newHarness(t)
+				h.Open("/")
+				h.SelectOption(`[name="provider_model"]`, tt.model)
 
-func TestInboxTasksBrowser(t *testing.T) {
-	runBrowser(t, []testkit.BrowserCase[*Harness]{
-		{
-			Act: []Step{
-				Click("[data-new-chat]"),
-			},
-			Assert: []Step{
-				ChatThreadCount(1),
-				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				TextContains("#floating-chat", "New chat"),
-			},
-			Name: "new chat action opens a floating chat",
-			Path: "/",
-		},
-		{
-			Act: []Step{
-				SelectOption(`[name="provider_model"]`, "echo:default"),
-			},
-			Assert: []Step{
-				ChatThreadCount(1),
-				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				TextContains("#floating-chat", "New chat"),
-			},
-			Name: "provider selection opens a floating chat",
-			Path: "/",
-		},
-		{
-			Act: []Step{
-				SelectOption(`[name="provider_model"]`, "codex:default"),
-			},
-			Assert: []Step{
-				ChatThreadCount(1),
-				ElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				TextContains("#floating-chat", "New chat"),
-			},
-			Name: "default provider selection opens a floating chat",
-			Path: "/",
-		},
-		{
-			Act: []Step{
-				Type("#chat-input", "hello from draft"),
-				Click("#chat-send"),
-			},
-			Assert: []Step{
-				ChatThreadCount(1),
-				TextContains(".mail-reader-title", "hello from draft"),
-			},
-			Name: "sending from a draft chat creates the thread",
-			Path: "/inbox/chats/new",
-		},
-		{
-			Act: []Step{
-				Type("#chat-input", "buy milk"),
-				Click("#chat-send"),
-			},
-			Assert: []Step{
-				ChatThreadCount(1),
-				TextContains(".mail-reader-title", "buy milk"),
-			},
-			Name: "footer composer always starts a chat",
-			Path: "/inbox/tasks",
-		},
-		{
-			Assert: []Step{
-				TextContains(".mail-list", "active one"),
-				ElementAbsent(`[data-id="2"]`),
-				ElementAbsent(`[data-id="3"]`),
-			},
-			Name: "active filter excludes done and archived tasks",
-			Path: "/inbox/tasks?archived=active",
-			Seed: []Step{
-				SeedTask("active one"),
-				SeedTask("done one", TaskCompleted(true)),
-				SeedTask("archived one", TaskArchived(true)),
-			},
-		},
-		{
-			Act: []Step{
-				Type(`[name="description"]`, "Call customer before Friday"),
-				Click(".mail-save-btn"),
-			},
-			Assert: []Step{
-				TaskDescription(1, "Call customer before Friday"),
-				TextContains(".mail-reader-title", "draft"),
-			},
-			Name: "updates the task description",
-			Path: "/inbox/tasks/1",
-			Seed: []Step{
-				SeedTask("draft"),
-			},
-		},
+				h.ChatThreadCount(1)
+				h.ElementEventuallyPresent("#floating-chat [data-chat-input]")
+				h.ElementTextContains("#floating-chat", "New chat")
+			})
+		}
+
+		t.Run("opens a floating chat from the new chat action", func(t *testing.T) {
+			h := newHarness(t)
+			h.Open("/")
+			h.Click("[data-new-chat]")
+
+			h.ChatThreadCount(1)
+			h.ElementEventuallyPresent("#floating-chat [data-chat-input]")
+			h.ElementTextContains("#floating-chat", "New chat")
+		})
 	})
-}
 
-func ChatThreadCount(want int) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			threads, err := h.Chat.Threads()
-			return err == nil && len(threads) == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
-}
+	t.Run("composer", func(t *testing.T) {
+		tests := []struct {
+			name string
+			path string
+			text string
+		}{
+			{name: "creates the thread when sending from a draft chat", path: "/inbox/chats/new", text: "hello from draft"},
+			{name: "starts a chat from the tasks footer", path: "/inbox/tasks", text: "buy milk"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := newHarness(t)
+				h.Open(tt.path)
+				h.Type("#chat-input", tt.text)
+				h.Click("#chat-send")
 
-func TaskCount(want int) Step {
-	return func(t *testing.T, h *Harness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			tasks, err := h.Tasks.All()
-			return err == nil && len(tasks) == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
+				h.ChatThreadCount(1)
+				h.ElementTextContains(".mail-reader-title", tt.text)
+			})
+		}
+	})
+
+	t.Run("tasks", func(t *testing.T) {
+		t.Run("hides done and archived tasks under the active filter", func(t *testing.T) {
+			h := newHarness(t)
+			h.SeedTask("active one")
+			h.SeedTask("done one", TaskCompleted(true))
+			h.SeedTask("archived one", TaskArchived(true))
+			h.Open("/inbox/tasks?archived=active")
+
+			h.ElementTextContains(".mail-list", "active one")
+			h.ElementAbsent(`[data-id="2"]`)
+			h.ElementAbsent(`[data-id="3"]`)
+		})
+
+		t.Run("saves an edited description", func(t *testing.T) {
+			h := newHarness(t)
+			h.SeedTask("draft")
+			h.Open("/inbox/tasks/1")
+			h.Type(`[name="description"]`, "Call customer before Friday")
+			h.Click(".mail-save-btn")
+
+			h.TaskDescription(1, "Call customer before Friday")
+			h.ElementTextContains(".mail-reader-title", "draft")
+		})
+	})
 }
