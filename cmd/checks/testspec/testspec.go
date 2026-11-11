@@ -14,8 +14,6 @@ var Analyzer = &analysis.Analyzer{
 }
 
 var Pending = []string{
-	"github.com/housecat-inc/scratch/pkg/agents",
-	"github.com/housecat-inc/scratch/pkg/api",
 	"github.com/housecat-inc/scratch/pkg/chat",
 	"github.com/housecat-inc/scratch/pkg/db",
 	"github.com/housecat-inc/scratch/pkg/elicit",
@@ -31,8 +29,6 @@ var Pending = []string{
 	"github.com/housecat-inc/scratch/pkg/server/sql",
 	"github.com/housecat-inc/scratch/pkg/todo",
 	"github.com/housecat-inc/scratch/pkg/ui",
-	"github.com/housecat-inc/scratch/pkg/workflow",
-	"github.com/housecat-inc/scratch/pkg/workspace",
 	"github.com/housecat-inc/scratch/testkit",
 	"github.com/housecat-inc/scratch/testkit/v2",
 }

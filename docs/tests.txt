@@ -11,11 +11,14 @@ cmd/checks/testspec
       prints the sorted Test, group, case hierarchy
 
 pkg/agents
-  Dir
+  Agents
+    Dir
+      lives under the scratch directory in HOME
 
 pkg/api
-  Spec
-    greet
+  API
+    Spec
+      documents the greet workflow route
 
 pkg/chat
   AddAttachmentRejectsOversize
@@ -409,16 +412,21 @@ pkg/ui
   ChatToolGroupSummary
 
 pkg/workflow
-  Greet
-    empty
-    name
-  SingleDBSharesSchemas
-    app
-    workflow
+  SingleDB
+    when app and workflows share one sqlite file
+      creates the app schema
+      creates the workflow schema
+      records workflow runs
+  Workflow
+    Greet
+      greets an empty name
+      greets by name
 
 pkg/workspace
-  ResolveInRepo
-  ResolveOutsideRepo
+  Workspace
+    Resolve
+      finds the worktree root and branch inside a repo
+      reports no repo outside git
 
 testkit
   HTML

@@ -10,7 +10,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolveInRepo(t *testing.T) {
+func TestWorkspace(t *testing.T) {
+	t.Run("Resolve", func(t *testing.T) {
+		t.Run("finds the worktree root and branch inside a repo", func(t *testing.T) {
+			resolveInRepo(t)
+		})
+		t.Run("reports no repo outside git", func(t *testing.T) {
+			resolveOutsideRepo(t)
+		})
+	})
+}
+
+func resolveInRepo(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
@@ -42,7 +53,7 @@ func TestResolveInRepo(t *testing.T) {
 	a.Equal(top, w.Dir, "Dir is the worktree root, not the cwd")
 }
 
-func TestResolveOutsideRepo(t *testing.T) {
+func resolveOutsideRepo(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
