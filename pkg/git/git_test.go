@@ -10,136 +10,140 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInstalled(t *testing.T) {
-	tests := []struct {
-		name  string
-		setup func(t *testing.T, dir string)
-		want  bool
-	}{
-		{name: "missing dir is not installed"},
-		{
-			name: "dir without .git is not installed",
-			setup: func(t *testing.T, dir string) {
-				require.NoError(t, os.MkdirAll(dir, 0o755))
+func TestGit(t *testing.T) {
+	t.Run("ComputeStatus", func(t *testing.T) {
+		tests := []struct {
+			behind   int
+			dirty    bool
+			diverged bool
+			mutate   func(t *testing.T, clone, remote string)
+			name     string
+		}{
+			{name: "reports a clean clone as current"},
+			{
+				behind: 1,
+				mutate: func(t *testing.T, clone, remote string) {
+					up := makeUpstream(t, remote)
+					gitCommit(t, up, "remote-2")
+					runGit(t, up, "push", "origin", "main")
+				},
+				name: "counts upstream commits the clone is behind",
 			},
-		},
-		{
-			name: "dir with .git is installed",
-			setup: func(t *testing.T, dir string) {
-				require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+			{
+				dirty: true,
+				mutate: func(t *testing.T, clone, remote string) {
+					require.NoError(t, os.WriteFile(filepath.Join(clone, "README"), []byte("edit"), 0o644))
+				},
+				name: "flags uncommitted edits as dirty",
 			},
-			want: true,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+			{
+				behind:   1,
+				diverged: true,
+				mutate: func(t *testing.T, clone, remote string) {
+					gitCommit(t, clone, "local-2")
+					up := makeUpstream(t, remote)
+					gitCommit(t, up, "remote-2")
+					runGit(t, up, "push", "origin", "main")
+				},
+				name: "flags divergence when both sides have new commits",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				requireGit(t)
+				a := assert.New(t)
+				r := require.New(t)
+
+				clone, remote := setupRepo(t)
+				if tt.mutate != nil {
+					tt.mutate(t, clone, remote)
+				}
+				runGit(t, clone, "fetch", "origin", "main")
+
+				state, err := ComputeStatus(clone, "main")
+				r.NoError(err)
+				a.True(state.Installed)
+				a.Equal(tt.behind, state.Behind)
+				a.Equal(tt.dirty, state.Dirty)
+				a.Equal(tt.diverged, state.Diverged)
+			})
+		}
+	})
+
+	t.Run("Installed", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			setup func(t *testing.T, dir string)
+			want  bool
+		}{
+			{name: "is false for a missing dir"},
+			{
+				name: "is false for a dir without a git dir",
+				setup: func(t *testing.T, dir string) {
+					require.NoError(t, os.MkdirAll(dir, 0o755))
+				},
+			},
+			{
+				name: "is true for a dir with a git dir",
+				setup: func(t *testing.T, dir string) {
+					require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+				},
+				want: true,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				a := assert.New(t)
+				r := require.New(t)
+
+				dir := filepath.Join(t.TempDir(), "repo")
+				if tt.setup != nil {
+					tt.setup(t, dir)
+				}
+				ok, err := Installed(dir)
+				r.NoError(err)
+				a.Equal(tt.want, ok)
+			})
+		}
+
+		t.Run("is true for a worktree with a git file", func(t *testing.T) {
+			requireGit(t)
 			a := assert.New(t)
 			r := require.New(t)
 
-			dir := filepath.Join(t.TempDir(), "repo")
-			if tc.setup != nil {
-				tc.setup(t, dir)
-			}
-			ok, err := Installed(dir)
+			clone, _ := setupRepo(t)
+			worktree := filepath.Join(t.TempDir(), "feature")
+			runGit(t, clone, "worktree", "add", "-b", "feature", worktree)
+
+			ok, err := Installed(worktree)
 			r.NoError(err)
-			a.Equal(tc.want, ok)
+			a.True(ok)
 		})
-	}
-}
+	})
 
-func TestInstalledRecognizesWorktreeFile(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
-	a := assert.New(t)
-	r := require.New(t)
-
-	clone, _ := setupRepo(t)
-	worktree := filepath.Join(t.TempDir(), "feature")
-	runGit(t, clone, "worktree", "add", "-b", "feature", worktree)
-
-	ok, err := Installed(worktree)
-	r.NoError(err)
-	a.True(ok)
-}
-
-func TestComputeStatus(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
-
-	tests := []struct {
-		name     string
-		mutate   func(t *testing.T, clone, remote string)
-		dirty    bool
-		diverged bool
-		behind   int
-	}{
-		{name: "clean and current"},
-		{
-			name: "behind by one",
-			mutate: func(t *testing.T, clone, remote string) {
-				up := makeUpstream(t, remote)
-				gitCommit(t, up, "remote-2")
-				runGit(t, up, "push", "origin", "main")
-			},
-			behind: 1,
-		},
-		{
-			name: "dirty working tree",
-			mutate: func(t *testing.T, clone, remote string) {
-				require.NoError(t, os.WriteFile(filepath.Join(clone, "README"), []byte("edit"), 0o644))
-			},
-			dirty: true,
-		},
-		{
-			name: "diverged ahead",
-			mutate: func(t *testing.T, clone, remote string) {
-				gitCommit(t, clone, "local-2")
-				up := makeUpstream(t, remote)
-				gitCommit(t, up, "remote-2")
-				runGit(t, up, "push", "origin", "main")
-			},
-			behind:   1,
-			diverged: true,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	t.Run("Pull", func(t *testing.T) {
+		t.Run("fast forwards to upstream commits", func(t *testing.T) {
+			requireGit(t)
 			a := assert.New(t)
 			r := require.New(t)
 
 			clone, remote := setupRepo(t)
-			if tc.mutate != nil {
-				tc.mutate(t, clone, remote)
-			}
-			runGit(t, clone, "fetch", "origin", "main")
+			up := makeUpstream(t, remote)
+			gitCommit(t, up, "remote-2")
+			runGit(t, up, "push", "origin", "main")
 
-			state, err := ComputeStatus(clone, "main")
-			r.NoError(err)
-			a.True(state.Installed)
-			a.Equal(tc.behind, state.Behind)
-			a.Equal(tc.dirty, state.Dirty)
-			a.Equal(tc.diverged, state.Diverged)
+			r.NoError(Pull(clone, "main"))
+
+			a.FileExists(filepath.Join(clone, "remote-2"))
 		})
-	}
+	})
 }
 
-func TestPull(t *testing.T) {
+func requireGit(t *testing.T) {
+	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
-	a := assert.New(t)
-	r := require.New(t)
-
-	clone, remote := setupRepo(t)
-	up := makeUpstream(t, remote)
-	gitCommit(t, up, "remote-2")
-	runGit(t, up, "push", "origin", "main")
-
-	r.NoError(Pull(clone, "main"))
-
-	a.FileExists(filepath.Join(clone, "remote-2"))
 }
 
 func setupRepo(t *testing.T) (clone, remote string) {

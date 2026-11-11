@@ -15,16 +15,11 @@ var Analyzer = &analysis.Analyzer{
 
 var Pending = []string{
 	"github.com/housecat-inc/scratch/pkg/chat",
-	"github.com/housecat-inc/scratch/pkg/db",
-	"github.com/housecat-inc/scratch/pkg/elicit",
-	"github.com/housecat-inc/scratch/pkg/git",
 	"github.com/housecat-inc/scratch/pkg/inbox",
-	"github.com/housecat-inc/scratch/pkg/repo",
 	"github.com/housecat-inc/scratch/pkg/server/code",
 	"github.com/housecat-inc/scratch/pkg/server/sessions",
 	"github.com/housecat-inc/scratch/pkg/server/sql",
 	"github.com/housecat-inc/scratch/pkg/todo",
-	"github.com/housecat-inc/scratch/pkg/ui",
 	"github.com/housecat-inc/scratch/testkit",
 	"github.com/housecat-inc/scratch/testkit/v2",
 }
