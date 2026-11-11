@@ -21,278 +21,471 @@ pkg/api
       documents the greet workflow route
 
 pkg/chat
-  AddAttachmentRejectsOversize
-  AgentInstructionsDescribeExistingWorkspace
-  AgentName
-  AttachmentLifecycle
-  ChatMessageTransport
-  ChatMessageTransportQueuesWhileStreaming
-  ChatStopTransport
-  ClaudeArgsAccessAndAttachments
-  ClaudeLineEvents
-    first text block no separator
-    input json delta ignored
-    result
-    subagent lines skipped
-    text block separator
-    text delta
-    thinking delta
-    tool result
-    tool result error
-    tool use
-  CodexArgs
-    new session
-    new session with model
-    resume uses config override for sandbox
-    safe mode stays read-only
-    safe resume stays read-only
-  CodexArgsAttachments
-  CodexArgsDoesNotAddWorkspaceWriteRoots
-  CodexItemEvents
-    agent message
-    agent message separator
-    command completed
-    command failed
-    command started
-    command update ignored
-    file change
-    reasoning
-    todo list
-    web search
-  DeleteDraftAttachmentRemovesFile
-  FoldPartsDanglingToolCompletesWithMessage
-  FoldPartsLegacyToolCall
-  FoldPartsPlanUpdatesInPlace
-  FoldPartsTextAndThinking
-  FoldPartsToolCallMerge
-  FoldPartsToolDiffDetail
-  FormPropsUnescapesDefaultEntities
-  FriendlyDescription
-  FriendlyTitle
-  HasRunner
-  LegacyChatPagesAreNotMounted
-  NewPopoutNormalizesProviderModel
-    invalid model
-    valid model
-  ParseProviderModel
-  ProviderModelOptions
-  RecoverFinishesOrphanedStreaming
-  RecoverLeavesAliveTurns
-  ResolveElicitationRecordsResultBeforeDeliver
-  RunTurnAttachesToFinishedRunner
-  RunTurnInterruptedRunnerFails
-  RunTurnNoPromptNoRunner
-  RunTurnSpawnsAndCompletes
-  SanitizeFilename
-  SendAgentError
-  SendBusyQueuesNextTurn
-  SendDeduplicatesReplayedEvents
-  SendEcho
-  SendMissingThread
-  SendPreservesThreadLabel
-  SendRejectsInvalidAttachment
-  StopRunnerTerminatesProcessGroup
-  StopThreadCancelsRunningTurn
-  StopThreadNotBusy
-  StopThreadStartsQueuedTurn
-  ThreadPromptEmptyThread
-  ThreadsByLabel
-  ToggleThreadAccess
-  ToolTitle
-  Truncate
-    boundary
-    long
-    short
-    trims
-    unicode
-  ViewPicksFirstUnresolvedForm
-  WithDir
-  WriteMessagesEventStripsCarriageReturns
+  Agent
+    agentInstructions
+      describes the existing workspace and its branch
+  Attachments
+    AddAttachment
+      rejects files over the size limit
+      stores a draft that Send attaches to the user message
+    DeleteDraftAttachment
+      removes the file from disk
+    Send
+      rejects an unknown attachment without adding messages
+    ToggleThreadAccess
+      flips between full and safe access and persists it on the anchor
+    claudeArgs
+      bypasses permissions and appends instructions with full access
+      uses default permissions and lists attached files in safe mode
+    sanitizeFilename
+      falls back for a blank name
+      keeps a plain name
+      strips an absolute directory
+      strips path traversal
+  Chat
+    AgentName
+      names agents by their type
+    Recover
+      fails orphaned streaming replies and runs the queued prompt
+      leaves turns whose agent is still alive
+    ResolveElicitation
+      does not deliver when recording the result fails
+    Send
+      drops replayed duplicate events
+      keeps the thread label when the agent updates the anchor
+      marks the reply as an error when the agent fails
+      queues the next turn while the agent is busy
+      rejects a missing thread
+      stores the prompt, streams the reply and titles the thread
+    StopThread
+      cancels the running turn
+      reports not busy when no turn is running
+      starts the queued turn after stopping
+    ThreadPrompt
+      is empty for a thread without messages
+    ThreadsByLabel
+      returns only threads with the label
+    WithDir
+      ignores an empty directory
+      leaves agents without a directory unchanged
+      sets the claude directory
+      sets the codex directory
+    truncate
+      counts runes rather than bytes
+      cuts long text with an ellipsis
+      keeps text at the limit
+      keeps text under the limit
+      trims surrounding whitespace
+  Claude
+    claudeLineEvents
+      completes a tool call with its result
+      does not separate the first text block
+      emits text deltas
+      emits thinking deltas
+      fails a tool call whose result is an error
+      ignores partial tool input
+      passes the final result through
+      separates later text blocks with a blank line
+      skips subagent lines
+      starts a tool call titled from its input
+    toolTitle
+      appends the command
+      appends the file path
+      uses the tool name for empty input
+      uses the tool name without a primary input
+  Codex
+    codexArgs
+      does not add workspace write roots
+      keeps a safe resume read-only
+      keeps safe mode read-only
+      passes images as flags and lists other files in the prompt
+      passes the model to a new session
+      resumes with a config override for the sandbox
+      starts a new session with full access
+    codexItemEvents
+      completes a tool call with the command output
+      emits an agent message as text
+      emits reasoning as thinking
+      fails a tool call when the command fails
+      ignores partial command output
+      separates later agent messages with a blank line
+      starts a tool call when a command starts
+      titles a file change by kind and path
+      titles a web search by its query
+      turns a todo list into a plan
+  Hypertext
+    FormProps
+      unescapes html entities in field defaults
+    Handler
+      does not mount the legacy chat pages
+    handleNewPopout
+      drops an unknown model from the anchor
+      keeps a known model in the anchor
+    handleSend
+      queues the posted prompt while a turn is streaming
+      sends the posted prompt to the agent
+    handleStop
+      ends the running turn with an error
+  Metadata
+    FriendlyDescription
+      describes a selection by its page path
+      describes an attachment-only prompt
+      keeps a selection without a url as is
+      uses the first sentence of a plain prompt
+    FriendlyTitle
+      labels a bare page selection
+      labels an attachment-only prompt
+      uses the instruction after a selection
+      uses the opening words of a plain prompt
+  Parts
+    foldParts
+      completes a dangling tool once the message finishes
+      keeps a dangling tool in progress while streaming
+      merges consecutive text and thinking into parts
+      merges tool call updates into the original call
+      renders a diff as the tool detail
+      shows a legacy tool call as completed with its input
+      updates the plan in place
+  ProviderModel
+    ParseProviderModel
+      accepts an agent without a model
+      drops the default model
+      splits the agent and model
+    ProviderModelOptions
+      lists each agent's models and hides the contact agent
+  Runner
+    HasRunner
+      is false for a runner without an output log
+      is false for empty meta
+      is false without a runner
+      is true for a runner with an output log
+    runTurn
+      fails with the stderr tail when the runner was interrupted
+      fails without a prompt or a runner
+      replays the output of a finished runner
+      spawns a runner, parses its output and removes the log
+    stopRunner
+      terminates the process group
+  SSE
+    View
+      shows the first unresolved form until every form is answered
+    writeMessagesEvent
+      strips carriage returns so every line stays valid SSE
 
 pkg/db
-  CommentAnchorStable
-  CommentCRUD
-  CommentDeleteMissing
-  CommentGetMissing
-  CommentUpdateAndResolve
-  DeleteThreadDeletesMessagesAndEvents
-  MessageErrors
-    append missing
-    finish missing
-    get missing
-  MessageLifecycle
-  MigrateUpgradesExistingDatabase
-  TaskCRUD
-  TaskErrors
-    delete missing
-    describe missing
-    get missing
-    toggle missing
-    update missing
-  ThreadCRUD
-  ThreadErrors
-    anchor missing
-    delete missing
-    get missing
-    state missing
-    title missing
-    touch missing
-    trash missing
-  TrashThreadHidesFromList
+  Comments
+    AddComment
+      stores the anchor and body as an open comment
+    CommentAnchor
+      differs by line
+      differs by side
+      is stable for the same path side and line
+    DeleteComment
+      removes only the deleted comment from the branch list
+      reports not found for an unknown id
+      reports not found for another repo slug
+    GetComment
+      reports not found for an unknown id
+    ListComments
+      returns the branch comments in creation order
+    SetCommentResolved
+      resolves with a reason and reopens clearing it
+    UpdateCommentBody
+      replaces the body and bumps the update time
+  Migration
+    upgrades a pre-trash database so legacy threads can be trashed
+  Tasks
+    adds lists completes edits and clears tasks
+    when the task does not exist
+      completing reports not found
+      deleting reports not found
+      describing reports not found
+      getting reports not found
+      renaming reports not found
+  Threads
+    DeleteThread
+      removes the thread messages and events
+    TrashThread
+      hides the thread from lists and unstars it
+    creates renames resolves and touches threads ordered by recency
+    when a chat exchanges messages
+      numbers messages per thread and assembles a streamed reply
+    when the message does not exist
+      appending reports not found
+      finishing reports not found
+      getting reports not found
+    when the thread does not exist
+      deleting reports not found
+      getting reports not found
+      setting the anchor reports not found
+      setting the state reports not found
+      setting the title reports not found
+      touching reports not found
+      trashing reports not found
 
 pkg/elicit
-  Coerce
-  SchemaFor
+  Elicit
+    Coerce
+      converts a full form to typed values
+      drops fields not in the schema
+      rejects a missing required field
+      rejects a non-integer for an integer field
+      treats an unchecked checkbox as false
+    SchemaFor
+      defaults fields to their non-zero values
+      describes fields with json types in declaration order
+      requires fields without omitempty
+      survives a json round trip inside a prompt
 
 pkg/flow
-  CountdownWorkflow
-  CreatePRWorkflow
-  DeployWorkflow
-  FanoutEnqueuesChildWorkflows
-  FanoutWorkflow
-  ForkUsesCurrentApplicationVersion
-  GreetProgressWhileRunning
-  GreetWorkflow
-  NormalizePullRequestUnescapesHTMLEntities
-  ResolveOldApplicationVersionReturnsStale
-  ResolveUnknownForm
-  ScheduleLifecycle
-  StreamWorkflow
-  UpdateClaudeWorkflow
-  WebhookIdempotentDelivery
-  WebhookUnknownWorkflow
-  WebhookWorkflow
+  Demos
+    CountdownWorkflow
+      counts down through each tick then lifts off
+    DeployWorkflow
+      publishes version and status events
+    FanoutWorkflow
+      enqueues one child workflow per job
+      runs jobs on a queue then sums the squares
+    StreamWorkflow
+      streams log lines then closes
+  Engine
+    Resolve
+      returns form not found for an unknown elicitation
+    Run
+      shows the running greeting step while the greeter works
+  Schedule
+    heartbeat schedule
+      pauses and resumes
+      records a triggered run in its history
+      registers once when ensured twice
+  Webhook
+    DeliverWebhook
+      accepts a duplicate delivery with the same idempotency key
+      completes the waiting workflow with the payload
+      returns run not found for an unknown workflow
+  Workflows
+    CreatePRWorkflow
+      drafts and finalizes the pull request on accept
+      reuses the cached draft when the review is edited
+      shows a fresh review form with the cached draft when forked
+    GreetWorkflow
+      ends without a greeting on decline
+      prompts for a name then greets on accept
+      reruns from the edited name form and keeps the original run
+    UpdateClaudeWorkflow
+      runs the update on accept
+      skips the update on decline
+    normalizePullRequest
+      unescapes HTML entities
+    when the application version changes
+      forks a run onto the current version
+      rejects resolving an old form as stale but reruns it on edit
 
 pkg/git
-  Branch
-  CommitLog
-  ComputeStatus
-    behind by one
-    clean and current
-    dirty working tree
-    diverged ahead
-  DefaultBranch
   Diff
-  HunkCommit
-  HunkKeyStable
-  Installed
-    dir with .git is installed
-    dir without .git is not installed
-    missing dir is not installed
-  InstalledRecognizesWorktreeFile
-  LastCommit
-  ParseDiff
-  ParseSlug
-  Pull
-  RemoteSlug
-  ShowFile
+    Diff
+      lists the files a branch adds over main
+    HunkKey
+      differs for different headers
+      matches for identical headers
+    ParseDiff
+      captures the section context after a hunk header
+      flags a modified binary file
+      flags an added binary file
+      marks a new file as added with no old path
+      marks a removed file as deleted with no new path
+      numbers old and new lines in a modified hunk
+      returns no files for empty input
+      splits consecutive file diffs
+      tracks a pure rename without hunks
+  Git
+    ComputeStatus
+      counts upstream commits the clone is behind
+      flags divergence when both sides have new commits
+      flags uncommitted edits as dirty
+      reports a clean clone as current
+    Installed
+      is false for a dir without a git dir
+      is false for a missing dir
+      is true for a dir with a git dir
+      is true for a worktree with a git file
+    Pull
+      fast forwards to upstream commits
+  Inspect
+    Branch
+      returns the checked out branch
+    CommitLog
+      lists branch commits newest first
+    DefaultBranch
+      returns the remote head
+    HunkCommit
+      finds the commit that introduced a hunk
+    LastCommit
+      returns the head subject sha and date
+    RemoteSlug
+      derives the repo name from origin
+    ShowFile
+      returns the file lines at a revision
+    parseSlug
+      ignores a trailing slash
+      parses a full ssh url
+      parses an https github url
+      parses an https url without the git suffix
+      parses an internal mirror url
+      parses ssh shorthand
+      rejects a url without a repo
+      rejects an empty url
 
 pkg/harness/claudecode
-  Authenticated
-  ConfiguredAfterClaudeRewrite
-  ConfiguredAt
-    agents installed but symlinks missing
-    all four complete
-    claude.json missing key
-    neither file present
-    only claude.json complete
-    only settings complete
-    settings complete but agents missing
-  EnsureSymlinksAt
-    creates all symlinks from clean home
-    creates parent dir for nested link
-    errors when target is a regular directory
-    errors when target is a regular file
-    idempotent when correct symlinks exist
-    replaces stale symlink
-  EnsureTmuxInstalledAlreadyOnPath
-  ExtractLastAssistantMessage
-    ignores TUI chrome
-    lowercase word + parens is prose, not tool call
-    plain assistant message
-    skips tool call before assistant
-    skips trailing tool call to find prior assistant
-    treats nested-parens tool call as tool call
-  HasDefaults
-    complete file has defaults
-    different scalar still satisfies presence
-    missing file has no defaults
-    missing top-level key fails
-  HasSymlinksAt
-    all correct returns true
-    missing returns false
-    partial returns false
-    regular file returns false
-    wrong target returns false
+  Claudecode
+    EnsureTmuxInstalled
+      succeeds when tmux is already on the path
+    MergeDefaults
+      creates missing parent directories
+      keeps a nested scalar inside permissions
+      keeps an existing projects map
+      keeps an existing theme
+      keeps unknown fields
+      skips the rewrite when claude.json is complete
+      skips the rewrite when extra fields already satisfy defaults
+      skips the rewrite when settings.json is complete
+      treats an empty file as an empty object
+      writes every claude.json default to a new file
+      writes every settings.json default to a new file
+    TrustProjectAt
+      adds a trusted entry to a missing file
+      keeps other top-level fields
+      keeps other trusted projects
+    when installing tmux on linux
+      errors without a package manager
+      prefers apk over yum when both present
+      uses apk
+      uses apt-get
+      uses dnf
+      uses pacman
+      uses yum
   Login
-    invalid code errors
-    valid code returns nil
-  ManagerRecover
-  ManagerRecoverIgnoresUnreadySessions
-  ManagerRecoverIsIdempotent
-  ManagerStart
-  ManagerStartErrors
-  ManagerStopAll
-  MergeDefaults
-    creates claude.json with all defaults
-    creates settings.json with all defaults
-    empty file is treated as empty object
-    preserves existing projects map
-    preserves existing theme in settings
-    preserves nested scalar inside permissions
-    preserves unknown fields not declared in struct
-  MergeDefaultsCreatesParentDir
-  MergeDefaultsNoChangeNoRewrite
-    claude.json already complete
-    extra fields present, defaults satisfied
-    settings already complete
-  SanitizeSlug
-  SessionPrefix
-  SessionQRPNG
-  SlugForPromptNoBinary
-  StartLoginNoURLTimesOut
-  SubmitCodeAfterBrowserSuccess
-  TmuxInstallCommandLinux
-    apk
-    apt-get
-    dnf
-    pacman
-    prefers apk over yum when both present
-    yum
-  TmuxInstallCommandLinuxNoManager
-  TrustProjectAt
-  URLRegex
-    claude.ai session URL
-    code.claude.com session URL
-    ignores environment redirect URL
-    ignores non-session paths
-    ignores other domains
-    no URL
+    StartLoginCmd
+      times out when no login URL is printed
+    SubmitCode
+      accepts a valid code
+      rejects an invalid code
+      succeeds when the browser already completed login
+  Remotectl
+    QRPNG
+      encodes the session URL as a PNG
+    Recover
+      does not duplicate sessions when run twice
+      restores sessions from tmux in a fresh manager
+      skips sessions that never printed a URL
+    Start
+      rejects a dir that is a file
+      rejects a missing dir
+      rejects an empty dir
+      rejects an invalid name
+      starts lists and stops a session
+      times out when no URL is printed
+    StopAll
+      stops every session
+    extractLastAssistantMessage
+      ignores TUI chrome
+      returns a plain assistant message
+      skips a tool call before the assistant reply
+      skips a trailing tool call to find the prior reply
+      treats a lowercase word with parens as prose
+      treats a nested-parens tool call as a tool call
+    sessionPrefix
+      falls back to session for the root dir
+      joins the host and dir basename without a name
+      joins the host and user name
+      returns the base alone without a host
+      uses the basename before a trailing slash
+    urlRegex
+      finds nothing without a URL
+      ignores non-session paths
+      ignores other domains
+      matches a claude.ai session URL
+      matches a code.claude.com session URL
+      skips an environment redirect URL
+  Slug
+    SlugForPrompt
+      returns empty for an empty prompt
+      returns empty when the binary is missing
+    sanitizeSlug
+      caps the length
+      cuts the response at a newline
+      folds uppercase
+      joins words with dashes
+      keeps an existing kebab slug
+      returns empty for blank input
+      strips punctuation
+      trims leading dashes
+      trims trailing dashes
+      turns underscores into dashes
+  Status
+    ConfiguredAt
+      is false when claude.json lacks a default key
+      is false when neither file exists
+      is false when symlinks are missing
+      is false when the agents checkout is missing
+      is false with only claude.json complete
+      is false with only settings.json complete
+      is true when all four pieces are in place
+      stays configured after claude rewrites claude.json
+    HasDefaults
+      is false for a missing file
+      is false when a top-level key is missing
+      is true for a complete file
+      is true when a key holds a different value
+    authenticated
+      errors on malformed json
+      reports a logged in account
+      reports a logged out account
+      treats a cli error as not authenticated
+  Symlinks
+    EnsureSymlinksAt
+      creates every symlink in a clean home
+      creates the parent directory for a nested link
+      errors when the target is a regular directory
+      errors when the target is a regular file
+      leaves correct symlinks in place
+      replaces a stale symlink
+    HasSymlinksAt
+      is false when a regular file is in the way
+      is false when a symlink points elsewhere
+      is false when only some symlinks exist
+      is false when symlinks are missing
+      is true when every symlink is correct
 
 pkg/harness/codexcode
-  AppServerHelper
-  BrowserLogin
-    missing code is rejected locally
-    rejected code surfaces codex error
-    valid callback completes sign in
-    wrong path is rejected locally
-  DeviceLogin
-  LoginCloseCancels
-  Version
-    bare version
-    codex-cli prefix
-    command error
-    empty output
+  Codexcode
+    version
+      errors when the command fails
+      returns a bare version
+      returns empty for empty output
+      strips the codex-cli prefix
+  Login
+    Close
+      cancels a pending login
+    when signing in with a device code
+      shows the code and completes without a callback
+    when signing in with the browser
+      completes sign in with a valid callback
+      rejects a callback on the wrong path locally
+      rejects a callback without a code locally
+      surfaces the codex error for a rejected code
 
 pkg/harness/codexcode/appserver
-  AppServerHelper
   Client
-    browser login returns auth url
-    calls fail after close
-    cancel emits login completed
-    device code login returns user code
-    rpc error is returned
-    server requests are rejected
+    Call
+      answers server requests with an error
+      fails after close
+      returns rpc errors
+    LoginCancel
+      emits a failed login completed notification
+    LoginStart
+      returns a user code for device code login
+      returns an auth url for browser login
 
 pkg/inbox
   ArchiveFilter
@@ -351,10 +544,14 @@ pkg/inbox
   WorkflowStreamAutoRefreshesToCompleted
 
 pkg/repo
-  Find
-  Scan
-  ScanIncludingPrefersExplicitWorktree
-  ScanSkipsReposWithoutOrigin
+  Repo
+    Find
+      locates a repo by slug and misses unknown slugs
+    Scan
+      lists git repos with an origin sorted by slug
+      skips repos without an origin remote
+    ScanIncluding
+      prefers an explicit worktree over the home checkout
 
 pkg/server/code
   CodeBrowser
@@ -408,8 +605,11 @@ pkg/todo
   TodoWebBrowser
 
 pkg/ui
-  ChatPartGroups
-  ChatToolGroupSummary
+  ChatViews
+    chatPartGroups
+      folds consecutive tool calls into a summarized group and marks the last part
+    chatToolGroupSummary
+      counts running failed and completed tools
 
 pkg/workflow
   SingleDB
