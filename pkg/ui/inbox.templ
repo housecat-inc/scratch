@@ -287,8 +287,8 @@ templ InboxThreadReader(d InboxThreadDetail) {
 			}
 			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), lucide.Star())
 	}
-	<div hx-ext="sse" sse-connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } class="mail-reader-body mail-chat-body">
-		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages" sse-swap="message">
+	<div class="mail-reader-body mail-chat-body">
+		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages" hx-sse:connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } hx-swap="innerMorph">
 			@ChatMessages(ChatThreadProps{Agent: d.Agent, ID: d.ID, Messages: d.Messages, Title: d.Title})
 		</div>
 	</div>

@@ -59,7 +59,7 @@ func TestSQL(t *testing.T) {
 				a.Contains(body, want)
 			}
 			a.Equal(1, strings.Count(body, "/static/chat.js"))
-			a.Equal(1, strings.Count(body, "/static/htmx-ext-sse.min.js"))
+			a.Equal(1, strings.Count(body, "/static/hx-sse.min.js"))
 		})
 		t.Run("names a missing database file in the page", func(t *testing.T) {
 			a := assert.New(t)

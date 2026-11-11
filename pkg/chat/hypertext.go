@@ -299,15 +299,16 @@ func (s *Server) writeUpdates(w http.ResponseWriter, r *http.Request, threadID i
 	}
 	for _, messageID := range messageIDs {
 		if messageID == StructuralUpdate {
-			return writeSSE(w, r.Context(), "message", ui.ChatMessages(props))
+			return writeSSE(w, r.Context(), ui.ChatMessages(props))
 		}
 		if _, ok := byID[messageID]; !ok {
-			return writeSSE(w, r.Context(), "message", ui.ChatMessages(props))
+			return writeSSE(w, r.Context(), ui.ChatMessages(props))
 		}
 	}
 	for _, messageID := range messageIDs {
-		event := "message-" + strconv.FormatInt(messageID, 10)
-		if err := writeSSE(w, r.Context(), event, ui.ChatMessage(byID[messageID])); err != nil {
+		m := byID[messageID]
+		m.OOB = true
+		if err := writeSSE(w, r.Context(), ui.ChatMessage(m)); err != nil {
 			return err
 		}
 	}
@@ -385,15 +386,14 @@ func (s *Server) writeMessagesEvent(w http.ResponseWriter, r *http.Request, thre
 	if err != nil {
 		return err
 	}
-	return writeSSE(w, r.Context(), "message", ui.ChatMessages(s.toThreadProps(view)))
+	return writeSSE(w, r.Context(), ui.ChatMessages(s.toThreadProps(view)))
 }
 
-func writeSSE(w http.ResponseWriter, ctx context.Context, event string, component templ.Component) error {
+func writeSSE(w http.ResponseWriter, ctx context.Context, component templ.Component) error {
 	var buf bytes.Buffer
 	if err := component.Render(ctx, &buf); err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "event: %s\n", event)
 	html := strings.ReplaceAll(buf.String(), "\r", "")
 	for line := range strings.SplitSeq(html, "\n") {
 		fmt.Fprintf(w, "data: %s\n", line)

@@ -825,6 +825,14 @@ pkg/workspace/workspace_test.go
     finds the worktree root and branch inside a repo
     reports no repo outside git
 
+testkit/console_test.go
+  SSEDisconnect
+    ignores calls without a message string
+    ignores empty calls
+    keeps a failed reconnect as an error
+    keeps other htmx network errors
+    matches a stream cut by navigation
+
 testkit/html_test.go
   Click
     hx-include gathers external fields

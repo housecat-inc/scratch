@@ -15,7 +15,7 @@ templ ChatComposer(p ChatComposerProps) {
 			method="post"
 			hx-post={ p.HXPost }
 			hx-swap="none"
-			hx-on::after-request="this.reset()"
+			hx-on::after:request="this.reset()"
 			data-chat-form
 			data-upload-url={ p.UploadURL }
 		>
@@ -109,8 +109,8 @@ templ FloatingChatPanel(p FloatingChatProps) {
 					</button>
 			</div>
 		</header>
-		<div hx-ext="sse" sse-connect={ "/chat/" + itoa64(p.ID) + "/events" } class="floating-chat-body" data-chat-scroller>
-			<div id={ "floating-chat-" + itoa64(p.ID) + "-messages" } data-chat-messages class="chat-messages floating-chat-messages" sse-swap="message">
+		<div class="floating-chat-body" data-chat-scroller>
+			<div id={ "floating-chat-" + itoa64(p.ID) + "-messages" } data-chat-messages class="chat-messages floating-chat-messages" hx-sse:connect={ "/chat/" + itoa64(p.ID) + "/events" } hx-swap="innerMorph">
 				@ChatMessages(ChatThreadProps{Agent: p.Agent, ID: p.ID, Messages: p.Messages, Title: p.Title})
 			</div>
 		</div>
@@ -132,8 +132,9 @@ templ ChatMessage(m ChatMessageProps) {
 	<div
 		id={ "message-" + itoa64(m.ID) }
 		class={ "chat-turn", "role-" + m.Role, "status-" + m.Status }
-		sse-swap={ "message-" + itoa64(m.ID) }
-		hx-swap="outerHTML"
+		if m.OOB {
+			hx-swap-oob="outerMorph"
+		}
 	>
 		if m.Role == "assistant" {
 			for _, group := range chatPartGroups(m.Parts) {

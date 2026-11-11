@@ -81,6 +81,7 @@ type ChatMessageProps struct {
 	Body        string
 	Form        *ChatFormProps
 	ID          int64
+	OOB         bool
 	Parts       []ChatPartProps
 	Role        string
 	Status      string

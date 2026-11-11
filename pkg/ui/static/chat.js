@@ -286,8 +286,8 @@
       await fetch(uploadURL + "/" + remove.dataset.id, { method: "DELETE" });
       remove.closest(".chat-attachment-chip")?.remove();
     });
-    form.addEventListener("htmx:afterRequest", (e) => {
-      if (e.detail.successful && e.detail.xhr?.status === 204) {
+    form.addEventListener("htmx:after:request", (e) => {
+      if (e.detail.ctx.response?.status === 204) {
         clearTextDraft();
         revokeDraftPreviews();
         input.value = "";
@@ -481,10 +481,10 @@
 
     const pendingElicitation = (root) => root.querySelector("#elicit-form [name=elicitation_id]")?.value;
 
-    messages.addEventListener("htmx:sseBeforeMessage", (e) => {
+    messages.addEventListener("htmx:sse:before:message", (e) => {
       const current = pendingElicitation(document);
       if (!current) return;
-      const incoming = new DOMParser().parseFromString(e.detail.data, "text/html");
+      const incoming = new DOMParser().parseFromString(e.detail.message.data, "text/html");
       if (pendingElicitation(incoming) === current) {
         e.preventDefault();
       }
@@ -589,13 +589,14 @@
     root.querySelectorAll("[data-chat-popout]").forEach(initPopout);
   };
 
-  document.body.addEventListener("htmx:responseError", (e) => {
-    showAlert(e.detail.xhr.responseText);
+  document.body.addEventListener("htmx:response:error", (e) => {
+    showAlert(e.detail.ctx.text);
   });
 
-  document.body.addEventListener("htmx:sseError", (e) => {
+  document.body.addEventListener("htmx:sse:error", (e) => {
     e.preventDefault();
   });
+
 
   document.addEventListener("submit", (e) => {
     const form = e.target.closest("[data-chat-popout-new]");

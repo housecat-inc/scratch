@@ -27,7 +27,11 @@ func NewConsoleRecorder(t *testing.T, artifacts *Artifacts, page *rod.Page) *Con
 	recorder := &ConsoleRecorder{}
 
 	go page.EachEvent(func(e *proto.RuntimeConsoleAPICalled) {
-		recorder.add(string(e.Type), consoleText(page, e.Args))
+		kind := string(e.Type)
+		if sseDisconnect(e.Args) {
+			kind = "sse-disconnect"
+		}
+		recorder.add(kind, consoleText(page, e.Args))
 	}, func(e *proto.RuntimeExceptionThrown) {
 		recorder.add("exception", exceptionText(e.ExceptionDetails))
 	})()
@@ -79,6 +83,14 @@ func (c *ConsoleRecorder) add(kind string, text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.messages = append(c.messages, ConsoleMessage{Text: text, Type: kind})
+}
+
+func sseDisconnect(args []*proto.RuntimeRemoteObject) bool {
+	if len(args) == 0 || args[0].Type != proto.RuntimeRemoteObjectTypeString {
+		return false
+	}
+	text := args[0].Value.Str()
+	return strings.HasPrefix(text, "htmx: htmx:sse:error:") && strings.HasSuffix(text, "network error")
 }
 
 func consoleText(page *rod.Page, args []*proto.RuntimeRemoteObject) (out string) {

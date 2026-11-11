@@ -58,7 +58,7 @@ func hxAction(method, url, target string) templ.Attributes {
 		"hx-" + method:    url,
 		"hx-target":       target,
 		"hx-swap":         "outerHTML",
-		"hx-disabled-elt": "this",
+		"hx-disable": "this",
 	}
 }
 
@@ -172,7 +172,7 @@ templ CodexLoginRow(v SessionsProps) {
 					Sign in with ChatGPT →
 				}
 				@codexLoginCancel()
-				<form hx-post="/codex/login/callback" hx-target="#card-codex-login" hx-swap="outerHTML" hx-disabled-elt="find button" class="flex gap-2 mt-2 basis-full">
+				<form hx-post="/codex/login/callback" hx-target="#card-codex-login" hx-swap="outerHTML" hx-disable="find button" class="flex gap-2 mt-2 basis-full">
 					<input type="url" name="callback" placeholder="paste the URL your browser landed on" autocomplete="off" required
 						class="flex-1 min-w-0 px-3 py-2 text-sm border border-input rounded-md bg-background shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 outline-none"/>
 					@button.Button(button.Props{Size: button.SizeSm, Type: button.TypeSubmit}) {
@@ -316,7 +316,7 @@ templ SessionsCard(v SessionsProps) {
 				.session-spinner svg { animation: session-spin 0.8s linear infinite; }
 			</style>
 			<form id="session-form" class="session-form mb-3"
-				hx-post="/sessions" hx-target="#card-sessions" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+				hx-post="/sessions" hx-target="#card-sessions" hx-swap="outerHTML" hx-disable="find button[type=submit]">
 				@AppCard() {
 					@card.Header(card.HeaderProps{Class: "pb-0"}) {
 						@AppTitle() {
@@ -418,7 +418,7 @@ templ sessionItem(s SessionProps) {
 							"hx-delete":       fmt.Sprintf("/sessions/%s", s.ID),
 							"hx-target":       "#card-sessions",
 							"hx-swap":         "outerHTML",
-							"hx-disabled-elt": "this",
+							"hx-disable": "this",
 						},
 					}) {
 						Stop

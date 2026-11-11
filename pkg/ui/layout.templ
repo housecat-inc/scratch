@@ -71,8 +71,9 @@ templ MailHead(title string) {
 		@TempluiCSS()
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		@ToolShellCSS()
+		<meta name="htmx-config" content='{"noSwap": [204, 304, "4xx", "5xx"]}'/>
 		<script src="/static/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
+		<script src="/static/hx-sse.min.js"></script>
 		<script src="/static/register-sw.js" defer></script>
 		<script src="/static/ptr.js" defer></script>
 		<script src="/static/html2canvas.min.js" defer></script>
