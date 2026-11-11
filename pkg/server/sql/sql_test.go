@@ -51,7 +51,7 @@ func TestSQL(t *testing.T) {
 			body := rec.Body.String()
 			for _, want := range []string{
 				"scratch", "widgets", "SQL",
-				`class="gm-label active"`,
+				`href="/sql/" title="SQL" aria-current="page"`,
 				`hx-post="/sql/query"`,
 				`id="sql-editor"`,
 				`/static/sql.js`,
@@ -59,7 +59,7 @@ func TestSQL(t *testing.T) {
 				a.Contains(body, want)
 			}
 			a.Equal(1, strings.Count(body, "/static/chat.js"))
-			a.Equal(1, strings.Count(body, "/static/hx-sse.min.js"))
+			a.Equal(1, strings.Count(body, "/assets/hx-sse.min.js"))
 		})
 		t.Run("names a missing database file in the page", func(t *testing.T) {
 			a := assert.New(t)

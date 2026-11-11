@@ -29,6 +29,7 @@ type codexSend struct {
 
 type CodexServer struct {
 	clients map[int64]string
+	label   string
 	mu      sync.Mutex
 	sends   map[string]codexSend
 	svc     *Service
@@ -36,6 +37,11 @@ type CodexServer struct {
 
 func NewCodexServer(svc *Service) *CodexServer {
 	return &CodexServer{clients: map[int64]string{}, sends: map[string]codexSend{}, svc: svc}
+}
+
+func (s *CodexServer) WithLabel(label string) *CodexServer {
+	s.label = label
+	return s
 }
 
 func (s *CodexServer) Handler() http.Handler {
@@ -109,7 +115,7 @@ func (s *CodexServer) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if agent == "" {
 		agent = s.svc.defaultName
 	}
-	thread, err := s.svc.CreateThreadWithModel(agent, NormalizeModel(agent, model), codexTitle(r.FormValue("prompt")))
+	thread, err := s.svc.CreateThreadWithLabel(agent, NormalizeModel(agent, model), s.label, codexTitle(r.FormValue("prompt")))
 	if err != nil {
 		s.writeSendError(w, r, http.StatusInternalServerError, "Unable to send. Please try again.")
 		return

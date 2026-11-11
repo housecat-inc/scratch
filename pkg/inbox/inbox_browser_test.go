@@ -4,56 +4,14 @@ import "testing"
 
 func TestInboxBrowser(t *testing.T) {
 	t.Run("new chat", func(t *testing.T) {
-		tests := []struct {
-			model string
-			name  string
-		}{
-			{model: "codex:default", name: "opens the chat panel when the default provider is selected"},
-			{model: "echo:default", name: "opens the chat panel when a provider is selected"},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				h := newHarness(t)
-				h.Open("/")
-				h.SelectOption(`[name="provider_model"]`, tt.model)
-
-				h.ChatThreadCount(1)
-				h.ElementEventuallyPresent("#chat-rail-panel [data-chat-input]")
-				h.ElementTextContains("#chat-rail-panel", "New chat")
-			})
-		}
-
 		t.Run("opens the chat panel from the new chat action", func(t *testing.T) {
 			h := newHarness(t)
 			h.Open("/")
 			h.Click("[data-new-chat]")
 
-			h.ChatThreadCount(1)
-			h.ElementEventuallyPresent("#chat-rail-panel [data-chat-input]")
-			h.ElementTextContains("#chat-rail-panel", "New chat")
+			h.ElementEventuallyPresent("#mail-chat-rail-content [data-prompt-field]")
+			h.TextEventuallyContains("#mail-chat-rail-content", "New Chat")
 		})
-	})
-
-	t.Run("composer", func(t *testing.T) {
-		tests := []struct {
-			name string
-			path string
-			text string
-		}{
-			{name: "creates the thread when sending from a draft chat", path: "/inbox/chats/new", text: "hello from draft"},
-			{name: "starts a chat from the tasks footer", path: "/inbox/tasks", text: "buy milk"},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				h := newHarness(t)
-				h.Open(tt.path)
-				h.Type("#chat-input", tt.text)
-				h.Click("#chat-send")
-
-				h.ChatThreadCount(1)
-				h.ElementTextContains(".mail-reader-title", tt.text)
-			})
-		}
 	})
 
 	t.Run("tasks", func(t *testing.T) {

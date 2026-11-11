@@ -100,7 +100,7 @@ func newRootCmd() *cobra.Command {
 			todo.Register(srv, svc)
 			srv.Mux.HandleFunc("/chat", http.NotFound)
 			srv.Mux.Handle("/chat/", chatSrv.Handler())
-			codex := chat.NewCodexServer(chatSvc)
+			codex := chat.NewCodexServer(chatSvc).WithLabel(todo.ChatLabel)
 			srv.Mux.Handle("/codex", codex.Handler())
 			srv.Mux.Handle("/codex/", codex.Handler())
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))

@@ -196,14 +196,14 @@ func TestSessions(t *testing.T) {
 				s.Handler().ServeHTTP(rec, req)
 
 				body := rec.Body.String()
-				a.Contains(body, `>Sessions</span>`)
-				a.Contains(body, `>Code review</span>`)
-				a.Contains(body, `>Setup</span>`)
+				a.Contains(body, `title="Sessions"`)
+				a.Contains(body, `title="Code review"`)
+				a.Contains(body, `title="Setup"`)
 				a.Contains(body, `href="/code/"`)
 
 				activeNeedle := map[string]string{
-					"sessions": `href="/sessions" class="gm-label active"`,
-					"setup":    `href="/setup" class="gm-label active"`,
+					"sessions": `href="/sessions" title="Sessions" aria-current="page"`,
+					"setup":    `href="/setup" title="Setup" aria-current="page"`,
 				}[tc.active]
 				a.Contains(body, activeNeedle)
 			})

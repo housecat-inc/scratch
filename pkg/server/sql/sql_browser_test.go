@@ -17,9 +17,9 @@ func TestSQLBrowser(t *testing.T) {
 	t.Run("mounts a single codemirror editor beside saved queries and schema", func(t *testing.T) {
 		h := sqlBrowser(t)
 		h.Load("/sql/")
-		h.ElementTextContains(".mail-brand", "scratch")
-		h.ElementTextContains(".mail-labels", "SQL")
-		h.ElementAttributeContains(`a[href="/sql/"]`, "class", "active")
+		h.ElementTextContains(".mail-brand-text", "scratch")
+		h.ElementTextContains(`[data-slot="nav"]`, "SQL")
+		h.ElementAttributeEquals(`a[href="/sql/"]`, "aria-current", "page")
 		h.ElementTextContains("#sql-query-list", "tasks")
 		h.ElementTextContains(".tree-pane", "widgets")
 		h.ElementVisible(".cm-editor")
@@ -33,15 +33,12 @@ func TestSQLBrowser(t *testing.T) {
 		h.ElementTextContains("#sql-results", "alpha")
 		h.ElementTextContains("#sql-results", "bravo")
 	})
-	t.Run("shows shared shell counts and opens chat", func(t *testing.T) {
+	t.Run("shows shared shell counts", func(t *testing.T) {
 		h := sqlBrowser(t)
 		h.Load("/sql/")
-		h.Click("[data-new-chat]")
-		h.ElementTextContains(`a[href="/"] .gm-label-count`, "2")
-		h.ElementTextContains(`a[href="/inbox/chats"] .gm-label-count`, "3")
-		h.ElementTextContains(`a[href="/inbox/tasks"] .gm-label-count`, "4")
-		h.ElementVisible(".mail-footer [data-chat-input]")
-		h.ElementVisible("#chat-rail-panel [data-chat-input]")
+		h.ElementTextContains(`a[href="/"] [data-slot="nav-item-count"]`, "2")
+		h.ElementTextContains(`a[href="/inbox/chats"] [data-slot="nav-item-count"]`, "3")
+		h.ElementTextContains(`a[href="/inbox/tasks"] [data-slot="nav-item-count"]`, "4")
 	})
 }
 

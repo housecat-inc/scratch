@@ -129,7 +129,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.renderPage(w, r, "chats", ui.InboxSelection{ID: id, Kind: "chat"})
+	http.Redirect(w, r, "/inbox/chats?chat="+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
 
 func (s *Server) handleChats(w http.ResponseWriter, r *http.Request) {
@@ -137,24 +137,7 @@ func (s *Server) handleChats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request) {
-	agent := chatAgent(r.URL.Query().Get("agent"), s.chat.AgentNames())
-	model := chatModel(agent, r.URL.Query().Get("model"))
-	if providerModel := r.URL.Query().Get("provider_model"); providerModel != "" {
-		agent, model = chat.ParseProviderModel(providerModel)
-		agent = chatAgent(agent, s.chat.AgentNames())
-		model = chatModel(agent, model)
-	}
-	props, err := s.props("chats", archiveFilter("chats", r.URL.Query().Get("archived")), ui.InboxSelection{})
-	if err != nil {
-		s.notFoundOr(w, err)
-		return
-	}
-	props.Draft = &ui.InboxDraftDetail{
-		Agent: agent,
-		Model: model,
-		Title: "New chat",
-	}
-	s.render(w, r, ui.InboxPage(props))
+	http.Redirect(w, r, "/inbox/chats?chat=new", http.StatusSeeOther)
 }
 
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {

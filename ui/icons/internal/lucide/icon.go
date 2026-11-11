@@ -6,6 +6,8 @@ package lucide
 import (
 	"context"
 	"fmt"
+
+	"github.com/cockroachdb/errors"
 	"io"
 	"sync"
 
@@ -57,7 +59,7 @@ func Icon(name string) func(...Props) templ.Component {
 			generatedSvg, err := generateSVG(name, p) // p (Props) is passed to generateSVG
 			if err != nil {
 				// Provide more context in the error message
-				return fmt.Errorf("failed to generate svg for icon '%s' with props %+v: %w", name, p, err)
+				return errors.Errorf("failed to generate svg for icon '%s' with props %+v: %w", name, p, err)
 			}
 
 			iconMutex.Lock()
@@ -113,7 +115,7 @@ func generateSVG(name string, props Props) (string, error) {
 func getIconContent(name string) (string, error) {
 	content, exists := internalSvgData[name]
 	if !exists {
-		return "", fmt.Errorf("icon '%s' not found in internalSvgData map", name)
+		return "", errors.Errorf("icon '%s' not found in internalSvgData map", name)
 	}
 	return content, nil
 }

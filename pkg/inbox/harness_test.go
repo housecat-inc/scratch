@@ -4,14 +4,11 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-rod/rod/lib/proto"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
@@ -100,17 +97,6 @@ func newHarness(t *testing.T) *Harness {
 	return h
 }
 
-func (h *Harness) AllowConsole(messages ...string) {
-	h.console = append(h.console, messages...)
-}
-
-func (h *Harness) AttachFile(name, contents string) {
-	h.t.Helper()
-	path := filepath.Join(h.t.TempDir(), name)
-	h.R.NoError(os.WriteFile(path, []byte(contents), 0o644))
-	h.Page.MustElement("#chat-file").MustSetFiles(path)
-}
-
 func (h *Harness) AwaitWorkflowRunning(running bool) {
 	h.t.Helper()
 	h.R.Eventually(func() bool {
@@ -125,16 +111,6 @@ func (h *Harness) AwaitWorkflowRunning(running bool) {
 		run, err := h.Flows.Run(id)
 		return err == nil && run.Running() == running
 	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-}
-
-func (h *Harness) CaptureElement(selector string) {
-	h.t.Helper()
-	h.Page.MustElement("#chat-snap").MustClick()
-	el := h.Page.MustElement(selector)
-	box := el.MustShape().Box()
-	h.Page.Mouse.MustMoveTo(box.X+box.Width/2, box.Y+box.Height/2)
-	h.ElementVisible("#chat-select-overlay")
-	h.Page.Mouse.MustClick(proto.InputMouseButtonLeft)
 }
 
 func (h *Harness) ChatThreadCount(want int) {
@@ -168,14 +144,6 @@ func (h *Harness) EventuallyTrue(js string, args ...any) {
 func (h *Harness) Hover(selector string) {
 	h.t.Helper()
 	h.Page.MustElement(selector).MustHover()
-}
-
-func (h *Harness) InputValueContains(selector, expected string) {
-	h.t.Helper()
-	h.R.Eventuallyf(func() bool {
-		el, err := h.Page.Element(selector)
-		return err == nil && strings.Contains(el.MustProperty("value").Str(), expected)
-	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s value should contain %q", selector, expected)
 }
 
 func (h *Harness) Open(path string) {
@@ -222,6 +190,17 @@ func (h *Harness) SeedRailThread(messages ...string) int64 {
 		h.R.NoError(err)
 	}
 	return thread.ID
+}
+
+func (h *Harness) SeedRailThreadMessage(body string) {
+	h.t.Helper()
+	_, err := h.Store.AddMessage(db.NewMessage{
+		Author:   "user",
+		Body:     body,
+		Role:     db.MessageRoleUser,
+		ThreadID: 1,
+	})
+	h.R.NoError(err)
 }
 
 func (h *Harness) SeedSchedule() {
@@ -278,16 +257,6 @@ func (h *Harness) SelectOption(selector, value string) {
 	h.R.True(ok.Value.Bool())
 }
 
-func (h *Harness) SetRailCookie(open bool, threadID int64) {
-	h.t.Helper()
-	state := "closed"
-	if open {
-		state = "open"
-	}
-	_, err := h.Page.Eval(`(state, id) => { document.cookie = "scratch_chat_rail=" + encodeURIComponent(state + ":" + id) + "; path=/" }`, state, threadID)
-	h.R.NoError(err)
-}
-
 func (h *Harness) TaskCount(want int) {
 	h.t.Helper()
 	h.R.Eventually(func() bool {
@@ -314,11 +283,6 @@ func (h *Harness) TextEventuallyContains(selector, expected string) {
 		text, err := el.Text()
 		return err == nil && strings.Contains(text, expected)
 	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s text should contain %q", selector, expected)
-}
-
-func (h *Harness) WaitChatReady() {
-	h.t.Helper()
-	h.EventuallyTrue(`() => Boolean(window.htmx && document.querySelector("#chat-form"))`)
 }
 
 func (h *Harness) checkConsole() {
