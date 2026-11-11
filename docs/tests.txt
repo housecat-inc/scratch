@@ -7,6 +7,9 @@ cmd/checks/testspec
   Testspec
     Analyzer
       reports every naming and structure violation
+    Lint
+      passes a conforming package
+      reports test file problems with positions
     Write
       prints the sorted Test, group, case hierarchy
 
@@ -488,60 +491,116 @@ pkg/harness/codexcode/appserver
       returns an auth url for browser login
 
 pkg/inbox
-  ArchiveFilter
-    active group filter
-    archived group filter
-    inbox ignores filter
-    unknown group filter defaults all
-  ChatAgent
-    default
-    known chat agent
-    unknown agent
-  ChatAgentOptions
+  CancelBrowser
+    cancelling a durable run exposes a resume control on the row
+    resuming a cancelled run restarts it and restores the cancel control
   ChatBrowser
-  ChatModel
-    claude model
-    codex model
-    default
-    unsupported
-    wrong provider
-  InboxTasksBrowser
-  IncludeArchiveFilter
-    active excludes archived
-    active includes active
-    all includes active
-    all includes archived
-    archived excludes active
-    archived includes archived
-  IncludeTaskFilter
-    active excludes archived
-    active excludes done
-    active includes open
-    all includes active
-    all includes done
-    archived excludes open
-    archived includes archived
-  LegacyTaskPagesAreNotMounted
-  PopoutClickMinimizeCollapses
-  PopoutExpandFromMinimizedRestoresComposer
-  PopoutMinimizedTruncatesDescription
-  PopoutReloadRestoresCollapsedMinimized
-  PopoutRestoreScrollsToBottom
-  ResolveComposeMode
-  ScheduleLastFired
-  WebhookRouteDeliversToWorkflow
-  WebhookRouteRejectsOversizedBody
-  WebhookRouteUnknownWorkflowIs404
-  WorkflowAgent
-    default
+    composer
+      restores an unsent draft after navigation
+      sends a message and streams the echoed reply
+      sends an uploaded attachment as a pill
+      stops a streaming turn
+      toggles between full access and safe mode
+    floating chat
+      continues an existing thread
+      keeps its actions inside the panel when minimized
+    inspector
+      captures a message as image and html attachments
+      starts a chat from a captured inbox section
+      starts a chat from a task page without creating a task
+    transcript
+      renders thinking, tool, plan, and markdown parts
+  Events
+    returns not found for a thread that is not a workflow
+  Inbox
+    NewServer
+      does not mount the legacy task pages
+    archiveFilter
+      defaults an unknown filter to all
+      ignores the filter in the inbox view
+      keeps the active filter for chats
+      keeps the archived filter for tasks
+    chatAgent
+      accepts a known agent
+      is empty when no agent is given
+      rejects an unknown agent
+    chatAgentOptions
+      lists every agent
+    chatModel
+      accepts a claude model
+      accepts a codex model
+      is empty for an agent without models
+      is empty for the default model
+      rejects a model from another provider
+    includeArchiveFilter
+      active excludes archived
+      active includes active
+      all includes active
+      all includes archived
+      archived excludes active
+      archived includes archived
+    includeTaskFilter
+      active excludes archived
+      active excludes done
+      active includes open
+      all includes active
+      all includes done
+      archived excludes open
+      archived includes archived
+    resolveComposeMode
+      defaults to chat
+      falls back to chat for an unknown mode
+      keeps chat
+      keeps task
+      keeps workflow
+    scheduleLastFired
+      formats the last fire time
+      is empty before the first fire
+    workflowAgent
+      defaults to greet
+      falls back to greet for an unknown type
+      keeps greet
+  InboxBrowser
+    composer
+      creates the thread when sending from a draft chat
+      starts a chat from the tasks footer
+    new chat
+      opens a floating chat from the new chat action
+      opens a floating chat when a provider is selected
+      opens a floating chat when the default provider is selected
+    tasks
+      hides done and archived tasks under the active filter
+      saves an edited description
+  PollBrowser
+    appends later workflow steps without re-rendering earlier ones
+  PopoutBrowser
+    minimize
+      collapses the popout to its header
+    restore
+      brings back a usable composer
+      scrolls to the latest message
+    when minimized
+      keeps the action icons visible with a long description
+      stays fully collapsed with visible actions after reload
+  ScheduleBrowser
+    lists the heartbeat schedule as an active row
+    opening a schedule shows its execution feed scrolled to the bottom
+    pausing a schedule flips its label to paused
+  Webhook
+    delivers the payload to the waiting workflow
+    rejects an oversized body
+    returns not found for an unknown workflow
+  WorkflowBrowser
     greet
-    unknown
-  WorkflowCancelResumeBrowser
-  WorkflowEventsRejectsNonWorkflowThread
-  WorkflowGreetBrowser
-  WorkflowLiveUpdatesPreserveEarlierSteps
-  WorkflowSchedulesBrowser
-  WorkflowStreamAutoRefreshesToCompleted
+      ends when the name form is declined
+      forks the name form into a new runnable workflow
+      prompts for a name then shows a greeting
+      reruns the greeting after editing the name
+      starts when selected from the workflow menu
+    stream
+      refreshes the header to completed without a manual reload
+    update claude
+      starts when selected from the workflow menu
 
 pkg/repo
   Repo
@@ -554,55 +613,138 @@ pkg/repo
       prefers an explicit worktree over the home checkout
 
 pkg/server/code
+  Code
+    comment validation
+      rejects a blank body
+      rejects a comment form for line zero
+      rejects a comment on an unknown repo
+      rejects an unknown diff side
+    comments
+      deletes a comment with an empty ok response
+      edits a comment and shows the new body
+      lists comments grouped by file in name order
+      toggles resolved on each resolve
+    file context
+      expands down to the end of the file
+      expands down while more lines remain
+      expands every hidden line at once
+      expands up to the hunk boundary
+    shows repo listing errors on the overview
   CodeBrowser
-  CodePagesHTML
-  CommentDeleteReturnsOK
-  CommentEditFlow
-  CommentListPage
-  CommentResolveToggle
-  CommentRoutesValidation
-    empty body
-    form bad line
-    invalid side
-    missing slug
-  ContextEndpoint
-    down to end
-    down with more available
-    expand all
-    up to boundary
-  HandlerSurfacesErrors
+    shows a diff inside the styled tool shell
+    shows the repo overview inside the tool shell
+  CodeHTML
+    commits page
+      renders the log with repo tabs
+    diff comments
+      adds a comment thread on a line
+      deletes a comment from the thread
+    diff page
+      renders hunks with context expanders
+      returns not found for an unknown repo
+    overview
+      hides sync actions for a clean repo
+      lists repos with sync actions
 
 pkg/server/sessions
-  LoginCodeMissing
-  LoginFlowsHTML
-  SessionFlowsHTML
-  SessionQR
-  SessionQRMissing
-  SessionStartNoPromptUsesEmptyName
-  SessionsPageOmitsAgentsHints
-  SessionsRouteWithoutRoot
-  SetupBrowser
-  SetupPageHTML
-  TopNav
-    root highlights sessions
-    setup highlights setup
+  Sessions
+    QR code
+      returns not found for an unknown session
+      serves the session QR code as png
+    nav
+      highlights sessions on the root page
+      highlights setup on the setup page
+    sessions page
+      omits agents repo hints
+      serves the sessions route when not mounted at root
+    sign in
+      reports no login in progress for a stray code
+    start
+      skips the prompt slug when no prompt is given
+  SessionsBrowser
+    shows the setup checklist inside the tool shell
+  SessionsFlowsHTML
+    sessions
+      browse lists subdirectories
+      browse reports an empty directory
+      points unfinished setup back to setup
+      shows the start form once signed in
+      start defaults to the home directory
+      start renders the running session
+      start surfaces errors
+      start with redirect sends the client home
+      stop removes the session
+    setup
+      codex browser sign in accepts a pasted callback
+      codex browser sign in keeps the form after a bad paste
+      codex browser sign in shows codex errors and resets
+      codex device sign in polls until done
+      codex sign in cancel returns to connect
+      configure marks the step done
+      install cascades to the sign in step
+      install error stays on the install step
+      sign in keeps the retry form after an invalid code
+      sign in submits the pasted code and cascades to configure
+  SessionsHTML
+    setup page
+      checks sign in and activates configure when authenticated
+      groups claude and codex steps on a fresh machine
+      marks codex sign in done when authenticated
+      prompts to get codex when it is not installed
+      reports the installed codex version
+      shows the claude version and update button once installed and activates sign in
+      still offers the update button when every step is done
 
 pkg/server/sql
-  LSPBridge
-  MissingDBSurfacesError
-  Page
-  QueryReadOnly
-    delete
-    drop
-    insert
-    pragma bypass
+  LSP
+    bridges a websocket to sqls and answers initialize with completion
+  SQL
+    page
+      names a missing database file in the page
+      renders the shell, editor, and schema with scripts loaded once
+    read only queries
+      blocks a delete
+      blocks a drop table
+      blocks a pragma that disables read only
+      blocks an insert
+    schema
+      lists table columns as json
   SQLBrowser
+    mounts a single codemirror editor beside saved queries and schema
+    runs a table query from the sidebar
+    shows shared shell counts and opens chat
   SQLHTML
-  SQLSavedQueriesHTML
-  Schema
+    editor
+      renders the editor and schema
+      runs a query and swaps in the results
+      surfaces query errors in the results
+    saved queries
+      deletes a saved query
+      rejects a save without a name
+      saves a query into the sidebar
+      upserts one row when a name is reused
 
 pkg/todo
-  TodoWebBrowser
+  WebBrowser
+    chats list
+      lists todo chats without scratch chats
+      opens a todo chat row in a floating chat
+    floating chat
+      chat history action opens chats
+      chat history action refreshes the current chats page
+      new chat action opens a floating chat
+      survives navigation
+    inbox
+      archives and unarchives from list actions
+      creates a task
+      lists only active tasks
+      opens a task page from a row
+    task page
+      saves the description and keeps the title
+      toggles completion
+    tasks list
+      deletes an archived task after confirmation
+      lists all tasks with archived actions
 
 pkg/ui
   ChatViews
@@ -630,15 +772,14 @@ pkg/workspace
 
 testkit
   HTML
-
-testkit/v2
-  Atoi
-  AtoiTable
-  DB
-  Fixture
-  Server
-  SetupTeardownTable
-  Split
-  Steps
-  Upper
-  UpperTable
+    Click
+      hx-include gathers external fields
+      none swap leaves the dom unchanged
+      outerHTML swap replaces the target
+      submit button posts the enclosing form
+    Load
+      renders and queries the page
+    SelectOption
+      changes the posted value
+    Type
+      appends to the field value

@@ -10,5 +10,5 @@ func TestHelper(t *testing.T) {
 func body(t *testing.T) {}
 
 func each(t *testing.T) {
-	t.Run("hidden", func(t *testing.T) {}) // want `t.Run must be called inside the file's Test function, not a helper`
+	t.Run("hidden", func(t *testing.T) {}) // want `t.Run must be called inside a _test.go file's Test function, not a helper`
 }

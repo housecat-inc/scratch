@@ -27,7 +27,7 @@ Stdlib table-driven tests whose names read like a spec. `docs/tests.txt` is the 
 - One `Test<Subject>` per `_test.go` file, named after the file (`comments_test.go` → `TestComments`)
 - At most three levels: `TestComments` › group (`AddComment` or "when the branch is missing") › case ("rejects an empty body")
 - Case names are literal lowercase sentences — no `_` or `/` — via `t.Run("...")` or a literal table's `name` field
-- `t.Run` only inside the Test function, never in helpers; no `testkit` runners
+- `t.Run` only inside a `_test.go` file's Test function — never in helpers or non-test code, so no test runner frameworks
 - `github.com/stretchr/testify` with `a := assert.New(t)` and `r := require.New(t)` inside each case
 
 ```go
@@ -52,7 +52,7 @@ func TestComments(t *testing.T) {
 }
 ```
 
-Packages not yet migrated are listed in `Pending` in `cmd/checks/testspec`; remove a package once its tests conform.
+Run `go run ./cmd/checks lint <dir>` to check one package.
 
 ## Build & codegen
 

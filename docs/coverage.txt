@@ -1,7 +1,7 @@
 cmd/app                                          0.0%
 cmd/checks                                       0.0%
 cmd/checks/errors                                86.4%
-cmd/checks/testspec                              86.3%
+cmd/checks/testspec                              88.0%
 cmd/openapi                                      0.0%
 cmd/scratch                                      0.0%
 pkg/agents                                       6.4%
@@ -17,7 +17,7 @@ pkg/harness/claudecode                           70.2%
 pkg/harness/codexcode                            77.3%
 pkg/harness/codexcode/appserver                  82.1%
 pkg/harness/codexcode/appserver/appservertest    0.0%
-pkg/inbox                                        60.6%
+pkg/inbox                                        60.8%
 pkg/repo                                         92.0%
 pkg/server/code                                  59.0%
 pkg/server/files                                 0.0%
@@ -30,6 +30,5 @@ pkg/ts                                           0.0%
 pkg/ui                                           0.4%
 pkg/workflow                                     75.0%
 pkg/workspace                                    80.0%
-testkit                                          30.2%
-testkit/v2                                       41.8%
+testkit                                          26.7%
 uikit                                            0.0%

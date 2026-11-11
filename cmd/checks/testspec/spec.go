@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -15,12 +14,8 @@ import (
 const maxDepth = 2
 
 var (
-	bannedCalls = map[string][]string{
-		"github.com/housecat-inc/scratch/testkit": {"RunBrowserCases", "RunCases"},
-	}
-	bannedImports = []string{"github.com/housecat-inc/scratch/testkit/v2"}
-	identName     = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
-	titleWord     = regexp.MustCompile(`^[A-Z][a-z]`)
+	identName = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+	titleWord = regexp.MustCompile(`^[A-Z][a-z]`)
 )
 
 type File struct {
@@ -47,7 +42,7 @@ type tables map[string]*ast.CompositeLit
 
 func Parse(filename string, f *ast.File) File {
 	p := &walker{}
-	p.imports(f)
+	isTestFile := strings.HasSuffix(filename, "_test.go")
 
 	var tests []*ast.FuncDecl
 	for _, decl := range f.Decls {
@@ -55,7 +50,7 @@ func Parse(filename string, f *ast.File) File {
 		if !ok || fn.Body == nil {
 			continue
 		}
-		if _, ok := testingParam(fn.Type); ok && fn.Recv == nil && isTestName(fn.Name.Name) {
+		if _, ok := testingParam(fn.Type); ok && isTestFile && fn.Recv == nil && isTestName(fn.Name.Name) {
 			tests = append(tests, fn)
 			continue
 		}
@@ -81,33 +76,6 @@ func Parse(filename string, f *ast.File) File {
 	return File{Problems: p.problems, Tests: nodes}
 }
 
-func (p *walker) imports(f *ast.File) {
-	for _, spec := range f.Imports {
-		path, _ := strconv.Unquote(spec.Path.Value)
-		if slices.Contains(bannedImports, path) {
-			p.report(spec.Pos(), "import of %s is banned; write stdlib table-driven tests", path)
-		}
-		funcs, ok := bannedCalls[path]
-		if !ok {
-			continue
-		}
-		local := filepath.Base(path)
-		if spec.Name != nil {
-			local = spec.Name.Name
-		}
-		ast.Inspect(f, func(n ast.Node) bool {
-			sel, ok := n.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			if id, ok := sel.X.(*ast.Ident); ok && id.Name == local && slices.Contains(funcs, sel.Sel.Name) {
-				p.report(sel.Pos(), "%s.%s is banned; write stdlib table-driven tests", local, sel.Sel.Name)
-			}
-			return true
-		})
-	}
-}
-
 func (p *walker) forbidRuns(body *ast.BlockStmt) {
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -116,7 +84,7 @@ func (p *walker) forbidRuns(body *ast.BlockStmt) {
 		}
 		if fn, ok := call.Args[1].(*ast.FuncLit); ok {
 			if _, ok := testingParam(fn.Type); ok {
-				p.report(call.Pos(), "t.Run must be called inside the file's Test function, not a helper")
+				p.report(call.Pos(), "t.Run must be called inside a _test.go file's Test function, not a helper")
 				return false
 			}
 		}

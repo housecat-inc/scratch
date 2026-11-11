@@ -1,6 +1,7 @@
 package testspec
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,6 +17,27 @@ func TestTestspec(t *testing.T) {
 		})
 	})
 
+	t.Run("Lint", func(t *testing.T) {
+		t.Run("reports test file problems with positions", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+
+			problems, err := Lint("testdata/src/a")
+			r.NoError(err)
+			a.Contains(problems, "testdata/src/a/flat_test.go:5:6: TestFlat must describe behavior with t.Run cases")
+			a.True(slices.IsSorted(problems))
+		})
+
+		t.Run("passes a conforming package", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+
+			problems, err := Lint(".")
+			r.NoError(err)
+			a.Empty(problems)
+		})
+	})
+
 	t.Run("Write", func(t *testing.T) {
 		t.Run("prints the sorted Test, group, case hierarchy", func(t *testing.T) {
 			a := assert.New(t)
@@ -28,8 +50,6 @@ func TestTestspec(t *testing.T) {
 			r.NoError(Write(&b, pkgs))
 			a.Equal(strings.TrimLeft(`
 a
-  Banned
-    uses runners
   Deep
     Group
       case
