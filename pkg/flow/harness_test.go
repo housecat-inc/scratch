@@ -20,7 +20,7 @@ type Harness struct {
 	id      string
 }
 
-type Step = testkit.Step[*Harness]
+type Step func(*testing.T, *Harness)
 
 type fakeDrafter struct {
 	drafts  *atomic.Int32
