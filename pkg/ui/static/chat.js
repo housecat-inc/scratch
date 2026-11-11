@@ -3,8 +3,6 @@
 
   const draftKeyPrefix = "scratch.chat.draft:";
   const providerModelKey = "scratch.chat.provider_model";
-  const railCookie = "scratch_chat_rail";
-  const railWidthQuery = window.matchMedia("(max-width: 760px)");
 
   const showAlert = (text) => {
     let alert = document.getElementById("chat-alert");
@@ -24,92 +22,6 @@
 
   const paperclipIconHTML = () =>
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path></svg>`;
-
-  const railState = () => {
-    const match = document.cookie.match(new RegExp(`(?:^|; )${railCookie}=([^;]*)`));
-    const [open, thread] = decodeURIComponent(match?.[1] || "").split(":");
-    return { open: open === "open", thread: thread || "" };
-  };
-
-  const saveRail = ({ open, thread }) => {
-    document.cookie = `${railCookie}=${encodeURIComponent(`${open ? "open" : "closed"}:${thread || ""}`)}; path=/; max-age=31536000; samesite=lax`;
-    document.documentElement.dataset.chatRail = open ? "open" : "closed";
-    document.querySelectorAll("[data-chat-rail-toggle]").forEach((toggle) => toggle.setAttribute("aria-expanded", String(open)));
-  };
-
-  const railPanel = () => document.querySelector("[data-chat-rail-panel]");
-
-  const showRail = (html) => {
-    const rail = document.getElementById("chat-rail");
-    if (!rail) return null;
-    rail.innerHTML = html;
-    const panel = railPanel();
-    if (!panel) return null;
-    saveRail({ open: true, thread: panel.dataset.threadId });
-    window.htmx?.process(panel);
-    initAll(panel);
-    requestAnimationFrame(() => panel.querySelectorAll("[data-chat-input]").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true }))));
-    if (!window.matchMedia("(pointer: coarse)").matches) panel.querySelector("[data-chat-input]")?.focus();
-    return panel;
-  };
-
-  const openRail = async (url) => {
-    const res = await fetch(url);
-    if (!res.ok) {
-      if (res.status === 404) saveRail({ open: false, thread: "" });
-      else showAlert(await res.text());
-      return null;
-    }
-    return showRail(await res.text());
-  };
-
-  const closeRail = async ({ discardEmpty = true } = {}) => {
-    const panel = railPanel();
-    const threadID = panel?.dataset.threadId || "";
-    const empty = panel?.dataset.empty === "true";
-    const rail = document.getElementById("chat-rail");
-    if (rail) rail.replaceChildren();
-    saveRail({ open: false, thread: empty ? "" : threadID });
-    document.querySelector("[data-chat-rail-toggle]")?.focus();
-    if (discardEmpty && empty && threadID) await fetch(`/chat/${threadID}`, { method: "DELETE" });
-  };
-
-  const newRailURL = (params = new URLSearchParams()) => {
-    const saved = storageGet(providerModelKey);
-    if (saved && !params.get("provider_model")) params.set("provider_model", saved);
-    return `/chat/rail/new?${params.toString()}`;
-  };
-
-  const threadRailURL = (threadID) => `/chat/${threadID}/rail`;
-
-  const toggleRail = () => {
-    if (railPanel()) {
-      closeRail();
-      return;
-    }
-    const { thread } = railState();
-    openRail(thread ? threadRailURL(thread) : newRailURL());
-  };
-
-  const openThreadInRail = async (threadID) => {
-    const panel = await openRail(threadRailURL(threadID));
-    if (panel && location.pathname === `/inbox/chats/${threadID}`) location.assign("/inbox/chats");
-  };
-
-  const restoreRail = () => {
-    const param = new URLSearchParams(location.search).get("chat");
-    if (param === "new") {
-      openRail(newRailURL());
-      return;
-    }
-    if (param && /^\d+$/.test(param)) {
-      openRail(threadRailURL(param));
-      return;
-    }
-    const { open, thread } = railState();
-    if (open && thread) openRail(threadRailURL(thread));
-    else saveRail({ open: false, thread });
-  };
 
   const storageGet = (key) => {
     try {
@@ -570,50 +482,6 @@
   });
 
 
-  document.addEventListener("submit", (e) => {
-    const form = e.target.closest("[data-chat-rail-new]");
-    if (!form) return;
-    e.preventDefault();
-    openRail(newRailURL(new URLSearchParams(new FormData(form))));
-  });
-
-  document.addEventListener("click", async (e) => {
-    const historyLink = e.target.closest("[data-chat-history]");
-    if (historyLink) {
-      closeRail({ discardEmpty: false });
-      const url = new URL(historyLink.href, location.href);
-      if (url.pathname === location.pathname && url.search === location.search) {
-        e.preventDefault();
-        location.reload();
-      }
-      return;
-    }
-
-    if (e.target.closest("[data-chat-rail-toggle]")) {
-      toggleRail();
-      return;
-    }
-
-    if (e.target.closest("[data-chat-rail-close]")) {
-      closeRail();
-      return;
-    }
-
-    if (e.target.closest("[data-chat-rail-expand]")) {
-      saveRail({ open: false, thread: railPanel()?.dataset.threadId || "" });
-      return;
-    }
-
-    const trigger = e.target.closest("[data-chat-rail-thread]");
-    if (!trigger) return;
-    e.preventDefault();
-    openThreadInRail(trigger.dataset.chatRailThread);
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && railWidthQuery.matches && railPanel()) closeRail({ discardEmpty: false });
-  });
-
   new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
@@ -622,7 +490,6 @@
     }
   }).observe(document.body, { childList: true, subtree: true });
 
-  window.scratchChat = { init: initAll, openRail };
+  window.scratchChat = { init: initAll };
   initAll();
-  restoreRail();
 })();

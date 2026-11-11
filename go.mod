@@ -3,10 +3,10 @@ module github.com/housecat-inc/scratch
 go 1.27.3
 
 require (
-	github.com/Oudwins/tailwind-merge-go v0.2.0
+	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/a-h/templ v0.3.1020
-	github.com/cockroachdb/errors v1.13.0
+	github.com/cockroachdb/errors v1.14.0
 	github.com/creack/pty v1.1.24
 	github.com/dbos-inc/dbos-transact-golang v0.19.0
 	github.com/getkin/kin-openapi v0.133.0
@@ -23,7 +23,7 @@ require (
 	github.com/templui/templui v1.10.1
 	github.com/wux4an/lucide-templ v0.0.1
 	github.com/ysmood/gson v0.7.3
-	github.com/yuin/goldmark v1.8.3
+	github.com/yuin/goldmark v1.8.6
 	golang.org/x/net v0.62.0
 	golang.org/x/tools v0.51.0
 	modernc.org/sqlite v1.52.0

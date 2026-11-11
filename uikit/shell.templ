@@ -1,58 +1,18 @@
 package uikit
 
-import lucide "github.com/wux4an/lucide-templ/icons"
+import (
+	"github.com/housecat-inc/scratch/ui/app"
+	codexui "github.com/housecat-inc/scratch/ui/components/codex"
+)
 
 templ Shell(p ShellProps) {
-	<div class={ shellClass(p.Class) }>
-		<header class="mail-topbar">
-			<a class="mail-brand" href={ templ.SafeURL(p.BrandHref) }>
-				<img class="mail-brand-logo" src="/static/icon.svg" alt="" aria-hidden="true"/>
-				<span>{ p.AppName }</span>
-			</a>
-			<div class="mail-create-actions">
-				if p.Actions != nil {
-					@p.Actions
-				}
-				<button type="button" class="mail-create-btn chat-rail-toggle" data-chat-rail-toggle aria-controls="chat-rail" aria-expanded="false" title="Toggle chat panel" aria-label="Toggle chat panel">
-					@lucide.PanelRight()
-				</button>
-			</div>
-		</header>
-		<div class="mail-body">
-			<aside class="mail-sidebar">
-				if p.SidebarTop != nil {
-					<div class="mail-sidebar-top">
-						@p.SidebarTop
-					</div>
-				}
-				<nav class="mail-labels" aria-label="Primary">
-					for _, item := range p.Nav {
-						if item.Group != "" {
-							<div class="mail-label-group">{ item.Group }</div>
-						}
-						<a href={ templ.SafeURL(item.Href) } class={ "gm-label", templ.KV("active", item.Active) }>
-							<span class="gm-label-icon">
-								if item.Icon != nil {
-									@item.Icon
-								}
-							</span>
-							<span class="gm-label-name" data-label={ item.Label }>{ item.Label }</span>
-							if item.ShowCount {
-								<span class="gm-label-count">{ countLabel(item.Count) }</span>
-							}
-						</a>
-					}
-				</nav>
-			</aside>
-			<main class={ mainClass(p.MainClass, p.Footer) }>
-				{ children... }
-			</main>
-			<aside id="chat-rail" class="chat-rail" data-chat-rail aria-label="Chat panel"></aside>
+	@app.Body(withRail(ctx, shellIn(p))) {
+		<div class={ mainClass(p.MainClass) }>
+			{ children... }
 		</div>
-		if p.Footer != nil {
-			<footer class="mail-footer">
-				@p.Footer
-			</footer>
-		}
-	</div>
+	}
+}
+
+templ chatRailContent() {
+	<section id={ codexui.MailContentID } class="flex min-h-0 min-w-0 flex-1 flex-col" data-chat aria-label="Chat transcript"></section>
 }

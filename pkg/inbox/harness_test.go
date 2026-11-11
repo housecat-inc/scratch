@@ -81,7 +81,10 @@ func newHarness(t *testing.T) *Harness {
 
 	mux := http.NewServeMux()
 	mux.Handle("/chat/", chat.NewServer(chatSvc, slog.New(logs)).Handler())
-	mux.Handle("/", NewServer(taskSvc, chatSvc, flows, slog.New(logs)).Handler())
+	codex := chat.NewCodexServer(chatSvc)
+	mux.Handle("/codex", codex.Handler())
+	mux.Handle("/codex/", codex.Handler())
+	mux.Handle("/", codex.Middleware(NewServer(taskSvc, chatSvc, flows, slog.New(logs)).Handler()))
 
 	h := &Harness{
 		Harness: testkit.NewHarnessWithT(t, kit, mux),

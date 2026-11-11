@@ -28,10 +28,6 @@ new MutationObserver((records) => {
   subtree: true,
 });
 
-// The worklet's URL is the package's default, beside the module by
-// import.meta.url: the build writes the worklet beside ui.js under a hashed
-// name and serves it with the bundles. Registration enables shadow resolution
-// after loading; browsers without paint worklets keep the native stadium.
-void registerPillWorklet().catch(
+void registerPillWorklet(new URL("/assets/pill-shape.worklet.mjs", location.href)).catch(
   (err: unknown) => console.error("squircle pill worklet", err),
 );

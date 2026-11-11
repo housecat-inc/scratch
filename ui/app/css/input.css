@@ -1,0 +1,186 @@
+/* https://ui.shadcn.com/init?base=radix&style=nova&baseColor=zinc&theme=teal&iconLibrary=lucide&font=inter&menuAccent=bold&menuColor=inverted&radius=large&template=vite&rtl=false */
+
+@import "tailwindcss";
+@import "../../node_modules/@klinking/squircle/dist/tailwind/utils.css";
+@import "../../css/typography.css";
+@import "../../css/theme.css";
+@import "../../css/button.css";
+@import "../../css/text_trim.css";
+@import "../../components/jsonviewer/jsonviewer.css";
+@import "./shell.css";
+@import "./chat.css";
+
+@plugin "@tailwindcss/typography";
+@plugin "../../squircle/tailwind-pill.mjs";
+@plugin "../../squircle/tailwind-pill-border.mjs";
+
+@source "../..";
+@source "../../../pkg";
+@source "../../../uikit";
+@source not "../../../**/*_test.go";
+@source not "../../../**/testdata";
+@source not "../../dist";
+
+/* Dark mode is off for now. The variant stays defined but points at a class
+   nothing ever carries, so the dark:* utilities still in the templates compile
+   to rules that can never match. Deleting the variant instead would hand the
+   templates back to Tailwind's built-in dark variant, which is
+   @media (prefers-color-scheme: dark) -- that would switch every dark:* rule on
+   for anyone whose OS is dark, against the light tokens below.
+   Restore (&:where(.dark, .dark *)) when dark mode comes back. */
+@custom-variant dark (&:where(.dark-mode-disabled));
+
+@layer base {
+  button:not(:disabled),
+  input:where([type="button"], [type="submit"], [type="reset"], [type="checkbox"], [type="radio"], [type="file"]):not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+  div,
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  section,
+  article,
+  nav,
+  aside,
+  header,
+  footer,
+  main,
+  ul,
+  ol,
+  form,
+  fieldset,
+  figure,
+  figcaption,
+  details,
+  blockquote,
+  pre,
+  address,
+  dl,
+  dd,
+  dialog,
+  hgroup,
+  search {
+    display: block;
+  }
+  /* The block list above is author CSS, and author CSS outranks the browser's
+     own stylesheet whatever the specificity, so it would otherwise undo the
+     user-agent rules that hide a closed popover and a closed dialog: a closed
+     [popover] div or <dialog> would stay laid out, invisible and on top,
+     catching clicks meant for what is under it. These two restate those rules
+     after the list, and outrank it by specificity. */
+  [popover]:not(:popover-open) {
+    display: none;
+  }
+  dialog:not([open]) {
+    display: none;
+  }
+  li {
+    display: list-item;
+  }
+  summary {
+    display: list-item;
+  }
+  table {
+    display: table;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tbody {
+    display: table-row-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+  tr {
+    display: table-row;
+  }
+  td,
+  th {
+    display: table-cell;
+  }
+  hr {
+    display: block;
+  }
+  * {
+    @apply border-border;
+    outline-color: var(--color-ring);
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-muted-foreground) transparent;
+  }
+  ::selection {
+    @apply bg-selection text-selection-foreground;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+
+script,
+style {
+  display: none !important;
+}
+
+[data-mail-nav-header][data-drag-opening]
+  [data-slot="mail-view-section-toggle"] {
+  background-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--color-primary) 40%, transparent);
+  outline-offset: -2px;
+  animation: mail-section-opening var(--mail-section-open-delay) linear both;
+}
+
+@keyframes mail-section-opening {
+  0%, 65%, 100% {
+    background-color: color-mix(
+      in oklab,
+      var(--color-primary) 12%,
+      transparent
+    );
+  }
+  82% {
+    background-color: color-mix(
+      in oklab,
+      var(--color-primary) 32%,
+      transparent
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-mail-nav-header][data-drag-opening]
+    [data-slot="mail-view-section-toggle"] {
+    animation: none;
+  }
+}
+
+.stat-card .stat-label {
+  color: var(--color-muted-foreground);
+}
+.stat-card .stat-sep {
+  color: var(--color-muted-foreground);
+}
+.stat-card .stat-trend {
+  color: var(--color-muted-foreground);
+}
+.stat-card .stat-trend.up {
+  color: oklch(0.45 0.15 150);
+}
+:where(.dark, .dark *) .stat-card .stat-trend.up {
+  color: oklch(0.75 0.15 150);
+}

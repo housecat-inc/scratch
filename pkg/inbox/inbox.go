@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/housecat-inc/scratch/ui/dist"
 	"io"
 	"log/slog"
 	"net/http"
@@ -47,6 +48,7 @@ func (s *Server) SetContacts(contacts db.ContactStore) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", ui.StaticHandler()))
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(dist.FS)))
 	mux.HandleFunc("GET /{$}", s.handleInbox)
 	mux.HandleFunc("GET /inbox", s.handleInbox)
 	mux.HandleFunc("GET /inbox/chats", s.handleChats)
