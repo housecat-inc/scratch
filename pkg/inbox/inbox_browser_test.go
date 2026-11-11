@@ -3,17 +3,6 @@ package inbox
 import "testing"
 
 func TestInboxBrowser(t *testing.T) {
-	t.Run("new chat", func(t *testing.T) {
-		t.Run("opens the chat panel from the new chat action", func(t *testing.T) {
-			h := newHarness(t)
-			h.Open("/")
-			h.Click("[data-new-chat]")
-
-			h.ElementEventuallyPresent("#mail-chat-rail-content [data-prompt-field]")
-			h.TextEventuallyContains("#mail-chat-rail-content", "New Chat")
-		})
-	})
-
 	t.Run("tasks", func(t *testing.T) {
 		t.Run("hides done and archived tasks under the active filter", func(t *testing.T) {
 			h := newHarness(t)

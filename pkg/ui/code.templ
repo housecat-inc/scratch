@@ -143,7 +143,6 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 		@Head(title)
 		<body class={ app.BodyClass }>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(subnav.Shell),
 				AppName:    "scratch",
 				BrandHref:  "/",
 				Footer:     ToolComposer(),
@@ -165,7 +164,6 @@ templ DiffPage(p DiffProps) {
 		}
 		<body class={ app.BodyClass }>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(p.Shell),
 				AppName:    "scratch",
 				BrandHref:  "/",
 				Footer:     ToolComposer(),

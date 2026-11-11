@@ -70,7 +70,7 @@ html {
 svg {
   display: block;
 }
-svg:not([data-lucide]) {
+svg:not([data-lucide]):not([fill="none"]) {
   fill: currentColor;
 }
 

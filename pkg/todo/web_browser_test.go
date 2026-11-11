@@ -35,7 +35,7 @@ func TestWebBrowser(t *testing.T) {
 		tests := []webCase{
 			{
 				act: func(h *webHarness) {
-					h.Click("[data-new-chat]")
+					h.Click("[data-chat-rail-toggle]")
 					h.eventuallyPresent(railPrompt)
 					h.Type(railPrompt, "hello todo")
 					h.Press(railPrompt, "Enter")
@@ -45,12 +45,12 @@ func TestWebBrowser(t *testing.T) {
 					h.chatThreadLabel(1, chatLabelTodo)
 					h.ElementTextContains("#mail-chat-rail-content [data-chat-entries]", "You said: hello todo")
 				},
-				name: "new chat action starts a todo chat in the panel",
+				name: "chat toggle starts a todo chat in the panel",
 				path: "/",
 			},
 			{
 				act: func(h *webHarness) {
-					h.Click("[data-new-chat]")
+					h.Click("[data-chat-rail-toggle]")
 					h.eventuallyPresent(railPrompt)
 					h.Click(`[data-slot="nav-item"][href="/tasks"]`)
 				},

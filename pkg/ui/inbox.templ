@@ -21,7 +21,6 @@ templ InboxPage(p InboxProps) {
 		}
 		<body class={ app.BodyClass }>
 			@uikit.Shell(uikit.ShellProps{
-				Actions: InboxActions(p),
 				AppName: "scratch",
 				BrandHref: "/",
 				Footer: MailComposer(p),
@@ -46,10 +45,6 @@ templ InboxPage(p InboxProps) {
 	</html>
 }
 
-templ InboxActions(p InboxProps) {
-	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
-}
-
 templ ComposeActions() {
 	<div class="mail-compose-actions">
 		@composeButton("task", "Task", "New task")
@@ -66,40 +61,6 @@ templ composeButton(mode, label, aria string) {
 			<span>{ label }</span>
 		</button>
 	</form>
-}
-
-templ MailShell(p InboxProps) {
-	<div class="mail-shell">
-		<header class="mail-topbar">
-			<a class="mail-brand" href="/">
-				<img class="mail-brand-logo" src="/static/icon.svg" alt="" aria-hidden="true"/>
-				<span>scratch</span>
-			</a>
-			<div class="mail-create-actions">
-				@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
-				@createButton("task", "New task", lucide.ListChecks())
-				@createWorkflowButton()
-			</div>
-		</header>
-		<div class="mail-body">
-			<aside class="mail-sidebar">
-				<nav class="mail-labels" aria-label="Mail">
-					@mailLabel("/", "inbox", p.View, "Inbox", p.Counts.Inbox, lucide.Inbox())
-					@mailLabel("/starred", "starred", p.View, "Starred", p.Counts.Starred, lucide.Star())
-					<div class="mail-label-group">More</div>
-					@mailLabel("/inbox/chats", "chats", p.View, "Chats", p.Counts.Chats, lucide.MessageSquare())
-					@mailLabel("/inbox/tasks", "tasks", p.View, "Tasks", p.Counts.Tasks, lucide.ListChecks())
-					@mailLabel("/inbox/workflows", "workflows", p.View, "Workflows", p.Counts.Workflows, lucide.Workflow())
-				</nav>
-			</aside>
-			<main class="mail-main">
-				{ children... }
-			</main>
-		</div>
-		<footer class="mail-footer">
-			@MailComposer(p)
-		</footer>
-	</div>
 }
 
 templ MailComposer(p InboxProps) {

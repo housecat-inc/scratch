@@ -1,22 +1,6 @@
 package uikit
 
-import (
-	"github.com/housecat-inc/scratch/ui/app"
-	"github.com/housecat-inc/scratch/ui/components/button"
-	"github.com/housecat-inc/scratch/ui/icons"
-	lucide "github.com/wux4an/lucide-templ/icons"
-)
-
-templ NewChatAction(p NewChatActionProps) {
-	@button.Button(button.Props{
-		Attributes: app.NewChatAttributes(templ.Attributes{"data-new-chat": true, "type": "button"}),
-		IconStart:  icons.ChatNew,
-		Size:       button.SizeSm,
-		Variant:    button.VariantOutline,
-	}) {
-		New chat
-	}
-}
+import lucide "github.com/wux4an/lucide-templ/icons"
 
 templ ChatHistoryAction(href string) {
 	<a aria-label="Chat history" class="mail-create-btn" data-chat-history href={ templ.SafeURL(historyHref(href)) } title="Chat history">

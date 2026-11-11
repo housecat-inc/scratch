@@ -101,7 +101,6 @@ templ Layout(title, nav string, shells ...ToolShellProps) {
 		@Head(title)
 		<body class={ app.BodyClass }>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(toolShell(shells)),
 				AppName:    "scratch",
 				BrandHref:  "/",
 				Footer:     ToolComposer(),
@@ -145,10 +144,6 @@ templ ToolComposer() {
 		FileName:    "file",
 		Placeholder: "Chat with agent",
 	})
-}
-
-templ toolActions(p ToolShellProps) {
-	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 }
 
 func toolShell(shells []ToolShellProps) ToolShellProps {

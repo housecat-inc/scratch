@@ -544,8 +544,6 @@ pkg/inbox/events_test.go
 
 pkg/inbox/inbox_browser_test.go
   InboxBrowser
-    new chat
-      opens the chat panel from the new chat action
     tasks
       hides done and archived tasks under the active filter
       saves an edited description
@@ -768,7 +766,7 @@ pkg/server/sql/sql_test.go
 pkg/todo/web_browser_test.go
   WebBrowser
     chat panel
-      new chat action starts a todo chat in the panel
+      chat toggle starts a todo chat in the panel
       survives navigation
     chats list
       lists todo chats without scratch chats

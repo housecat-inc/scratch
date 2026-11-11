@@ -69,7 +69,6 @@ templ ComposeLauncher() {
 templ AppActions(chatOptions []uikit.SelectOption, chatLabel string) {
 	if len(chatOptions) > 0 {
 		<div class="mail-chat-actions">
-			@uikit.NewChatAction(uikit.NewChatActionProps{Label: chatLabel, Options: chatOptions})
 			@uikit.ChatHistoryAction("/chats")
 		</div>
 	}
