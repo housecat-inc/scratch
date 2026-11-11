@@ -1,0 +1,144 @@
+// Housecat component (not templui-managed): the star toggle, the one mark a
+// thread, a message or an inbox item carries to say "keep this in view".
+// Its glyph is deliberately not lucide: a Gmail-style filled sharp star, which
+// is why it is the one icon drawn from a path here rather than from ui/icons.
+package star
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// Glyph is the path the star draws, filled rather than outlined so that the
+// hover outline below has a solid shape to trace.
+const Glyph = "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+
+// Props renders a star. Its state lives in two attributes, not in classes:
+// aria-pressed says starred, aria-busy says a flip is in flight and not yet
+// confirmed. A script that flips the star optimistically writes exactly those
+// two attributes, so what the server renders and what the script sets can never
+// disagree about which look applies.
+type Props struct {
+	Attributes templ.Attributes
+	// Class lands last in the merge, so a caller composes context -- a row's
+	// spacing, its grid placement -- onto the star without the star carrying it.
+	Class    string
+	Disabled bool
+	ID       string
+	// Pending renders aria-busy="true": the star shows the state it is heading
+	// to, marked as not yet saved. Starred is that target state.
+	Pending bool
+	Starred bool
+	// Tooltip is a visual label only; the button's aria-label is "Star" unless
+	// Attributes carries one. A toggle keeps one name and lets aria-pressed say
+	// which way it is set.
+	Tooltip string
+	Type    button.Type
+}
+
+templ Star(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.Tooltip != "" {
+		@tooltip.Tooltip(tooltip.Props{Text: p.Tooltip}) {
+			@starElement(p)
+		}
+	} else {
+		@starElement(p)
+	}
+}
+
+// Mark draws the star alone, outlined, for a place that names starred things
+// rather than toggling one -- a sidebar's Starred entry. It takes the props a
+// glyph constructor takes so it slots in where icons.Glyph does.
+func Mark(props ...icons.Props) templ.Component {
+	var p icons.Props
+	if len(props) > 0 {
+		p = props[0]
+	}
+	return mark(p)
+}
+
+templ mark(p icons.Props) {
+	<svg viewBox="0 0 24 24" width={ strconv.Itoa(markSize(p)) } height={ strconv.Itoa(markSize(p)) } fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" class={ p.Class } aria-hidden="true"><path d={ Glyph }></path></svg>
+}
+
+func markSize(p icons.Props) int {
+	if p.Size > 0 {
+		return p.Size
+	}
+	return 24
+}
+
+templ starElement(p Props) {
+	@button.ButtonUnstyled(button.ButtonUnstyledProps{
+		Attributes: p.attributes(),
+		Class:      p.classes(),
+		Disabled:   p.Disabled,
+		ID:         p.ID,
+		Slot:       "star",
+		Type:       p.Type,
+	}) {
+		<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={ Glyph }></path></svg>
+	}
+}
+
+func (p Props) attributes() templ.Attributes {
+	out := templ.Attributes{
+		"aria-label":   "Star",
+		"aria-pressed": utils.IfElse(p.Starred, "true", "false"),
+	}
+	if p.Pending {
+		out["aria-busy"] = "true"
+	}
+	return utils.MergeAttributes(out, p.Attributes)
+}
+
+// --star-color, when an ancestor or the caller's Class sets it, replaces both
+// the resting and the starred colour. The star never sets it itself, so a
+// caller's value is the only declaration of it and wins without a specificity
+// contest against the aria-pressed arm.
+//
+// The hover outline is a stroke painted over the fill in SVG's default order,
+// so the whole stroke shows: centred on the path, half of it lies inside the
+// glyph and covers the fill's edge. Round joins and caps keep the star's points
+// soft rather than mitred. The stroke never touches the path's geometry, so the
+// glyph never moves when the outline appears. It is transparent at rest. On
+// hover it takes the star colour while unpressed and the foreground while
+// pressed: a pressed star is filled with the star colour, so a star-coloured
+// outline would vanish into it. Every hover arm has a focus-visible twin, and
+// that twin is the only focus indicator a keyboard user gets, so the two stay
+// in step.
+//
+// Pending composes from aria-busy and aria-pressed alone. A pending star draws a
+// rim: star-coloured when becoming starred, medium grey when becoming unstarred.
+// The pressed hover arms carry an attribute and a pseudo-class, so they outrank
+// the star-coloured rim; the grey arm carries two attributes, so it outranks the
+// unpressed hover arm and stays grey under the pointer. The fill is the state
+// being headed to -- star colour at half strength when becoming starred, the
+// border fill when becoming unstarred -- and under motion-safe it pulses while
+// the rim holds steady, since only fill-opacity animates. Nothing is drawn
+// behind the glyph. Pending never borrows the disabled look: the button keeps
+// focus and stays clickable-looking, and the script's own busy flag is what
+// blocks a second click.
+func (p Props) classes() string {
+	return utils.TwMerge(
+		"inline-flex size-8 flex-none cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-[color:var(--star-color,var(--color-border))]",
+		"[&_svg]:pointer-events-none [&_svg]:fill-current",
+		"[&_path]:stroke-transparent [&_path]:stroke-[1.5px] [&_path]:[stroke-linecap:round] [&_path]:[stroke-linejoin:round]",
+		"hover:[&_path]:stroke-[color:var(--star-color,var(--color-star))] focus-visible:[&_path]:stroke-[color:var(--star-color,var(--color-star))]",
+		"aria-pressed:text-[color:var(--star-color,var(--color-star))]",
+		"aria-pressed:hover:[&_path]:stroke-foreground aria-pressed:focus-visible:[&_path]:stroke-foreground",
+		"aria-busy:[&_path]:stroke-[color:var(--star-color,var(--color-star))] aria-busy:not-aria-pressed:[&_path]:stroke-muted-foreground",
+		"aria-busy:aria-pressed:text-[color:var(--star-color,var(--color-star))]/50",
+		"motion-safe:aria-busy:[&_path]:animate-star-pending",
+		"disabled:pointer-events-none disabled:opacity-55",
+		p.Class,
+	)
+}

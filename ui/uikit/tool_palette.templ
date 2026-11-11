@@ -1,0 +1,117 @@
+package uikit
+
+import (
+	"cmp"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/inputpill"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type ToolPaletteShellProps struct {
+	ChatOff     bool
+	Placeholder string
+}
+
+// toolPalettePopoutClass is the scrolling card the palette lists its tools in.
+// While the list loads it holds its full height, so the card does not jump as
+// results arrive.
+const toolPalettePopoutClass = "flex max-h-[min(420px,48vh)] min-h-0 flex-[0_1_auto] [scrollbar-width:thin] flex-col flex-nowrap gap-0.5 overflow-hidden rounded-2xl border border-[var(--gm-border)] bg-[var(--mail-floating-surface)] p-0 shadow-[var(--mail-floating-control-shadow)] data-loading:min-h-[min(420px,48vh)] data-loading:flex-auto"
+
+// toolPaletteSlotClass stands the command pill on --spacing-baseline, flush to
+// the tray's bottom edge. The baseline is spelled as its CSS variable rather
+// than as pb-baseline because tailwind-merge does not know the theme's names:
+// a bare pb-baseline survives the merge beside the slot's own
+// pb-[var(--mail-floating-bottom-gap)] and the two then settle on stylesheet
+// order, while the explicit variable replaces it outright. They agree at 14px,
+// so only a device with a deeper safe area would show which one had won.
+const toolPaletteSlotClass = "pt-0 pb-[var(--spacing-baseline)]"
+
+// ToolPaletteShell's command pill is an inputpill, the same parts the chat
+// prompt input is built from, so the two render at one height and corner.
+// The palette script finds every piece of it by its data-more-tools-*
+// attribute. The send button is a stateful Button with two faces, "Chat" and
+// the arrow that runs a ready tool, which squares it off. With chat off the
+// arrow is the only face, so the button starts on it; otherwise the script
+// sets it to run while a tool is ready.
+// toolPaletteSendStates are the send button's two faces.
+var toolPaletteSendStates = []button.IconState{
+	{Label: "Chat", Name: "chat"},
+	{Icon: icons.Send, Label: "Run selected tool", Name: "run"},
+}
+
+templ ToolPaletteShell(props ToolPaletteShellProps) {
+	<div class="relative flex min-h-0 flex-[0_1_auto] flex-col justify-end gap-2.5" data-slot="more-tools">
+	@button.ButtonIcon(button.IconProps{
+		Attributes: templ.Attributes{"data-more-tools-close": true},
+		Class:      "absolute top-2.5 right-2.5 z-[25]",
+		Icon:       icons.Close,
+		Size:       button.IconSizeMd,
+		Tooltip:    "Close",
+	})
+	// The sections and the context header pad their end clear of Close: its
+	// 10px inset and its 32px box (pr-11), or its 44px touch floor below
+	// docked (pr-14).
+	<div class="flex flex-none flex-wrap items-center gap-2.5 pr-11 max-docked:pr-14" data-more-tools-sections></div>
+	<div class={ toolPalettePopoutClass } data-more-tools-popout hidden></div>
+	@ToolBottomSlot(utils.TwMerge(toolPaletteSlotClass, ToolTrayEndClearance)) {
+		@inputpill.InputPill(inputpill.Props{
+			Attributes: templ.Attributes{"data-chat-off": props.ChatOff, "data-more-tools-command": true},
+		}) {
+			@inputpill.Field(inputpill.FieldProps{Attributes: templ.Attributes{
+				"autocomplete":          "off",
+				"data-more-tools-input": true,
+				"placeholder":           cmp.Or(props.Placeholder, utils.IfElse(props.ChatOff, "Choose a tool...", "Choose a tool or ask anything...")),
+			}})
+			@inputpill.Actions() {
+				@button.Button(button.Props{
+					Attributes: templ.Attributes{"data-more-tools-send": true, "hidden": true},
+					Class:      utils.TwMerge("shrink-0", inputpill.ControlHeight),
+					Size:       button.SizeSm,
+					State:      utils.IfElse(props.ChatOff, "run", "chat"),
+					States:     toolPaletteSendStates,
+					Type:       button.TypeSubmit,
+				})
+			}
+		}
+	}
+	</div>
+}
+
+// ToolPaletteContextTemplate ships the palette's context header for script to
+// clone. The header's look belongs to this file rather than to a quoted string
+// in script: a copy there goes stale the moment this changes, which is how it
+// once quietly stopped being bold.
+templ ToolPaletteContextTemplate() {
+	<template id="hcMoreToolsContextTemplate">
+		<div class="z-20 flex flex-none flex-col gap-0 overflow-hidden border-b border-b-[color-mix(in_srgb,var(--border)_82%,var(--primary))] bg-[var(--mail-floating-header-bg)] py-3 pr-11 pl-4 max-docked:pr-14" data-slot="more-tools-context">
+			<div class="flex min-h-7 items-center gap-2">
+				<div class="min-w-0 flex-1">
+					<div class="truncate type-body-300-medium text-foreground" data-tool-title></div>
+				</div>
+			</div>
+		</div>
+	</template>
+}
+
+// ToolPaletteParts holds the pieces script builds as it fills the palette: the
+// list it wraps results in, a section heading, and the message when nothing
+// matches. They are prototypes to clone rather than markup script assembles,
+// so their look sits with the rest of the palette and cannot go stale.
+templ ToolPaletteParts() {
+	<template id="hcMoreToolsPartsTemplate">
+		<div class="flex min-h-0 flex-[0_1_auto] [scrollbar-width:thin] flex-col gap-0.5 overflow-x-hidden overflow-y-auto p-2.5" data-slot="more-tools-list"></div>
+		<div class="flex-none px-2.5 pt-2.5 pb-[5px] type-caption-100-heavy tracking-[0.02em] text-muted-foreground first:pt-0.5" data-slot="more-tools-panel-header"></div>
+		<button type="button" class="flex flex-none cursor-pointer items-center gap-1 self-start rounded-sm px-2.5 pt-2.5 pb-[5px] type-caption-100-heavy tracking-[0.02em] text-muted-foreground outline-none first:pt-0.5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" data-slot="more-tools-back">
+			<span aria-hidden="true" class="flex">
+				@icons.Render(icons.GoBack, icons.Props{Size: 12})
+			</span>
+			<span class="sr-only">Back to all tools: </span>
+			<span data-slot="more-tools-back-label"></span>
+		</button>
+		<div class="px-2.5 py-[22px] text-center type-body-200 text-muted-foreground" data-slot="more-tools-empty"></div>
+		<div class="min-h-[min(420px,48vh)] w-full flex-1" data-slot="more-tools-loading" aria-hidden="true"></div>
+		<div class="px-4 py-6 text-center type-body-200 text-muted-foreground" data-slot="more-tools-unavailable">Tools unavailable</div>
+	</template>
+}

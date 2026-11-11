@@ -1,0 +1,28 @@
+package swiperow
+
+// Caption is an action's one caption.
+templ Caption(text string) {
+	@captions(CaptionClass, text)
+}
+
+// StateCaptions are a stateful button's captions, one per state in the
+// order of its States, each shown while its state is. stateCaptionsClass
+// pairs up to three.
+templ StateCaptions(texts ...string) {
+	@captions(CaptionClass+" "+stateCaptionsClass, texts...)
+}
+
+// ToggleCaptions are a toggle's captions: off while its aria-pressed is not
+// true, on while it is.
+templ ToggleCaptions(off, on string) {
+	@captions(CaptionClass+" "+toggleCaptionsClass, off, on)
+}
+
+// The button's own label names the action, so the caption is not read again.
+templ captions(class string, texts ...string) {
+	<span class={ class } data-swipe-part="caption" aria-hidden="true">
+		for _, text := range texts {
+			<span>{ text }</span>
+		}
+	</span>
+}

@@ -1,0 +1,43 @@
+package uikit
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type DraftBadgeProps struct {
+	Attributes templ.Attributes
+	// Button renders the badge as a button, for a draft the badge itself opens.
+	Button bool
+	Class  string
+	// Slot names the badge's position in its parent. A badge that has no
+	// position of its own is a draft-badge.
+	Slot string
+	Text string
+}
+
+// The pill centres 11px text in an 18px box, and on a baseline-aligned line that
+// reads a shade low against the 14px text beside it: the cap heights disagree
+// even where the baselines agree. pt-0.5 with no bottom padding drops the glyphs
+// 1px inside the pill, which lifts the pill 1px on the line.
+const draftBadgeClass = "inline-flex h-[18px] items-center rounded-[9px] border-0 bg-[#fef3c7] px-[7px] pt-0.5 pb-0 type-caption-100-heavy text-[11px] tracking-[0.02em] text-[#92400e]"
+
+// DraftBadge marks an unsent draft, so it never reads as a sent message.
+templ DraftBadge(props DraftBadgeProps) {
+	if props.Button {
+		<button type="button" class={ utils.TwMerge(draftBadgeClass, "cursor-pointer hover:brightness-94", props.Class) } data-slot={ draftBadgeSlot(props) } { props.Attributes... }>{ draftBadgeText(props) }</button>
+	} else {
+		<span class={ utils.TwMerge(draftBadgeClass, props.Class) } data-slot={ draftBadgeSlot(props) } { props.Attributes... }>{ draftBadgeText(props) }</span>
+	}
+}
+
+func draftBadgeSlot(props DraftBadgeProps) string {
+	if props.Slot == "" {
+		return "draft-badge"
+	}
+	return props.Slot
+}
+
+func draftBadgeText(props DraftBadgeProps) string {
+	if props.Text == "" {
+		return "Draft"
+	}
+	return props.Text
+}

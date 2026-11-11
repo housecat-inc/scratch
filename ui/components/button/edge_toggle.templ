@@ -1,0 +1,242 @@
+// Housecat component (not templui-managed): the control that opens and closes
+// a panel from the edge of the page, pinned to a corner and jutting out of
+// the side it belongs to.
+//
+// It is none of the other three buttons. Button is the page's commitment and
+// sits in the flow of a form. ButtonIcon is a circle that performs one action
+// wherever it is placed. ButtonTool is a quiet square in a row of instruments.
+// An edge toggle is positioned rather than placed: it belongs to an edge, not
+// to a layout, and it is the only affordance for a panel that may be entirely
+// off-screen.
+//
+// The name avoids two words that fit the shape and mislead. "Tab" belongs to
+// tab groups, and this is not one of a set. "Handle" and "grabber" are what
+// GitLab's Pajamas, shadcn and Samsung's edge panels call this control, but
+// all three promise a drag, and this one is a click -- a resizable panel
+// would then own a second, real handle inches away. It is an edge, and it
+// toggles, which is what MoreToggle next door is named after too.
+package button
+
+import (
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// EdgeGlyph is the only glyph size an edge toggle draws. There is one box and
+// one glyph in it, so the size belongs to the component.
+const EdgeGlyph = 16
+
+type Edge string
+
+const (
+	EdgeLeft  Edge = "left"
+	EdgeRight Edge = "right"
+)
+
+// EdgeVariant is Button's Variant narrowed to the two looks an edge toggle is
+// allowed: the page's default commitment, or the quieter secondary fill. Its
+// constants are converted from Button's own, so renaming or removing
+// VariantDefault or VariantSecondary breaks this file at compile time instead
+// of leaving it silently stale, and Button's other typed constants do not
+// convert to it implicitly. An untyped string still does, so variantClasses
+// paints anything other than the two constants with the default fill.
+type EdgeVariant Variant
+
+const (
+	EdgeVariantDefault   EdgeVariant = EdgeVariant(VariantDefault)
+	EdgeVariantSecondary EdgeVariant = EdgeVariant(VariantSecondary)
+)
+
+// variantClasses takes Button's paint for the variant of the same name, so an
+// edge toggle's fill matches that Button by construction, with no class
+// strings copied here to drift out of sync. The surface then overrides what
+// an edge toggle does differently -- its shadow, and the border on its flat
+// side -- on top. A value that is neither constant -- the zero value or an
+// unknown name -- takes the default fill.
+func (v EdgeVariant) variantClasses() string {
+	if v != EdgeVariantSecondary {
+		v = EdgeVariantDefault
+	}
+	return variantPaint(Variant(v))
+}
+
+// EdgeToggleProps has no Tooltip field, not because a tooltip is unwanted
+// here but because a static string cannot say it: a caller whose tooltip
+// text changes with the panel's own state -- the mail chat rail's toggle
+// says "Open chat" or "Close chat" depending on the drawer it sits beside --
+// has to own the tooltip's markup itself, composing it from
+// ui/components/tooltip's Root/Trigger/Positioner/Popup parts around this
+// component, so it can bind the text to that state directly. Label still
+// reaches a screen reader through aria-label for a caller with nothing
+// state-dependent to say.
+type EdgeToggleProps struct {
+	Attributes templ.Attributes
+	// Badge draws in the surface's upper-right corner. The toggle's
+	// aria-describedby points at it when ID is set, so the badge's accessible
+	// text, if any, is read as the toggle's description; a badge that draws
+	// nothing adds nothing.
+	Badge templ.Component
+	Class string
+	Edge  Edge
+	// Expanded drives aria-expanded, so the button reports the panel's state
+	// rather than its own. Script flips it alongside the panel.
+	Expanded bool
+	// Icon and Text name the panel on a collapsed toggle, glyph first. An
+	// expanded toggle draws a chevron pointing into its edge instead, the way
+	// the panel leaves.
+	Icon    icons.Name
+	ID      string
+	Label   string
+	Text    string
+	Variant EdgeVariant
+}
+
+templ EdgeToggle(props ...EdgeToggleProps) {
+	{{ var p EdgeToggleProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.Edge == "" {
+		{{ p.Edge = EdgeRight }}
+	}
+	@ButtonUnstyled(ButtonUnstyledProps{
+		Attributes: p.attributes(),
+		Class:      p.classes(),
+		ID:         p.ID,
+		Slot:       "edge-toggle",
+	}) {
+		<span class={ p.surfaceClasses() } data-slot="edge-toggle-surface">
+			<span class={ p.contentClasses() } data-slot="edge-toggle-content">
+				<span class="flex items-center gap-1.5 group-aria-expanded/edge-toggle:hidden" data-slot="edge-toggle-name">
+					if p.Icon != "" {
+						@icons.Render(p.Icon, icons.Props{Size: EdgeGlyph})
+					}
+					<span class="type-body-200-medium whitespace-nowrap" data-slot="edge-toggle-text">{ p.Text }</span>
+				</span>
+				<span class="hidden group-aria-expanded/edge-toggle:flex" data-slot="edge-toggle-glyph">
+					@icons.Render(p.collapseIcon(), icons.Props{Size: EdgeGlyph})
+				</span>
+			</span>
+			if p.Badge != nil {
+				<span
+					if p.badgeID() != "" {
+						id={ p.badgeID() }
+					}
+					class={ p.badgeClasses() }
+					data-slot="edge-toggle-badge"
+				>
+					@p.Badge
+				</span>
+			}
+		</span>
+	}
+}
+
+func (p EdgeToggleProps) collapseIcon() icons.Name {
+	return utils.IfElse(p.Edge == EdgeLeft, icons.CollapseLeft, icons.CollapseRight)
+}
+
+// classes stands the toggle on --spacing-baseline at --spacing-pill tall, so
+// beside an input pill on the same floor the two are one height with one
+// bottom edge. A collapsed toggle is as wide as its text needs and never
+// narrower than an expanded one; an expanded toggle is exactly
+// --spacing-edge-toggle wide, the width a narrow panel leaves free for it.
+// Both follow aria-expanded, which the page's script flips without a
+// re-render, so they are read from the attribute in CSS rather than from
+// Expanded.
+//
+// The clip-path is overflow hidden on the flat side alone: an inset of 0 on
+// that side and a negative inset on the other three, generous enough that the
+// surface's shadow and focus ring are never cut on the rounded side. Overflow
+// cannot clip one side only, and clipping the whole box would cut the shadow.
+func (p EdgeToggleProps) classes() string {
+	return utils.TwMerge(
+		"absolute bottom-baseline z-[75] h-pill min-w-edge-toggle cursor-pointer outline-none group/edge-toggle aria-expanded:w-edge-toggle",
+		utils.IfElse(p.Edge == EdgeLeft, "left-0 [clip-path:inset(-1rem_-1rem_-1rem_0)]", "right-0 [clip-path:inset(-1rem_0_-1rem_-1rem)]"),
+		p.Class,
+	)
+}
+
+func (p EdgeToggleProps) attributes() templ.Attributes {
+	attrs := templ.Attributes{
+		"aria-expanded": utils.IfElse(p.Expanded, "true", "false"),
+		"aria-label":    p.Label,
+		"data-edge":     string(p.Edge),
+	}
+	if id := p.badgeID(); id != "" {
+		attrs["aria-describedby"] = id
+	}
+	return utils.MergeAttributes(attrs, p.Attributes)
+}
+
+func (p EdgeToggleProps) badgeID() string {
+	if p.Badge == nil || p.ID == "" {
+		return ""
+	}
+	return p.ID + "-badge"
+}
+
+// badgeClasses tucks the badge into the surface's visible upper-right
+// corner, one step in from either side, above and beside the label's end
+// rather than on it. A right-edge surface runs one spacing step past the
+// button's flat right side, so its badge sits one step further in, inside the
+// clip rather than sliced by it.
+func (p EdgeToggleProps) badgeClasses() string {
+	return utils.TwMerge(
+		"pointer-events-none absolute top-1 flex",
+		utils.IfElse(p.Edge == EdgeLeft, "right-1", "right-2"),
+	)
+}
+
+// surfaceClasses paints the toggle and, collapsed, slides it out of its edge
+// by one step on hover and focus-visible, a tab peeking further out to say a
+// click opens the panel. The direction follows aria-expanded, which the
+// page's script flips without a re-render, so it is read from the attribute
+// in CSS rather than from Expanded.
+//
+// The surface is in flow, so a collapsed button is as wide as its content,
+// and runs one step past the flat side on a negative margin, where the
+// button's clip hides it at rest. Sliding out brings that hidden strip into
+// view, so the tab reaches further out of its edge rather than coming away
+// from it. The overhang, its extra padding on the flat side and the slide
+// have to stay the same length, or a gap opens at the edge or the content
+// sits off centre.
+//
+// Only the surface moves, and only outward past the rounded side, where the
+// button's clip is generous: the button under the pointer holds still, and
+// the strip the surface slides over is still the button's own descendant, so
+// hover cannot flicker off and on.
+//
+// Collapsed, the padding on the flat side is --entry-list-p-r or
+// --entry-list-p-l beyond the overhang, so the label ends on the same line as
+// the rows and headers of the page it sits on. Expanded, the padding is even
+// and the chevron centres in the --spacing-edge-toggle wide face.
+//
+// Reduced motion keeps the movement and drops only its animation.
+func (p EdgeToggleProps) surfaceClasses() string {
+	return utils.TwMerge(
+		p.Variant.variantClasses(),
+		"relative flex h-full items-center justify-center shadow-md transition-colors group-focus-visible/edge-toggle:border-background group-focus-visible/edge-toggle:ring-2 group-focus-visible/edge-toggle:ring-ring motion-safe:transition-[color,background-color,border-color,box-shadow,translate]",
+		utils.IfElse(
+			p.Edge == EdgeLeft,
+			"-ml-1 squircle-r-lg border-l-0 pr-3 pl-4 group-aria-[expanded=false]/edge-toggle:pl-[calc(var(--entry-list-p-l)+var(--spacing))] group-aria-[expanded=false]/edge-toggle:group-hover/edge-toggle:translate-x-1 group-aria-[expanded=false]/edge-toggle:group-focus-visible/edge-toggle:translate-x-1",
+			"-mr-1 squircle-l-lg border-r-0 pr-4 pl-3 group-aria-[expanded=false]/edge-toggle:pr-[calc(var(--entry-list-p-r)+var(--spacing))] group-aria-[expanded=false]/edge-toggle:group-hover/edge-toggle:-translate-x-1 group-aria-[expanded=false]/edge-toggle:group-focus-visible/edge-toggle:-translate-x-1",
+		),
+	)
+}
+
+// contentClasses leans an expanded toggle's chevron one step toward its flat
+// side on hover and focus-visible, the way a click sends the panel. The face
+// holds still, since the panel it hangs from is what will move.
+//
+// Reduced motion keeps the movement and drops only its animation.
+func (p EdgeToggleProps) contentClasses() string {
+	return utils.TwMerge(
+		"flex items-center motion-safe:transition-[translate]",
+		utils.IfElse(
+			p.Edge == EdgeLeft,
+			"group-aria-expanded/edge-toggle:group-hover/edge-toggle:-translate-x-1 group-aria-expanded/edge-toggle:group-focus-visible/edge-toggle:-translate-x-1",
+			"group-aria-expanded/edge-toggle:group-hover/edge-toggle:translate-x-1 group-aria-expanded/edge-toggle:group-focus-visible/edge-toggle:translate-x-1",
+		),
+	)
+}

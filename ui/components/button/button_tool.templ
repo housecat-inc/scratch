@@ -1,0 +1,126 @@
+// Housecat component (not templui-managed): the tool button, for a control
+// that acts on something already on screen rather than submitting or
+// navigating -- a formatting command, a reader action, a view switch.
+package button
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// ToolGlyph is the only glyph size a tool button draws. The box is 28px and
+// there is one of it, so the size is the component's rather than a prop: a
+// caller that could choose would be choosing how full the box looks.
+const ToolGlyph = 16
+
+// ButtonTool is the third button look, and deliberately unlike the other two.
+// Button is the page's commitment -- filled, 36px, a pill. ButtonIcon is a
+// circle, and says "one action, no label". A tool button is neither: it is
+// quiet until you reach for it, it is squared off rather than round so a run of
+// them reads as one instrument instead of a row of separate controls, and it
+// takes an icon and a label together, because half the tools in this app want
+// both and the other half want the glyph alone.
+//
+// It is also the only button with a pressed look. A tool is usually a state --
+// bold is on, the list is showing -- and aria-pressed is what says so to a
+// screen reader, so the styling keys off that attribute rather than a class,
+// and the two cannot drift apart. Toggle renders it; script flips it.
+//
+// Nothing here assumes the toolbar grouping. A tool button inside one is
+// toolbar.Button, which is this component plus the toolbar's own item marker,
+// but the look is reachable on its own wherever a quiet square control is the
+// right one.
+type ToolProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Disabled   bool
+	Form       string
+	Href       string
+	// Icon draws before the children, and is the whole button when there are
+	// none. Children without an icon are fine too -- a tool whose name is
+	// shorter than any glyph for it would be honest.
+	Icon   icons.Name
+	ID     string
+	Slot   string
+	Target string
+	// Toggle says this tool is a state rather than an action, which renders
+	// aria-pressed="false" and lights the pressed style once something sets it
+	// true. An action left alone announces itself as an action, which is what
+	// the link and clear-formatting buttons are.
+	Toggle bool
+	// Tooltip is the label shown while the pointer rests on the button or it
+	// holds keyboard focus. A tool button with no children has no text, so the
+	// same words become its aria-label unless Attributes carries one already.
+	Tooltip string
+	Type    Type
+}
+
+templ ButtonTool(props ...ToolProps) {
+	{{ var p ToolProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.Tooltip != "" {
+		@tooltip.Tooltip(tooltip.Props{Text: p.Tooltip}) {
+			@buttonToolElement(p) {
+				{ children... }
+			}
+		}
+	} else {
+		@buttonToolElement(p) {
+			{ children... }
+		}
+	}
+}
+
+templ buttonToolElement(p ToolProps) {
+	@ButtonUnstyled(ButtonUnstyledProps{
+		Attributes: p.attributes(),
+		Class:      p.classes(),
+		Disabled:   p.Disabled,
+		Form:       p.Form,
+		Href:       p.Href,
+		ID:         p.ID,
+		Slot:       utils.IfElse(p.Slot != "", p.Slot, "button-tool"),
+		Target:     p.Target,
+		Type:       p.Type,
+	}) {
+		if p.Icon != "" {
+			@icons.Render(p.Icon, icons.Props{Size: ToolGlyph})
+		}
+		{ children... }
+	}
+}
+
+func (b ToolProps) attributes() templ.Attributes {
+	out := templ.Attributes{}
+	if b.Toggle {
+		out["aria-pressed"] = "false"
+	}
+	if b.Tooltip != "" {
+		out["aria-label"] = b.Tooltip
+	}
+	return utils.MergeAttributes(out, b.Attributes)
+}
+
+// A lone glyph sits in a square and a label widens the box. Below docked
+// compactFloorClass raises the 28px minimum to 44px on both axes.
+//
+// The pressed fill is bg-muted rather than the hover's bg-ghost-hover, so a
+// pressed tool under the pointer still reads as pressed. Both are neutral: this
+// theme defines --accent as --primary, so shadcn's ghost would paint a teal
+// fill on a button that started transparent.
+func (b ToolProps) classes() string {
+	return utils.TwMerge(
+		"inline-flex h-7 min-w-7 shrink-0 cursor-pointer items-center justify-center gap-1 px-1.5",
+		compactFloorClass,
+		"squircle-sm type-caption-100-medium whitespace-nowrap text-muted-foreground transition-all squircle-amt-1",
+		"[&_svg]:pointer-events-none [&_svg]:shrink-0",
+		"hover:bg-ghost-hover hover:text-foreground",
+		"aria-pressed:bg-muted aria-pressed:text-foreground",
+		"outline-none focus-visible:ring-2 focus-visible:ring-ring",
+		"disabled:pointer-events-none disabled:opacity-50",
+		b.Class,
+	)
+}

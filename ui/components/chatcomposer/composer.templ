@@ -1,0 +1,397 @@
+// Package chatcomposer renders the chat input region: the send-error slot,
+// the prompt pill, the model picker and the composer wiring that reports
+// sending and queued state to the surrounding chat. It is container-query
+// responsive rather than viewport responsive, because the same composer
+// renders at very different widths on one viewport -- narrow inside the mail
+// chat rail, wide inside /codex -- and a media query cannot tell those apart.
+package chatcomposer
+
+import (
+	"cmp"
+	"strconv"
+	"strings"
+
+	"github.com/housecat-inc/scratch/ui/components/inputpill"
+	"github.com/housecat-inc/scratch/ui/components/promptinput"
+	"github.com/housecat-inc/scratch/ui/components/selectbox"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// SendGlyph is the size of the submit button's glyph, matching the other
+// small icon buttons in the app that sit inside an h-8 control.
+const SendGlyph = 16
+
+// stateExpression is the live readout of the composer's send/queue state,
+// shared by the label text and the button's tooltip so a hover at any width
+// says the same thing a sighted user at full width reads directly.
+const stateExpression = "data.sending ? 'Sending…' : data.working ? 'Queue message' : 'Send'"
+
+// stateLive derives the composer's run state from the chat around it.
+//
+// A turn is running while the chat header says so, and also from the moment
+// a send is submitted, before any header can: the header only changes with
+// the server's next transcript frame, seconds later, while the outgoing
+// bubble exists from the submit and keeps its dismiss control hidden unless
+// the send fails. A bubble whose send was queued is left out, since a queued
+// message starts no turn of its own.
+//
+// working adds visible queued messages to running, because a send while the
+// queue holds anything is queued too, so it drives the Send label. Stop
+// follows running alone: a paused queue has nothing to stop.
+//
+// The stop URL prefers the pending send's own turn, which is newer than any
+// turn the header has seen. stopReady is a running turn whose URL is known:
+// only then can Stop act, so only then does it take Send's place. When Stop
+// hides while it holds focus, focus returns to the field rather than falling
+// to the body, the same place a send leaves it.
+const stateLive = `const chat = this.closest('[data-chat]');
+const status = chat?.querySelector('[data-chat-status]');
+const sends = Array.from(chat?.querySelectorAll('[data-outgoing]') ?? [], bubble => ({dismiss: bubble.querySelector('[data-outgoing-dismiss]'), result: bubble.querySelector('[data-outgoing-result]')})).filter(send => send.dismiss?.hidden && (!send.result || send.result.dataset.queueId === '0'));
+const running = ['active', 'waiting'].includes(status?.dataset.chatStatus) || sends.length > 0;
+data.running = running;
+data.working = running || !!chat?.querySelector('[data-queued-message]:not([hidden])');
+data.stopUrl = sends.map(send => send.result?.dataset.stopUrl).findLast(Boolean) || status?.dataset.chatStopUrl || '';
+data.stopReady = running && !!data.stopUrl;
+data.unavailable = !!status?.dataset.chatError;
+if (!data.stopReady && document.activeElement === this.querySelector('[data-chat-composer-stop]')) this.querySelector('[data-slot=chat-composer-editor], [data-prompt-field]').focus({preventScroll: true})`
+
+// sendPrompt is the composer's offer to whatever a caller renders through
+// Above: an element inside the composer carrying data-prompt sends that value
+// when clicked. PromptAttributes makes the same offer to an element elsewhere
+// in the chat, which finds the chat's composer from where it sits. The composer owns the handler because it owns the field -- a
+// sibling component reaching in for [data-prompt-field] would couple itself to
+// promptinput's internals through a third component's markup.
+//
+// In a chat -- the same test the form's hx-on:submit makes -- the value goes
+// to housecatCodexSubmit as the message itself and never through the field,
+// which holds the user's own draft: a click on a prompt sends the prompt and
+// leaves the draft, in the field and in storage, as it was. It sends nothing
+// while the chat is unavailable or the field disabled or read-only, the same
+// states that keep Send disabled.
+//
+// Anywhere else the value goes through the field. The input event has to be
+// dispatched and has to bubble. The field's own hx-on:input derives
+// data.message and data.empty from it, which is what un-disables Send, and
+// promptinput's autogrow resizes from it; a value set without it leaves a
+// filled box that cannot be sent and does not grow.
+//
+// The submit waits a frame because those are the same derived values the send
+// path guards on, and hx-live has not recomputed them by the time dispatchEvent
+// returns: submitting in the same tick reads a Send button still disabled from
+// the empty box and does nothing. The frame later it is the ordinary send --
+// requestSubmit through the pill's own submit button, which is the path the
+// Enter key takes, guarded the same way so a disabled or read-only composer
+// stays unsendable.
+const sendPrompt = `const chip = event.target.closest('[data-prompt]');
+const composer = this.closest('[data-chat-composer]') || this.closest('[data-chat]')?.querySelector('[data-chat-composer]');
+if (!chip || !composer) return;
+const form = composer.querySelector('[data-chat-form]');
+const field = composer.querySelector('[data-prompt-field]');
+if (form.closest('[data-chat]')?.querySelector('[data-outgoing-list]')) {
+ if (composer.dataset.unavailable !== 'true' && !field.disabled && !field.readOnly) window.housecatCodexSubmit(form, chip.dataset.prompt);
+ return;
+}
+field.value = chip.dataset.prompt;
+field.dispatchEvent(new Event('input', {bubbles: true}));
+composer.querySelector('[data-slot=chat-composer-editor], [data-prompt-field]').focus({preventScroll: true});
+requestAnimationFrame(() => {
+ const submit = form.querySelector('[data-prompt-submit]');
+ if (!submit.disabled && !field.disabled && !field.readOnly && field.value.trim()) form.requestSubmit(submit);
+})`
+
+// sendAttributes carries sendPrompt as a map entry because templ reads an
+// hx-on: attribute written as a { expression } as a ComponentScript rather than
+// a string, the same reason promptinput builds its own handlers this way.
+func sendAttributes() templ.Attributes {
+	return templ.Attributes{"hx-on:click": sendPrompt}
+}
+
+// PromptAttributes are for an element of a chat outside its composer, such as
+// a new chat's starter prompts in the transcript: a click on a data-prompt
+// inside it sends the prompt through the chat's composer, as sendPrompt does.
+func PromptAttributes() templ.Attributes {
+	return sendAttributes()
+}
+
+type ModelOption struct {
+	Description string
+	Label       string
+	Value       string
+}
+
+type Props struct {
+	// Above renders inside the composer's padded box, over the send-error
+	// slot, so a caller's own content stands on the composer's edge tokens and
+	// inside its container query rather than re-deriving both. It stays inside
+	// this one root element, which the composer's own out-of-band swap
+	// (HX-Retarget to the nearest [data-chat-composer], swapping outerHTML)
+	// relies on. Anything it renders carrying data-prompt sends that value on
+	// click -- see sendPrompt.
+	Above      templ.Component
+	Attributes templ.Attributes
+	Class      string
+	Context    templ.Component
+	// FieldAttributes go on the prompt field itself, for a caller that marks
+	// the field for another feature to find, as the first-run tour does. The
+	// composer's own hx-on:input and maxlength win over any it repeats, since
+	// Send reads what that hx-on:input derives.
+	FieldAttributes templ.Attributes
+	ID              string
+	Model           string
+	ModelOptions    []ModelOption
+	Placeholder     string
+	SelectedID      string
+	// StopURL is where the stop control posts for the turn running when the
+	// composer renders, and is empty when none is. It is only the starting
+	// value: the composer sits outside the transcript the server keeps
+	// current, so from then on stateLive derives it from the chat.
+	StopURL   string
+	SubmitURL string
+}
+
+// The form's own hx-on:htmx:before:request/error/finally:request handlers
+// all start with an event.target !== this guard, because htmx's lifecycle
+// events bubble: without it, this form's own empty-draft guard -- meant to
+// veto only this form's own submission -- would also veto stopButton's
+// independent hx-post the moment its request bubbles through on the way up,
+// which happens to be exactly when the composer is empty, exactly the one
+// state stopButton is shown in. The guard scopes each handler back to
+// events this form itself actually triggered.
+//
+// Composer's root is two elements, not one, and that split is load-bearing:
+// a container query resolves against the nearest ANCESTOR container, never
+// against the element carrying `container-type` itself. So the outer div
+// below is purely the thing being measured -- @container plus the
+// non-responsive box that sizes it (mx-auto/w-full/max-w-4xl/shrink-0) and
+// the composer state this composer reports -- and carries no `@md:` class of
+// its own; everything inside it, such as the submit label's `@md:` reveal,
+// responds to it. Collapsing them back into one element compiles and looks
+// identical in a Configurable story, but it silently turns off every `@md:`
+// rule in the pill (see TestContainerElementCarriesNoMDClasses).
+//
+// The inner div's horizontal padding is the --entry-list-p-* edge token, not
+// a container-query step, so the composer starts from the same edge as the
+// chat header and transcript above it and moves with them when a theme or
+// breakpoint changes the token. Its bottom padding is --spacing-baseline, so
+// a composer at the foot of the screen stands its pill on the same floor as
+// the edge toggle and the mail command palette.
+templ Composer(props Props) {
+	<div
+		id={ cmp.Or(props.ID, "chat") + "-composer-" + props.SelectedID }
+		class={ utils.TwMerge("@container mx-auto w-full max-w-4xl shrink-0 group/composer", props.Class) }
+		data-chat-composer
+		data-scroll-fade-part="footer"
+		data-empty="true"
+		data-message=""
+		data-running={ strconv.FormatBool(props.StopURL != "") }
+		data-sending="false"
+		data-stop-ready={ strconv.FormatBool(props.StopURL != "") }
+		data-stop-url={ props.StopURL }
+		data-working={ strconv.FormatBool(props.StopURL != "") }
+		data-unavailable="false"
+		hx-live={ stateLive }
+		{ sendAttributes()... }
+		{ props.Attributes... }
+	>
+		<div class="pt-3 pr-[var(--entry-list-p-r)] pb-baseline pl-[var(--entry-list-p-l)]">
+			if props.Above != nil {
+				@props.Above
+			}
+			@SendError("")
+			@promptinput.PromptInput(promptinput.In{
+				Above:    props.Context,
+				AutoGrow: true,
+				Attributes: templ.Attributes{
+					"action":                     props.SubmitURL,
+					"data-chat-form":             "",
+					"hx-live:aria-busy":          "data.sending",
+					"hx-on:submit":               "if (this.closest('[data-chat]')?.querySelector('[data-outgoing-list]')) { event.preventDefault(); event.stopImmediatePropagation(); window.housecatCodexSubmit(this) }",
+					"hx-on:htmx:before:request":  "if (event.target !== this) return; if (data.unavailable || !data.message.trim()) { event.preventDefault(); return; } data.sending = true; this.closest('[data-chat-composer]').querySelector('[data-chat-send-error]').textContent = ''",
+					"hx-on:htmx:error":           "if (event.target !== this) return; this.closest('[data-chat-composer]').querySelector('[data-chat-send-error]').textContent = 'Unable to send. Please try again.'",
+					"hx-on:htmx:finally:request": "if (event.target !== this) return; data.sending = false",
+					"hx-status:4xx":              `{"target":"previous [data-chat-send-error]","swap":"outerHTML"}`,
+					"hx-status:5xx":              `{"target":"previous [data-chat-send-error]","swap":"outerHTML"}`,
+					"hx-post":                    props.SubmitURL,
+					"hx-swap":                    "outerHTML",
+					"hx-sync":                    "this:drop",
+					"hx-target":                  "closest [data-chat]",
+					"method":                     "post",
+				},
+				Below: modelPickerSlot(props),
+				InputAttributes: utils.MergeAttributes(props.FieldAttributes, templ.Attributes{
+					"hx-on:input": "data.message = this.value; data.empty = !this.value.trim()",
+					"maxlength":   "16000",
+				}),
+				Placeholder:   props.Placeholder,
+				SubmitClass:   "group-data-[stop-ready=true]/composer:group-data-[empty=true]/composer:hidden",
+				SubmitContent: submitContent(),
+				SubmitOnEnter: true,
+				SubmitAttributes: templ.Attributes{
+					"disabled":         true,
+					"hx-live:disabled": "data.unavailable || !data.message.trim()",
+				},
+				SubmitTooltip:           "Send",
+				SubmitTooltipAttributes: templ.Attributes{"hx-live:text": stateExpression},
+			}) {
+				@stopButton(props.StopURL)
+			}
+		</div>
+	</div>
+}
+
+// SendError is the composer's out-of-band error slot. It renders here, ahead
+// of the pill, so an HX-Retarget/outerHTML swap targeting
+// "previous [data-chat-send-error]" from the submit form always finds it as
+// the form's immediately preceding sibling. codex.SendError delegates to
+// this so the markup exists in exactly one place.
+templ SendError(message string) {
+	<p class="mb-2 type-caption-100 text-destructive empty:hidden" data-chat-send-error role="alert">{ message }</p>
+}
+
+// modelPickerSlot returns a literal nil when there are no options, because a
+// templ component func is never nil: PromptInput would otherwise take any
+// composer, including every existing thread's, as having something below
+// its field and give it the two-column pill.
+func modelPickerSlot(props Props) templ.Component {
+	if len(props.ModelOptions) == 0 {
+		return nil
+	}
+	return modelPicker(props)
+}
+
+// modelPicker sits under the text field at every width, with Send in its own
+// column. Its trigger is as wide as the longest model label whichever is
+// chosen, so choosing a model never reflows the row it stands in. It pops up
+// above the trigger, since the composer stands at the foot of the screen,
+// and aligns to its start, since the trigger stands at the pill's left.
+templ modelPicker(props Props) {
+	@selectbox.Root(selectbox.RootProps{
+		ID:    cmp.Or(props.ID, "chat") + "-composer-" + props.SelectedID + "-model",
+		Items: modelEntries(props.ModelOptions),
+		Label: "Model",
+		Name:  "model",
+		Value: props.Model,
+	}) {
+		@selectbox.Trigger(selectbox.TriggerProps{Class: utils.TwMerge(selectbox.TriggerTextStart, triggerFit), Look: selectbox.LookPill, Size: selectbox.SizeXs}) {
+			@selectbox.Value(selectbox.ValueProps{Class: "min-w-0 [&>span]:truncate"})
+		}
+		@selectbox.Positioner(selectbox.PositionerProps{Align: selectbox.AlignStart, Side: selectbox.SideTop}) {
+			@selectbox.Popup(selectbox.PopupProps{}) {
+				for _, option := range props.ModelOptions {
+					@selectbox.Item(selectbox.ItemProps{Description: option.Description, Value: option.Value}) {
+						{ itemLabel(option) }
+					}
+				}
+			}
+		}
+	}
+}
+
+// itemLabel is an option's label as its list item shows it. A label that ends
+// in " — " plus the option's own description would say the description twice,
+// since the item already prints it beneath, so the item drops that tail; the
+// trigger shows the full label, where no description sits under it.
+// itemLabel drops the tail a label repeats from its own Description, so the
+// open list does not say the same thing twice on two lines. It cuts at the
+// last separator, not the first: a label names more than the model -- the lab
+// in front of it, say -- and cutting at the first would leave the description
+// inside the part it keeps and stop recognising it.
+func itemLabel(option ModelOption) string {
+	cut := strings.LastIndex(option.Label, " — ")
+	if cut < 0 || option.Description == "" {
+		return option.Label
+	}
+	name, rest := option.Label[:cut], option.Label[cut+len(" — "):]
+	if strings.EqualFold(strings.TrimSpace(rest), strings.TrimSpace(option.Description)) {
+		return name
+	}
+	return option.Label
+}
+
+// triggerFit lets the closed picker give way rather than push. Its width is the
+// widest label -- Value draws them all in one cell, so the row never reflows on
+// a choice -- and a selectbox trigger is shrink-0, so in a pill narrower than
+// that label the row would run under Send and take the presses meant for the
+// field. w-max asks for that full width and shrink lets the flex row take it
+// back, which cuts the label with an ellipsis rather than pushing. Every label
+// stays whole in the markup and in the open list.
+const triggerFit = "w-max min-w-0 shrink"
+
+// modelEntries is what the closed picker reads its text from; the open list's
+// text is Item's own children.
+func modelEntries(options []ModelOption) []selectbox.Entry {
+	entries := make([]selectbox.Entry, len(options))
+	for i, option := range options {
+		entries[i] = selectbox.Entry{Label: option.Label, Value: option.Value}
+	}
+	return entries
+}
+
+// submitContent replaces PromptInput's default plain-text submit label with
+// a glyph plus a reactive label. The live hx-live:text readout lives on the
+// data-prompt-submit-label span specifically -- not the button as a whole --
+// so a test (or a screen reader) that wants the state text has a stable,
+// icon-free hook to read, rather than the button's full textContent, which
+// now also contains the glyph's SVG markup. That span is kept in the DOM at
+// every width and hidden only visually (sr-only, restored at @md:) so a
+// screen reader user loses nothing when the button goes icon-only. A sighted
+// user at a narrow width has no room for that text, so the glyph itself
+// carries the state instead: the default arrow swaps for the queue arrow,
+// the same arrow stopped at a line, while the message would be queued rather
+// than sent immediately (data-working), and either gets a busy/pulse
+// treatment while the request for this submit is in flight (data-sending).
+// While a turn runs with nothing typed (data-working and data-empty) the
+// button is disabled with nothing to queue, so both give way to a spinner
+// that says the chat is busy until Stop or a reply takes the slot.
+templ submitContent() {
+	<span class="inline-flex items-center gap-1.5">
+		<span aria-hidden="true" class="group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="send">
+			@icons.Render(icons.Send, icons.Props{Size: SendGlyph})
+		</span>
+		<span aria-hidden="true" class="hidden group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:inline-flex group-data-[working=true]/composer:group-data-[empty=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="queue">
+			@icons.Render(icons.Queue, icons.Props{Size: SendGlyph})
+		</span>
+		<span aria-hidden="true" class="hidden group-data-[working=true]/composer:group-data-[empty=true]/composer:inline-flex motion-safe:animate-spin" data-prompt-submit-glyph="waiting">
+			@icons.Render(icons.Waiting, icons.Props{Size: SendGlyph})
+		</span>
+		<span class="sr-only @md:not-sr-only" data-prompt-submit-label hx-live:text={ stateExpression }>Send</span>
+	</span>
+}
+
+// stopButton takes the send button's slot while data-stop-ready and
+// data-empty agree that a running turn can be stopped and nothing is typed to
+// send instead. Typing a follow-up hands the slot back to the queue/send
+// button (SubmitClass in Composer hides this one), since submitting that text
+// is the useful action and stopping need not compete with it.
+//
+// It posts to data-stop-url, which stateLive keeps pointed at the running
+// turn. Between a submit and the server naming the new turn there is no URL
+// yet, so the slot keeps the send button, disabled because the field is
+// empty, and Stop appears only once it can act. The before:request guard
+// still refuses an empty action, so a stale click never posts to the page.
+//
+// A click hands focus to the field before hx-disable disables the button,
+// which would otherwise drop keyboard focus to the body mid-request.
+//
+// It never swaps its own markup (hx-swap="none"): the turn stopping is what
+// flips data-running back to false, through the transcript's SSE stream, and
+// that is what hides it again.
+templ stopButton(url string) {
+	@tooltip.Tooltip(tooltip.Props{Text: "Stop"}) {
+		<button
+			type="button"
+			aria-label="Stop"
+			class={ utils.TwMerge(inputpill.ControlHeight, "squircle-pill hidden shrink-0 items-center justify-center gap-1.5 border border-destructive bg-destructive px-3 type-body-200-medium text-primary-foreground shadow-xs group-data-[stop-ready=true]/composer:group-data-[empty=true]/composer:inline-flex hover:bg-destructive-hover focus-visible:border-background focus-visible:ring-2 focus-visible:ring-destructive/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50") }
+			data-chat-composer-stop
+			hx-post={ url }
+			hx-live:hx-post="data.stopUrl"
+			hx-swap="none"
+			hx-disable="this"
+		>
+			@icons.Render(icons.Stop, icons.Props{Size: SendGlyph})
+			<span class="sr-only @md:not-sr-only">Stop</span>
+		</button>
+	}
+}

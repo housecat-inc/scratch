@@ -1,0 +1,238 @@
+package codex
+
+import (
+	"cmp"
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/bottomfade"
+	"github.com/housecat-inc/scratch/ui/components/chatcomposer"
+	"github.com/housecat-inc/scratch/ui/components/chatsuggestions"
+	"github.com/housecat-inc/scratch/ui/components/headerbar"
+ "github.com/housecat-inc/scratch/ui/components/linkchip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/components/tour"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+
+type ChatIn struct {
+	Automated         map[string]bool
+	DeleteURL         string
+	DocumentTitle     bool
+	Error             string
+	EventsURL         string
+	EventsURLTemplate string
+	// History is how the chat records its messages: HistoryPagesInText
+	// (also zero) or HistoryPagesApart.
+	History int
+	// HistoryElement marks the chat as the page's hx-history-elt, the one
+	// element htmx swaps a back/forward restore into. Only a page whose whole
+	// content is the chat sets it: on a page where the chat is one panel, the
+	// restore would land in the chat and leave the rest of the page stale.
+	HistoryElement    bool
+	ID                string
+	LinkOrigins       []string
+	LinkPath          string
+	LinkPaths         []string
+	LinkTarget        string
+	Model             string
+	ModelOptions      []ModelOption
+	NewChatURL        string
+	PageURL           string
+	// Pages is the page each user message was sent from, by client id. The
+	// message's text is only what the user typed; its page shows after it
+	// as a link.
+	Pages             map[string]string
+	Notices []ChatNotice
+	NoticeError string
+	PromptPlaceholder string
+	QueueURL          string
+	QueueURLTemplate  string
+	TokenCount        string
+	SelectedID        string
+	// SendsURL answers what became of messages the page sent, by client id;
+	// Outgoing asks it about saved messages it cannot find in the chat.
+	SendsURL          string
+	Status            string
+	StopURL           string
+	SubmitURL         string
+	SubmitURLTemplate string
+	Title             string
+	Turns             []ChatTurn
+	// Unrecorded is a chat the app server cannot list turns for yet, because
+	// it has not written the first message. The sender's optimistic bubble
+	// stands in for that message, so the transcript claims nothing, not even
+	// that there are no messages.
+	Unrecorded bool
+	// User is an opaque id for the signed-in user. Outgoing's saved drafts
+	// and unsent messages are kept under it, so a tab that changes hands at
+	// sign-in never shows one user's text to another.
+	User string
+}
+
+type ModelOption struct {
+	Description string
+	Label       string
+	Value       string
+}
+
+// Chat is a chat panel. The mail rail's panel replaces a fetch in flight
+// with the next one (TestChatPanelSync): ChatRailScript fetches a chat into
+// it with the panel as the request's source, and the newer open is the one
+// the user wants. The /codex page's panel keeps htmx's queue.
+templ Chat(in ChatIn) {
+	<section
+		id={ cmp.Or(in.ID, "codex-content") }
+		data-chat
+		class={ utils.TwMerge("group/chat flex min-h-0 min-w-0 flex-1 flex-col", utils.If(in.ID == MailContentID, "relative [--scroll-footer-height:8.125rem]")) }
+		if in.ID == MailContentID {
+			data-scroll-fade="chat"
+		}
+		data-selected-thread={ in.SelectedID }
+		data-chat-user={ in.User }
+		data-namespace={ Namespace }
+		data-thread-placeholder={ ThreadPlaceholder }
+		data-submit-url-template={ in.SubmitURLTemplate }
+		data-queue-url-template={ in.QueueURLTemplate }
+		data-events-url-template={ in.EventsURLTemplate }
+		data-sends-url={ in.SendsURL }
+		hx-history-elt?={ in.HistoryElement }
+		if in.ID == MailContentID {
+			hx-sync="replace"
+		}
+		aria-label="Chat transcript"
+		hx-on:input="const scroll = this.querySelector('[data-chat-scroll]'); if (scroll.dataset.follow === 'true') { scroll.scrollTop = scroll.scrollHeight; scroll.dataset.scrollTop = scroll.scrollTop }"
+	>
+		<div
+			id={ cmp.Or(in.ID, "codex-content") + "-scroll-" + in.SelectedID }
+			class={ utils.TwMerge("min-h-0 flex-1 overflow-y-auto overscroll-contain", utils.If(in.SelectedID == "", "flex flex-col"), utils.If(in.ID == MailContentID, bottomfade.ScrollerClass)) }
+			data-chat-scroll
+			hx-on:click="if (event.target.closest('[data-slot=disclosure] > summary')) data.follow = false"
+			data-initialized="false"
+			data-follow="true"
+			data-scroll-top="0"
+			hx-on:scroll="if (event.target !== this) return; const top = this.scrollTop; const remaining = this.scrollHeight - top - this.clientHeight; data.follow = remaining <= 1 || (top >= data.scrollTop && remaining < 80); data.scrollTop = top"
+			hx-on:htmx:after:swap="if (data.follow) { this.scrollTop = this.scrollHeight; data.scrollTop = this.scrollTop }"
+		>
+			<div
+				id={ cmp.Or(in.ID, "codex-content") + "-transcript-" + in.SelectedID }
+				if in.SelectedID == "" {
+					class="flex flex-1 flex-col group-has-[[data-outgoing]]/chat:flex-none group-has-[[data-chat-entries]:not(:empty)]/chat:flex-none"
+				}
+				if in.EventsURL != "" {
+					hx-sse:connect={ in.EventsURL }
+				}
+				hx-swap="innerMorph"
+				{ connectionAttributes()... }
+			>
+				@ChatContents(in)
+			</div>
+			@Outgoing(in)
+		</div>
+		if in.SubmitURL != "" {
+			@Composer(in)
+		}
+		if in.ID == MailContentID {
+			@bottomfade.Backdrop("")
+		}
+	</section>
+}
+
+// newChatEmpty is a new chat's empty state: the cat and the starter prompts, in
+// the transcript below the header. In a new chat the scroll area and transcript
+// are flex columns, so it grows to fill the area down to the composer, while
+// Outgoing's surface takes no space, and stacks to the bottom, so the prompts
+// sit just above the composer and the cat a fixed gap above them. The cat's box
+// is 280px wide, narrower only when the padded content is. A margin percentage
+// resolves against the containing block's width, the same width --cat-w's 100%
+// does, so the negative top margin is half the cat's own height through the
+// image's 880/770 = 8/7 aspect. A short rail scrolls, and the sticky header
+// blurs what passes beneath it. Its width and height attributes reserve its box
+// before the image loads, so the scroll area's first jump to the bottom lands
+// there. The translate sets the cat where it balances by eye. It moves only the
+// paint, so the box keeps to the padding and the cat may draw into it, by less
+// than the padding is wide. It hides with starterHide once the chat begins.
+templ newChatEmpty() {
+	<div class={ utils.TwMerge("mx-auto flex w-full max-w-4xl flex-1 flex-col justify-end pt-6 pr-[var(--entry-list-p-r)] pl-[var(--entry-list-p-l)]", starterHide) } data-slot="new-chat-empty" { chatcomposer.PromptAttributes()... }>
+		<img src="/assets/img/new-chat-cat.png" alt="" aria-hidden="true" width="770" height="880" class="-mt-[calc(var(--cat-w)*8/7*0.5)] h-auto w-(--cat-w) -translate-x-[4%] self-center [--cat-w:min(280px,100%)]"/>
+		@chatsuggestions.Prompts(chatsuggestions.Props{Attributes: tour.Anchor(StarterPromptsTourAnchor), Class: "mt-8", Heading: StarterHeading, Prompts: StarterPrompts})
+	</div>
+}
+
+templ ChatContents(in ChatIn) {
+	@withNotices(in)
+}
+
+templ chatContents(in ChatIn) {
+	if in.DocumentTitle {
+		<span hidden data-chat-document-title={ cmp.Or(in.Title, "New Chat") } hx-live="if (document.title !== String(data.chatDocumentTitle)) document.title = data.chatDocumentTitle"></span>
+	}
+	if in.SelectedID == "" {
+		<div class="sticky top-0 z-10 bg-background/80 backdrop-blur-md max-docked:bg-background max-docked:pt-(--topbar-inset) max-docked:backdrop-blur-none" data-chat-header>
+			@headerbar.HeaderBar(headerbar.In{Title: "New Chat"})
+		</div>
+		@newChatEmpty()
+	} else {
+		<div class="sticky top-0 z-10 bg-background max-docked:pt-(--topbar-inset)" data-chat-header>
+			@headerbar.HeaderBar(headerbar.In{Attributes: templ.Attributes{"data-chat-error": in.Error, "data-chat-status": in.Status, "data-chat-stop-url": in.StopURL}}) {
+				@headerbar.Title() {
+					{ in.Title }
+				}
+				@chatDetails(in)
+				@newChatButton(in)
+				if in.DeleteURL != "" {
+					@button.ButtonIcon(button.IconProps{Attributes: deleteTriggerAttributes(in), MobileSize: button.IconSizeMd, Icon: icons.Delete, Size: button.IconSizeSm})
+				}
+			}
+			if in.DeleteURL != "" {
+				@DeleteConfirm(in)
+			}
+		</div>
+		<div class="mx-auto w-full max-w-4xl space-y-5 py-6 pr-[var(--entry-list-p-r)] pl-[var(--entry-list-p-l)] empty:hidden" data-chat-entries>
+			if in.Error != "" {
+				<p class="rounded-md border border-destructive/30 px-4 py-3 type-body-200 text-destructive" role="alert">{ in.Error }</p>
+			}
+			if len(in.Turns) == 0 && len(in.Notices) == 0 && in.Error == "" && !in.Unrecorded {
+				<p class="type-body-200 text-muted-foreground">No messages yet.</p>
+			}
+			{{ first := firstAnswered(in.Turns) }}
+			{{ positions := in.noticePositions() }}
+			for i, turn := range in.Turns {
+				for _, notice := range positions[i] {
+					@ActivityNotice(notice)
+				}
+				if !turn.unrecorded() {
+					@TurnView(turn, i == first)
+				}
+			}
+			if in.NoticeError != "" {
+				<p class="type-body-200 text-muted-foreground" role="status">{ in.NoticeError }</p>
+			}
+			for _, notice := range positions[len(in.Turns)] {
+				@ActivityNotice(notice)
+			}
+
+		</div>
+	}
+}
+
+
+templ draftStatus(notice ChatNotice) {
+ if notice.URL != "" {
+  @linkchip.Chip(linkchip.In{Attributes: noticeLinkAttributes(ctx, notice.URL), Label: notice.Label, URL: notice.URL})
+ } else {
+  <span data-slot="draft-status" class="text-muted-foreground">{ notice.Label }</span>
+ }
+}
+
+templ ActivityNotice(notice ChatNotice) {
+	@DecisionCard(templ.Attributes{"id": "chat-activity-"+notice.ID, "data-slot": "chat-activity", "data-activity-id": notice.ID, "aria-label": "Email activity"}) {
+		<p class="type-body-200-medium">{ notice.Label }</p>
+		if notice.Subject != "" {
+			<p class="type-body-200 break-words whitespace-pre-wrap">{ notice.Subject }</p>
+		}
+		<time datetime={ notice.Time.UTC().Format("2006-01-02T15:04:05Z") } class="type-caption-200 text-muted-foreground" hx-live:text="new Date(this.dateTime).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})">{ notice.Time.UTC().Format("Jan 2, 15:04 UTC") }</time>
+		if notice.URL != "" {
+			@linkchip.Chip(linkchip.In{Attributes: noticeLinkAttributes(ctx, notice.URL), Label: "View email", URL: notice.URL})
+		}
+	}
+}

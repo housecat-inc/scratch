@@ -1,0 +1,28 @@
+package testdata
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+templ GoExpr(p Props) {
+	<div class={ utils.TwMerge("w-full shrink-0", p.Class) }></div>
+	<span class={ "gm-row", templ.KV("on", p.On) }></span>
+	<b class={ utils.TwMerge("flex px-2", p.Class) }></b>
+	@Button(Props{Class: "justify-start gap-2"})
+}
+
+func variantClasses(variant string) string {
+	switch variant {
+	case "outline":
+		return "border bg-background shadow-xs hover:bg-primary/5"
+	default:
+		return "bg-primary text-primary-foreground shadow-xs"
+	}
+}
+
+func assigned() string {
+	baseClasses := "flex px-4 shadow-xs"
+	return baseClasses
+}
+
+func accentFor() string {
+	return "px-3 flex gap-2"
+}

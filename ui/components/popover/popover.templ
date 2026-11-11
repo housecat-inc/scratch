@@ -1,0 +1,393 @@
+package popover
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// The parts follow Base UI's popover anatomy: Root groups a Trigger with a
+// Positioner that holds the Popup, and the Popup holds an optional Arrow,
+// Title, Description and Close. Portal is the native popover attribute on the
+// Positioner: the browser puts it in the top layer, toggles it from any button
+// whose popovertarget names it, closes it on an outside press or Escape, and
+// hands focus back when it closes. popover.ts adds what the platform leaves
+// out -- placement through floating.ts, focus into the popup, closing when
+// focus tabs out, hover triggers, the focus trap for a modal popover, and the
+// data attributes Base UI styles by.
+//
+// Unlike a tooltip, a popover holds content the user needs: it opens on tap
+// and keyboard as well as pointer, and its popup is a dialog that screen
+// readers announce by its Title.
+
+type Align string
+
+const (
+	AlignCenter Align = ""
+	AlignEnd    Align = "end"
+	AlignStart  Align = "start"
+)
+
+func (a Align) name() string {
+	if a == AlignCenter {
+		return "center"
+	}
+	return string(a)
+}
+
+type Side string
+
+const (
+	SideBottom Side = ""
+	SideLeft   Side = "left"
+	SideRight  Side = "right"
+	SideTop    Side = "top"
+)
+
+func (s Side) name() string {
+	if s == SideBottom {
+		return "bottom"
+	}
+	return string(s)
+}
+
+type ctxKey int
+
+const (
+	idKey ctxKey = iota
+	sideKey
+	variantKey
+)
+
+func idFrom(ctx context.Context) string {
+	id, _ := ctx.Value(idKey).(string)
+	return id
+}
+
+func sideFrom(ctx context.Context) Side {
+	side, _ := ctx.Value(sideKey).(Side)
+	return side
+}
+
+func variantFrom(ctx context.Context) PopupVariant {
+	variant, _ := ctx.Value(variantKey).(PopupVariant)
+	return variant
+}
+
+// TriggerAttributes lets a button rendered by another component open the
+// popover, the way Base UI's render prop does: spread them onto any button
+// inside Root in place of a Trigger.
+func TriggerAttributes(ctx context.Context) templ.Attributes {
+	return templ.Attributes{
+		"aria-expanded": "false",
+		"aria-haspopup": "dialog",
+		"popovertarget": idFrom(ctx),
+	}
+}
+
+func rootID(id string) string {
+	if id != "" {
+		return id
+	}
+	return utils.RandomID()
+}
+
+type RootProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// DefaultOpen opens the popover as soon as the script sees it.
+	DefaultOpen bool
+	// ID names the positioner for its trigger and close buttons and for the
+	// title and description the popup is labelled by; random when unset,
+	// which is fine everywhere the markup is not compared against a golden.
+	ID string
+	// Modal makes the popup a key router layer while it is open: Tab and
+	// Shift+Tab stay inside it, a key aimed outside brings focus back, and
+	// focus leaving it does not close it.
+	Modal bool
+}
+
+// Root groups the parts and renders no box of its own.
+templ Root(props RootProps) {
+	{{ ctx = context.WithValue(ctx, idKey, rootID(props.ID)) }}
+	<div
+		class={ utils.TwMerge("contents", props.Class) }
+		data-slot="popover"
+		data-default-open?={ props.DefaultOpen }
+		data-modal?={ props.Modal }
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+type TriggerProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// CloseDelay is how long the pointer may be off the trigger and popup
+	// before a hover-opened popover closes; 0 when unset.
+	CloseDelay int
+	// Delay is how long the pointer rests on the trigger before a hover
+	// trigger opens; 300ms when unset.
+	Delay       int
+	OpenOnHover bool
+}
+
+// Trigger is the button that toggles the popover. The browser does the
+// toggling through popovertarget; the script keeps aria-expanded and
+// data-popup-open in step and, with OpenOnHover, opens it from the pointer.
+templ Trigger(props TriggerProps) {
+	<button
+		type="button"
+		popovertarget={ idFrom(ctx) }
+		aria-haspopup="dialog"
+		aria-expanded="false"
+		class={ utils.TwMerge("cursor-pointer", props.Class) }
+		data-slot="popover-trigger"
+		data-open-on-hover?={ props.OpenOnHover }
+		if props.Delay != 0 {
+			data-delay={ strconv.Itoa(props.Delay) }
+		}
+		if props.CloseDelay != 0 {
+			data-close-delay={ strconv.Itoa(props.CloseDelay) }
+		}
+		{ props.Attributes... }
+	>
+		{ children... }
+	</button>
+}
+
+type PositionerProps struct {
+	Align       Align
+	AlignOffset int
+	// ArrowPadding keeps the arrow inset from the popup edges, with an 18px
+	// minimum to clear rounded corners. Small popups center the arrow.
+	ArrowPadding int
+	Attributes   templ.Attributes
+	Class        string
+	// CollisionPadding is the gap kept from the viewport edge; 5px when unset.
+	CollisionPadding int
+	Side             Side
+	// SideOffset uses the component default for the popup's arrow when unset.
+	SideOffset       int
+}
+
+// Positioner is the element in the top layer. It fades through the native
+// open state so the browser's own show and hide drive the transition, and the
+// script writes its left and top, flips Side when there is no room, and mirrors
+// the side and align it settled on into data-side and data-align on it, the
+// popup and the arrow. None of its classes may set display, since an author
+// display rule would beat the rule that hides a closed popover.
+templ Positioner(props PositionerProps) {
+	{{ ctx = context.WithValue(ctx, sideKey, props.Side) }}
+	<div
+		popover="auto"
+		id={ idFrom(ctx) }
+		class={ utils.TwMerge(PositionerClass, props.Class) }
+		data-slot="popover-positioner"
+		data-align={ props.Align.name() }
+		data-side={ props.Side.name() }
+		if props.AlignOffset != 0 {
+			data-align-offset={ strconv.Itoa(props.AlignOffset) }
+		}
+		if props.ArrowPadding != 0 {
+			data-arrow-padding={ strconv.Itoa(props.ArrowPadding) }
+		}
+		if props.CollisionPadding != 0 {
+			data-collision-padding={ strconv.Itoa(props.CollisionPadding) }
+		}
+		if props.SideOffset != 0 {
+			data-side-offset={ strconv.Itoa(props.SideOffset) }
+		}
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+// PositionerClass, PopupClass and ArrowClass are the popover's box and arrow.
+// They are exported so a surface that places its own popups wears the same
+// ones: the menu and the tour render their own parts rather than popover
+// parts, because popover.ts drives everything under [data-slot=popover].
+//
+// PositionerClass transitions overlay only on the way out, where it keeps the
+// fading box in the top layer. On the way in a discrete overlay transition
+// holds the box out of the top layer for half the fade, and there its fixed
+// position resolves against the nearest @container ancestor instead of the
+// viewport. The open: variant outranks a plain utility, so a caller turning
+// the transition off has to turn off the open: one as well.
+const (
+	ArrowClass      = "absolute size-2.5 rotate-45 border border-border bg-popover data-[side=bottom]:-top-[5px] data-[side=bottom]:left-[calc(50%_-_5px)] data-[side=bottom]:border-r-transparent data-[side=bottom]:border-b-transparent data-[side=left]:top-[calc(50%_-_5px)] data-[side=left]:-right-[5px] data-[side=left]:border-b-transparent data-[side=left]:border-l-transparent data-[side=right]:top-[calc(50%_-_5px)] data-[side=right]:-left-[5px] data-[side=right]:border-t-transparent data-[side=right]:border-r-transparent data-[side=top]:-bottom-[5px] data-[side=top]:left-[calc(50%_-_5px)] data-[side=top]:border-t-transparent data-[side=top]:border-l-transparent"
+	PopupClass      = "max-w-xs rounded-lg border bg-popover px-3 py-2 type-body-200 text-popover-foreground shadow-lg outline-none"
+	PositionerClass = "fixed inset-auto m-0 w-max overflow-visible border-0 bg-transparent p-0 opacity-0 transition-[opacity,display,overlay] transition-discrete duration-150 open:opacity-100 open:transition-[opacity,display] starting:open:opacity-0"
+)
+
+// PopupVariant picks the popup's paint. The default is the dialog surface;
+// Hint is the same box in the tooltip's colours, for guidance pinned to
+// something the pointer is over rather than a panel the user opened. It keeps
+// the popover's roomier padding and heavier shadow, and drops the border the
+// dark fill would only muddy.
+type PopupVariant string
+
+const (
+	VariantDefault PopupVariant = ""
+	VariantHint    PopupVariant = "hint"
+)
+
+const (
+	hintShape = "border-0 px-4 py-1"
+	// The arrow is a piece of the popup's edge, so on a hint it wears the
+	// popup's fill and, like the popup, no border for its two drawn sides to
+	// be cut from. It reads the variant off the context the popup puts it on,
+	// rather than taking one of its own that a call site could leave behind.
+	hintArrow = "border-0 bg-tooltip"
+)
+
+type PopupProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Variant    PopupVariant
+}
+
+// Popup is the dialog. The script labels it by the Title and Description
+// inside it, moves focus into it when it opens, and marks it
+// data-starting-style for the first frame and data-ending-style while the
+// positioner fades out, for a popup that animates more than its opacity.
+//
+// The padding suits a line or two of copy, which is every popover the app
+// renders. A panel with a heading and buttons in it wants more, and says so.
+// The width cap makes long copy wrap instead of running off the side of the
+// screen, since placement pushes a popup back from the edge but never narrows
+// one; a popup that wants to be wider than the cap sets its own width.
+templ Popup(props PopupProps) {
+	{{ ctx = context.WithValue(ctx, variantKey, props.Variant) }}
+	<div
+		role="dialog"
+		tabindex="-1"
+		class={ utils.TwMerge(
+			PopupClass,
+			utils.If(props.Variant == VariantHint, hintShape),
+			utils.If(props.Variant == VariantHint, tooltip.Paint),
+			props.Class,
+		) }
+		data-slot="popover-popup"
+		{ props.Attributes... }
+	>
+		if props.Variant != VariantHint {
+			@arrow()
+		}
+		{ children... }
+	</div>
+}
+
+type TextProps struct {
+	Align      Align
+	Attributes templ.Attributes
+	Class      string
+	// ID names the positioner, as RootProps.ID does; random when unset.
+	ID   string
+	Side Side
+	Text string
+}
+
+// Text is the parts composed for the common case, the way Tooltip is for the
+// tooltip: a short run of copy pinned to whatever it wraps, six pixels off the
+// chosen side, opening on hover and on a click or a tap. Attributes and Class
+// land on the trigger, since that is the part a caller styles.
+//
+// Reach for it wherever a native title used to carry a sentence. A tooltip is
+// a label for pointer and keyboard users and stays out of the accessibility
+// tree; this is content, so it is reachable by tap and announced as a dialog.
+//
+// The parts sit hard against each other for the reason Tooltip's do: whitespace
+// between two nodes renders as one space, and Root draws no box to trim it
+// against, so it would land in the layout the trigger sat in.
+templ Text(props TextProps) {
+	@Root(RootProps{ID: props.ID}) {@Trigger(TriggerProps{Attributes: props.Attributes, Class: props.Class, OpenOnHover: true}) {
+			{ children... }
+		}@Positioner(PositionerProps{Align: props.Align, Side: props.Side}) {
+			@Popup(PopupProps{}) {
+				{ props.Text }
+			}
+		}
+	}
+}
+
+// arrow points at the trigger from the edge of the popup that faces it, and is
+// the popup's own, not a part a call site composes: a dialog always has one and
+// a hint never does, so there is nothing for a caller to decide and nothing to
+// forget. The script slides it along that edge to the trigger's centre.
+//
+// The offsets are half the box, so the box's centre sits on the popup's edge.
+// A square rotated 45 degrees has its two side vertices level with its centre,
+// so that is where the diamond's base corners meet the popup's border and where
+// its two drawn sides carry on from it. Half the box less a pixel leaves the
+// corners hanging a pixel clear of the border, which reads as a gap. The half
+// below the edge covers the border it crosses, since the arrow paints over the
+// popup's own background and border as a child of it.
+//
+// Along the edge it rests in the middle, half its width back. The script writes
+// left or top inline once it has an anchor to point at, which beats these, so
+// the middle is only what a popup painted without the script shows -- a contact
+// sheet cell, or the frame before placement.
+templ arrow() {
+	<div
+		class={ utils.TwMerge(ArrowClass, utils.If(variantFrom(ctx) == VariantHint, hintArrow)) }
+		data-slot="popover-arrow"
+		data-side={ sideFrom(ctx).name() }
+		aria-hidden="true"
+	></div>
+}
+
+type TitleProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+templ Title(props TitleProps) {
+	<h2
+		id={ idFrom(ctx) + "-title" }
+		class={ utils.TwMerge("type-title-100", props.Class) }
+		data-slot="popover-title"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</h2>
+}
+
+type DescriptionProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+templ Description(props DescriptionProps) {
+	<p
+		id={ idFrom(ctx) + "-description" }
+		class={ utils.TwMerge("type-body-200 text-muted-foreground", props.Class) }
+		data-slot="popover-description"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</p>
+}
+
+type CloseProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Close hides the popover through the browser, so it needs no script.
+templ Close(props CloseProps) {
+	<button
+		type="button"
+		popovertarget={ idFrom(ctx) }
+		popovertargetaction="hide"
+		class={ utils.TwMerge("cursor-pointer", props.Class) }
+		data-slot="popover-close"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</button>
+}

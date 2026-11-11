@@ -1,0 +1,214 @@
+package tour
+
+import (
+	"cmp"
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/popover"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// A tour is a welcome dialog and then one popover per step, each pinned to the
+// element whose data-tour-anchor names the step's Anchor. Every part renders
+// up front and the component knows nothing of the app it tours: the steps,
+// the step to resume at and where progress is saved all arrive as props, and
+// tour.ts sequences them.
+
+type Advance string
+
+const (
+	// AdvanceAnchor also moves on when the user clicks the anchor itself.
+	AdvanceAnchor Advance = "anchor"
+	AdvanceNext   Advance = "next"
+)
+
+// Reveal names what the page shows before a step's anchor can be seen.
+// tour.ts sends it in a tour:reveal event; the page does the revealing,
+// since only the page knows how to open its own drawers and rails.
+// RevealChat asks for the chat the user already has going, where
+// RevealNewChat asks for a new one.
+type Reveal string
+
+const (
+	RevealChat    Reveal = "chat"
+	RevealNewChat Reveal = "new-chat"
+	RevealNone    Reveal = "none"
+	RevealSidebar Reveal = "sidebar"
+)
+
+// Side is where a step prefers its popup; floating flips it when there is no
+// room on that side.
+type Side string
+
+const (
+	SideBottom Side = "bottom"
+	SideLeft   Side = "left"
+	SideRight  Side = "right"
+	SideTop    Side = "top"
+)
+
+// AnchorAttribute marks an element a step points at. It is a valued attribute
+// found by another feature, so it appears only on the elements it marks.
+const AnchorAttribute = "data-tour-anchor"
+
+// WelcomeStep is the root's data-step until the user is past the welcome dialog.
+const WelcomeStep = "welcome"
+
+// Step's Focus names a data-tour-anchor, the step's Anchor itself or one
+// inside it, whose first focusable takes focus when the step opens, and which
+// the step's Next button clicks for the user. Empty focuses Next or Done.
+//
+// Pad grows the step's highlight by one spacing increment on every side, and
+// each corner's radius by the same; without it the highlight is the anchor's
+// own outline. A padded anchor needs that much clear space around it, or the
+// highlight shows part of a neighbour.
+//
+// Ready names a data-tour-anchor that shows inside the Anchor once what the
+// step is about has arrived, as a chat's first answer does. Until it shows,
+// the step opens with WaitingTitle and WaitingBody, and it changes to Title
+// and Body the moment it does. Next moves on whether it has shown or not.
+type Step struct {
+	Advance      Advance
+	Anchor       string
+	Body         string
+	Focus        string
+	Name         string
+	Pad          bool
+	Ready        string
+	Reveal       Reveal
+	Side         Side
+	Title        string
+	WaitingBody  string
+	WaitingTitle string
+}
+
+type Welcome struct {
+	Body string
+	// Form is fields under the body, such as a survey. Starting the tour
+	// sends them to FormAction when any is filled in; skipping discards them.
+	Form       templ.Component
+	FormAction string
+	Title      string
+}
+
+// Props' Step is the saved step to resume at; empty opens the welcome dialog.
+type Props struct {
+	ID      string
+	Name    string
+	SaveURL string
+	Step    string
+	Steps   []Step
+	Welcome Welcome
+}
+
+// PopupIn is one step's popup: the step, where it falls in the tour, and the
+// id its title and body are labelled by.
+type PopupIn struct {
+	Count int
+	ID    string
+	Index int
+	Step  Step
+}
+
+func Anchor(name string) templ.Attributes {
+	return templ.Attributes{AnchorAttribute: name}
+}
+
+// waiting is whether the step opens on its waiting text.
+func waiting(s Step) bool {
+	return s.Ready != ""
+}
+
+templ Tour(props Props) {
+	{{ id := cmp.Or(props.ID, utils.RandomID()) }}
+	<div id={ id } data-slot="tour" data-name={ props.Name } data-save-url={ props.SaveURL } data-step={ cmp.Or(props.Step, WelcomeStep) }>
+		@welcome(id, props.Welcome)
+		@overlay()
+		for i, step := range props.Steps {
+			@stepPositioner(PopupIn{Count: len(props.Steps), ID: id + "-" + step.Name, Index: i, Step: step})
+		}
+		<div class="sr-only" aria-live="polite" data-slot="tour-announcer"></div>
+	</div>
+}
+
+templ welcome(id string, w Welcome) {
+	<dialog class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto squircle-xl border scrim-dialog bg-popover p-6 text-popover-foreground shadow-lg" data-slot="tour-welcome" aria-labelledby={ id + "-welcome-title" } aria-describedby={ id + "-welcome-body" }>
+		<h2 id={ id + "-welcome-title" } class="type-title-300" data-slot="tour-title">{ w.Title }</h2>
+		<p id={ id + "-welcome-body" } class="mt-2 type-body-200 text-muted-foreground" data-slot="tour-description">{ w.Body }</p>
+		if w.Form != nil {
+			<form class="mt-4 grid gap-4" data-slot="tour-welcome-form" action={ templ.SafeURL(w.FormAction) } method="post">
+				@w.Form
+			</form>
+		}
+		<div class="mt-6 flex justify-end gap-2" data-slot="tour-actions">
+			@button.Button(button.Props{Attributes: templ.Attributes{"data-action": "skip"}, Size: button.SizeSm, Variant: button.VariantLink}) {
+				Skip
+			}
+			@button.Button(button.Props{Attributes: templ.Attributes{"data-action": "start"}, Size: button.SizeSm}) {
+				Show me around
+			}
+		</div>
+	</dialog>
+}
+
+// overlay dims the page around the open step's anchor while a step is open.
+// It is a z-index layer, not the top layer, so the step's popover, which is in
+// the top layer, stays above it. z-[10000] clears the app's highest layer, the
+// z-[9999] dropdowns and popovers of app/ui/components. One path, the dim,
+// covers the viewport with a hole cut to the anchor's outline (evenodd). It
+// paints and is all of the overlay that takes pointer events, so a click
+// anywhere but the anchor is swallowed, a dimmed rounded corner included, and
+// a click on the anchor reaches it. tour.ts draws the hole and sets data-open.
+// It is the scrim's colour and fades in and out over the scrim's time and
+// curve (ui/css/theme.css); the welcome dialog's backdrop is the scrim
+// itself (scrim-dialog).
+templ overlay() {
+	<svg class="pointer-events-none fixed inset-0 z-[10000] hidden size-full opacity-0 data-[open]:block data-[open]:opacity-100 motion-safe:transition-[opacity,display] motion-safe:transition-discrete motion-safe:duration-(--scrim-duration) motion-safe:ease-(--scrim-ease) motion-safe:starting:data-[open]:opacity-0" data-slot="tour-overlay" aria-hidden="true">
+		<path class="pointer-events-auto fill-(--scrim)" data-slot="tour-overlay-dim" fill-rule="evenodd"></path>
+	</svg>
+}
+
+// stepPositioner is popover="manual" so a click outside it leaves it open:
+// an anchor step waits for exactly such a click. Reduced motion drops the
+// fade both ways, open included, since PositionerClass sets the entry's
+// transition under open:.
+templ stepPositioner(in PopupIn) {
+	<div id={ in.ID } popover="manual" class={ utils.TwMerge(popover.PositionerClass, "motion-reduce:transition-none motion-reduce:open:transition-none") } data-slot="tour-step" data-name={ in.Step.Name } data-anchor={ in.Step.Anchor } data-focus={ in.Step.Focus } data-padded?={ in.Step.Pad } data-ready={ in.Step.Ready } data-advance={ string(in.Step.Advance) } data-reveal={ string(in.Step.Reveal) } data-side={ string(in.Step.Side) } data-side-offset="8">
+		@Popup(in)
+	</div>
+}
+
+templ Popup(in PopupIn) {
+	{{ last := in.Index == in.Count-1 }}
+	<div role="dialog" tabindex="-1" class={ utils.TwMerge(popover.PopupClass, "squircle-lg px-4 py-3") } aria-labelledby={ in.ID + "-title" } aria-describedby={ in.ID + "-body" } data-slot="tour-popup">
+		<div class={ popover.ArrowClass } data-slot="tour-arrow" data-side={ string(in.Step.Side) } aria-hidden="true"></div>
+		if waiting(in.Step) {
+			@popupText(in.ID, in.Step.WaitingTitle, in.Step.WaitingBody)
+			<template data-slot="tour-ready">
+				@popupText(in.ID, in.Step.Title, in.Step.Body)
+			</template>
+		} else {
+			@popupText(in.ID, in.Step.Title, in.Step.Body)
+		}
+		<div class="mt-3 flex items-center gap-2" data-slot="tour-actions">
+			<span class="mr-auto type-body-100 text-muted-foreground" data-slot="tour-progress">{ strconv.Itoa(in.Index + 1) } of { strconv.Itoa(in.Count) }</span>
+			if !last {
+				@button.Button(button.Props{Attributes: templ.Attributes{"data-action": "skip"}, Size: button.SizeSm, Variant: button.VariantLink}) {
+					Skip tour
+				}
+			}
+			@button.Button(button.Props{Attributes: templ.Attributes{"data-action": utils.IfElse(last, "done", "next")}, Size: button.SizeSm}) {
+				{ utils.IfElse(last, "Done", "Next") }
+			}
+		</div>
+	</div>
+}
+
+// popupText is a popup's title and body. A waiting step renders it twice,
+// once for now and once in a template for when its Ready shows; tour.ts swaps
+// the second in, so both carry the ids the dialog is labelled by.
+templ popupText(id, title, body string) {
+	<p id={ id + "-title" } class="type-title-100" data-slot="tour-title">{ title }</p>
+	<p id={ id + "-body" } class="mt-1 type-body-200 text-muted-foreground" data-slot="tour-description">{ body }</p>
+}

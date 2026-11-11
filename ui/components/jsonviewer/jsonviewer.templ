@@ -1,0 +1,17 @@
+package jsonviewer
+
+type In struct {
+	Label string
+	Value string
+}
+
+templ View(in In) {
+	<div class="min-w-0 overflow-hidden rounded-md border type-code-200" data-slot="json-viewer">
+		<div class="flex items-center gap-3 border-b bg-muted px-3 py-2 type-caption-100">
+			<span class="mr-auto">{ in.Label }</span>
+			<button type="button" data-json-action="fold" class="hover:underline">Fold all</button>
+			<button type="button" data-json-action="unfold" class="hover:underline">Expand all</button>
+		</div>
+		<textarea readonly aria-label={ in.Label } class="block min-h-40 w-full resize-y bg-background p-3 type-code-200" data-slot="json-viewer-input">{ in.Value }</textarea>
+	</div>
+}

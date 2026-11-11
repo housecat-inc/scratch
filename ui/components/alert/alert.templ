@@ -1,0 +1,173 @@
+// templui component alert - version: v1.6.0 installed by templui v1.5.0
+// 📚 Documentation: https://templui.io/docs/components/alert
+// Baseline: `templui add@v1.6.0 alert` into a scratch module, copied here. An
+// upgrade diffs the new upstream file against that one, then re-applies what
+// this file changes from it:
+//   - squircle corners in place of rounded corners
+//   - type-* typography in place of text-sm, font-medium and tracking-tight
+//   - an icons.Name Icon prop drawn by the alert, in place of an svg child
+//   - Actions, a row for the buttons a confirmation carries
+//   - fields sorted, caller Class merged last
+//   - info, success and warning variants on the theme's status tokens
+//   - a text column that shrinks below its longest word, so a long token
+//     wraps rather than pushing the alert wider
+package alert
+
+import (
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Variant string
+
+const (
+	VariantDefault     Variant = "default"
+	VariantDestructive Variant = "destructive"
+	// VariantInfo, VariantSuccess and VariantWarning colour a notice by the
+	// theme's status tokens the way VariantDestructive does by its red: a
+	// saved setting, a step to take, a limit coming up.
+	VariantInfo    Variant = "info"
+	VariantSuccess Variant = "success"
+	VariantWarning Variant = "warning"
+)
+
+// Props renders role="alert", which a screen reader announces as soon as the
+// element is rendered or revealed, interrupting what it was reading. Info,
+// success and warning are role="status" instead, which waits its turn: they
+// report, and a page that polls can draw one again without interrupting. An alert that waits to be shown is rendered
+// with the hidden attribute, and so stays out of the accessibility tree until
+// it is.
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	// Icon draws in the leading column, beside the title. Without one that
+	// column collapses to nothing and the text starts at the alert's padding.
+	Icon    icons.Name
+	ID      string
+	Variant Variant
+}
+
+type TitleProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type DescriptionProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type ActionsProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+templ Alert(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		data-slot="alert"
+		class={
+			utils.TwMerge(
+				"relative w-full squircle-lg border px-4 py-3 type-body-200",
+				"grid items-start gap-y-0.5",
+				utils.IfElse(p.Icon != "", "grid-cols-[1rem_minmax(0,1fr)] gap-x-3", "grid-cols-[0_minmax(0,1fr)]"),
+				variantClasses(p.Variant),
+				p.Class,
+			),
+		}
+		role={ variantRole(p.Variant) }
+		{ p.Attributes... }
+	>
+		if p.Icon != "" {
+			@icons.Render(p.Icon, icons.Props{Class: "size-4 translate-y-0.5 text-current"})
+		}
+		{ children... }
+	</div>
+}
+
+templ Title(props ...TitleProps) {
+	{{ var p TitleProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<h5
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		data-slot="alert-title"
+		class={ utils.TwMerge("col-start-2 line-clamp-1 min-h-4 type-body-200-medium", p.Class) }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</h5>
+}
+
+templ Description(props ...DescriptionProps) {
+	{{ var p DescriptionProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		data-slot="alert-description"
+		class={ utils.TwMerge("col-start-2 grid justify-items-start gap-1 type-body-200 text-muted-foreground [&_p]:leading-relaxed", p.Class) }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+// Actions is the row of buttons under the description, in the text column so
+// it lines up with the title rather than the icon. Buttons sit in the order
+// they are passed, start-aligned, and wrap on a narrow alert rather than
+// overflow it. It resets the text colour to the foreground: an outline button
+// sets no colour of its own and would otherwise inherit the destructive red.
+templ Actions(props ...ActionsProps) {
+	{{ var p ActionsProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		data-slot="alert-actions"
+		class={ utils.TwMerge("col-start-2 mt-2 flex flex-wrap items-center gap-2 text-foreground", p.Class) }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+func variantRole(variant Variant) string {
+	if variant == VariantInfo || variant == VariantSuccess || variant == VariantWarning {
+		return "status"
+	}
+	return "alert"
+}
+
+func variantClasses(variant Variant) string {
+	switch variant {
+	case VariantDestructive:
+		return "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90"
+	case VariantInfo:
+		return "bg-card text-info *:data-[slot=alert-description]:text-info/90"
+	case VariantSuccess:
+		return "bg-card text-success *:data-[slot=alert-description]:text-success/90"
+	case VariantWarning:
+		return "bg-card text-warning *:data-[slot=alert-description]:text-warning/90"
+	default:
+		return "bg-card text-card-foreground"
+	}
+}

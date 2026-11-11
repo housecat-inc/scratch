@@ -1,0 +1,204 @@
+package avatar
+
+import (
+	"strings"
+	"unicode"
+
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Size string
+
+const (
+	SizeLg Size = "lg"
+	SizeMd Size = "md"
+	SizeSm Size = "sm"
+)
+
+func (s Size) class() string {
+	switch s {
+	case SizeLg:
+		return "h-16 w-16 type-title-300"
+	case SizeMd:
+		return "h-10 w-10 type-body-200-medium"
+	default:
+		return "h-8 w-8 type-body-100-medium"
+	}
+}
+
+type Variant string
+
+const (
+	// VariantBrand is the logged-in user: the brand green with light text,
+	// the same on every screen.
+	VariantBrand Variant = "brand"
+	// VariantTone is everyone else, hashed onto one of the theme's tints.
+	VariantTone Variant = "tone"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	// Decorative hides the avatar from assistive tech and drops its tooltip,
+	// for a caller that shows the person's name beside it -- a button whose
+	// label already reads the name would otherwise read it twice.
+	Decorative bool
+	// Email is the fallback for the initials when there is no name, and the
+	// key the tone is hashed on, so a sender keeps one color whatever name a
+	// given message gives them.
+	Email string
+	// FirstName and LastName, when a record has them apart, give the initials
+	// directly: one letter from each. Name is then only the tooltip's label
+	// and can be left out.
+	FirstName string
+	// ImageURL, when set, shows a photo in place of the initials.
+	ImageURL string
+	// Initials, when set, is shown as given: the brand mark reads HC rather
+	// than Ho.
+	Initials string
+	LastName string
+	// Name labels the tooltip and, when there are no separate name parts,
+	// gives the initials.
+	Name    string
+	Size    Size
+	Variant Variant
+}
+
+// Avatar is the face of a person: their photo when there is one, otherwise
+// their initials in a colored circle. When it has a name, a tooltip carries
+// it for a pointer resting on the disc, and the disc is an image labelled
+// with the same name so assistive tech reads what the tooltip shows; the
+// photo itself has no alt text, since the label is on the disc. Without a
+// name, or when Decorative, it has no tooltip and is hidden from assistive
+// tech. Class goes on the disc either way: a tooltip draws no box of its own,
+// so a caller placing the avatar in a grid is placing the disc, and routing
+// the class to the wrapper would hand those classes to an element with no box
+// to apply them to.
+// A toned avatar is hashed from the person so the same sender keeps the same
+// color across every thread and list, rather than shifting with their position
+// in one; the brand avatar is the logged-in user and is always the brand green.
+templ Avatar(props Props) {
+	if props.label() != "" {
+		@tooltip.Tooltip(tooltip.Props{Text: props.label()}) {
+			@disc(props, props.Class)
+		}
+	} else {
+		@disc(props, props.Class)
+	}
+}
+
+templ disc(props Props, class string) {
+	<span
+		class={ utils.TwMerge("inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full", props.Size.class(), "leading-none uppercase select-none", tone(props).Class, class) }
+		data-slot="avatar"
+		data-tone={ tone(props).Name }
+		data-variant={ string(props.variant()) }
+		if props.label() != "" {
+			role="img"
+			aria-label={ props.label() }
+		} else {
+			aria-hidden="true"
+		}
+		{ props.Attributes... }
+	>
+		if props.ImageURL != "" {
+			<img src={ props.ImageURL } alt="" class="h-full w-full object-cover" data-slot="avatar-image"/>
+		} else {
+			<span data-slot="avatar-initial">{ initials(props) }</span>
+		}
+	</span>
+}
+
+// label is what the tooltip shows and assistive tech reads: the name, unless
+// the avatar is decorative.
+func (p Props) label() string {
+	if p.Decorative {
+		return ""
+	}
+	return p.displayName()
+}
+
+func (p Props) displayName() string {
+	if strings.TrimSpace(p.Name) != "" {
+		return strings.TrimSpace(p.Name)
+	}
+	return strings.TrimSpace(p.FirstName + " " + p.LastName)
+}
+
+// initials is what the caller gave when it gave any; else one letter from
+// each of the separate name parts; else the name when it has a letter in it,
+// and the email otherwise, so a contact with nothing but an address still
+// gets a face and a header whose display name is a stray dash does not paint
+// the dash. Three letters at most: a fourth no longer fits the circle.
+func initials(props Props) string {
+	if props.Initials != "" {
+		return props.Initials
+	}
+	if first, last := strings.TrimSpace(props.FirstName), strings.TrimSpace(props.LastName); first != "" && last != "" {
+		return FirstLetter(first) + FirstLetter(last)
+	} else if first != "" || last != "" {
+		return Initials(first+last, 3)
+	}
+	if strings.ContainsFunc(props.Name, isLetterOrDigit) {
+		return Initials(props.Name, 3)
+	}
+	return Initials(props.Email, 3)
+}
+
+func isLetterOrDigit(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+func (p Props) variant() Variant {
+	if p.Variant == VariantBrand {
+		return VariantBrand
+	}
+	return VariantTone
+}
+
+type Tone struct {
+	Class string
+	Name  string
+}
+
+var brand = Tone{Class: "bg-primary text-primary-foreground", Name: "brand"}
+
+// tones are literal class strings rather than built from the index so
+// Tailwind's source scan finds every one of them.
+var tones = []Tone{
+	{Class: "bg-avatar-1 text-avatar-1-foreground", Name: "1"},
+	{Class: "bg-avatar-2 text-avatar-2-foreground", Name: "2"},
+	{Class: "bg-avatar-3 text-avatar-3-foreground", Name: "3"},
+	{Class: "bg-avatar-4 text-avatar-4-foreground", Name: "4"},
+	{Class: "bg-avatar-5 text-avatar-5-foreground", Name: "5"},
+	{Class: "bg-avatar-6 text-avatar-6-foreground", Name: "6"},
+}
+
+// ToneCount is how many tints a person can land on, so a sheet can check it
+// has shown them all.
+func ToneCount() int {
+	return len(tones)
+}
+
+func tone(props Props) Tone {
+	if props.variant() == VariantBrand {
+		return brand
+	}
+	return tones[ToneIndex(props.displayName(), props.Email)]
+}
+
+// ToneIndex hashes a person onto a tint. The email is the key when there is
+// one, since a sender's display name varies between messages and their address
+// does not; the name stands in when there is no address.
+func ToneIndex(name, email string) int {
+	key := strings.ToLower(strings.TrimSpace(email))
+	if key == "" {
+		key = strings.ToLower(strings.TrimSpace(name))
+	}
+	sum := 0
+	for _, r := range key {
+		sum = (sum*31 + int(r)) % len(tones)
+	}
+	return sum
+}

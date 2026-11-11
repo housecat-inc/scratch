@@ -1,0 +1,76 @@
+package codex
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type statusDot struct {
+	Class  string
+	Label  string
+	Status string
+}
+
+// statusDots is every thread status that draws a dot, and the one place a
+// status's colour, pulse and label are defined; a status missing here, idle
+// included, draws nothing.
+var statusDots = []statusDot{
+	{Class: "bg-teal-600 motion-safe:animate-pulse", Label: "Working", Status: "active"},
+	{Class: "bg-amber-500", Label: "Needs input", Status: "waiting"},
+	{Class: "bg-destructive", Label: "Error", Status: "systemError"},
+}
+
+type statusDotIn struct {
+	Attributes templ.Attributes
+	Decorative bool
+	Dot        statusDot
+	Reverse    bool
+}
+
+type LiveStatusDotsIn struct {
+	// Reverse sets the dot on a coloured surface rather than the page: a ring
+	// in the page's background colour parts it from a fill that may share its
+	// hue, as the teal Working dot does with a primary edge toggle.
+	Reverse bool
+	Status  string
+}
+
+// StatusDot is a dot that is the only sign of the status, so it carries the
+// label itself as an image.
+templ StatusDot(status string) {
+	for _, dot := range statusDots {
+		if dot.Status == status {
+			@statusDotSpan(statusDotIn{Dot: dot})
+		}
+	}
+}
+
+// StatusDotMark is the dot beside text that already says the status, hidden
+// from screen readers so the status is announced once.
+templ StatusDotMark(status string) {
+	for _, dot := range statusDots {
+		if dot.Status == status {
+			@statusDotSpan(statusDotIn{Decorative: true, Dot: dot})
+		}
+	}
+}
+
+// LiveStatusDots renders every dot and hides all but the one for status, so a
+// row whose data-thread-status changes under hx-live switches dots in place
+// without a server round trip.
+templ LiveStatusDots(in LiveStatusDotsIn) {
+	for _, dot := range statusDots {
+		@statusDotSpan(statusDotIn{Attributes: templ.Attributes{"hidden": dot.Status != in.Status, "hx-live:hidden": "data.threadStatus !== '" + dot.Status + "'"}, Dot: dot, Reverse: in.Reverse})
+	}
+}
+
+templ statusDotSpan(in statusDotIn) {
+	<span
+		class={ utils.TwMerge("size-2 shrink-0 rounded-full", in.Dot.Class, utils.If(in.Reverse, "ring-2 ring-background")) }
+		if in.Decorative {
+			aria-hidden="true"
+		} else {
+			role="img"
+			aria-label={ in.Dot.Label }
+			title={ in.Dot.Label }
+		}
+		{ in.Attributes... }
+	></span>
+}

@@ -1,0 +1,175 @@
+// Package toolbar is the grouping container for a run of controls that belong
+// together -- a formatting strip, a reader's actions -- built to the WAI-ARIA
+// toolbar pattern: one stop in the page's tab sequence, with the arrow keys
+// moving between the controls inside it.
+//
+// The bar across the top of a pane, with a title and no roving anything, is
+// headerbar.HeaderBar.
+//
+// Everything it draws is Tailwind, so the component carries no stylesheet of
+// its own and works wherever output.css is loaded. What it draws is only the
+// arrangement -- a wrapping row of controls -- because a border, a radius or a
+// surface belongs to the screen the strip sits on, and its callers disagree
+// about all three. Those arrive through Class, which TwMerge resolves against
+// the base.
+//
+// role and the roving tabindex are applied by toolbar.ts, together, and never
+// rendered here. Two reasons. Counting the controls is something only the
+// script can do -- children arrive as an opaque templ.Component, and APG says
+// to "use toolbar as a grouping element only if the group contains 3 or more
+// controls", which a reader toolbar full of conditional actions can fall
+// under. And role="toolbar" promises a single tab stop, so markup that
+// announced it without the script to deliver it would be announcing something
+// untrue. With no script the controls stay plain focusable buttons, one tab
+// stop each: degraded, but honest and fully operable.
+// What counts as a control is declared, not guessed: Item wraps each one, and
+// the script walks the items. Before that it swept the strip for anything
+// focusable, which quietly enrolled whatever a caller nested inside -- a link
+// in a label chip, a button in a popup rendered inline -- and left the script
+// maintaining a list of things to skip. Item inverts that: unwrapped is out,
+// and a control that should be in the strip and is not is a control still
+// carrying its own tab stop, which is visible the first time anyone Tabs.
+package toolbar
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Orientation string
+
+const (
+	OrientationHorizontal Orientation = ""
+	OrientationVertical   Orientation = "vertical"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	// Label names the toolbar for a screen reader, which has no other way to
+	// tell one run of icon buttons from another. It becomes aria-label.
+	Label string
+	// Orientation picks the pair of arrow keys that walk the controls: left
+	// and right when horizontal, up and down when vertical.
+	Orientation Orientation
+	// Slot renames data-slot for a caller whose screen already calls this
+	// element something -- the reader head's actions are gm-reader-toolbar to
+	// everything that looks for them. It defaults to the component's own name.
+	// The script does not read it: its hook is data-toolbar, which is always
+	// there, because two data-slot attributes on one element is not an error,
+	// it is the second one being dropped.
+	Slot string
+}
+
+// The strip isolates its stacking, so FocusOnTopClass lifts a focused control
+// over its neighbours and nothing outside the strip: not a sticky header it
+// scrolls under, not a drawer over it.
+templ Toolbar(props Props) {
+	<div
+		class={ utils.TwMerge("isolate flex flex-wrap items-center gap-0", utils.If(props.Orientation == OrientationVertical, "flex-col"), props.Class) }
+		data-toolbar
+		data-slot={ utils.IfElse(props.Slot != "", props.Slot, "toolbar") }
+		aria-label={ props.Label }
+		if props.Orientation == OrientationVertical {
+			data-orientation="vertical"
+		}
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+type ItemProps struct {
+	Attributes templ.Attributes
+}
+
+// Item marks one control as belonging to the toolbar. It takes exactly one
+// child, and the first focusable element inside that child is what the script
+// gives the roving tabindex to -- the first, because a tool button arrives
+// wrapped in its tooltip, so the focusable thing is two spans down rather than
+// the child itself.
+//
+// The wrapper draws nothing and takes no room: display:contents leaves the
+// control a direct flex item of the strip, the way tooltip.Trigger already
+// wraps without moving anything. That is also why it has no Class -- there is
+// no box to style, and overriding "contents" would put one back and break the
+// strip's own layout.
+//
+// One child is a rule the caller keeps rather than one templ can check: a
+// second control in here would never be reached by the arrows, because the
+// script stops at the first focusable element it finds. Two controls are two
+// Items.
+templ Item(props ...ItemProps) {
+	{{ var p ItemProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<span class="contents" data-toolbar-item { p.Attributes... }>
+		{ children... }
+	</span>
+}
+
+type ButtonProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Disabled   bool
+	// Icon draws before the children, and is the whole button when there are
+	// none, which is what all eleven formatting tools are.
+	Icon icons.Name
+	// Label names the control for a screen reader and is the words the tooltip
+	// shows. An icon alone has neither without it.
+	Label string
+	// Toggle says this control is a state rather than an action -- bold is on,
+	// the list is showing -- which is what gets it the pressed look and says so
+	// to a screen reader.
+	Toggle bool
+}
+
+// Button is the tool button as a member of the strip: button.ButtonTool wrapped
+// in an Item.
+//
+// A control that is not a tool button -- a link, a popover trigger, anything a
+// screen brings its own markup for -- goes in an Item directly, and carries
+// FocusOnTopClass in its own class.
+templ Button(props ButtonProps) {
+	@Item() {
+		@button.ButtonTool(button.ToolProps{
+			Attributes:   props.Attributes,
+			Class:        utils.TwMerge(FocusOnTopClass, props.Class),
+			Disabled:     props.Disabled,
+			Icon:         props.Icon,
+			Toggle:       props.Toggle,
+			Tooltip:      props.Label,
+		}) {
+			{ children... }
+		}
+	}
+}
+
+// FocusOnTopClass lifts a focused control over its neighbours. The strip has
+// no gap, so a focus ring, drawn outside its control, lies over the edge of
+// the next one, and a later control paints over an earlier one: hovering the
+// next control laid its background over the ring. Button carries it; a control
+// a caller puts in an Item takes it in its own class, on the element that
+// draws the ring. Item and a tooltip wrap in display:contents, so the control
+// is the strip's own flex item and the z-index applies without positioning.
+const FocusOnTopClass = "focus-visible:z-10"
+
+type SeparatorProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Separator is the rule between two groups of controls. It is always vertical,
+// because the only toolbar that groups its controls is horizontal; a vertical
+// one that wants a rule can take the orientation as a prop when it turns up.
+// Nothing here is focusable, so the roving walk passes straight over it.
+templ Separator(props SeparatorProps) {
+	<span
+		class={ utils.TwMerge("mx-1 h-5 w-px bg-border", props.Class) }
+		role="separator"
+		aria-orientation="vertical"
+		{ props.Attributes... }
+	></span>
+}

@@ -1,0 +1,300 @@
+package button
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// DefaultIcon is what a story falls back to before anyone touches the controls.
+// It is the most common icon in the app by a wide margin, so it is the least
+// surprising thing to open on. The component itself has no default: an unset
+// Icon renders whatever children it was given.
+const DefaultIcon = icons.More
+
+type IconCorner string
+
+const (
+	IconCornerCircle IconCorner = "circle"
+	IconCornerSquircle IconCorner = "squircle"
+)
+
+type IconSize string
+
+const (
+	IconSizeLg IconSize = "lg"
+	IconSizeMd IconSize = "md"
+	IconSizeSm IconSize = "sm"
+	IconSizeXs IconSize = "xs"
+)
+
+type IconVariant string
+
+const (
+	IconVariantGhost   IconVariant = "ghost"
+	IconVariantOutline IconVariant = "outline"
+)
+
+// ButtonIcon is the square, label-free button. It is its own component rather
+// than a Size on Button because every icon button in the app is one of two
+// looks -- ghost or outline, never filled or destructive -- so Button's other
+// four variants are combinations nothing can reach and the contact sheet would
+// still have to render.
+type IconProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Corner     IconCorner
+	Disabled   bool
+	Form       string
+	Href       string
+	Icon       icons.Name
+	ID         string
+	// MobileSize replaces both box and glyph below docked; empty keeps Size.
+	MobileSize IconSize
+	Size       IconSize
+	// State names the entry of States the button starts in; empty means the
+	// first.
+	State string
+	// States make the button one control that changes what it does -- a
+	// password field's show and hide, a mail row's mark read and mark unread.
+	// Each state brings its own glyph and label, which replace Icon, Tooltip
+	// and any aria-label in Attributes. Every state renders, so script switches between them in place
+	// (button_state.ts) and focus stays on the button through the change.
+	States []IconState
+	Target string
+	// Tooltip is the label shown while the pointer rests on the button or it
+	// holds keyboard focus. An icon button has no text, so the same words
+	// become its aria-label unless Attributes carries one already.
+	Tooltip string
+	Type    Type
+	Variant IconVariant
+}
+
+// IconState is one of a stateful button's states: Name is what State and
+// script call it, Icon and Label what the button draws and says in it.
+// Caption is a shorter name for where one is shown under the button, as a
+// swipe tray does (ui/components/swiperow); empty shows Label.
+type IconState struct {
+	Caption string
+	Icon    icons.Name
+	Label   string
+	Name    string
+}
+
+templ ButtonIcon(props ...IconProps) {
+	{{ var p IconProps }}
+	if len(props) > 0 {
+		{{ p = props[0].withState() }}
+	}
+	if p.Tooltip != "" {
+		@tooltip.Tooltip(tooltip.Props{Text: p.Tooltip}) {
+			@buttonIconElement(p) {
+				{ children... }
+			}
+		}
+	} else {
+		@buttonIconElement(p) {
+			{ children... }
+		}
+	}
+}
+
+templ buttonIconElement(p IconProps) {
+	@ButtonUnstyled(ButtonUnstyledProps{
+		Attributes: p.dataAttributes(),
+		Class:      p.classes(),
+		Disabled:   p.Disabled,
+		Form:       p.Form,
+		Href:       p.Href,
+		ID:         p.ID,
+		Slot:       "button-icon",
+		Target:     p.Target,
+		Type:       p.Type,
+	}) {
+		if len(p.States) > 0 && p.glyphSize() > 0 {
+			for _, state := range p.States {
+				<span data-slot="button-icon-state" data-name={ state.Name } data-label={ state.Label } hidden?={ state.Name != p.State }>
+					@icons.Render(state.Icon, icons.Props{Class: p.mobileGlyphClass(), Size: p.glyphSize()})
+				</span>
+			}
+		} else if p.Icon != "" && p.glyphSize() > 0 {
+			@icons.Render(p.Icon, icons.Props{Class: p.mobileGlyphClass(), Size: p.glyphSize()})
+		} else {
+			{ children... }
+		}
+	}
+}
+
+// The glyph scales with the button rather than being set per call site, so an
+// icon button cannot end up with a 20px glyph in a 24px box. Children remain the
+// escape hatch for the two toggles that swap between two glyphs with CSS.
+//
+// The glyph steps with the box -- 22 in 36px, 20 in 32, 16 in 28, 14 in 24 --
+// so each size keeps about the same ring of padding around its glyph. Md holds
+// 20 rather than dropping to Sm's 16, which a 32px box reads as underfilled.
+func (b IconProps) glyphSize() int {
+	switch b.Size {
+	case IconSizeLg:
+		return 22
+	case IconSizeMd:
+		return 20
+	case IconSizeSm:
+		return 16
+	case IconSizeXs:
+		return 14
+	}
+	// Zero means "no size", and the caller skips the glyph rather than passing
+	// it on: the icon package reads a non-positive size as "use lucide's 24",
+	// which would quietly hand an unset Size a bigger glyph than any real one.
+	// Drawing nothing matches sizeClasses drawing no box -- both say a size is
+	// required, and a button that renders as nothing is easy to notice.
+	return 0
+}
+
+// withState settles a stateful button on its current state: State names one
+// of States, the first when it names none, and that state's glyph and label
+// stand in for Icon and Tooltip, so the label and tooltip render as for any
+// other icon button.
+func (b IconProps) withState() IconProps {
+	if len(b.States) == 0 {
+		return b
+	}
+	current := b.States[0]
+	for _, state := range b.States {
+		if state.Name == b.State {
+			current = state
+		}
+	}
+	b.Icon, b.State, b.Tooltip = current.Icon, current.Name, current.Label
+	return b
+}
+
+func (b IconProps) dataAttributes() templ.Attributes {
+	out := templ.Attributes{
+		"data-corner":  string(b.corner()),
+		"data-size":    string(b.Size),
+		"data-variant": string(b.variant()),
+	}
+	if len(b.States) > 0 {
+		out["data-state"] = b.State
+	}
+	if b.Tooltip != "" {
+		out["aria-label"] = b.Tooltip
+	}
+	for name, value := range b.Attributes {
+		out[name] = value
+	}
+	// A stateful button's name is its current state's label, which setState
+	// rewrites on every change, so a caller's own aria-label would last only
+	// until the first one.
+	if len(b.States) > 0 {
+		out["aria-label"] = b.Tooltip
+	}
+	return out
+}
+
+func (b IconProps) variant() IconVariant {
+	if b.Variant == "" {
+		return IconVariantGhost
+	}
+	return b.Variant
+}
+
+func (b IconProps) classes() string {
+	return utils.TwMerge(
+		"inline-flex items-center justify-center gap-2 type-body-200-medium whitespace-nowrap text-muted-foreground transition-all",
+		"shrink-0 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+		"outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring",
+		"aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
+		"hover:text-foreground",
+		"cursor-pointer",
+		b.variantClasses(),
+		b.sizeClasses(),
+		b.mobileSizeClass(),
+		b.cornerClasses(),
+		b.Class,
+	)
+}
+
+func (b IconProps) corner() IconCorner {
+	if b.Corner == "" {
+		return IconCornerCircle
+	}
+	return b.Corner
+}
+
+func (b IconProps) cornerClasses() string {
+	if b.corner() == IconCornerSquircle {
+		return "squircle-lg squircle-amt-1.5"
+	}
+	return "squircle-full squircle-amt-1"
+}
+
+// Size has no default on purpose. The four sizes come from what the app
+// actually uses -- size-9 dominates, size-7 is the next cluster, with size-8 and
+// size-6 filling in around them -- and a silent fallback would let a call site drift to whichever
+// one happened to be the default. An unset Size emits no box at all, which is
+// meant to be obvious the first time the button renders.
+//
+// Below docked every size keeps a 44px floor around its glyph. The floor
+// has its own merge group, so a size-* override keeps it; compact controls
+// such as InputPill lower it with max-docked:min-h-0 max-docked:min-w-0.
+func (b IconProps) sizeClasses() string {
+	switch b.Size {
+	case IconSizeLg:
+		return utils.TwMerge("size-9", compactFloorClass)
+	case IconSizeMd:
+		return utils.TwMerge("size-8", compactFloorClass)
+	case IconSizeSm:
+		return utils.TwMerge("size-7", compactFloorClass)
+	case IconSizeXs:
+		return utils.TwMerge("size-6", compactFloorClass)
+	}
+	return ""
+}
+
+func (b IconProps) mobileSizeClass() string {
+	switch b.MobileSize {
+	case IconSizeLg:
+		return "max-docked:size-9"
+	case IconSizeMd:
+		return "max-docked:size-8"
+	case IconSizeSm:
+		return "max-docked:size-7"
+	case IconSizeXs:
+		return "max-docked:size-6"
+	}
+	return ""
+}
+
+func (b IconProps) mobileGlyphClass() string {
+	switch b.MobileSize {
+	case IconSizeLg:
+		return "max-docked:size-[22px]"
+	case IconSizeMd:
+		return "max-docked:size-5"
+	case IconSizeSm:
+		return "max-docked:size-4"
+	case IconSizeXs:
+		return "max-docked:size-3.5"
+	}
+	return ""
+}
+
+func IconSizes() []IconSize {
+	return []IconSize{IconSizeLg, IconSizeMd, IconSizeSm, IconSizeXs}
+}
+
+// compactFloorClass is the 44px minimum for icon and tool buttons below docked.
+const compactFloorClass = "max-docked:min-h-11 max-docked:min-w-11"
+
+func (b IconProps) variantClasses() string {
+	if b.variant() == IconVariantOutline {
+		return "border bg-background shadow-xs hover:bg-outline-hover focus-visible:border-muted-foreground"
+	}
+	// Not shadcn's hover:bg-accent: this theme defines --accent as exactly
+	// --primary, so the stock ghost paints a full teal fill with near-white text
+	// on a button that started transparent. ghost-hover is the neutral shadcn
+	// assumes accent to be.
+	return "hover:bg-ghost-hover"
+}

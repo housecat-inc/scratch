@@ -1,0 +1,91 @@
+package codex
+
+import (
+	"cmp"
+
+	"github.com/housecat-inc/scratch/ui/components/alert"
+	"github.com/housecat-inc/scratch/ui/components/button"
+)
+
+func deleteConfirmID(in ChatIn) string {
+	return cmp.Or(in.ID, "codex-content") + "-delete-confirm"
+}
+
+func deleteErrorID(in ChatIn) string {
+	return cmp.Or(in.ID, "codex-content") + "-delete-error"
+}
+
+// Opening the confirm is client-side: it asks, and only its Delete button
+// talks to the server.
+func deleteTriggerAttributes(in ChatIn) templ.Attributes {
+	return templ.Attributes{
+		"aria-controls":    deleteConfirmID(in),
+		"aria-label":       "Delete conversation",
+		"data-chat-delete": true,
+		"title":            "Delete conversation",
+	}
+}
+
+// DeleteConfirm sits under the chat's header, inside the same sticky block, so
+// it stays in view however far the transcript has scrolled.
+//
+// It lives inside the transcript the chat's event stream morphs, and a morph
+// would put back the hidden attribute the server rendered and wipe an error
+// message the server never saw. hx-morph-skip keeps this element exactly as
+// the browser left it; the id is what pairs it with its re-rendered twin.
+//
+// The wrapper carries hidden, so the role="alert" inside is out of the
+// accessibility tree until the trigger reveals it, and it announces then rather
+// than at page load.
+//
+// Escape in the confirm is its Cancel button: delete.ts binds it through the
+// key router, which runs it before the Escape of the chat rail around it.
+//
+// hx-disable drops focus to the body while the request is in flight, and
+// htmx re-enables the button only after htmx:finally:request, so focus returns
+// on the next task.
+templ DeleteConfirm(in ChatIn) {
+	<div
+		id={ deleteConfirmID(in) }
+		data-chat-delete-confirm
+		hidden
+		hx-morph-skip
+		class="border-b pt-3 pr-[var(--entry-list-p-r)] pb-3 pl-[var(--entry-list-p-l)]"
+	>
+		@alert.Alert(alert.Props{Variant: alert.VariantDestructive}) {
+			@alert.Title() {
+				Delete this conversation?
+			}
+			@alert.Description() {
+				<p>It and its queued messages will be deleted. This cannot be undone.</p>
+				<p id={ deleteErrorID(in) } data-chat-delete-error class="type-body-200-medium text-destructive empty:hidden"></p>
+			}
+			@alert.Actions() {
+				@button.Button(button.Props{
+					Attributes: templ.Attributes{
+						"data-chat-delete-cancel": true,
+					},
+					Size:    button.SizeSm,
+					Variant: button.VariantOutline,
+				}) {
+					Cancel
+				}
+				@button.Button(button.Props{
+					Attributes: templ.Attributes{
+						"data-chat-delete-submit":    true,
+						"hx-delete":                  in.DeleteURL,
+						"hx-disable":                 "this",
+						"hx-status:4xx":              `{"target":"#` + deleteErrorID(in) + `","swap":"innerHTML"}`,
+						"hx-status:5xx":              `{"target":"#` + deleteErrorID(in) + `","swap":"innerHTML"}`,
+						"hx-swap":                    "innerHTML",
+						"hx-target":                  "#" + deleteErrorID(in),
+					},
+					Size:    button.SizeSm,
+					Variant: button.VariantDestructive,
+				}) {
+					Delete
+				}
+			}
+		}
+	</div>
+}

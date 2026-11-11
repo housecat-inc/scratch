@@ -1,0 +1,118 @@
+// Package input is a one-line text control. Alone it is an input in the
+// kit's box; inside a field.Field it wears the field's id and is described
+// and marked invalid and required by it, as Base UI's Input is by its
+// Field.
+//
+// Baseline: templUI input v1.5.0, as the templui v1.5.0 CLI installed it in
+// app/ui/components/input, which this replaced (see that path's git history).
+// It has since diverged in these ways:
+//
+//   - It draws control.Class's box, 32px tall to sit beside a small button,
+//     with squircle corners and a solid background, where templUI's is h-9,
+//     rounded-md and transparent with a shadow. Its type is control.Text, or
+//     control.MonoText when Mono is set, rather than one TwMerge resolves.
+//   - It takes the field's id, help, error and required state through
+//     control.Field, so a field labels and describes it with no wiring at
+//     the call site. HasError still marks a standalone input invalid.
+//   - A read-only input is tinted, so it reads as a value to copy.
+//   - The password toggle (NoTogglePassword) and the script behind it are
+//     left out: nothing here takes a password, and the kit's behaviour lives
+//     in ui.js rather than in a .min.js a Script() loads.
+package input
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/control"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Type string
+
+const (
+	TypeText     Type = "text"
+	TypePassword Type = "password"
+	TypeEmail    Type = "email"
+	TypeNumber   Type = "number"
+	TypeTel      Type = "tel"
+	TypeURL      Type = "url"
+	TypeSearch   Type = "search"
+	TypeDate     Type = "date"
+	TypeDateTime Type = "datetime-local"
+	TypeTime     Type = "time"
+	TypeFile     Type = "file"
+	TypeColor    Type = "color"
+	TypeWeek     Type = "week"
+	TypeMonth    Type = "month"
+)
+
+type Props struct {
+	Attributes   templ.Attributes
+	Autocomplete string
+	Class        string
+	Disabled     bool
+	// FileAccept is a file input's accept list.
+	FileAccept string
+	// Form is the id of the form the input belongs to, for one outside it.
+	Form string
+	// HasError marks the input invalid. Inside a field.Field the field's
+	// Error does this instead.
+	HasError bool
+	// ID is the input's own; inside a field.Field without one it wears the
+	// field's.
+	ID string
+	// MaxLength caps the value at that many characters; none when 0.
+	MaxLength int
+	// Mono sets the value in the code face, for a value that is code: a
+	// Gmail query, a cron expression.
+	Mono        bool
+	Name        string
+	Placeholder string
+	Readonly    bool
+	Required    bool
+	// Type is the input's type; TypeText when unset.
+	Type  Type
+	Value string
+}
+
+templ Input(p Props) {
+	{{ f := control.Claim(ctx) }}
+	{{ id := f.Take(p.ID) }}
+	<input
+		if id != "" {
+			id={ id }
+		}
+		type={ string(utils.IfElse(p.Type != "", p.Type, TypeText)) }
+		if p.Name != "" {
+			name={ p.Name }
+		}
+		if p.Value != "" {
+			value={ p.Value }
+		}
+		if p.Placeholder != "" {
+			placeholder={ p.Placeholder }
+		}
+		if p.Autocomplete != "" {
+			autocomplete={ p.Autocomplete }
+		}
+		if p.MaxLength > 0 {
+			maxlength={ strconv.Itoa(p.MaxLength) }
+		}
+		if p.Form != "" {
+			form={ p.Form }
+		}
+		if p.Type == TypeFile && p.FileAccept != "" {
+			accept={ p.FileAccept }
+		}
+		required?={ p.Required || f.IsRequired() }
+		disabled?={ p.Disabled }
+		readonly?={ p.Readonly }
+		if p.HasError {
+			aria-invalid="true"
+		}
+		{ f.Attributes()... }
+		data-slot="input"
+		class={ utils.TwMerge(control.Class, utils.IfElse(p.Mono, control.MonoText, control.Text), "w-full", utils.If(p.Readonly, "bg-muted dark:bg-muted"), utils.If(p.Type == TypeFile, "py-1 file:me-3 file:h-6 file:border-0 file:bg-transparent file:type-body-200-medium file:text-foreground"), p.Class) }
+		{ p.Attributes... }
+	/>
+}

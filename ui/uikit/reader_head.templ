@@ -1,0 +1,58 @@
+package uikit
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/headerbar"
+	"github.com/housecat-inc/scratch/ui/components/toolbar"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// ReaderHead is the bar above a reader pane: a back control, the subject, then
+// whatever trailing actions the page adds.
+//
+// Its first column is --reader-gutter, the same track a thread entry gives its
+// sender avatar, so the back button and the avatars below it sit on one edge.
+// The two cannot share a single grid: .gm-reader-body scrolls, and a scroll
+// container cannot be a subgrid, so they share the token instead.
+//
+// The gutter cannot widen to the back button's 44px touch floor below docked
+// without moving the avatars off its edge, so a back button in it carries
+// justify-self-center: its box overflows the gutter by 6px a side, into the
+// head's left padding and the column gap, which are empty and wider than
+// that, and its glyph stays centred over the avatars.
+//
+// The toolbar column is auto: the toolbar takes the width its controls want
+// and the subject the rest, but never less than --reader-subject-min, which
+// the subject keeps at every width. A toolbar wider than what that leaves
+// shrinks whatever in it can shrink -- the mail reader's label chips -- rather
+// than the subject.
+templ ReaderHead(class string) {
+	<div
+		class={ "grid h-12 flex-none grid-cols-[var(--reader-gutter)_minmax(var(--reader-subject-min),1fr)_auto] items-center gap-x-[var(--entry-list-gap)] border-b border-[var(--gm-border)] pr-[var(--entry-list-p-r)] pl-[var(--entry-list-p-l)]", class }
+		data-slot="gm-reader-head"
+	>
+		{ children... }
+	</div>
+}
+
+// ReaderSubject is the thread or template title in the reader head. It is
+// headerbar.Title and nothing more: the reader's subject is a pane title, so it
+// takes the one look every pane title has rather than carrying its own.
+templ ReaderSubject() {
+	@headerbar.Title() {
+		{ children... }
+	}
+}
+
+// ReaderToolbar holds the reader head's actions on one line. The kit's icon
+// buttons do not shrink, so min-w-0 lets the toolbar shrink only through a
+// part that can -- the mail reader's label chips -- down to that part's own
+// floor, instead of taking width from the subject past its minimum.
+templ ReaderToolbar(class string) {
+	@toolbar.Toolbar(toolbar.Props{
+		Class: utils.TwMerge("ml-auto inline-flex min-w-0 flex-nowrap items-center gap-0", class),
+		Label: "Actions",
+		Slot:  "gm-reader-toolbar",
+	}) {
+		{ children... }
+	}
+}

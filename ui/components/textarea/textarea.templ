@@ -1,0 +1,86 @@
+// Package textarea is a multi-line text control, in the same box as input.
+// Inside a field.Field it wears the field's id and is described and marked
+// invalid and required by it.
+//
+// Baseline: templUI textarea v1.5.0, as the templui v1.5.0 CLI installed it
+// in app/ui/components/textarea, which this replaced (see that path's git
+// history). It has since diverged in these ways:
+//
+//   - It draws control.Class's box and control.Text, or control.MonoText when
+//     Mono is set, as input does, rather than templUI's rounded-md
+//     transparent box.
+//   - It takes the field's id, help, error and required state through
+//     control.Field. HasError still marks a standalone textarea invalid.
+//   - AutoResize grows the box with its text through CSS field-sizing
+//     rather than templUI's script.
+//   - Its value follows a newline. The parser drops one directly after the
+//     opening tag, so without it a value that starts with a blank line would
+//     lose that line each time the form is drawn and saved.
+//   - A read-only textarea is tinted, as a read-only input is.
+package textarea
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/control"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	// AutoResize grows the textarea with its text, from Rows lines up.
+	AutoResize bool
+	Class      string
+	Disabled   bool
+	Form       string
+	// HasError marks the textarea invalid. Inside a field.Field the field's
+	// Error does this instead.
+	HasError bool
+	// ID is the textarea's own; inside a field.Field without one it wears
+	// the field's.
+	ID string
+	// MaxLength caps the value at that many characters; none when 0.
+	MaxLength int
+	// Mono sets the value in the code face, for a value that is code.
+	Mono        bool
+	Name        string
+	Placeholder string
+	Readonly    bool
+	Required    bool
+	// Rows is the textarea's height in lines; 4 when unset.
+	Rows  int
+	Value string
+}
+
+templ Textarea(p Props) {
+	{{ f := control.Claim(ctx) }}
+	{{ id := f.Take(p.ID) }}
+	<textarea
+		if id != "" {
+			id={ id }
+		}
+		if p.Name != "" {
+			name={ p.Name }
+		}
+		rows={ strconv.Itoa(utils.IfElse(p.Rows > 0, p.Rows, 4)) }
+		if p.Placeholder != "" {
+			placeholder={ p.Placeholder }
+		}
+		if p.MaxLength > 0 {
+			maxlength={ strconv.Itoa(p.MaxLength) }
+		}
+		if p.Form != "" {
+			form={ p.Form }
+		}
+		required?={ p.Required || f.IsRequired() }
+		disabled?={ p.Disabled }
+		readonly?={ p.Readonly }
+		if p.HasError {
+			aria-invalid="true"
+		}
+		{ f.Attributes()... }
+		data-slot="textarea"
+		class={ utils.TwMerge(control.Class, utils.IfElse(p.Mono, control.MonoText, control.Text), "h-auto w-full py-2", utils.If(p.AutoResize, "field-sizing-content"), utils.If(p.Readonly, "bg-muted dark:bg-muted"), p.Class) }
+		{ p.Attributes... }
+	>{ "\n" + p.Value }</textarea>
+}

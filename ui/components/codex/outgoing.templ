@@ -1,0 +1,171 @@
+package codex
+
+import "strconv"
+import "github.com/housecat-inc/scratch/ui/components/linkchip"
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type OutgoingStateIn struct {
+	ClientID string
+	QueueID  int64
+	ThreadID string
+	TurnID   string
+}
+
+// OutgoingMessage marks an element as the message the page sent under
+// clientID: the transcript's user message, a queued row, and the server's
+// answer to the send. Outgoing matches a saved or pending message to the
+// chat by it. A message sent without an id is marked with nothing.
+func OutgoingMessage(clientID string) templ.Attributes {
+	if clientID == "" {
+		return templ.Attributes{}
+	}
+	return templ.Attributes{"data-outgoing-message": clientID}
+}
+
+// ClientThreadID marks a chat list's row with the chat's client id: the
+// client id of the message that started it, which the server keeps on that
+// message's row (QueueStore.ClientThreadIDs in app/pkg/codex). A new chat
+// whose page lost the answer to its first message finds its chat by it. The
+// row also carries the chat's id as data-chat-id or data-thread-id. A chat
+// started elsewhere is marked with nothing.
+func ClientThreadID(clientID string) templ.Attributes {
+	if clientID == "" {
+		return templ.Attributes{}
+	}
+	return templ.Attributes{"data-client-thread-id": clientID}
+}
+
+templ OutgoingState(in OutgoingStateIn) {
+	<span data-outgoing-result data-queue-id={ strconv.FormatInt(in.QueueID, 10) } data-stop-url={ StopPath(in.ThreadID, in.TurnID) } data-thread-id={ in.ThreadID } data-turn-id={ in.TurnID } { OutgoingMessage(in.ClientID)... }>
+		if in.QueueID!=0 {
+			Queued
+		} else {
+			Sent
+		}
+	</span>
+}
+
+// OutgoingThread goes beside the SendError for a new chat's first message
+// when the chat was created but its first turn did not start. It names that
+// chat, so the page moves to it and a Resend goes there rather than
+// starting a second chat. The empty chat is kept, not deleted: a failed
+// turn/start does not prove the turn never ran.
+templ OutgoingThread(threadID string) {
+	<span hidden data-outgoing-thread={ threadID }></span>
+}
+
+var outgoingScriptOnce = templ.NewOnceHandle()
+
+// Outgoing lives outside the SSE-morphed transcript, so nothing it inserts is
+// wiped by a morph. reconcile fills a bubble's pending placeholder once the
+// server's reply names a turn, never for a queued or failed send, and removes
+// it with the bubble once that turn is in the transcript; from then on
+// TurnView's own placeholder speaks for it. Both happen in the
+// MutationObserver callback for the swap that caused them, which runs before
+// the browser paints, so no frame shows the reply without the placeholder or
+// the placeholder beside the turn.
+//
+// A bubble is TurnView's UserMessage, rendered empty and filled through its
+// user-message-text slot, with resolved composer chips retained until the
+// server transcript replaces the bubble.
+// The delivery state sits below it and stays screen-reader only until a failed
+// send shows its Resend and Delete buttons. A server's refusal is SendError's
+// markup, swapped into the state, and a bubble restored after a reload redraws
+// it from the send-error template. A bubble also sits where TurnView will draw
+// it, so this surface mirrors ChatContents' entry list, py-6 with space-y-5
+// between turns: a new chat draws no entry list at all and an empty one
+// collapses, so while there are no entries the surface takes the list's pt-6;
+// after entries it takes back the list's pb-6 with -mt-6 and leaves the turn
+// gap, pt-5. An empty queue takes no space-y gap. A change to the entry list's
+// padding or gap changes these with it.
+//
+// In a new chat the surface takes no space until the chat begins, the same
+// two clauses as starterHide, so newChatEmpty runs down to the composer
+// without the surface lying over the starter prompts and taking their clicks.
+const newChatSurface = "group-[:not(:has([data-outgoing],[data-chat-entries]:not(:empty)))]/chat:py-0"
+
+templ Outgoing(in ChatIn) {
+	@OutgoingScript()
+	<div class={ utils.TwMerge("mx-auto w-full max-w-4xl space-y-3 pt-6 pr-[var(--entry-list-p-r)] pb-4 pl-[var(--entry-list-p-l)] group-has-[[data-chat-entries]:not(:empty)]/chat:-mt-6 group-has-[[data-chat-entries]:not(:empty)]/chat:pt-5", utils.If(in.SelectedID == "", newChatSurface)) } data-outgoing-surface>
+		<div
+			class="empty:hidden"
+			data-chat-queue
+			hx-trigger="load, every 3s, codex:queued"
+			hx-swap="innerMorph"
+			if in.QueueURL!="" {
+				hx-get={ in.QueueURL }
+			}
+		></div>
+		<div data-outgoing-list class="space-y-3"></div>
+		<template data-outgoing-template="message">
+			<div class="group/outgoing" data-outgoing>
+				@UserMessage(nil)
+				<div class="flex flex-col items-end">
+					<div data-outgoing-state class="sr-only type-caption-100 text-muted-foreground group-has-[[data-outgoing-dismiss]:not([hidden])]/outgoing:not-sr-only" aria-live="polite">Sending…</div>
+					<div class="flex gap-3">
+						<button data-outgoing-action="resend" hidden type="button" class="mt-1 type-caption-100 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-50" hx-live:disabled="!window.housecatCodexSendable(this.closest('[data-chat]'))">Resend</button>
+						<button data-outgoing-dismiss hidden type="button" class="mt-1 type-caption-100 text-muted-foreground hover:text-foreground">Delete</button>
+					</div>
+				</div>
+				<div data-outgoing-pending class="not-empty:mt-4" role="status" aria-live="polite"></div>
+			</div>
+		</template>
+		<template data-outgoing-template="send-error">
+			@SendError("")
+		</template>
+		<template data-outgoing-template="link">
+			@linkchip.Chip(linkchip.In{})
+		</template>
+		<template data-pending-template>
+			@Pending()
+		</template>
+	</div>
+}
+
+// OutgoingScript keeps what the user has not yet sent in per-tab
+// sessionStorage, one entry per chat under housecat.chat.<user>.thread.<id>,
+// or housecat.chat.<user>.new for a chat with no thread yet, where <user> is
+// the chat's data-chat-user: the input's draft, and every message sent but not
+// confirmed, under the client id the page made for it. Every send carries
+// that id, and the server echoes it wherever the message turns up: the
+// answer to the send, a queued row, the transcript's user message
+// (data-outgoing-message on each). Nothing reads or writes an entry outside
+// the signed-in user's own keys. A draft is written on every input and
+// deleted when the input is emptied; a message is deleted when the server
+// confirms it, when the chat shows it, or when the user deletes it. Clearing
+// the input on send is safe only because the message is saved first, so the
+// text is never in no place at all.
+//
+// Whenever a chat's input mounts -- a page load, a swap or morph that brings
+// a chat in, the same chat fetched over itself -- mount puts that chat's
+// draft back, and restore accounts for its saved messages. One whose id the
+// transcript or queue shows was delivered, and is dropped. The rest of a
+// chat's are asked about at data-sends-url: sent is dropped; queued, pending
+// or sending is drawn as a live send is and asked about again every few
+// seconds; anything else is drawn as not sent, with Resend. A new chat's
+// saved messages are never asked about: one whose chat the chat list shows
+// moves there with the panel, and the rest are drawn as not sent at once
+// (see restoreNewChat). Whenever the
+// transcript or queue later shows a drawn message, reconcile removes it and
+// its saved copy, so a message drawn as not sent that did land does not
+// linger. A message still being sent from this page is left to that send.
+//
+// When a new chat gets its thread, its entry moves to the thread's key, which
+// is the only time text changes chats. That happens when a send is accepted,
+// and when a failed first message's error names the chat it created
+// (data-outgoing-thread): the panel then moves to that chat, and Resend and
+// the messages waiting behind go there. A new chat whose panel has been
+// replaced by then moves only its own messages: the new-chat entry may
+// belong to a newer panel by that time.
+//
+// Resend sends under the message's own id, so a server that has it already
+// answers with where it is instead of sending it twice. Like Send, it is
+// disabled while the chat is unavailable or its input disabled or read-only.
+//
+// Storage can be missing or refuse writes; every access is guarded, and the
+// chat then works as it does without restoring anything.
+templ OutgoingScript() {
+	@outgoingScriptOnce.Once() {
+		<template data-script="outgoing"></template>
+	}
+}

@@ -1,0 +1,23 @@
+package viewicon
+
+import "github.com/housecat-inc/scratch/ui/icons"
+
+type Props struct {
+	Class    string
+	Fallback icons.Name
+	Icon     string
+	Size     int
+}
+
+// ViewIcon draws the glyph a view's stored icon names, or the fallback when it
+// has none or names one that has since left the set. It draws the bare glyph
+// so a caller's wrapper decides the box and whether it is hidden from
+// assistive technology.
+templ ViewIcon(p Props) {
+	{{ name, ok := icons.ParseLucideRef(p.Icon) }}
+	if ok {
+		@icons.RenderLucide(name, icons.Props{Class: p.Class, Size: p.Size})
+	} else {
+		@icons.Render(p.Fallback, icons.Props{Class: p.Class, Size: p.Size})
+	}
+}

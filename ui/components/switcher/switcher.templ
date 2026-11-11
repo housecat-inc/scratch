@@ -1,0 +1,42 @@
+package switcher
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/control"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	Checked    bool
+	Class      string
+	Disabled   bool
+	Form       string
+	ID         string
+	Name       string
+	Required   bool
+	Value      string
+}
+
+templ Switch(p Props) {
+	{{ f := control.Claim(ctx) }}
+	{{ id := f.Take(p.ID) }}
+	<span data-slot="switch" class={ utils.TwMerge("relative inline-flex h-5 w-9 shrink-0 items-center", p.Class) }>
+		<input
+			type="checkbox"
+			role="switch"
+			if id != "" { id={ id } }
+			if p.Name != "" { name={ p.Name } }
+			if p.Value != "" { value={ p.Value } }
+			if p.Form != "" { form={ p.Form } }
+			checked?={ p.Checked }
+			disabled?={ p.Disabled }
+			required?={ p.Required || f.IsRequired() }
+			{ f.Attributes()... }
+			data-slot="switch-control"
+			class="absolute inset-0 size-full cursor-pointer appearance-none border-0 bg-transparent outline-none peer disabled:cursor-not-allowed"
+			{ p.Attributes... }
+		/>
+		<span aria-hidden="true" data-slot="switch-track" class="squircle-pill pointer-events-none absolute! inset-0 border border-input bg-input transition-colors duration-120 peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-disabled:opacity-50"></span>
+		<span aria-hidden="true" data-slot="switch-thumb" class="pointer-events-none relative ml-[3px] size-3.5 rounded-full bg-background shadow-xs transition-transform duration-120 peer-checked:translate-x-4 peer-disabled:opacity-50"></span>
+	</span>
+}

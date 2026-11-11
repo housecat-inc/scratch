@@ -1,0 +1,44 @@
+package layouts
+
+// KeysStub stands in for the key router, ui/dom/keys.ts, until the deferred
+// ui.js runs. Rendered in <head> ahead of every script that handles keys, it
+// adds the router's window and <html> listeners first -- before any listener
+// a page script adds -- and hands keys to the router once it loads. Until
+// then it queues the registrations inline scripts make, each with the script
+// that made it, which becomes the registration's owner. A stub function a
+// script kept calls the router itself once the router is up, and a stub that
+// runs after the router leaves it alone.
+templ KeysStub() {
+	<script nonce={ templ.GetNonce(ctx) }>
+	(function () {
+		var keys = window.HousecatKeys = window.HousecatKeys || {};
+		if (keys.stubbed || keys.route) return;
+		keys.stubbed = true;
+		keys.queue = [];
+		function later(kind) {
+			return function () {
+				if (keys.route) return keys[kind].apply(keys, arguments);
+				var call = { args: Array.prototype.slice.call(arguments), done: null, dropped: false, kind: kind, owner: document.currentScript };
+				keys.queue.push(call);
+				if (kind === "layer") return;
+				if (kind === "scope") return {
+					close: function () { call.dropped = true; if (call.done) call.done.close(); },
+					resume: function () { call.suspended = false; if (call.done) call.done.resume(); },
+					suspend: function () { call.suspended = true; if (call.done) call.done.suspend(); },
+				};
+				return function () { call.dropped = true; if (typeof call.done === "function") call.done(); };
+			};
+		}
+		keys.layer = later("layer");
+		keys.observe = later("observe");
+		keys.on = later("on");
+		keys.scope = later("scope");
+		function forward(e) { if (keys.route) keys.route(e); }
+		forward.housecatKeys = true;
+		window.addEventListener("keydown", forward, true);
+		window.addEventListener("keyup", forward, true);
+		document.documentElement.addEventListener("keydown", forward);
+		document.documentElement.addEventListener("keyup", forward);
+	})();
+	</script>
+}

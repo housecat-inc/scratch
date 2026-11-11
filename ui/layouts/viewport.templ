@@ -1,0 +1,20 @@
+package layouts
+
+// ViewportStub publishes the docked breakpoint and the shell's too-narrow
+// widths on window.HousecatViewport in <head>, ahead of every inline script
+// that asks for them. ui/dom/viewport.ts, in the deferred ui.js, joins the
+// same object later with what it measures. The queries ride in data
+// attributes so the Go constants stay their one source; a script block cannot
+// interpolate a Go value.
+templ ViewportStub() {
+	<script nonce={ templ.GetNonce(ctx) } data-docked={ DockedQuery } data-compact={ CompactQuery } data-narrow={ NarrowQuery } data-narrow-with-rail={ NarrowWithRailQuery }>
+	(function () {
+		var data = document.currentScript.dataset;
+		var viewport = window.HousecatViewport = window.HousecatViewport || {};
+		viewport.docked = data.docked;
+		viewport.compact = data.compact;
+		viewport.narrow = data.narrow;
+		viewport.narrowWithRail = data.narrowWithRail;
+	})();
+	</script>
+}

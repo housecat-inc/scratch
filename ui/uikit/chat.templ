@@ -1,0 +1,66 @@
+package uikit
+
+import (
+	"github.com/housecat-inc/scratch/ui/icons"
+)
+
+type AgentRowProps struct {
+	Answer  string
+	Error   string
+	Failed  bool
+	Human   bool
+	Input   string
+	Label   string
+	Live    bool
+	Output  string
+	Summary string
+}
+
+templ AgentRow(props AgentRowProps) {
+	<div class="chat-turn role-assistant">
+		<details data-slot="agent-row" class={ "chat-row", "row-tool", templ.KV("row-failed", props.Failed) }>
+			<summary>
+				if props.Live {
+					<span data-slot="agent-row-spinner" class="chat-spinner"></span>
+				} else {
+					<span class="chat-row-icon">@agentRowIcon(props.Failed, props.Human)</span>
+				}
+				<span data-slot="agent-row-label" class={ "chat-row-label", templ.KV("chat-shimmer", props.Live) }>{ props.Label }</span>
+				if props.Summary != "" {
+					<span class="chat-row-chip">{ props.Summary }</span>
+				}
+				if props.Error != "" {
+					<span class="chat-row-chip">{ props.Error }</span>
+				}
+			</summary>
+			if props.Input != "" {
+				<div class="wf-io"><span class="wf-io-label">Input</span><pre class="wf-io-value">{ props.Input }</pre></div>
+			}
+			if props.Output != "" {
+				<div class="wf-io"><span class="wf-io-label">Output</span><pre class="wf-io-value">{ props.Output }</pre></div>
+			}
+			if props.Answer != "" {
+				<div class="wf-io"><span class="wf-io-label">Answer</span><pre class="wf-io-value">{ props.Answer }</pre></div>
+			}
+			if props.Error != "" {
+				<div class="wf-io"><span class="wf-io-label">Error</span><pre class="wf-io-value">{ props.Error }</pre></div>
+			}
+		</details>
+	</div>
+}
+
+// The row icon sits in a 1rem box, where lucide's stroke of 2 on a 24 grid
+// reads heavier than the label beside it, so it is drawn at 1.5.
+templ agentRowIcon(failed, human bool) {
+	@icons.Render(agentRowGlyph(failed, human), icons.Props{Size: 16, StrokeWidth: "1.5"})
+}
+
+func agentRowGlyph(failed, human bool) icons.Name {
+	if failed {
+		return icons.Failed
+	}
+	if human {
+		return icons.Person
+	}
+	return icons.Step
+}

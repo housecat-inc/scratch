@@ -1,0 +1,181 @@
+package uikit
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/swiperow"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// HoverBreakpoint is where the cluster stops being part of the row and becomes an
+// overlay floating over it.
+type HoverBreakpoint string
+
+const (
+	// HoverBreakpointPointer is the default: overlay wherever a pointer exists,
+	// in the flow where one does not, because a cluster revealed by hover is
+	// unreachable on a touch screen.
+	HoverBreakpointPointer HoverBreakpoint = ""
+	HoverBreakpointSm      HoverBreakpoint = "sm"
+	HoverBreakpointDocked HoverBreakpoint = "docked"
+)
+
+// Presentation is what the cluster becomes on a touch screen, where no hover
+// can reveal it: Inline keeps it in the row, on show; Swipe makes it the tray
+// of a swipe row (ui/components/swiperow), hidden until the row is slid left.
+// A screen with a pointer gets the hover overlay either way, and one with no
+// pointer at all keeps it in the row.
+type Presentation string
+
+const (
+	PresentationInline Presentation = "inline"
+	PresentationSwipe  Presentation = "swipe"
+)
+
+// HoverActionsRow marks the element whose hover reveals the cluster -- the row,
+// or whatever the reader thinks of as the thing being pointed at. A constant
+// rather than a string each caller writes out because the group name has to match
+// the variants below exactly, and a typo fails silently: the cluster simply never
+// appears.
+//
+// What it floats over is a separate choice. The nearest positioned ancestor wins,
+// so mark that element `relative` -- it can be the row itself, or a smaller box
+// inside it when the cluster should sit somewhere more particular.
+const HoverActionsRow = "group/hover-actions"
+
+// The breakpoint says how wide the screen has to be; the hover condition rides on
+// every one of them because width says nothing about whether a pointer exists. A
+// wide touch screen has to keep the cluster in the flow, or it is unreachable.
+//
+// Every breakpoint's overlay is spelled out in full rather than composed from a
+// prefix. Tailwind finds class names by scanning source text, so a string built
+// at run time -- "sm:" + "absolute" -- is invisible to it and the utility is
+// never generated. Only the breakpoints in use are enumerated, since each one
+// is a full copy of the set that Tailwind then emits whether or not a caller
+// asks for it; add the next one when a caller needs it.
+const (
+	// Where the cluster sits. Ungated for a caller that wants it pinned at every
+	// width, and per breakpoint for one that wants it to join the flow when the
+	// screen is narrow.
+	//
+	// The gradient is drawn over-long rather than to the cluster's own height, so
+	// it runs the full depth of whatever the cluster is covering. That makes the
+	// row responsible for clipping it: mark the row `overflow-hidden`. It takes no
+	// pointer events, so only the buttons themselves are clickable.
+	//
+	// The overlay paints --hover-actions-bg, falling back to the page background.
+	// A row with a tint of its own sets the variable to that tint, or the cluster
+	// reads as a pale patch over it.
+	//
+	// The gradient sits at a negative z-index. The cluster is a stacking context,
+	// so that keeps it above the cluster's own background but under the buttons;
+	// left at auto, a positioned pseudo-element paints over the static buttons
+	// and takes the outer edge of a focus ring with it.
+	hoverActionsAnchor        = "absolute top-0 right-0 z-[2] bg-[color:var(--hover-actions-bg,var(--color-background))] before:pointer-events-none before:absolute before:-z-10 before:top-0 before:h-96 before:right-full before:w-7 before:content-[''] before:bg-gradient-to-r before:from-transparent before:to-[color:var(--hover-actions-bg,var(--color-background))]"
+	hoverActionsAnchorPointer = "[@media(hover:hover)]:absolute [@media(hover:hover)]:top-0 [@media(hover:hover)]:right-0 [@media(hover:hover)]:z-[2] [@media(hover:hover)]:bg-[color:var(--hover-actions-bg,var(--color-background))] [@media(hover:hover)]:before:pointer-events-none [@media(hover:hover)]:before:absolute [@media(hover:hover)]:before:-z-10 [@media(hover:hover)]:before:top-0 [@media(hover:hover)]:before:h-96 [@media(hover:hover)]:before:right-full [@media(hover:hover)]:before:w-7 [@media(hover:hover)]:before:content-[''] [@media(hover:hover)]:before:bg-gradient-to-r [@media(hover:hover)]:before:from-transparent [@media(hover:hover)]:before:to-[color:var(--hover-actions-bg,var(--color-background))]"
+	hoverActionsAnchorSm      = "sm:[@media(hover:hover)]:absolute sm:[@media(hover:hover)]:top-0 sm:[@media(hover:hover)]:right-0 sm:[@media(hover:hover)]:z-[2] sm:[@media(hover:hover)]:bg-[color:var(--hover-actions-bg,var(--color-background))] sm:[@media(hover:hover)]:before:pointer-events-none sm:[@media(hover:hover)]:before:absolute sm:[@media(hover:hover)]:before:-z-10 sm:[@media(hover:hover)]:before:top-0 sm:[@media(hover:hover)]:before:h-96 sm:[@media(hover:hover)]:before:right-full sm:[@media(hover:hover)]:before:w-7 sm:[@media(hover:hover)]:before:content-[''] sm:[@media(hover:hover)]:before:bg-gradient-to-r sm:[@media(hover:hover)]:before:from-transparent sm:[@media(hover:hover)]:before:to-[color:var(--hover-actions-bg,var(--color-background))]"
+	hoverActionsAnchorDocked      = "docked:[@media(hover:hover)]:absolute docked:[@media(hover:hover)]:top-0 docked:[@media(hover:hover)]:right-0 docked:[@media(hover:hover)]:z-[2] docked:[@media(hover:hover)]:bg-[color:var(--hover-actions-bg,var(--color-background))] docked:[@media(hover:hover)]:before:pointer-events-none docked:[@media(hover:hover)]:before:absolute docked:[@media(hover:hover)]:before:-z-10 docked:[@media(hover:hover)]:before:top-0 docked:[@media(hover:hover)]:before:h-96 docked:[@media(hover:hover)]:before:right-full docked:[@media(hover:hover)]:before:w-7 docked:[@media(hover:hover)]:before:content-[''] docked:[@media(hover:hover)]:before:bg-gradient-to-r docked:[@media(hover:hover)]:before:from-transparent docked:[@media(hover:hover)]:before:to-[color:var(--hover-actions-bg,var(--color-background))]"
+
+	// When it hides. Always gated on hover as well as width: a screen without a
+	// pointer can never reveal it again, so it has to stay on show there.
+	hoverActionsHidePointer = "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none"
+	hoverActionsHideSm      = "sm:[@media(hover:hover)]:opacity-0 sm:[@media(hover:hover)]:pointer-events-none"
+	hoverActionsHideDocked      = "docked:[@media(hover:hover)]:opacity-0 docked:[@media(hover:hover)]:pointer-events-none"
+
+	// The fade is on opacity only, and short. Opacity composites the subtree as one
+	// layer, so the background and the icons cross-fade together; transition-all
+	// here would animate the layout properties the breakpoint switches too, and the
+	// cluster would slide as it appeared.
+	//
+	// Hidden with opacity rather than visibility. Visibility is animatable and
+	// inherited, and ButtonIcon carries transition-all, so each button went on
+	// transitioning its inherited visibility after the container had already
+	// dropped its background -- icons lingering over nothing. Opacity applies to
+	// the subtree as one composited layer, so everything moves together, and it
+	// leaves the buttons focusable rather than taking them out of the tab order.
+	//
+	// The reveal needs no gate: group-hover cannot fire without a pointer, and
+	// where the cluster is already in the flow, opacity is already 1.
+	//
+	// Keyboard focus reveals it too -- on the row itself, or on a button inside
+	// it -- but only focus-visible, never focus-within. The row is focusable, so
+	// a mouse click leaves it focused, and focus-within would then pin the
+	// cluster on show until the user clicked somewhere else.
+	hoverActionsReveal = "group-hover/hover-actions:opacity-100 group-hover/hover-actions:pointer-events-auto" +
+		" group-focus-visible/hover-actions:opacity-100 group-focus-visible/hover-actions:pointer-events-auto" +
+		" group-has-[:focus-visible]/hover-actions:opacity-100 group-has-[:focus-visible]/hover-actions:pointer-events-auto"
+)
+
+func (p HoverActionsProps) overlayClass() string {
+	anchor, hide := hoverActionsAnchorPointer, hoverActionsHidePointer
+	switch p.Breakpoint {
+	case HoverBreakpointSm:
+		anchor, hide = hoverActionsAnchorSm, hoverActionsHideSm
+	case HoverBreakpointDocked:
+		anchor, hide = hoverActionsAnchorDocked, hoverActionsHideDocked
+	}
+	if p.Anchored {
+		anchor = hoverActionsAnchor
+	}
+	return utils.TwMerge(anchor, hide, utils.IfElse(p.CurrentOnly,
+		"group-[.focused]/hover-actions:opacity-100 group-[.focused]/hover-actions:pointer-events-auto",
+		hoverActionsReveal))
+}
+
+type HoverActionsProps struct {
+	// Anchored pins the cluster in place at every width instead of letting it join
+	// the flow below the breakpoint. Only the hiding stays conditional, so it is
+	// on show until the breakpoint and hover-revealed above it.
+	Anchored    bool
+	Attributes  templ.Attributes
+	Breakpoint  HoverBreakpoint
+	Class       string
+	CurrentOnly bool
+	// Flow keeps the cluster in the row at every width, for a caller that styles
+	// the overlay itself.
+	Flow bool
+	// Presentation is the cluster on a touch screen; Inline when unset.
+	// Swipe needs the row to be a swipe row too.
+	Presentation Presentation
+}
+
+func (p HoverActionsProps) presentation() Presentation {
+	if p.Presentation == "" {
+		return PresentationInline
+	}
+	return p.Presentation
+}
+
+func (p HoverActionsProps) attributes() templ.Attributes {
+	out := templ.Attributes{"data-presentation": string(p.presentation())}
+	if p.presentation() == PresentationSwipe {
+		for k, v := range swiperow.TrayAttributes() {
+			out[k] = v
+		}
+		out["data-swipe-side"] = "left"
+	}
+	return out
+}
+
+// HoverActions is the cluster of icon buttons that belongs to a row -- a mail
+// row's archive and snooze, a thread entry's reply and forward.
+//
+// It renders in the flow and visible, and lifts out into an overlay at the
+// breakpoint the caller picks: absolute at the row's right edge, revealed on
+// hover or focus, with a gradient fading out whatever it covers so the text does
+// not end in a hard edge.
+//
+// On a touch screen, Presentation decides: in the flow and on show, or a swipe
+// row's tray.
+templ HoverActions(props ...HoverActionsProps) {
+	{{ var p HoverActionsProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		class={ utils.TwMerge("flex shrink-0 flex-nowrap items-center gap-0.5 transition-opacity duration-75", utils.If(!p.Flow, p.overlayClass()), utils.If(p.presentation() == PresentationSwipe, swiperow.TrayClass), p.Class) }
+		data-slot="hover-actions"
+		{ p.attributes()... }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}

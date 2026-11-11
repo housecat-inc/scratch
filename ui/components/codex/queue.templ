@@ -1,0 +1,79 @@
+package codex
+
+import (
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type QueuedMessage struct {
+	Automated   bool
+	ClientID    string
+	Error       string
+	// History is the version of the chat the message is queued in
+	// (ChatIn.History).
+	History     int
+	ID          string
+	LinkOrigins []string
+	Links       map[string]LinkLabel
+	// Page is the page the message was sent from, shown after its text.
+	Page        string
+	Prompt      string
+	Status      string
+	ThreadID    string
+	TurnID      string
+	URL         string
+}
+
+templ QueueContents(items []QueuedMessage) {
+	if len(items)>0 {
+		<div class="space-y-3" aria-label="Queued messages">
+			for _,item:=range items {
+				<div id={ "queued-message-" + item.ID } class={ queuedMessageClass(item) } aria-label={ utils.IfElse(item.Automated, "Automated notice", "You") } data-queued-message data-queue-id={ item.ID } data-thread-id={ item.ThreadID } data-turn-id={ item.TurnID } data-status={ item.Status } { OutgoingMessage(item.ClientID)... }>
+					<div class="flex items-start gap-2">
+						<div class="min-w-0 flex-1">
+							<p class="type-caption-100 text-muted-foreground">
+								if item.Automated {
+									Automated notice ·
+								}
+								switch item.Status {
+									case "sent":
+										Sent
+									case "pending":
+										Queued
+									case "sending":
+										Sending…
+									case "failed":
+										Paused
+									case "unknown":
+										Check delivery
+								}
+							</p>
+							<p class="type-body-200 break-words whitespace-pre-wrap">@queuedMessageText(item)</p>
+						</div>
+						if item.Status == "failed" {
+							<button type="button" class="rounded px-2 py-1 type-caption-100 hover:bg-muted" hx-post={ item.URL } hx-target="closest [data-chat-queue]" hx-swap="innerMorph" { queueErrorAttributes(item.ID)... }>Continue</button>
+						}
+						if item.Status!="sending" && item.Status!="sent" {
+							<button type="button" class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Delete queued message" hx-delete={ item.URL } hx-target="closest [data-chat-queue]" hx-swap="innerMorph" { queueErrorAttributes(item.ID)... }>
+								@icons.Render(icons.Delete, icons.Props{Size: 14})
+							</button>
+						}
+					</div>
+					if item.Error!="" {
+						<p class="mt-1 type-caption-100 text-destructive">{ item.Error }</p>
+					}
+					<div id={ "queue-error-"+item.ID } data-queue-error role="alert"></div>
+				</div>
+			}
+		</div>
+	}
+}
+
+func queuedMessageClass(item QueuedMessage) string {
+	return utils.TwMerge("w-fit max-w-full squircle-lg px-4 py-3", utils.IfElse(item.Automated, "border border-dashed text-muted-foreground", "ml-auto bg-selected text-selected-foreground"))
+}
+
+func queueErrorAttributes(id string)templ.Attributes {
+ policy:=`{"target":"#queue-error-`+id+`","swap":"innerHTML"}`
+ return templ.Attributes{"hx-status:4xx":policy,"hx-status:5xx":policy}
+}

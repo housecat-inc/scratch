@@ -1,0 +1,271 @@
+package codex
+
+import (
+	"fmt"
+	"github.com/housecat-inc/scratch/ui/components/codeblock"
+	"github.com/housecat-inc/scratch/ui/components/disclosure"
+	"github.com/housecat-inc/scratch/ui/components/filediff"
+	"github.com/housecat-inc/scratch/ui/components/tour"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/uikit"
+	"slices"
+	"strings"
+ "time"
+)
+
+type ChatTurn struct {
+ StartedAt time.Time
+	Activity  []ChatItem
+	Answer    []ChatItem
+	Approvals []ApprovalIn
+	Error     string
+	ID        string
+	Prompt    []ChatItem
+	Status    string
+}
+
+type ChatItem struct {
+	Blocks []DetailBlock
+	// ClientID is the page's id for a user message it sent, which the app
+	// server echoes back; empty for any other item and for messages sent
+	// without one.
+	ClientID string
+	ID       string
+	Kind    string
+	Status  string
+	Summary string
+	Text    string
+	Title   string
+}
+
+type DetailBlock struct {
+	Kind  string
+	Text  string
+	Title string
+}
+
+func (turn ChatTurn) activitySummary() string {
+	tools, updates := 0, 0
+	for _, item := range turn.Activity {
+		if item.Kind == "tool" {
+			tools++
+		} else {
+			updates++
+		}
+	}
+	var parts []string
+	if tools == 1 {
+		parts = append(parts, "1 tool call")
+	} else if tools > 1 {
+		parts = append(parts, fmt.Sprintf("%d tool calls", tools))
+	}
+	if updates == 1 {
+		parts = append(parts, "1 update")
+	} else if updates > 1 {
+		parts = append(parts, fmt.Sprintf("%d updates", updates))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func (turn ChatTurn) pending() bool {
+	return turn.running() && len(turn.Approvals) == 0 && len(turn.Activity) == 0 && len(turn.Answer) == 0 && turn.Error == ""
+}
+
+// unrecorded is a running turn with nothing in it yet, not even its prompt.
+// The app server lists a turn as soon as turn/start returns and records the
+// user's message moments later, so a read in between sees this. ChatContents
+// leaves such a turn out: its section[data-turn-id] is what tells Outgoing's
+// reconcile that the transcript now shows the message, and reconcile removes
+// the optimistic bubble on sight of it.
+func (turn ChatTurn) unrecorded() bool {
+	return turn.pending() && len(turn.Prompt) == 0
+}
+
+func (turn ChatTurn) running() bool {
+	return turn.Status == "inProgress" || turn.Status == "active"
+}
+
+// firstAnswered is the index of the first turn with an answer, or -1.
+func firstAnswered(turns []ChatTurn) int {
+	return slices.IndexFunc(turns, func(turn ChatTurn) bool { return len(turn.Answer) > 0 })
+}
+
+// answerAttributes marks the transcript's first answer, and only that one,
+// with AnswerTourAnchor: a tour waiting on a reply needs the first to arrive.
+func answerAttributes(first bool) templ.Attributes {
+	if !first {
+		return nil
+	}
+	return tour.Anchor(AnswerTourAnchor)
+}
+
+func userMessageAttributes(prompt ChatItem) templ.Attributes {
+	attributes := OutgoingMessage(prompt.ClientID)
+	attributes["id"] = "codex-message-" + prompt.ID
+	return attributes
+}
+
+func activityIcon(kind string) icons.Name {
+	switch kind {
+	case "tool":
+		return icons.Tool
+	case "plan":
+		return icons.Edit
+	case "thinking":
+		return icons.Thinking
+	default:
+		return icons.Chat
+	}
+}
+
+// UserMessage is the user's bubble, drawn by both TurnView and Outgoing's
+// optimistic copy, so the transcript's turn replaces the optimistic bubble
+// with the same layout. Outgoing fills the user-message-text slot with plain
+// text; the server-rendered transcript adds links when the message arrives.
+// Both carry the page's client id for the message, when it has one, as
+// data-outgoing-message: see OutgoingMessage.
+templ UserMessage(attributes templ.Attributes) {
+	<article class="flex min-w-0 justify-end py-2" aria-label="You" { attributes... }>
+		<div class="max-w-3xl min-w-0 squircle-lg bg-selected px-4 py-3 type-body-200 wrap-anywhere whitespace-pre-wrap text-selected-foreground [&_a]:text-primary [&_a:not([data-slot=link-chip])]:underline" data-slot="user-message-text">
+			{ children... }
+		</div>
+	</article>
+}
+
+templ AutomatedNotice(prompt ChatItem) {
+	<article class="min-w-0" aria-label="Automated notice" data-slot="automated-notice" { userMessageAttributes(prompt)... }>
+		@disclosure.Disclosure(disclosure.In{ID: "codex-notice-" + prompt.ID, ContentClass: "ml-1 border-l pl-3 type-body-200 wrap-anywhere whitespace-pre-wrap text-muted-foreground [&_a]:text-primary [&_a:not([data-slot=link-chip])]:underline", Summary: AutomatedNoticeSummary()}) {
+			{ children... }
+		}
+	</article>
+}
+
+templ AutomatedNoticeSummary() {
+	@icons.Render(icons.Workflows, icons.Props{Class: "size-3 shrink-0"})
+	<span>Automated notice</span>
+}
+
+// TurnView is one turn of the transcript. first is whether this turn holds
+// the transcript's first answer.
+templ TurnView(turn ChatTurn, first bool) {
+	<section id={ "codex-turn-" + turn.ID } data-turn-id={ turn.ID } class="min-w-0 space-y-4">
+		for _, prompt := range turn.Prompt {
+			if body, ok := automatedPrompt(ctx, prompt); ok {
+				@AutomatedNotice(prompt) {
+					@chatLinkChips(ctx, uikit.LinkedText(userMessageText(ctx, body, messagePage(ctx, prompt)), chatLinks(ctx)))
+				}
+			} else {
+				@UserMessage(userMessageAttributes(prompt)) {
+					@chatLinkChips(ctx, uikit.LinkedText(userMessageText(ctx, prompt.Text, messagePage(ctx, prompt)), chatLinks(ctx)))
+				}
+			}
+		}
+		if turn.pending() {
+			<div data-chat-pending role="status" aria-live="polite">
+				@Pending()
+			</div>
+		}
+		if len(turn.Activity) > 0 {
+			@ActivityGroup(turn)
+		}
+		for _, approval := range turn.Approvals {
+			@Approval(approval)
+		}
+		for i, answer := range turn.Answer {
+			<article id={ "codex-message-" + answer.ID } class="min-w-0" aria-label="Codex" { answerAttributes(first && i == 0)... }>
+				@Markdown(answer.Text)
+			</article>
+		}
+		if turn.Error != "" {
+			<p class="rounded-md border border-destructive/30 px-4 py-3 type-body-200 text-destructive" role="alert">{ turn.Error }</p>
+		}
+	</section>
+}
+
+// Pending is the assistant's side of a turn that has started and produced
+// nothing yet. It carries no live-region attributes because its two callers
+// differ: TurnView wraps it in a status region of its own, and Outgoing clones
+// it into a region that exists before the clone arrives, which is what a
+// screen reader needs in order to announce content that appears after load.
+templ Pending() {
+	<div class="flex min-w-0 items-center gap-2 py-2 type-body-200 text-muted-foreground">
+		@StatusDotMark("active")
+		<span>Working…</span>
+	</div>
+}
+
+templ ActivityGroup(turn ChatTurn) {
+	@disclosure.Disclosure(disclosure.In{ID: "codex-activity-" + turn.ID, Attributes: templ.Attributes{"data-activity-id": turn.ID}, ContentClass: "ml-1 space-y-1 border-l pl-3", Summary: ActivitySummary(turn)}) {
+		for _, item := range turn.Activity {
+			@ActivityItem(item)
+		}
+	}
+}
+
+templ ActivitySummary(turn ChatTurn) {
+	<span>{ turn.activitySummary() }</span>
+	if turn.Status == "inProgress" || turn.Status == "active" {
+		<span class="ml-auto flex items-center gap-2 type-caption-100" role="status">
+			@StatusDotMark("active")
+			Working
+		</span>
+	} else if turn.Status == "failed" || turn.Error != "" {
+		<span class="ml-auto type-caption-100 text-destructive">Failed</span>
+	} else if turn.Status == "interrupted" {
+		<span class="ml-auto type-caption-100">Interrupted</span>
+	}
+}
+
+func (item ChatItem) hasDetails() bool {
+	if strings.TrimSpace(item.Text) != "" {
+		return true
+	}
+	for _, block := range item.Blocks {
+		if strings.TrimSpace(block.Text) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+templ ActivityItem(item ChatItem) {
+	if item.hasDetails() {
+		@disclosure.Disclosure(disclosure.In{ID: "codex-tool-" + item.ID, Attributes: templ.Attributes{"data-item-id": item.ID}, Class: "rounded-md", ContentClass: "space-y-2 px-2 pb-2", Summary: ActivityLabel(item), SummaryClass: "px-2 hover:bg-muted"}) {
+			if item.Text != "" {
+				@Markdown(item.Text)
+			}
+			for _, block := range item.Blocks {
+				if strings.TrimSpace(block.Text) != "" {
+					if block.Kind == "diff" {
+						@filediff.FileDiff(filediff.In{Path: block.Title, Text: block.Text})
+					} else {
+						@codeblock.CodeBlock(codeblock.In{Title: block.Title, Text: block.Text})
+					}
+				}
+			}
+		}
+	} else {
+		<div id={ "codex-tool-" + item.ID } class="flex min-w-0 items-center gap-2 px-2 py-2 pl-7 type-body-200 text-muted-foreground" data-item-id={ item.ID }>
+			@ActivityLabel(item)
+		</div>
+	}
+}
+
+templ ActivityLabel(item ChatItem) {
+	@icons.Render(activityIcon(item.Kind), icons.Props{Class: "size-3 shrink-0"})
+	<span class="min-w-0 truncate">{ item.Title }</span>
+	if item.Summary != "" {
+		<span class="min-w-0 truncate type-caption-100">{ item.Summary }</span>
+	}
+	if item.Status == "inProgress" {
+		<span class="ml-auto shrink-0 type-caption-100" role="status">Running…</span>
+	} else if item.Status == "failed" || item.Status == "declined" {
+		<span class="ml-auto shrink-0 type-caption-100 text-destructive">{ item.Status }</span>
+	}
+}
+
+templ Markdown(text string) {
+	<div class="type-body-200 wrap-anywhere [&_a]:text-primary [&_a:not([data-slot=link-chip])]:underline [&_blockquote]:border-l-2 [&_blockquote]:pl-4 [&_code]:type-code-200 [&_h1]:type-title-200 [&_h2]:type-title-200 [&_h3]:type-label-100 [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-4 [&_table]:block [&_table]:overflow-x-auto [&_table]:wrap-normal [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_ul]:list-disc [&_ul]:pl-6 [&>:first-child]:mt-0 [&>:last-child]:mb-0">
+		@chatLinkChips(ctx, uikit.MarkdownWithLinks(text, chatLinks(ctx)))
+	</div>
+}

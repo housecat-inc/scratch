@@ -1,0 +1,96 @@
+package formsave
+
+import "github.com/housecat-inc/scratch/ui/components/button"
+
+// SubmitProps is a form's primary button. Label is what it reads at rest;
+// Pending what it reads while its form posts, "Saving…" when empty; and
+// Done what it reads after a ✓ once the save has landed, "Saved" when
+// empty. Status is what the server says about the form's last save, for a
+// page drawn back with Feedback.StatusFor. State is the face the button is
+// drawn in -- "idle" when empty, "pending" (aria-disabled too) or "saved";
+// a page leaves it empty, since the browser moves it, and a preview such as
+// Storybook's draws each. Disabled draws a button that can't post at all,
+// such as a run that has nothing to run.
+type SubmitProps struct {
+	Disabled bool
+	Done     string
+	Label    string
+	Pending  string
+	State    string
+	Status   Status
+}
+
+// Submit is a form's primary button, the last in its footer: a small
+// submit, which reads Pending while its form posts and ✓ Done once it has
+// (ui/dom/formfeedback.ts). Before it is the form's StatusLine, where a save
+// that failed says why until the next one. data-form-done carries Done for
+// the status to announce in place of "Saved".
+templ Submit(p SubmitProps) {
+	@StatusLine(p.Status)
+	@button.Button(button.Props{
+		Attributes: submitAttributes(p),
+		// While its form posts the button is aria-disabled, not disabled, so it
+		// keeps focus and its place in the tab order and a screen reader calls
+		// it unavailable; htmx drops a second submit (hx-sync).
+		Class:    "has-[>[aria-disabled=true]]:cursor-progress has-[>[aria-disabled=true]]:opacity-50",
+		Disabled: p.Disabled,
+		Size:     button.SizeSm,
+		State:    p.State,
+		States: []button.IconState{
+			{Label: p.Label, Name: "idle"},
+			{Label: orDefault(p.Pending, "Saving…"), Name: "pending"},
+			{Label: "✓ " + orDefault(p.Done, "Saved"), Name: "saved"},
+		},
+		Type: button.TypeSubmit,
+	})
+}
+
+// StatusLine is a form's status, before its button: what the server drew,
+// or what the browser writes after a post (ui/dom/formfeedback.ts). It is a
+// polite live region, so it stays in the accessibility tree even while empty
+// -- sr-only rather than hidden -- and its pending text and "Saved" are for
+// screen readers alone, taking no room beside the button's own faces. An
+// error shows in the destructive colour and a warning in the warning one.
+templ StatusLine(st Status) {
+	<p
+		data-slot="form-status"
+		role="status"
+		aria-live="polite"
+		if st.Kind != "" {
+			data-state={ string(st.Kind) }
+		}
+		class="type-caption-100 text-destructive empty:sr-only data-[state=pending]:sr-only data-[state=saved]:sr-only data-[state=warning]:text-warning"
+	>{ st.Message }</p>
+}
+
+// Danger is a form's destructive submit, for a section's Danger slot: an
+// outline button in the destructive colour, with attrs spread on it. In a
+// Form form, attrs is FormButton's, so the button posts the form to its own
+// action; in a form the card posts, nil, so it posts the form to the form's
+// action. It never shows ✓, and a failure is said beside the Submit button.
+templ Danger(label string, attrs templ.Attributes) {
+	@button.Button(button.Props{
+		Attributes: attrs,
+		Class:      "text-destructive",
+		Size:       button.SizeSm,
+		Type:       button.TypeSubmit,
+		Variant:    button.VariantOutline,
+	}) {
+		{ label }
+	}
+}
+
+func submitAttributes(p SubmitProps) templ.Attributes {
+	attrs := templ.Attributes{"data-form-done": orDefault(p.Done, "Saved"), "data-form-submit": ""}
+	if p.State == "pending" {
+		attrs["aria-disabled"] = "true"
+	}
+	return attrs
+}
+
+func orDefault(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
+}

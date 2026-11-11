@@ -1,0 +1,673 @@
+// Package menu is a menu button: a trigger that opens a list of actions and
+// links in the top layer, driven from the keyboard the way the WAI-ARIA
+// Authoring Practices menu button pattern describes.
+//
+// Baseline: templUI dropdown v1.5.0, installed with the templui v1.5.0 CLI
+// (`templui add dropdown`, its default ref) into a throwaway module on
+// 2026-09-29 and copied here by hand, since `templui add` in ui/ would
+// overwrite this module's own popover. An upgrade diffs the next upstream
+// dropdown.templ and dropdown.min.js against v1.5.0, not against this file,
+// which has since diverged in these ways:
+//
+//   - Parts follow Base UI's Menu anatomy -- Root, Trigger, Positioner, Popup,
+//     Item, LinkItem, Separator, Group, GroupLabel -- in place of templUI's
+//     Dropdown, Trigger, Content, Item, Separator, Group and Label. templUI's
+//     Item with an Href is LinkItem, and its PreventClose is Base UI's
+//     closeOnClick={false}. Shortcut, which Base UI has no part for, keeps
+//     templUI's name.
+//   - The popup is its own top-layer menu, not templUI's popover: Positioner is
+//     a native popover=auto placed by ui/floating, and every part carries a
+//     menu-* data-slot, so no popover or selectbox selector, style or listener
+//     matches a menu part and no menu rule matches theirs.
+//   - The trigger is aria-haspopup=menu and controls the popup, a role=menu
+//     labelled by the trigger; every item is statically tabindex=-1 and the
+//     focused one is marked data-highlighted, which is what styles it. There is
+//     no roving tabindex: menu.ts moves focus itself and never touches
+//     tabindex, which is why any part carrying the item data-slot behaves like
+//     Item. It supplies the APG keyboard: Enter, Space and the arrows open from
+//     the trigger; arrows wrap, Home and End jump, a printable key types ahead,
+//     Escape and Tab close. templUI's script only closes the menu on a click.
+//   - Item is a button that can submit a form (Type, Form), so an item posts
+//     without script.
+//   - RadioItem is a part of its own, for a set of mutually exclusive choices.
+//     templUI's dropdown has no equivalent, and a check drawn without the role
+//     is a check only sighted users can read.
+//   - OpenerAttributes lets a button drawn apart from the menu open it
+//     against itself, announcing menu:before-open first, so many rows can
+//     share one menu. Neither templUI nor Base UI has one.
+//   - CheckboxItem is a setting that turns on and off in place, a
+//     menuitemcheckbox with a switch drawn off its aria-checked. templUI's
+//     dropdown has no equivalent. Like Base UI's CheckboxItem it leaves the
+//     menu open when chosen; unlike it, the item never flips its own state,
+//     since the setting it shows lives with the script that owns it.
+//   - Disabled items are skipped by the arrows, typeahead and the pointer,
+//     where the APG leaves them focusable. A disabled LinkItem drops its href.
+//   - Opening by pointer focuses the popup with nothing highlighted, as Base
+//     UI does; opening by key highlights the first or last item.
+//   - A LinkItem closes the menu when chosen, as templUI's anchor item does,
+//     where Base UI's LinkItem stays open by default.
+//   - The menu is not modal: popover=auto closes on an outside press and lets
+//     the press land, where Base UI's modal default locks scroll and blocks
+//     it.
+//   - Submenus (templUI's Sub, SubTrigger and SubContent; Base UI's
+//     SubmenuRoot and SubmenuTrigger) are left out. They carry their own
+//     keyboard model -- ArrowRight and ArrowLeft across levels, hover intent,
+//     a chain of top-layer popups that closes together -- and nothing here
+//     uses one.
+//   - Parts take no ID of their own: Root's ID names the positioner and the
+//     ids the trigger, popup and group labels are wired by.
+//   - Items keep a 44px floor on a touch screen below docked
+//     (max-docked:min-h-11 in itemClass), which templUI's items, sized
+//     by their padding alone, do not.
+//   - Placement defaults to bottom end, not templUI's bottom start, since the
+//     trigger's glyph sits at its end; the gap from the trigger defaults to
+//     Base UI's 0 rather than templUI's 4px.
+//   - The popup is at least as wide as its trigger, off the --anchor-width
+//     ui/floating measures, where templUI's dropdown carries a fixed minimum.
+//   - Corners are squircles, the shape the rest of this module's paint uses,
+//     not the rounded-* templUI ships.
+//   - ItemIcon is a part of its own, which templUI has no equivalent for: it
+//     marks the glyph column so a Group can indent the items without one and
+//     keep every label in the group on one line.
+//   - Text is styled with type-* utilities and the popup wears the popover's
+//     paint.
+//   - The behaviour is menu.ts in the ui.js bundle, not a .min.js loaded by a
+//     Script() component.
+package menu
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"strconv"
+
+	"github.com/cockroachdb/errors"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/avatar"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/components/popover"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Align string
+
+// AlignEnd is the zero value: a menu button carries its glyph at its end, so
+// the popup hugs that edge and opens under the thing the user pressed, rather
+// than running off from the far side of a wide trigger.
+const (
+	AlignCenter Align = "center"
+	AlignEnd    Align = ""
+	AlignStart  Align = "start"
+)
+
+func (a Align) name() string {
+	if a == AlignEnd {
+		return "end"
+	}
+	return string(a)
+}
+
+type Side string
+
+const (
+	SideBottom Side = ""
+	SideLeft   Side = "left"
+	SideRight  Side = "right"
+	SideTop    Side = "top"
+)
+
+func (s Side) name() string {
+	if s == SideBottom {
+		return "bottom"
+	}
+	return string(s)
+}
+
+type ctxKey int
+
+const (
+	groupKey ctxKey = iota
+	rootKey
+)
+
+type root struct {
+	// groups counts the Groups rendered so far, so each gets an id of its own
+	// derived from the root's.
+	groups *int
+	id     string
+}
+
+func rootFrom(ctx context.Context) root {
+	r, _ := ctx.Value(rootKey).(root)
+	return r
+}
+
+func (r root) popupID() string { return r.id + "-popup" }
+
+// TriggerID is the id of the trigger of the menu whose root id is id
+// (TriggerAttributes), for a control drawn elsewhere that anchors to it.
+func TriggerID(id string) string { return id + "-trigger" }
+
+func (r root) triggerID() string { return TriggerID(r.id) }
+
+func rootID(id string) string {
+	if id != "" {
+		return id
+	}
+	return utils.RandomID()
+}
+
+type RootProps struct {
+	Attributes templ.Attributes
+	// Card presents the menu below docked as the modal action card a mail
+	// row's More opens (ui/dom/rowmore.ts) rather than as a popup: one
+	// 48px line per item, a Cancel, and a scrim that takes a press outside
+	// it rather than letting it through to what lies under. The card is
+	// titled with its opener's data-menu-title, when it has one. It suits a
+	// menu of plain items, radio and checkbox items, groups and separators;
+	// a menu holding a field keeps its popup.
+	Card  bool
+	Class string
+	// ID names the positioner, and the trigger, popup and group labels take
+	// their ids from it; random when unset, which is fine everywhere the
+	// markup is not compared against a golden.
+	ID string
+}
+
+// Root groups the parts and renders no box of its own, so the trigger lays
+// out as a child of whatever holds the Root.
+templ Root(props RootProps) {
+	{{ ctx = context.WithValue(ctx, rootKey, root{groups: new(int), id: rootID(props.ID)}) }}
+	<div class={ utils.TwMerge("contents", props.Class) } data-slot="menu" data-menu-card?={ props.Card } { props.Attributes... }>
+		{ children... }
+	</div>
+}
+
+type TriggerProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Trigger is the menu button. Its children are whatever it shows -- a label,
+// an icon, an avatar with a name -- since the popup is labelled by the whole
+// button. The browser toggles the menu on a click through popovertarget;
+// menu.ts opens it from Enter, Space and the arrow keys, and keeps
+// aria-expanded and data-popup-open in step.
+templ Trigger(props TriggerProps) {
+	<button
+		type="button"
+		class={ utils.TwMerge("cursor-pointer", props.Class) }
+		{ utils.MergeAttributes(TriggerAttributes(ctx), props.Attributes)... }
+	>
+		{ children... }
+	</button>
+}
+
+// TriggerAttributes make a button the menu's trigger: its id, the popup it
+// opens and controls, and the slot menu.ts finds it by. Trigger and
+// TriggerIcon wear them, and a caller drawing its own button, such as a
+// labelled button.Button, passes them as its Attributes.
+func TriggerAttributes(ctx context.Context) templ.Attributes {
+	r := rootFrom(ctx)
+	return templ.Attributes{
+		"aria-controls": r.popupID(),
+		"aria-expanded": "false",
+		"aria-haspopup": "menu",
+		"data-slot":     "menu-trigger",
+		"id":            r.triggerID(),
+		"popovertarget": r.id,
+	}
+}
+
+// OpenerAttributes make a button drawn anywhere open the menu whose Root id
+// is id, against itself: one menu that many rows' buttons share, which the
+// page fills in for the row on menu:before-open (menu.ts). The button says
+// it opens a menu and which popup it controls; menu.ts keeps its
+// aria-expanded in step and gives it focus back when the menu closes. The
+// Root still renders its Trigger, hidden if nothing should show it: the
+// browser opens the popup through it, and the popup is labelled by it.
+func OpenerAttributes(id string) templ.Attributes {
+	return templ.Attributes{
+		"aria-controls":    root{id: id}.popupID(),
+		"aria-expanded":    "false",
+		"aria-haspopup":    "menu",
+		"data-menu-opener": id,
+	}
+}
+
+// TriggerIcon is the kit's icon button as the trigger, for a row or a
+// title's "more actions" menu. Give it a Tooltip or an aria-label: an icon
+// says nothing to a screen reader on its own. Its id is the Root's, so
+// props.ID is dropped, and so is props.Href: a link cannot open a popover.
+templ TriggerIcon(props button.IconProps) {
+	{{ props.Attributes = utils.MergeAttributes(TriggerAttributes(ctx), props.Attributes) }}
+	{{ props.Href, props.ID = "", "" }}
+	@button.ButtonIcon(props)
+}
+
+type PositionerProps struct {
+	Align       Align
+	AlignOffset int
+	Attributes  templ.Attributes
+	Class       string
+	Side        Side
+	SideOffset  int
+}
+
+// Positioner is the popup's box in the top layer, where no ancestor's overflow
+// can clip it. The browser shows it from the trigger and hides it on an
+// outside press or Escape; menu.ts places it against the trigger through
+// ui/floating, flipping Side when there is no room. None of its classes may
+// set display, since an author display rule would beat the one that hides a
+// closed popover.
+templ Positioner(props PositionerProps) {
+	{{ r := rootFrom(ctx) }}
+	<div
+		popover="auto"
+		id={ r.id }
+		class={ utils.TwMerge(popover.PositionerClass, props.Class) }
+		data-slot="menu-positioner"
+		data-align={ props.Align.name() }
+		data-side={ props.Side.name() }
+		if props.AlignOffset != 0 {
+			data-align-offset={ strconv.Itoa(props.AlignOffset) }
+		}
+		if props.SideOffset != 0 {
+			data-side-offset={ strconv.Itoa(props.SideOffset) }
+		}
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+type PopupProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Popup is the menu, in the popover's paint with the padding a list of items
+// wants. It takes focus itself when the menu opens by pointer, so the arrow
+// keys work before anything is highlighted. It scrolls rather than run past
+// the viewport: --available-height is the room ui/floating found on the side
+// it settled on.
+templ Popup(props PopupProps) {
+	{{ r := rootFrom(ctx) }}
+	<div
+		id={ r.popupID() }
+		role="menu"
+		aria-labelledby={ r.triggerID() }
+		tabindex="-1"
+		class={ utils.TwMerge(popover.PopupClass, "max-h-(--available-height) min-w-[var(--anchor-width)] overflow-y-auto squircle-lg p-1", props.Class) }
+		data-slot="menu-popup"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+// itemClass is shared by Item and LinkItem. The highlight follows focus, which
+// the pointer moves too, so there is no separate hover style to drift from it.
+// Below docked an item is at least 44px tall
+// (max-docked:min-h-11), the least a fingertip lands on reliably;
+// items-center keeps its label centred in the extra height. At docked and up
+// items keep the padding's height. The last utility is the label column: inside a Group where some
+// item drew an ItemIcon, an item that drew none pads its start by the glyph
+// and the gap it would have taken, so every label in the group starts on the
+// same line. ps-8 is px-2 plus ItemIcon's size-4 plus gap-2.
+const itemClass = "flex w-full items-center gap-2 squircle-sm px-2 py-1.5 text-start type-body-200 outline-none select-none group-has-[[data-slot=menu-item-icon]]/menu-group:not-has-[[data-slot=menu-item-icon]]:ps-8 group/menu-item data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground max-docked:min-h-11"
+
+type ItemProps struct {
+	Attributes  templ.Attributes
+	Class       string
+	Destructive bool
+	Disabled    bool
+	// Form is the id of the form a submit item posts, for an item that sits
+	// outside it.
+	Form string
+	// PreventClose keeps the menu open when the item is chosen.
+	PreventClose bool
+	// Type is the button's type; button when unset.
+	Type button.Type
+}
+
+// Item is an action. A click, or Enter or Space on it, clicks the button, so
+// a submit item posts its form and an htmx attribute on it fires, and then the
+// menu closes and focus goes back to the trigger. Its text is what typeahead
+// matches.
+templ Item(props ItemProps) {
+	<button
+		type={ string(utils.IfElse(props.Type != "", props.Type, button.TypeButton)) }
+		role="menuitem"
+		tabindex="-1"
+		if props.Form != "" {
+			form={ props.Form }
+		}
+		disabled?={ props.Disabled }
+		data-disabled?={ props.Disabled }
+		data-prevent-close?={ props.PreventClose }
+		class={ utils.TwMerge(itemClass, utils.If(props.Destructive, "text-destructive data-[highlighted]:bg-destructive data-[highlighted]:text-primary-foreground"), props.Class) }
+		data-slot="menu-item"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</button>
+}
+
+type RadioItemProps struct {
+	Attributes templ.Attributes
+	// Checked marks the one choice in the group that is in force.
+	Checked bool
+	Class   string
+	// Form is the id of the form this item submits, for one that sits outside
+	// it.
+	Form string
+}
+
+// RadioItem is one of a set of mutually exclusive choices -- a mailbox out of
+// several. It is a menuitemradio rather than a menuitem so assistive tech
+// reads which one is in force; a check drawn with ItemIcon says the same thing
+// to everyone else. It submits, so choosing one posts without script. It
+// carries the same data-slot as Item, which is the only thing menu.ts looks
+// for, so the arrows, typeahead, highlight and close-on-choose all pick it up
+// unchanged.
+templ RadioItem(props RadioItemProps) {
+	<button
+		type="submit"
+		role="menuitemradio"
+		aria-checked={ strconv.FormatBool(props.Checked) }
+		tabindex="-1"
+		if props.Form != "" {
+			form={ props.Form }
+		}
+		class={ utils.TwMerge(itemClass, props.Class) }
+		data-slot="menu-item"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</button>
+}
+
+type CheckboxItemProps struct {
+	Attributes templ.Attributes
+	// Checked is the state the item renders with. A script that changes the
+	// setting sets aria-checked to match, which is what the switch is drawn
+	// from.
+	Checked bool
+	Class   string
+}
+
+// CheckboxItem is a setting that turns on and off in place. It is a
+// menuitemcheckbox so assistive tech reads whether it is on; the switch at its
+// end says the same to everyone else, drawn off aria-checked rather than a
+// field, since a menu holds menuitems and no form control. It carries Item's
+// data-slot, so the arrows, typeahead and highlight pick it up unchanged, and
+// data-prevent-close, so the change is seen with the menu still open. Its
+// click changes nothing by itself: the script that owns the setting answers
+// it and sets aria-checked. On the highlighted row the fill is the accent,
+// which is the primary colour, so the switch reverses with the row.
+templ CheckboxItem(props CheckboxItemProps) {
+	<button
+		type="button"
+		role="menuitemcheckbox"
+		aria-checked={ strconv.FormatBool(props.Checked) }
+		tabindex="-1"
+		data-prevent-close
+		class={ utils.TwMerge(itemClass, props.Class) }
+		data-slot="menu-item"
+		{ props.Attributes... }
+	>
+		{ children... }
+		<span aria-hidden="true" data-slot="menu-item-switch" class="ms-auto inline-flex h-4 w-7 shrink-0 items-center rounded-full bg-input transition-colors group-aria-checked/menu-item:bg-primary group-data-[highlighted]/menu-item:bg-accent-foreground/30 group-data-[highlighted]/menu-item:group-aria-checked/menu-item:bg-accent-foreground">
+			<span class="size-3 translate-x-0.5 rounded-full bg-background shadow-xs transition-transform group-aria-checked/menu-item:translate-x-3.5 group-data-[highlighted]/menu-item:group-aria-checked/menu-item:bg-accent"></span>
+		</span>
+	</button>
+}
+
+type IdentityRadioItemProps struct {
+	Attributes templ.Attributes
+	// Avatar is the face the item leads with. The item sizes and rings it
+	// itself, since a standard item's icon slot is sized for a 16px glyph.
+	Avatar avatar.Props
+	// AvatarBadge, when set, sits on the avatar's corner: a mark about this
+	// identity that is not part of the face, such as which one is the
+	// user's own. Nil draws no corner at all.
+	AvatarBadge templ.Component
+	// Checked marks the one identity in the group that is in force.
+	Checked bool
+	Class   string
+	// Form is the id of the form this item submits, for one that sits outside
+	// it.
+	Form string
+	// Subtitle sits beneath the title, muted: an address under a name. Empty
+	// leaves the title alone, centred on the avatar, so a list mixing named
+	// and unnamed identities stays even rather than showing a blank line.
+	Subtitle string
+	Title    string
+}
+
+// IdentityRadioItem is a choice between identities: a face, a name and an
+// address, a check when it is the one in force, and whatever the caller
+// wants between -- a count, say. It is a RadioItem underneath, so the arrows,
+// typeahead, highlight, close-on-choose, aria-checked and the submit all come
+// from there; what it owns is the layout. The avatar wears a ring in the
+// popup's own colour so it keeps its edge on the highlighted row, where the
+// row's fill would otherwise meet it.
+templ IdentityRadioItem(props IdentityRadioItemProps) {
+	@RadioItem(RadioItemProps{Attributes: props.Attributes, Checked: props.Checked, Class: utils.TwMerge("gap-3 py-2", props.Class), Form: props.Form}) {
+		@AvatarWithBadge(identityAvatar(props.Avatar), props.AvatarBadge)
+		<span class="flex min-w-0 flex-col leading-tight">
+			<span class="truncate">{ props.Title }</span>
+			if props.Subtitle != "" {
+				// The subtitle turns with the row like the check below: muted
+				// grey on the accent fill is too faint to read.
+				<span class="truncate type-caption-100 text-muted-foreground group-data-[highlighted]/menu-item:text-accent-foreground">{ props.Subtitle }</span>
+			}
+		</span>
+		{ children... }
+		if props.Checked {
+			// The check reverses with the row: on the highlighted row the
+			// fill is the accent, and a muted glyph would sink into it.
+			<span class="ms-auto shrink-0 text-muted-foreground group-data-[highlighted]/menu-item:text-accent-foreground" aria-hidden="true">
+				@icons.Render(icons.Done, icons.Props{Size: 16})
+			</span>
+		}
+	}
+}
+
+// AvatarWithBadge draws an avatar with a mark pinned to its lower-right
+// corner, or the avatar alone when there is no mark. The mark wears the same
+// popup-coloured ring as the face, so it keeps its own edge against both the
+// face and a highlighted row.
+templ AvatarWithBadge(props avatar.Props, badge templ.Component) {
+	if badge == nil {
+		@avatar.Avatar(props)
+	} else {
+		<span class="relative inline-flex shrink-0">
+			@avatar.Avatar(props)
+			<span class="absolute -right-0.5 -bottom-0.5 inline-flex items-center justify-center rounded-full ring-2 ring-popover" data-slot="avatar-badge">
+				@badge
+			</span>
+		</span>
+	}
+}
+
+// identityAvatar fixes what the item decides about its avatar: its size, its
+// ring, and that it is decorative -- the title already names the identity.
+func identityAvatar(p avatar.Props) avatar.Props {
+	p.Class = utils.TwMerge("shrink-0 ring-2 ring-popover", p.Class)
+	p.Decorative = true
+	p.Size = avatar.SizeSm
+	return p
+}
+
+type LinkItemProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Disabled   bool
+	Href       string
+	// PreventClose keeps the menu open when the link is followed, for one that
+	// opens in another tab.
+	PreventClose bool
+	Target       string
+}
+
+// LinkItem is a menu item that navigates. A disabled one renders without its
+// href, since an anchor has no disabled state of its own.
+templ LinkItem(props LinkItemProps) {
+	<a
+		if !props.Disabled {
+			href={ props.Href }
+		}
+		if props.Target != "" {
+			target={ props.Target }
+		}
+		role="menuitem"
+		tabindex="-1"
+		if props.Disabled {
+			aria-disabled="true"
+		}
+		data-disabled?={ props.Disabled }
+		data-prevent-close?={ props.PreventClose }
+		class={ utils.TwMerge(itemClass, props.Class) }
+		data-slot="menu-item"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</a>
+}
+
+type ItemIconProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// ItemIcon is an item's leading glyph, and the hook the group aligns labels
+// on: a Group holding one indents every item that drew none by the same
+// amount, so the labels in a group line up whether or not each item has a
+// glyph. Its box is a fixed size-4 for that reason -- the reserved column has
+// to be the width the glyph actually takes. It is muted beside the label and
+// turns with it on the highlight, since a muted glyph left on the accent fill
+// reads as disabled. The item's text is its name, so the glyph is decorative
+// and hidden from assistive tech.
+templ ItemIcon(props ItemIconProps) {
+	<span
+		class={ utils.TwMerge("flex size-4 shrink-0 items-center justify-center text-muted-foreground group-data-[highlighted]/menu-item:text-accent-foreground", props.Class) }
+		data-slot="menu-item-icon"
+		aria-hidden="true"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</span>
+}
+
+type SeparatorProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Separator is a rule between items. It runs to the popup's border, through
+// the padding the items sit in, and takes no focus.
+templ Separator(props SeparatorProps) {
+	<div role="separator" class={ utils.TwMerge("-mx-1 my-1 h-px bg-border", props.Class) } data-slot="menu-separator" { props.Attributes... }></div>
+}
+
+type ShortcutProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Shortcut is the key an item's action also answers to, pushed to the end of
+// the item. It is part of the item's text, so it is read out with the label.
+templ Shortcut(props ShortcutProps) {
+	<span class={ utils.TwMerge("ms-auto type-caption-100 tracking-widest opacity-60", props.Class) } data-slot="menu-shortcut" { props.Attributes... }>
+		{ children... }
+	</span>
+}
+
+type GroupProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// ID is the group's own; its label's id is this plus "-label". Derived from
+	// the Root's ID when unset.
+	ID string
+}
+
+type group struct {
+	id       string
+	labelled bool
+}
+
+// label records that the group has a label, and returns the id it wears.
+func (g *group) label() string {
+	g.labelled = true
+	return g.id + "-label"
+}
+
+func groupFrom(ctx context.Context) *group {
+	g, _ := ctx.Value(groupKey).(*group)
+	return g
+}
+
+func groupID(ctx context.Context, id string) string {
+	if id != "" {
+		return id
+	}
+	r := rootFrom(ctx)
+	if r.groups == nil {
+		return utils.RandomID()
+	}
+	*r.groups++
+	return r.id + "-group-" + strconv.Itoa(*r.groups)
+}
+
+// Group holds related items, labelled by the GroupLabel inside it. It renders
+// its children before its own tag, because whether there is a label to point
+// aria-labelledby at is only known once they have rendered.
+func Group(props GroupProps) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		g := &group{id: groupID(ctx, props.ID)}
+		inner := templ.ClearChildren(ctx)
+		var body bytes.Buffer
+		if err := templ.GetChildren(ctx).Render(context.WithValue(inner, groupKey, g), &body); err != nil {
+			return errors.Wrap(err, "render group")
+		}
+		return groupBox(props, g, templ.Raw(body.String())).Render(inner, w)
+	})
+}
+
+templ groupBox(props GroupProps, g *group, body templ.Component) {
+	<div
+		role="group"
+		if g.labelled {
+			aria-labelledby={ g.id + "-label" }
+		}
+		class={ utils.TwMerge("group/menu-group", props.Class) }
+		data-slot="menu-group"
+		{ props.Attributes... }
+	>
+		@body
+	</div>
+}
+
+type GroupLabelProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// GroupLabel names the Group it sits in. It is not an item: the arrows and
+// typeahead pass over it.
+templ GroupLabel(props GroupLabelProps) {
+	{{ g := groupFrom(ctx) }}
+	<div
+		if g != nil {
+			id={ g.label() }
+		}
+		class={ utils.TwMerge("px-2 py-1.5 type-caption-100-medium text-muted-foreground", props.Class) }
+		data-slot="menu-group-label"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}

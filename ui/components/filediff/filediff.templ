@@ -1,0 +1,28 @@
+package filediff
+
+import (
+	"github.com/housecat-inc/scratch/ui/utils"
+	"strings"
+)
+
+type In struct {
+	Path string
+	Text string
+}
+
+func lineClass(line string) string {
+	return utils.TwMerge("block min-h-4", utils.If(strings.HasPrefix(line, "+"), "bg-teal-500/10 text-teal-700 dark:text-teal-300"), utils.If(strings.HasPrefix(line, "-"), "bg-destructive/10 text-destructive"))
+}
+
+templ FileDiff(in In) {
+	<section class="min-w-0 space-y-1" aria-label={ in.Path }>
+		<div class="type-code-200 break-all text-muted-foreground">{ in.Path }</div>
+		<pre class="max-h-96 overflow-auto rounded-md bg-muted px-3 py-2 type-code-200">
+			<code>
+				for _, line := range strings.Split(in.Text, "\n") {
+					<span class={ lineClass(line) }>{ line }</span>
+				}
+			</code>
+		</pre>
+	</section>
+}

@@ -1,0 +1,418 @@
+// templui component table - version: v1.5.0 installed by templui v1.5.0
+// 📚 Documentation: https://templui.io/docs/components/table
+// LOCAL MODIFICATION: every element emits data-slot, Table wraps itself in a
+// scroll container, Row's selected state is a plain data-state attribute,
+// Frame draws the one border every table gets, RowLink stretches a native link
+// over its row, and there is no Caption.
+// `templui add table` reverts this file; re-apply from git.
+package table
+
+import (
+	"context"
+
+	"github.com/housecat-inc/scratch/ui/components/collection"
+	"github.com/housecat-inc/scratch/ui/components/rowindicator"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Props struct {
+	Attributes          templ.Attributes
+	Class               string
+	// DisableStickyHeader keeps the header in the table's normal flow and
+	// makes the table's wrapper own horizontal scrolling. Sticky tables
+	// scroll both axes through their nearest scrollable ancestor.
+	DisableStickyHeader bool
+	ID                  string
+	// NavigationLabel enables the ARIA data grid and supplies its accessible name.
+	NavigationLabel string
+	RowNavigation bool
+}
+
+type disableStickyHeaderKey struct{}
+type indicatorKey struct{}
+type navigationKey struct{}
+type sectionKey struct{}
+type stickyRowKey struct{}
+
+func navigable(ctx context.Context) bool {
+	return navigationProps(ctx).NavigationLabel != "" && tableSection(ctx) == "body"
+}
+
+func navigationProps(ctx context.Context) Props {
+	props, _ := ctx.Value(navigationKey{}).(Props)
+	return props
+}
+
+func tableSection(ctx context.Context) string {
+	section, _ := ctx.Value(sectionKey{}).(string)
+	return section
+}
+
+// rowIndicatorDue is whether the cell being rendered is the first in a
+// navigable body row, which draws the row indicator: a span cannot sit in a
+// tr itself, so the row hands its first cell the marker through the context,
+// and that cell takes it.
+func rowIndicatorDue(ctx context.Context) bool {
+	pending, _ := ctx.Value(indicatorKey{}).(*bool)
+	if pending == nil || !*pending {
+		return false
+	}
+	*pending = false
+	return true
+}
+
+func stickyHeaderDisabled(ctx context.Context) bool {
+	disabled, _ := ctx.Value(disableStickyHeaderKey{}).(bool)
+	return disabled
+}
+
+type HeaderProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type BodyProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type FooterProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type RowProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+	Selected   bool
+	// Sticky pins a category row below Header until the next sticky row arrives.
+	Sticky     bool
+}
+
+type RowLinkProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Href       string
+	ID         string
+}
+
+type RowTextProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type HeadProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type CellProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+type FrameProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+// Table pins its header to the nearest scrollable ancestor, which must scroll
+// both axes for wide tables. DisableStickyHeader gives the table its own
+// horizontal scroller. Frame supplies the border for tables outside a card.
+templ Table(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{ ctx = context.WithValue(ctx, disableStickyHeaderKey{}, p.DisableStickyHeader) }}
+	{{ ctx = context.WithValue(ctx, navigationKey{}, p) }}
+	<div class={ utils.TwMerge("relative w-full", utils.IfElse(p.DisableStickyHeader, "overflow-x-auto", "overflow-visible")) } data-slot="table-container">
+		<table
+			if p.ID != "" {
+				id={ p.ID }
+			}
+			class={ utils.TwMerge("w-full type-body-200", p.Class) }
+			data-slot="table"
+			if p.NavigationLabel != "" {
+				{ utils.MergeAttributes(templ.Attributes{"role": "grid", "aria-label": p.NavigationLabel}, p.Attributes)... }
+			} else {
+				{ p.Attributes... }
+			}
+		>
+			{ children... }
+		</table>
+	</div>
+}
+
+templ Header(props ...HeaderProps) {
+	{{ var p HeaderProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{ ctx = context.WithValue(ctx, sectionKey{}, "header") }}
+	<thead
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={
+			utils.TwMerge(
+				"bg-muted/40",
+				utils.If(!stickyHeaderDisabled(ctx), "sticky top-0 z-5 bg-background"),
+				p.Class,
+			),
+		}
+		data-slot="table-header"
+		data-sticky-header?={ !stickyHeaderDisabled(ctx) }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</thead>
+}
+
+templ Body(props ...BodyProps) {
+	{{ var p BodyProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{ ctx = context.WithValue(ctx, sectionKey{}, "body") }}
+	<tbody
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={ p.Class }
+		data-slot="table-body"
+		if navigable(ctx) {
+			{ utils.MergeAttributes(collection.RowGroup(collection.Props{HoverCurrent: true, RowNavigation: navigationProps(ctx).RowNavigation}), p.Attributes)... }
+		} else {
+			{ p.Attributes... }
+		}
+	>
+		{ children... }
+	</tbody>
+}
+
+templ Footer(props ...FooterProps) {
+	{{ var p FooterProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{ ctx = context.WithValue(ctx, sectionKey{}, "footer") }}
+	<tfoot
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={ utils.TwMerge("border-t bg-muted/40 type-body-200-medium", p.Class) }
+		data-slot="table-footer"
+		{ p.Attributes... }
+	>
+		{ children... }
+	</tfoot>
+}
+
+templ Row(props ...RowProps) {
+	{{ var p RowProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{ ctx = context.WithValue(ctx, stickyRowKey{}, p.Sticky && !stickyHeaderDisabled(ctx)) }}
+	if navigable(ctx) {
+		{{ ctx = context.WithValue(ctx, indicatorKey{}, new(bool)) }}
+		{{ *ctx.Value(indicatorKey{}).(*bool) = true }}
+	}
+	<tr
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={
+			utils.TwMerge(
+				"border-b transition-colors group/table-row",
+				utils.IfElse(tableSection(ctx) == "header" && !stickyHeaderDisabled(ctx), "bg-transparent hover:bg-transparent", utils.TwMerge("data-current:bg-muted data-[state=selected]:bg-muted", utils.If(!navigable(ctx), "hover:bg-muted/50"))),
+				utils.If(tableSection(ctx) == "body", "border-t border-b-0 first:border-t-0"),
+				utils.If(tableSection(ctx) == "footer", "last:border-b-0"),
+				utils.If(tableSection(ctx) != "header", "relative"),
+				utils.If(p.Sticky && !stickyHeaderDisabled(ctx), "sticky top-[calc(var(--table-header-height,--spacing(10))-1px)] z-4 translate-y-(--table-sticky-offset) border-0 bg-muted hover:bg-muted [--table-sticky-offset:0px]"),
+				p.Class,
+			),
+		}
+		data-slot="table-row"
+		data-sticky-row?={ p.Sticky && !stickyHeaderDisabled(ctx) }
+		if navigable(ctx) {
+			{ collection.Row()... }
+		}
+		if p.Selected {
+			data-state="selected"
+		}
+		{ p.Attributes... }
+	>
+		{ children... }
+	</tr>
+}
+
+// RowLink stretches a native link over its row. Mark cells containing other
+// controls with utils.OwnEvents() so they sit above the link. Cells before the
+// link also need Class: "z-1" and must not contain dialogs; cells after it use
+// paint order so dialogs can escape the row. Keep the link's ancestors inside
+// the row unpositioned so its overlay uses the row's bounds.
+templ RowLink(props ...RowLinkProps) {
+	{{ var p RowLinkProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<a
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		href={ templ.URL(p.Href) }
+		class={
+			utils.TwMerge(
+				"outline-none",
+				"after:absolute after:inset-0",
+				"focus-visible:after:ring-2 focus-visible:after:ring-ring/50 focus-visible:after:ring-inset",
+				p.Class,
+			),
+		}
+		data-slot="table-row-link"
+		{ collection.Trigger()... }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</a>
+}
+
+// RowText sits above the stretched link so text selection and native tooltips
+// target the content. Keep it inline so surrounding whitespace still opens the row.
+templ RowText(props ...RowTextProps) {
+	{{ var p RowTextProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<span
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={ utils.TwMerge("relative z-1 cursor-text select-text", p.Class) }
+		data-slot="table-row-text"
+		{ utils.OwnEvents()... }
+		{ p.Attributes... }
+	>{ children... }</span>
+}
+
+// Head is the column label. Uppercase and small like the sidebar's section
+// headings, so a table reads as the same system as the rest of a page, and
+// nowrap so a narrow column never breaks "Job Title" over two lines.
+templ Head(props ...HeadProps) {
+	{{ var p HeadProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<th
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={
+			utils.TwMerge(
+				"h-10 px-3 text-left align-middle type-label-100 whitespace-nowrap text-muted-foreground",
+				utils.If(tableSection(ctx) == "header" && !stickyHeaderDisabled(ctx), stickyHeadClass()),
+				utils.If(ctx.Value(stickyRowKey{}) == true, "after:pointer-events-none after:absolute after:inset-x-0 after:-inset-y-px after:-z-1 after:border-y after:border-border after:bg-muted after:content-['']"),
+				p.Class,
+			),
+		}
+		data-slot="table-head"
+		if navigable(ctx) {
+			{ utils.MergeAttributes(collection.RowHeader(), p.Attributes)... }
+		} else {
+			{ p.Attributes... }
+		}
+	>
+		if rowIndicatorDue(ctx) {
+			@rowIndicator()
+		}
+		{ children... }
+	</th>
+}
+
+// Cell is a body cell. In a navigable table under a sticky header, a cell
+// the list scrolls into view stops below the header rather than under it,
+// and below a sticky category row too when the table sets
+// --table-sticky-row-height to that row's height. The first cell of a
+// navigable row, Head or Cell, draws the row indicator on the current row.
+templ Cell(props ...CellProps) {
+	{{ var p CellProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<td
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={
+			utils.TwMerge(
+				"px-3 py-2 align-middle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring data-own-events:relative",
+				utils.If(navigable(ctx) && !stickyHeaderDisabled(ctx), "scroll-mt-[calc(var(--table-header-height,--spacing(10))_+_var(--table-sticky-row-height,0px))]"),
+				p.Class,
+			),
+		}
+		data-slot="table-cell"
+		if navigable(ctx) {
+			{ collection.Cell()... }
+		}
+		{ p.Attributes... }
+	>
+		if rowIndicatorDue(ctx) {
+			@rowIndicator()
+		}
+		{ children... }
+	</td>
+}
+
+// rowIndicator is the shared marker every navigable list draws on its
+// current row, as Mail's rows do, positioned over the row from its first
+// cell; it follows the current row, not focus, so Tab away leaves it there.
+templ rowIndicator() {
+	@rowindicator.Indicator(rowindicator.Props{Class: "-inset-y-px hidden group-data-current/table-row:block"})
+}
+
+// Frame is the border every table on a page gets, so they all get the same
+// one: a squircle, drawn on a box that holds the table and nothing else.
+// The foreground outline keeps row backgrounds from painting over its corners.
+templ Frame(props ...FrameProps) {
+	{{ var p FrameProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={
+			utils.TwMerge(
+				"relative squircle-md border after:pointer-events-none after:absolute after:-inset-px after:z-1 after:squircle-md after:border after:border-border",
+				"has-[[data-sticky-header]]:w-fit has-[[data-sticky-header]]:min-w-full has-[[data-sticky-header]]:overflow-clip has-[[data-sticky-header]]:border-0 has-[[data-sticky-header]]:[overflow-clip-margin:border-box] has-[[data-sticky-header]]:after:inset-x-0 has-[[data-sticky-header]]:after:top-[var(--table-header-height,--spacing(10))] has-[[data-sticky-header]]:after:bottom-0 has-[[data-sticky-header]]:after:squircle-t-none has-[[data-sticky-header]]:after:border-t-0",
+				p.Class,
+			),
+		}
+		data-slot="table-frame"
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+// First-cell decorations use the sticky header as their containing block.
+// Pseudo-elements on thead add an anonymous row and change column sizing.
+// Bound their height explicitly: engines that use the table as the containing
+// block must not stretch the header background over the body.
+func stickyHeadClass() string {
+	return utils.TwMerge(
+		"group-first/table-row:first:before:absolute group-first/table-row:first:before:inset-x-0 group-first/table-row:first:before:top-0 group-first/table-row:first:before:-z-1 group-first/table-row:first:before:h-[var(--table-header-height,--spacing(10))] group-first/table-row:first:before:squircle-t-md group-first/table-row:first:before:border group-first/table-row:first:before:border-border group-first/table-row:first:before:bg-[color-mix(in_oklab,var(--color-muted)_40%,var(--color-background))] group-first/table-row:first:before:content-['']",
+		"group-first/table-row:first:after:absolute group-first/table-row:first:after:inset-x-0 group-first/table-row:first:after:top-0 group-first/table-row:first:after:-z-2 group-first/table-row:first:after:h-[var(--table-header-height,--spacing(10))] group-first/table-row:first:after:bg-background group-first/table-row:first:after:content-['']",
+	)
+}

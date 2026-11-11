@@ -1,0 +1,19 @@
+{
+  "name": "housecat-ui",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@floating-ui/dom": "1.8.0",
+    "@klinking/squircle": "1.2.0",
+    "@use-gesture/vanilla": "10.3.1",
+    "effect": "4.0.6",
+    "tabbable": "6.5.0"
+  },
+  "devDependencies": {
+    "@effect/tsgo": "0.55.0",
+    "@tailwindcss/cli": "^4.3.5",
+    "@tailwindcss/typography": "^0.5.20",
+    "tailwindcss": "^4.3.5",
+    "vite-plus": "1.3.0"
+  }
+}

@@ -1,0 +1,108 @@
+package selectbox
+
+import (
+	"context"
+
+	"github.com/housecat-inc/scratch/ui/components/control"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type SelectProps struct {
+	// Attributes go on the trigger, the control, as a native select's go on
+	// the select.
+	Attributes templ.Attributes
+	// Class is merged into the trigger's.
+	Class string
+	// Disabled dims the trigger and keeps the value out of the form, as a
+	// disabled native select does.
+	Disabled bool
+	// Form is the id of the form the value posts with, for a select outside
+	// it.
+	Form string
+	// HasError marks the trigger invalid. Inside a field.Field the field's
+	// Error does this instead.
+	HasError bool
+	// ID ties the trigger to its popup. Unset, it is the field's id with
+	// "-select" when the select is its field.Field's control, so the markup
+	// is the same each render, and random otherwise.
+	ID    string
+	Items []Entry
+	// Label names the trigger and its list. A select that is its
+	// field.Field's control is named by the field's label instead; any other
+	// select needs one.
+	Label string
+	Name  string
+	// Placeholder shows on the trigger while nothing is chosen, and is not
+	// an item. A select with one starts with no value; one without starts on
+	// its first item.
+	Placeholder string
+	// Required holds the form's submit until a value is chosen. Inside a
+	// field.Field the field's Required does this too.
+	Required bool
+	// RootAttributes go on the Root, which a change listener can sit on: the
+	// value input fires change in it as each choice is made.
+	RootAttributes templ.Attributes
+	// Value is the chosen item's. One that is not among Items chooses the
+	// first, as a native select shows and posts its first option -- or, with
+	// a Placeholder, none.
+	Value string
+}
+
+// Select is the select a form usually wants, in one call: the field trigger,
+// as wide as its field, showing the chosen item, and a popup listing Items
+// with a check on the chosen one. It posts the chosen value as Name, as a
+// native select does.
+templ Select(p SelectProps) {
+	{{ id, required := selectRoot(ctx, p) }}
+	@Root(RootProps{Attributes: p.RootAttributes, Disabled: p.Disabled, Form: p.Form, ID: id, Items: shown(p), Label: p.Label, Name: p.Name, Required: required, Value: chosen(p)}) {
+		@Trigger(TriggerProps{Attributes: triggerAttributes(p), Class: utils.TwMerge("w-full justify-between", p.Class), Disabled: p.Disabled}) {
+			@Value(ValueProps{Class: "min-w-0 overflow-hidden"})
+		}
+		@Positioner(PositionerProps{}) {
+			@Popup(PopupProps{}) {
+				for _, e := range p.Items {
+					@Item(ItemProps{Value: e.Value}) {
+						{ e.Label }
+					}
+				}
+			}
+		}
+	}
+}
+
+// selectRoot is the Root's id and whether it is required, as control.RootOf
+// has them.
+func selectRoot(ctx context.Context, p SelectProps) (string, bool) {
+	return control.RootOf(ctx, p.ID, "-select", p.Required)
+}
+
+// triggerAttributes are the caller's, with aria-invalid when HasError.
+func triggerAttributes(p SelectProps) templ.Attributes {
+	if !p.HasError {
+		return p.Attributes
+	}
+	return utils.MergeAttributes(templ.Attributes{"aria-invalid": "true"}, p.Attributes)
+}
+
+// shown is what the trigger can show: the items, after the placeholder when
+// there is one.
+func shown(p SelectProps) []Entry {
+	if p.Placeholder == "" {
+		return p.Items
+	}
+	return append([]Entry{{Label: p.Placeholder}}, p.Items...)
+}
+
+// chosen is the value when an item has it, else none with a placeholder,
+// else the first item's.
+func chosen(p SelectProps) string {
+	for _, e := range p.Items {
+		if e.Value == p.Value {
+			return p.Value
+		}
+	}
+	if p.Placeholder != "" || len(p.Items) == 0 {
+		return ""
+	}
+	return p.Items[0].Value
+}

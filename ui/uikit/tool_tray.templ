@@ -1,0 +1,146 @@
+package uikit
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/bottomfade"
+	"github.com/housecat-inc/scratch/ui/components/kbd"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type ToolTrayProps struct {
+	Actions templ.Component
+}
+
+type TrayButtonProps struct {
+	Attributes templ.Attributes
+	// Icon draws before the label, and is the whole button when Label is empty:
+	// Button leaves the label slot out rather than rendering an empty one.
+	Icon icons.Name
+	// Kbd is the shortcut that runs this tool, drawn in the button's end glyph
+	// slot in whichever variant reads against its fill.
+	Kbd   []kbd.Key
+	Label string
+	// Primary is the one action the tray is recommending, drawn filled. The
+	// rest are outline buttons, quiet enough that a row of them reads as a set.
+	Primary bool
+}
+
+// ToolActionRow is the tray's row of tool buttons. It carries
+// data-slot="tool-action-row" because the row is what stands on the shared baseline
+// and what says the tray has something to show, and both are read from the
+// attribute rather than a class so the styling can move without taking them
+// with it.
+//
+// No padding on the bottom edge: this row's buttons are what stands on
+// --spacing-baseline, which the tray's bottom margin sets, so padding here
+// would lift them off it. Wrapped onto a second line, it is the last line that
+// lands on the floor.
+templ ToolActionRow() {
+	<div class={ utils.TwMerge("flex w-full flex-wrap items-center justify-start gap-2.5", ToolTrayEndClearance) } data-slot="tool-action-row">
+		{ children... }
+	</div>
+}
+
+// ToolTrayEndClearance keeps a row along the tray's bottom clear of the chat
+// rail's edge toggle, which stands on the same floor at the pane's right edge.
+// app.css sets --chat-toggle-clearance wherever a rail is on the page; with no
+// rail it is unset and the row runs to the tray's edge.
+const ToolTrayEndClearance = "pr-[var(--chat-toggle-clearance,0px)]"
+
+// TrayButton is one button in the tray's action row. It takes its label as a
+// prop rather than as children: a child beside the label puts a space inside
+// the label slot, which every button then carries.
+templ TrayButton(props TrayButtonProps) {
+	@button.Button(button.Props{
+		Attributes: props.Attributes,
+		IconStart:  props.Icon,
+		Kbd:        props.Kbd,
+		Type:       button.TypeButton,
+		Variant:    utils.IfElse(props.Primary, button.VariantDefault, button.VariantOutline),
+	}) {
+		{ props.Label }
+	}
+}
+
+// ToolBottomSlot is the strip along the bottom of the tray. Class is for the
+// padding a particular slot wants: the palette's pill sits flush, the
+// suggestions strip is inset to the tray's own gutter.
+templ ToolBottomSlot(class string) {
+	<div class={ utils.TwMerge("flex items-center gap-2.5 pt-[var(--mail-floating-top-gap)] pb-[var(--mail-floating-bottom-gap)]", class) } data-slot="tool-bottom-slot">
+		{ children... }
+	</div>
+}
+
+// toolSurface is the floating card the panel is drawn on. Two of the tray's
+// states flatten it -- the palette and the suggestions draw their own
+// surfaces, so a card behind them would be a second border around the first.
+const toolSurface = "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--mail-floating-radius)] border bg-popover shadow-[var(--mail-floating-shadow)] group-data-[more-tools-active]/tray:border-0 group-data-[more-tools-active]/tray:bg-transparent group-data-[more-tools-active]/tray:shadow-none group-data-[more-tools-active]/tray:overflow-visible group-data-[infer-tools-active]/tray:border-0 group-data-[infer-tools-active]/tray:bg-transparent group-data-[infer-tools-active]/tray:shadow-none group-data-[infer-tools-active]/tray:overflow-visible"
+
+// The tray keeps hc-tool-tray so the workflow branding in app.css, which is
+// driven by custom properties script sets per run, still has it to hang from.
+//
+// The tray's bottom edge is the floor the input pills, the edge toggle and the
+// account avatar stand on, so its bottom margin is --spacing-baseline rather
+// than a gap of the tray's own. The token already takes the device safe area
+// as its floor, which is why nothing inside the tray adds one.
+const toolTrayClass = "hc-tool-tray ms-[var(--entry-list-p-l)] me-[var(--mail-floating-gutter)] mt-[var(--mail-floating-top-gap)] mb-baseline flex-none bg-transparent group/tray data-[infer-tools-active]:relative data-[infer-tools-active]:z-30 data-[more-tools-active]:relative data-[more-tools-active]:z-30 data-[more-tools-active]:mb-0"
+
+const toolPanelClass = "hc-tool-panel flex max-h-[var(--mail-floating-panel-max-height)] min-h-0 flex-col group-data-[compose-active]/tray:min-h-[calc(clamp(180px,28vh,300px)+252px)] group-data-[header-only]/tray:min-h-0 group-data-[more-tools-active]/tray:max-h-none group-data-[more-tools-active]/tray:min-h-0 group-data-[more-tools-active]/tray:overflow-visible"
+
+// toolBodyClass is the panel's scrolling body, where each tool mounts its UI.
+// Header-only hides it, so the reply the agent is drafting stays out of sight
+// until it is ready. The palette and the suggestions draw their own surfaces
+// and let them overflow the body. hc-tool-body is kept as the hook the
+// composer and workflow rules in app.css style injected markup by; none of
+// them may set a property these utilities set, because app.css is unlayered
+// and would win.
+const toolBodyClass = "hc-tool-body group/tool-body flex min-h-0 flex-1 flex-col overflow-auto bg-white group-data-[header-only]/tray:hidden group-data-[infer-tools-active]/tray:overflow-visible group-data-[more-tools-active]/tray:overflow-visible"
+
+templ ToolTray(props ToolTrayProps) {
+	<section class={ utils.TwMerge(toolTrayClass, bottomfade.TrayClass) } data-slot="tool-tray" data-scroll-fade-part="footer">
+		<div class="flex flex-col" data-slot="tool-tray-actions">
+			<div class="flex flex-wrap items-center gap-2.5" data-slot="tool-tray-start-body">
+				if props.Actions != nil {
+					@props.Actions
+				}
+			</div>
+		</div>
+		<div class={ toolPanelClass } data-tool-panel hidden>
+			<div class={ toolSurface }>
+				<div
+					class="hc-tool-info flex flex-col gap-[3px] border-b border-b-[color-mix(in_srgb,var(--border)_82%,var(--primary))] bg-[var(--mail-floating-header-bg)] px-4 py-3"
+					data-tool-info
+					hidden
+				>
+					<div class="flex min-h-7 items-center gap-2">
+						<span
+							class="hc-tool-icon inline-flex size-[30px] flex-none items-center justify-center overflow-hidden rounded-[7px] border border-[color-mix(in_srgb,var(--border)_82%,var(--primary))] bg-popover [&_img]:size-5 [&_img]:object-contain"
+							data-tool-icon
+							hidden
+						>
+							<img alt="" data-tool-icon-img/>
+						</span>
+						<div class="min-w-0 flex-1">
+							<div class="truncate type-body-300-medium text-foreground" data-tool-title></div>
+							<div class="truncate type-caption-100-medium text-muted-foreground" data-tool-subtitle hidden></div>
+							<div class="hc-tool-progress min-h-4 truncate type-code-100 text-muted-foreground" data-tool-progress hidden>
+								<span data-tool-progress-text></span>
+							</div>
+						</div>
+						<div class="ms-auto">
+							@button.ButtonIcon(button.IconProps{
+								Attributes: templ.Attributes{"data-tool-dismiss": true},
+								Icon:       icons.Close,
+								Size:       button.IconSizeSm,
+								Tooltip:    "Dismiss",
+								Variant:    button.IconVariantOutline,
+							})
+						</div>
+					</div>
+				</div>
+				<div class={ toolBodyClass } data-tool-body></div>
+			</div>
+		</div>
+	</section>
+}

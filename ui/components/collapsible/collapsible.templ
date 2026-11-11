@@ -1,0 +1,90 @@
+// templui component collapsible - version: v1.5.0 installed by templui v1.5.0
+// 📚 Documentation: https://templui.io/docs/components/collapsible
+//
+// The script is forked: collapsible.ts honours utils.OwnEvents on
+// anything inside the trigger and leaves a click that drag-selected text on
+// the way alone, both through ui/dom/housecat.ts.
+//
+// The fork also drops templui's second open state. Upstream mirrors the root's
+// data-tui-collapsible-state onto a tui-collapsible-open class on the content
+// and animates grid-template-rows off that class. Nothing here used it -- every
+// consumer selects on the state attribute -- and carrying two states meant a
+// swap that preserved one and reset the other left them disagreeing.
+// Reinstalling the component from templui would drop all three changes.
+package collapsible
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type Props struct {
+	ID         string
+	Class      string
+	Attributes templ.Attributes
+	Open       bool
+}
+
+type TriggerProps struct {
+	ID         string
+	Class      string
+	Attributes templ.Attributes
+}
+
+type ContentProps struct {
+	ID         string
+	Class      string
+	Attributes templ.Attributes
+}
+
+templ Collapsible(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.ID == "" {
+		{{ p.ID = utils.RandomID() }}
+	}
+	<div
+		id={ p.ID }
+		class={ utils.TwMerge("", p.Class) }
+		data-tui-collapsible="root"
+		data-tui-collapsible-state={ utils.IfElse(p.Open, "open", "closed") }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+templ Trigger(props ...TriggerProps) {
+	{{ var p TriggerProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={ utils.TwMerge("", p.Class) }
+		data-tui-collapsible="trigger"
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+templ Content(props ...ContentProps) {
+	{{ var p ContentProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={ utils.TwMerge("", p.Class) }
+		data-tui-collapsible="content"
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+templ Script() {}

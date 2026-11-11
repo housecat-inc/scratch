@@ -1,0 +1,116 @@
+[
+  {
+    "path": "app/assets/js/workflow-json-editor.js",
+    "reason": "The workflow editor moves with CodeMirror 6 under housecat-inc/issues#632."
+  },
+  {
+    "path": "app/assets/sse/hx-sse.js",
+    "reason": "Adopted htmx SSE extension follows upstream JavaScript under housecat-inc/issues#618."
+  },
+  {
+    "path": "auth/assets/js/admin-sql.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/checkbox.min.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/dialog.min.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/dropdown.min.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/inbox.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/input.min.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/label.min.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/page.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/popover.min.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/assets/js/textarea.min.js",
+    "reason": "Auth is converted by housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/ui/pages/admin_vms.templ",
+    "owner": "instructVMScript",
+    "count": 1,
+    "reason": "Auth follows housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/ui/pages/gdrive.templ",
+    "owner": "gdrivePickerScript",
+    "count": 1,
+    "reason": "Auth follows housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/ui/pages/inbox.templ",
+    "owner": "InboxThread",
+    "count": 1,
+    "reason": "Auth follows housecat-inc/issues#634."
+  },
+  {
+    "path": "auth/ui/pages/setup.templ",
+    "owner": "setupChecklist",
+    "count": 1,
+    "reason": "Auth follows housecat-inc/issues#634."
+  },
+  {
+    "path": "dev/email-rendering/table.mjs",
+    "reason": "Email-rendering harness tooling is outside the application migration."
+  },
+  {
+    "path": "ui/layouts/keys.templ",
+    "owner": "KeysStub",
+    "count": 1,
+    "reason": "The head bootstrap reserves keyboard listener order before synchronous page scripts and first interaction."
+  },
+  {
+    "path": "ui/layouts/viewport.templ",
+    "owner": "ViewportStub",
+    "count": 1,
+    "reason": "The head bootstrap publishes server breakpoints before first-paint viewport measurement and synchronous page scripts."
+  },
+  {
+    "path": "ui/squircle/tailwind-pill-border.mjs",
+    "reason": "The standalone Tailwind binary requires JavaScript plugin wrappers until housecat-inc/issues#619."
+  },
+  {
+    "path": "ui/squircle/tailwind-pill.mjs",
+    "reason": "The standalone Tailwind binary requires JavaScript plugin wrappers until housecat-inc/issues#619."
+  },
+  {
+    "path": "ui/storybook/.storybook/main.js",
+    "reason": "Storybook loads JavaScript configuration in its separate toolchain."
+  },
+  {
+    "path": "ui/storybook/.storybook/middleware.js",
+    "reason": "Storybook loads JavaScript configuration in its separate toolchain."
+  },
+  {
+    "path": "ui/storybook/.storybook/preview.js",
+    "reason": "Storybook loads JavaScript configuration in its separate toolchain."
+  },
+  {
+    "path": "ui/storybook/registry/button_icon.templ",
+    "owner": "buttonIconStates",
+    "count": 1,
+    "reason": "Storybook demonstration behavior runs in its separate preview."
+  }
+]

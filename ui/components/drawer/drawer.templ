@@ -1,0 +1,520 @@
+// Housecat component (not templui-managed): a side panel that is part of the
+// layout on a wide viewport and an overlay on a narrow one.
+//
+// templui's Sheet is the neighbouring idea and deliberately not this one. A
+// Sheet is a Dialog, so it is modal at every width: dialog.min.js sets
+// body.style.overflow on open and pulls focus into the panel. That is right
+// for something you dismiss before carrying on, and wrong for a panel you
+// want open while you keep scrolling and clicking the page behind it.
+//
+// So a Drawer is one element and a media query rather than two trees or a
+// moved node. Above the docked breakpoint it is in flow and the backdrop is
+// gone; below it, it is fixed, translated off-screen, and the backdrop is
+// live. Nothing moves in the DOM, which is what lets a caller put a live
+// SSE-connected subtree inside one.
+package drawer
+
+import (
+	"regexp"
+	"strings"
+
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Side string
+
+const (
+	SideLeft  Side = "left"
+	SideRight Side = "right"
+	// SideBottom is only a CompactSide: a sheet that slides up from the
+	// bottom of the screen. A docked drawer is always a column at the left or
+	// right.
+	SideBottom Side = "bottom"
+)
+
+// Control says who owns the compact record, data-drawer-open. A
+// caller-controlled drawer -- the chat rail, whose state is a URL parameter --
+// only reflects what its caller sets through records.ts. A self-controlled
+// one is opened and closed by drawer.ts: its triggers, close buttons,
+// backdrop and key layer. Either way the docked record is its caller's,
+// through records.ts' setDocked.
+type Control string
+
+const (
+	ControlCaller Control = "caller"
+	ControlSelf   Control = "self"
+)
+
+// Docked is the drawer's docked record: what it is from the docked breakpoint
+// up. It is one of the drawer's two records, with the compact record,
+// data-drawer-open, and the two are independent: opening or closing the
+// compact sheet never changes this, and changing this never opens or closes
+// the sheet. Below docked nothing reads it.
+//
+// An expanded drawer is --drawer-width wide and takes that much room in
+// flow. A collapsed one is --drawer-collapsed-width wide and takes that.
+// A peeking one takes the collapsed room in flow but draws its panel at
+// --drawer-width, laid over the content beside it, which does not reflow.
+// Only a drawer with a CollapsedWidth collapses or peeks; any other is
+// always expanded.
+type Docked string
+
+const (
+	DockedExpanded  Docked = "expanded"
+	DockedCollapsed Docked = "collapsed"
+	DockedPeek      Docked = "peek"
+)
+
+// Collapse is what collapsing does to a drawer, which its CollapsedWidth
+// decides. A drawer with no collapsed width cannot collapse. One that
+// collapses to CollapsedHidden goes out of sight, its contents out of the
+// tab order and the accessibility tree, as the chat rail does. One that
+// collapses to any other width stays a column of that width, its contents
+// still there and narrowed with it, as the sidebar's icon column will.
+type Collapse string
+
+const (
+	CollapseColumn Collapse = "column"
+	CollapseHidden Collapse = "hidden"
+	CollapseNone   Collapse = "none"
+)
+
+// CollapsedHidden is the CollapsedWidth of a drawer that collapses out of
+// sight.
+const CollapsedHidden = "0px"
+
+// Compact is what the drawer is below the docked breakpoint. A modal drawer
+// is fixed over the page with a backdrop; a view fills its nearest positioned
+// ancestor, with no backdrop, as a layer of the page rather than something
+// covering it.
+type Compact string
+
+const (
+	CompactModal Compact = "modal"
+	CompactView  Compact = "view"
+)
+
+// Props is everything the drawer needs and nothing about what it holds.
+// Open and Docked are a caller's state -- a URL parameter, a cookie, a
+// toggle -- and the drawer only reflects them.
+type Props struct {
+	Attributes templ.Attributes
+	// Backdrop replaces the default scrim. A layout that renders Backdrop at
+	// its viewport boundary passes templ.NopComponent here.
+	Backdrop templ.Component
+	Class      string
+	Compact    Compact
+	// CompactSide is the edge a modal compact drawer comes in from below the
+	// docked breakpoint. SideBottom makes a self-controlled one a bottom
+	// sheet: full width, rounded at the top, 85% of its containing block
+	// tall, with a grabber that drags it (sheet.ts). Anything else -- empty,
+	// SideLeft or SideRight, or SideBottom on a caller-controlled or view
+	// drawer, which sheet.ts never drags -- is Side, so data-compact-side
+	// says which edge it does come in from. Side still says which column it
+	// is from docked up.
+	CompactSide Side
+	// CollapsedWidth is the panel's width while the docked record is
+	// collapsed, as a CSS length, declared as --drawer-collapsed-width on the
+	// aside. Empty means the drawer cannot collapse, and CollapsedHidden,
+	// or any other zero length, that it collapses out of sight (Collapse).
+	CollapsedWidth string
+	Control        Control
+	// Docked is the docked record's first value; drawer.ts's setDocked
+	// changes it from there. It defaults to expanded, and is always expanded
+	// on a drawer with no CollapsedWidth.
+	Docked Docked
+	// Handle renders inside the aside, outside the box that clips the
+	// panel's contents and ahead of it, so the control that opens and closes
+	// the panel comes before the panel in reading and focus order. Outside
+	// the clip it can hang off the panel's edge -- positioned against the
+	// aside with right-full or left-full -- and ride the panel's own width
+	// and translate rather than animating a position of its own that would
+	// have to be kept in step with them. The aside is the handle's
+	// containing block at every breakpoint. DOM order does not decide which
+	// of the two paints on top: a positioned handle paints above the
+	// in-flow clip box either way.
+	Handle templ.Component
+	ID     string
+	// Label names the panel for a screen reader, since a drawer's contents
+	// rarely start with a heading that would name it.
+	Label string
+	Open  bool
+	Side  Side
+	// Width is the panel's width at every breakpoint, as a CSS length,
+	// declared as --drawer-width on the aside itself: from docked up it is
+	// the docked width, the panel's while expanded or peeking. Empty leaves the
+	// property undeclared here rather than defaulting it, for a caller whose
+	// ancestor already declares --drawer-width -- a sibling sized against the
+	// same property then resolves it by inheritance instead of a second,
+	// repeated literal.
+	Width string
+}
+
+// Classes are DrawerUnstyled's finished class strings, one per element it
+// draws. It runs no merge, so a caller on legacy CSS hooks passes them through
+// intact.
+type Classes struct {
+	Aside       string
+	Backdrop    string
+	Clip        string
+	Content     string
+	Grabber     string
+	GrabberMark string
+}
+
+type UnstyledProps struct {
+	Props
+	Classes Classes
+}
+
+func (p Props) withDefaults() Props {
+	if p.Side == "" {
+		p.Side = SideRight
+	}
+	if p.Control == "" {
+		p.Control = ControlCaller
+	}
+	if p.Docked == "" || p.collapse() == CollapseNone {
+		p.Docked = DockedExpanded
+	}
+	if p.Compact == "" {
+		p.Compact = CompactModal
+	}
+	if p.CompactSide != SideBottom || p.Compact != CompactModal || p.Control != ControlSelf {
+		p.CompactSide = p.Side
+	}
+	return p
+}
+
+// zeroLength is a CSS length of zero in any unit, 0rem and 0% as much as
+// CollapsedHidden: a panel collapsed to it is out of sight, so its contents
+// must leave the tab order with it rather than stay as a zero-wide column.
+var zeroLength = regexp.MustCompile(`^0*\.?0+([a-zA-Z]+|%)?$`)
+
+func (p Props) collapse() Collapse {
+	width := strings.TrimSpace(p.CollapsedWidth)
+	switch {
+	case width == "":
+		return CollapseNone
+	case zeroLength.MatchString(width):
+		return CollapseHidden
+	default:
+		return CollapseColumn
+	}
+}
+
+// style declares the widths the caller gave on the aside, and nothing for
+// one it left empty, so an ancestor's declaration still reaches it.
+func (p Props) style() string {
+	var decls []string
+	if p.Width != "" {
+		decls = append(decls, "--drawer-width:"+p.Width)
+	}
+	if p.CollapsedWidth != "" {
+		decls = append(decls, "--drawer-collapsed-width:"+p.CollapsedWidth)
+	}
+	return strings.Join(decls, ";")
+}
+
+// DrawerUnstyled is the drawer's markup with no styling of its own: the
+// backdrop a modal drawer needs, the aside and its dimensions as valued
+// attributes, the handle ahead of the clip box, and the content box. drawer.ts
+// and the styled Drawer both key off the attributes, never off classes.
+//
+// A bottom sheet also draws its grabber, first in the aside. It is only
+// something to drag, so it is hidden from assistive technology and takes no
+// focus: a keyboard or a screen reader closes the sheet the way it closes
+// any modal -- Escape, the close button, Android back.
+templ DrawerUnstyled(in UnstyledProps) {
+	{{ p := in.Props.withDefaults() }}
+	if p.Compact == CompactModal {
+		if p.Backdrop != nil {
+			@p.Backdrop
+		} else {
+			@BackdropUnstyled(BackdropProps{Class: in.Classes.Backdrop, ID: p.ID, Open: p.Open})
+		}
+	}
+	<aside
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		aria-label={ p.Label }
+		if in.Classes.Aside != "" {
+			class={ in.Classes.Aside }
+		}
+		data-compact={ string(p.Compact) }
+		data-compact-side={ string(p.CompactSide) }
+		data-collapse={ string(p.collapse()) }
+		data-control={ string(p.Control) }
+		data-docked={ string(p.Docked) }
+		data-drawer-open?={ p.Open }
+		data-side={ string(p.Side) }
+		data-slot="drawer"
+		if p.style() != "" {
+			style={ p.style() }
+		}
+		{ p.Attributes... }
+	>
+		if p.CompactSide == SideBottom {
+			<div
+				aria-hidden="true"
+				if in.Classes.Grabber != "" {
+					class={ in.Classes.Grabber }
+				}
+				data-slot="drawer-grabber"
+			>
+				<span
+					if in.Classes.GrabberMark != "" {
+						class={ in.Classes.GrabberMark }
+					}
+					data-slot="drawer-grabber-mark"
+				></span>
+			</div>
+		}
+		if p.Handle != nil {
+			@p.Handle
+		}
+		<div
+			if in.Classes.Clip != "" {
+				class={ in.Classes.Clip }
+			}
+			data-slot="drawer-clip"
+		>
+			<div
+				if in.Classes.Content != "" {
+					class={ in.Classes.Content }
+				}
+				data-slot="drawer-content"
+			>
+				{ children... }
+			</div>
+		</div>
+	</aside>
+}
+
+type BackdropProps struct {
+	Class string
+	ID    string
+	Open  bool
+}
+
+templ BackdropUnstyled(in BackdropProps) {
+	<div
+		if in.Class != "" {
+			class={ in.Class }
+		}
+		data-drawer-backdrop
+		data-drawer-for={ in.ID }
+		hidden?={ !in.Open }
+	></div>
+}
+
+templ Backdrop(in BackdropProps) {
+	@BackdropUnstyled(BackdropProps{Class: utils.TwMerge(backdropClass, in.Class), ID: in.ID, Open: in.Open})
+}
+
+const backdropClass = "scrim fixed inset-0 z-[65] data-[drawer-dragging]:transition-none docked:hidden"
+
+templ Drawer(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{ p = p.withDefaults() }}
+	@DrawerUnstyled(UnstyledProps{Props: p, Classes: Classes{
+		Aside:       p.classes(),
+		Backdrop:    backdropClass,
+		Clip:        p.clipClasses(),
+		Content:     p.contentClasses(),
+		Grabber:     grabberClasses,
+		GrabberMark: "pointer-events-none absolute! top-2 left-1/2 h-1.5 w-9 -translate-x-1/2 squircle-pill bg-foreground/20",
+	}}) {
+		{ children... }
+	}
+}
+
+// classes key the drawer's layout off the two records rendered on this same
+// element, data-drawer-open and data-docked, never off p.Open or p.Docked
+// directly: drawer.ts only ever rewrites those attributes, never this
+// markup, so the first render and every later change resolve the same
+// classes from the same records. Every class that reads data-drawer-open is
+// scoped max-docked:, and every class that reads data-docked is scoped
+// docked:, so neither record shows through the other's breakpoint.
+//
+// Below docked the aside is an overlay -- fixed and --drawer-width wide
+// whatever its open state -- and a translate slides it on and off screen.
+// From docked up it is in flow, and its docked record sets two things:
+//
+//   - The panel, the aside's own box: --drawer-width wide when expanded or
+//     peeking, --drawer-collapsed-width when collapsed.
+//   - The footprint, the room the panel takes in flow: its width plus a
+//     negative margin on its inner edge. The margin is 0 except while
+//     peeking, when it is the collapsed width less the docked one, so the
+//     footprint stays at the collapsed width and the panel is laid over the
+//     content beside it, which does not reflow.
+//
+// Width and margin animate together over 150ms, so between collapsed and
+// peek the footprint stays put while the panel grows or shrinks. A translate
+// cannot change the room a panel takes in flow, which is why the docked
+// panel animates its width. Only a record change moves it: a first paint has
+// nothing to animate from, prefers-reduced-motion drops the transition, and
+// so does data-resizing, which drawer.ts sets on every drawer for as long as
+// the window is being resized, so a width that follows the viewport tracks it
+// every frame instead of easing after it. A drawer with no collapsed width
+// has no docked transition at all.
+//
+// A peeking panel sits above the content it overlays, and a collapsed column
+// stays there too, so a panel folding back from a peek is not covered by the
+// content while it shrinks. A drawer that collapses out of sight is at the
+// content's level while collapsed, as the closed chat rail is.
+//
+// From docked up every drawer is relative, so it is Handle's containing
+// block and its own absolute descendants', and it does not shrink. Its
+// border is on its inner edge, except while a drawer that collapses out of
+// sight is collapsed.
+//
+// `translate-x-*` compiles to the CSS `translate` property, not `transform`,
+// so the transition list names `translate` rather than `transform` -- the
+// named `transition-transform` utility bundles `transform`/`translate`/
+// `scale`/`rotate` together.
+//
+// The aside clips nothing itself: the clip box is a full-size
+// `overflow-hidden` child (clipClasses), which keeps Handle outside the box
+// that cuts the panel's contents off.
+//
+// Width reads --drawer-width unconditionally, at every breakpoint, rather
+// than capping the panel below docked and switching to the variable only at
+// docked:. The caller that declares the property is then the one place both
+// its narrow and its docked value live, with no second cap here to keep in
+// sync.
+//
+// A modal compact drawer is --drawer-width wide, fixed to the screen's edge.
+// It carries no safe-area padding or open shadow of its own: those differ
+// per drawer -- the mail sidebar wants both and the chat rail wants neither
+// -- so a caller that wants them adds its own on Class, rather than this
+// element guessing at a default every caller then has to override. A view
+// compact drawer is a layer of its positioned ancestor instead: absolute,
+// inset-0, full width, at the ancestor's own stacking level, with no shadow
+// and no backdrop.
+//
+// A bottom sheet (CompactSide SideBottom) is the modal compact drawer turned
+// on its side: full width at the foot of its containing block, 85% of it
+// tall, rounded at the top, and translated down by its own height until it
+// opens. Its top pads by the grabber's 44px height, which overlays it. It slides
+// over --drawer-duration on --drawer-ease, iOS's sheet curve: sheet.ts sets
+// a shorter --drawer-duration on the aside for a fling, so the close carries
+// on at the finger's speed, and data-drawer-dragging drops the transition
+// while a finger moves it, so it tracks the finger rather than easing after
+// it. Under prefers-reduced-motion it opens and closes at once. It and, while
+// its content is at the top, everything in it allow only pan-x pan-down, so
+// a finger moving down is sheet.ts's to drag rather than the browser's to
+// scroll; once the content is scrolled down (data-drawer-scrolled) its
+// scrollers pan both ways again. Every class is scoped max-docked:, so from
+// docked up it is the Side column as before.
+func (p Props) classes() string {
+	left := p.Side == SideLeft
+	view := p.Compact == CompactView
+	sheet := p.CompactSide == SideBottom
+	return utils.TwMerge(
+		"fixed inset-y-0 z-[70] bg-background transition-none duration-150 max-docked:transition-[translate] group/drawer",
+		"data-resizing:transition-none",
+		utils.IfElse(left, "left-0", "right-0"),
+		utils.IfElse(sheet, sheetClasses, utils.IfElse(left, "max-docked:-translate-x-full", "max-docked:translate-x-full")),
+		"data-[drawer-open]:max-docked:translate-x-0",
+		"docked:relative docked:z-auto docked:w-[var(--drawer-width)] docked:shrink-0",
+		utils.IfElse(left, "docked:border-r", "docked:border-l"),
+		p.collapseClasses(left),
+		utils.IfElse(view,
+			"max-docked:absolute max-docked:inset-0 max-docked:w-full max-docked:z-auto",
+			utils.IfElse(sheet, "max-docked:w-full", "max-docked:w-[var(--drawer-width)]")),
+		p.Class,
+	)
+}
+
+// collapseClasses are a collapsible drawer's docked states. Each side spells
+// its peek margin out whole, since Tailwind only finds a class it can read
+// in the source.
+func (p Props) collapseClasses(left bool) string {
+	collapse := p.collapse()
+	if collapse == CollapseNone {
+		return ""
+	}
+	return utils.TwMerge(
+		"docked:transition-[width,margin] motion-reduce:docked:transition-none",
+		"data-[docked=collapsed]:docked:w-[var(--drawer-collapsed-width)]",
+		utils.IfElse(left,
+			"data-[docked=peek]:docked:mr-[calc(var(--drawer-collapsed-width)_-_var(--drawer-width))]",
+			"data-[docked=peek]:docked:ml-[calc(var(--drawer-collapsed-width)_-_var(--drawer-width))]"),
+		"data-[docked=peek]:docked:z-[70]",
+		utils.IfElse(collapse == CollapseHidden,
+			"data-[docked=collapsed]:docked:border-0",
+			"data-[docked=collapsed]:docked:z-[70]"),
+	)
+}
+
+// sheetClasses are a bottom sheet's geometry and motion below docked. Its
+// height is 85% of its containing block, not its content's. The sheet holds
+// the whole navigation, which runs taller than a phone screen once there are
+// labels. Its scroll region is a flex-1 box inside h-full boxes, which a
+// sheet sized by its content would collapse. And a fixed height keeps a
+// third of the sheet, where a drag closes it, and a fling's travel the same
+// from one open to the next.
+const sheetClasses = "max-docked:inset-x-0 max-docked:top-auto max-docked:bottom-0 max-docked:h-[85%] max-docked:rounded-t-2xl max-docked:pt-11 " +
+	"max-docked:translate-y-full data-[drawer-open]:max-docked:translate-y-0 " +
+	"max-docked:after:pointer-events-none max-docked:after:absolute max-docked:after:inset-x-0 max-docked:after:top-full max-docked:after:h-dvh max-docked:after:bg-inherit " +
+	"max-docked:[--drawer-duration:350ms] max-docked:[--drawer-ease:cubic-bezier(0.32,0.72,0,1)] max-docked:duration-(--drawer-duration) max-docked:ease-(--drawer-ease) " +
+	"data-[drawer-dragging]:transition-none motion-reduce:max-docked:transition-none " +
+	"max-docked:touch-pan-x max-docked:touch-pan-down max-docked:not-data-[drawer-scrolled]:**:touch-pan-x max-docked:not-data-[drawer-scrolled]:**:touch-pan-down"
+
+// grabberClasses draw a bottom sheet's grabber: a strip across the sheet's
+// top, as tall as the sheet's top padding, with a short pill at its centre.
+// The whole strip is what a finger takes hold of, and its touch-action is
+// none -- important, over the pan-x pan-down the sheet gives everything
+// in it -- so the browser leaves every pan on it to sheet.ts. It is 44px
+// tall, the least a fingertip lands on reliably, since a tap on it closes the
+// sheet (sheet.ts).
+const grabberClasses = "absolute inset-x-0 top-0 z-10 h-11 cursor-grab touch-none! active:cursor-grabbing docked:hidden"
+
+// clipClasses are the box that clips the panel's contents. A closed panel
+// is still in the DOM, so without more its contents stay in the tab order
+// and the accessibility tree while they are off screen or collapsed out of
+// sight. The clip box is `invisible` except where its records show it, which
+// takes every descendant out of both, from the same attributes as the rest
+// of the drawer's classes, so a client-side change cannot leave it stale and
+// the first paint is right with no script at all:
+//
+//   - Below docked, while data-drawer-open is on.
+//   - From docked up, always, except on a drawer that collapses out of sight
+//     while it is collapsed.
+//
+// `transition-[visibility]` holds the contents visible for the whole slide
+// or collapse out; showing them carries `duration-0`, so the box goes
+// visible on the very tick the record lands instead of riding out the same
+// delay, since drawer.ts's open() focuses the first tabbable control in that
+// same call and a still-`invisible` box has nothing focusable in it yet. A
+// bottom sheet's box stays visible for as long as the sheet slides,
+// --drawer-duration rather than the side drawers' 150ms. Handle sits outside
+// the clip box, so a closed drawer's handle stays reachable.
+func (p Props) clipClasses() string {
+	return utils.TwMerge(
+		"invisible h-full w-full overflow-hidden transition-[visibility] duration-150",
+		"max-docked:group-data-[drawer-open]/drawer:visible max-docked:group-data-[drawer-open]/drawer:duration-0",
+		utils.If(p.CompactSide == SideBottom, "max-docked:duration-(--drawer-duration) motion-reduce:max-docked:duration-0"),
+		"docked:visible docked:duration-0",
+		utils.If(p.collapse() == CollapseHidden,
+			"docked:group-data-[docked=collapsed]/drawer:invisible docked:group-data-[docked=collapsed]/drawer:duration-150"),
+	)
+}
+
+// contentClasses hold the panel's contents. In a drawer that collapses out
+// of sight they keep --drawer-width whatever the panel's width, so they are
+// measured against one constant width and never reflow as the panel narrows
+// around them; the clip box cuts them off. In any other they follow the
+// panel, so a collapsed column narrows them and its rows' pills shrink with
+// it, clipping their own labels.
+func (p Props) contentClasses() string {
+	return utils.TwMerge(
+		"flex h-full flex-col max-docked:group-data-[compact-side=bottom]/drawer:w-full max-docked:group-data-[compact=view]/drawer:w-full",
+		utils.IfElse(p.collapse() == CollapseHidden, "w-[var(--drawer-width)]", "w-full"),
+	)
+}

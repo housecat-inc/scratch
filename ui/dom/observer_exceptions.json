@@ -1,0 +1,72 @@
+[
+  {
+    "path": "ui/dom/keys.ts",
+    "target": "document.documentElement",
+    "options": "{attributeFilter:watchedAttributes(),attributeOldValue:true,attributes:true,childList:true,subtree:true,}",
+    "id": "keyboard-layers",
+    "reason": "The keyboard router orders document-wide layers and reconciles focus isolation and CloseWatcher state after mutations; watchedAttributes is the declared layer input set."
+  },
+  {
+    "path": "ui/dom/lifecycle.ts",
+    "target": "document.documentElement",
+    "options": "{childList:true,subtree:true}",
+    "id": "shared-discovery",
+    "reason": "The sole shared component discovery observer inspects added and removed subtrees, preserves connected moves, and never updates already mounted roots."
+  },
+  {
+    "path": "ui/dom/mailframe.ts",
+    "target": "document.documentElement",
+    "options": "{attributeFilter:[COLLAPSIBLE_STATE],childList:true,subtree:true}",
+    "id": "mail-frame-visibility",
+    "reason": "The iframe bridge discovers sandboxed message frames and remeasures frames revealed by an ancestor collapsible anywhere in the document. Frame readiness polling is bounded and setup is idempotent."
+  },
+  {
+    "path": "ui/dom/mailframe.ts",
+    "target": "document.documentElement",
+    "options": "{attributeFilter:[\"class\"]}",
+    "id": "mail-frame-theme",
+    "reason": "The iframe bridge projects only root class changes into message documents; this does not discover or reconcile unrelated UI components."
+  },
+  {
+    "path": "ui/components/control/required.ts",
+    "target": "document",
+    "options": "{attributes:true,attributeFilter:[\"disabled\"],subtree:true}",
+    "id": "required-disabled-projection",
+    "reason": "Declared control triggers project disabled state into their hidden form values. Only disabled attribute changes are observed, with guarded property writes; there is no child-list discovery."
+  },
+  {
+    "path": "ui/components/tour/tour.ts",
+    "target": "tour.anchor ?? document.body",
+    "options": "{characterData:true,childList:true,subtree:true}",
+    "id": "tour-step-readiness",
+    "reason": "An active tour waits for step text at its anchor, falling back to the body when no anchor exists. closeStep disconnects this observer."
+  },
+  {
+    "path": "ui/components/tour/tour.ts",
+    "target": "document.body",
+    "options": "{childList:true,subtree:true}",
+    "id": "tour-anchor-replacement",
+    "reason": "An active tour follows anchors replaced anywhere in the document. The subscription exists only during an open step and disconnects in closeStep."
+  },
+  {
+    "path": "app/ui/browser/chat_rail.ts",
+    "target": "document.documentElement",
+    "options": "{attributeFilter:[\"data-chat-status\",\"data-chat-id\",\"data-selected-thread\"],attributes:true,childList:true,subtree:true,}",
+    "id": "persistent-chat-badge",
+    "reason": "The persistent shell projects chat status, selected-thread changes, and chat replacement into its rail badge. Paint methods guard unchanged outputs; batching is only a scheduling optimization."
+  },
+  {
+    "path": "app/ui/browser/agent_theme.ts",
+    "target": "document.documentElement",
+    "options": "{attributes:true,attributeFilter:[\"class\"],}",
+    "id": "legacy-agent-preview-theme",
+    "reason": "The legacy agent preview mirrors root theme class changes into its iframe. This class-only bridge is retained outside the priority component migration; it must not gain discovery or broader inputs."
+  },
+  {
+    "path": "ui/dom/pill.ts",
+    "target": "document.documentElement",
+    "options": "{attributeFilter:[\"class\"],childList:true,subtree:true,}",
+    "id": "pill-utility-markers",
+    "reason": "Pill utilities can be added to any existing element by class mutations, so their discovery has no stable component root. This service marks only added subtrees and individual class-change targets; it does not rediscover or reconcile unrelated components."
+  }
+]

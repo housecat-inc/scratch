@@ -1,0 +1,79 @@
+package codex
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/chatcomposer"
+	"github.com/housecat-inc/scratch/ui/components/bottomfade"
+	"github.com/housecat-inc/scratch/ui/utils"
+	"github.com/housecat-inc/scratch/ui/components/tour"
+)
+
+// StarterHeading and StarterPrompts are what a new chat offers to do with the
+// mail it can see. They are the chat's empty state, so they render on every
+// surface: the same agent answers on /codex as in the mail rail. They are
+// exported so the chat-composer story shows the app's own prompts rather than a
+// copy that drifts from them.
+const StarterHeading = "What would you like to work on?"
+
+var StarterPrompts = []string{"What emails do I need to reply to?", "Summarize my inbox", "What emails could I archive?"}
+
+// These are the data-tour-anchor values the chat renders for a tour: the
+// starter prompts, the composer's field, and the transcript's first answer,
+// which a step can wait for. This package cannot import the app, so the app's
+// tour definitions take the names from here.
+const (
+	AnswerTourAnchor         = "chat-answer"
+	PromptFieldTourAnchor    = "chat-input"
+	StarterPromptsTourAnchor = "chat-prompts"
+)
+
+// starterHide takes two clauses, and needs both. The optimistic bubble hides
+// the new chat's empty state the moment a message is submitted, but
+// OutgoingScript's reconcile removes that bubble once its turn reaches the
+// transcript. Without the entries clause the cat and starter prompts would
+// return above a conversation already in progress. There is no gap between
+// the two, because a bubble is only removed once its turn is in the entry
+// list, and the list does not exist at all until then.
+const starterHide = "group-has-[[data-outgoing]]/chat:hidden group-has-[[data-chat-entries]:not(:empty)]/chat:hidden"
+
+// Composer is a thin caller of chatcomposer.Composer: it exists because two
+// call sites -- Chat below and HandleCodexMessageCreate's HTMX partial --
+// already work in terms of ChatIn, and translating that struct here keeps
+// chatcomposer itself free of any codex import, which is what lets it be
+// reused outside this package.
+templ Composer(in ChatIn) {
+	@chatcomposer.Composer(chatcomposer.Props{
+		Class:           utils.If(in.ID == MailContentID, bottomfade.FooterClass),
+		Context:         pageContextSlot(in),
+		FieldAttributes: tour.Anchor(PromptFieldTourAnchor),
+		ID:              in.ID,
+		Model:           in.Model,
+		ModelOptions:    newChatModelOptions(in),
+		Placeholder:     in.PromptPlaceholder,
+		SelectedID:      in.SelectedID,
+		StopURL:         in.StopURL,
+		SubmitURL:       in.SubmitURL,
+	})
+}
+
+// newChatModelOptions carries across the one rule the original inline
+// composer enforced: the picker only ever appears while starting a new
+// chat. An existing thread already has a model, so offering to change it
+// there would be a promise the send button cannot keep.
+func newChatModelOptions(in ChatIn) []chatcomposer.ModelOption {
+	if in.SelectedID != "" {
+		return nil
+	}
+	out := make([]chatcomposer.ModelOption, len(in.ModelOptions))
+	for i, option := range in.ModelOptions {
+		out[i] = chatcomposer.ModelOption{Description: option.Description, Label: option.Label, Value: option.Value}
+	}
+	return out
+}
+
+// SendError delegates to chatcomposer.SendError so the markup exists in
+// exactly one place. It stays here, under its own name, because
+// app/srv/codex.go and several browser tests already call codexui.SendError
+// for the composer's out-of-band error swap and keep compiling unchanged.
+templ SendError(message string) {
+	@chatcomposer.SendError(message)
+}

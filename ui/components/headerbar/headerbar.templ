@@ -1,0 +1,36 @@
+// Package headerbar is the bar across the top of a pane: an optional title,
+// then whatever actions the screen adds.
+//
+// Its horizontal padding comes out of --entry-list-p-l and --entry-list-p-r,
+// the edges every list row, list header and reader surface in the app starts
+// from, so a pane header lines up with the rows under it without the call site
+// naming a number. The two tokens are read separately even while the right one
+// defaults to the left, because a theme is free to part them; collapsing both
+// onto px- would leave this the one surface in that family whose right edge
+// stopped following. A caller that wants a different edge changes the token in
+// a breakpoint block, not the class here -- see ui/css/theme.css. What a call
+// site does pass is the surface: sticky, a background, a z-index.
+//
+// A screen whose first column has to line up with something below it wants
+// uikit.ReaderHead instead, which is a grid on --reader-gutter rather than a
+// flex row.
+package headerbar
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type In struct {
+	Attributes templ.Attributes
+	Class      string
+	Title      string
+}
+
+templ HeaderBar(in In) {
+	<header data-slot="headerbar" class={ utils.TwMerge("flex h-12 min-h-12 shrink-0 items-center gap-0 border-b pr-[var(--entry-list-p-r)] pl-[var(--entry-list-p-l)]", in.Class) } { in.Attributes... }>
+		if in.Title != "" {
+			@Title() {
+				{ in.Title }
+			}
+		}
+		{ children... }
+	</header>
+}

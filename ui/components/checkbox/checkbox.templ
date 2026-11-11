@@ -1,0 +1,84 @@
+// Package checkbox is a checkbox: the box alone, which field.Inline labels
+// and describes, as Base UI's Checkbox is labelled by its Field.
+//
+// Baseline: templUI checkbox v1.5.0, as the templui v1.5.0 CLI installed it
+// in app/ui/components/checkbox, which this replaced (see that path's git
+// history). It has since diverged in these ways:
+//
+//   - It takes the field's id, help, error and required state through
+//     control.Field, so field.Inline labels and describes it with no wiring
+//     at the call site.
+//   - Groups (Group, GroupParent) and the script that keeps a parent's
+//     indeterminate state in step with its children are left out: nothing
+//     here nests checkboxes. The indeterminate mark still shows when a script
+//     sets the property.
+//   - The box sits on the background, and on the input tint in dark mode,
+//     as the kit's other controls do, rather than on transparent.
+package checkbox
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/control"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	Checked    bool
+	Class      string
+	Disabled   bool
+	// Form is the id of the form the checkbox belongs to, for one outside it.
+	Form string
+	// Icon replaces the check drawn in a ticked box.
+	Icon templ.Component
+	// ID is the checkbox's own; inside a field without one it wears the
+	// field's.
+	ID       string
+	Name     string
+	Required bool
+	// Value is what the checkbox posts when ticked; the browser's "on" when
+	// unset.
+	Value string
+}
+
+// Checkbox is the native input drawn as the kit's box: bordered like the
+// controls, filled with the primary colour and a check when ticked, with the
+// controls' focus ring.
+templ Checkbox(p Props) {
+	{{ f := control.Claim(ctx) }}
+	{{ id := f.Take(p.ID) }}
+	<span data-slot="checkbox" class={ utils.TwMerge("relative inline-flex shrink-0 items-center", p.Class) }>
+		<input
+			type="checkbox"
+			if id != "" {
+				id={ id }
+			}
+			if p.Name != "" {
+				name={ p.Name }
+			}
+			if p.Value != "" {
+				value={ p.Value }
+			}
+			if p.Form != "" {
+				form={ p.Form }
+			}
+			checked?={ p.Checked }
+			disabled?={ p.Disabled }
+			required?={ p.Required || f.IsRequired() }
+			{ f.Attributes()... }
+			data-slot="checkbox-control"
+			class="relative size-4 shrink-0 cursor-pointer appearance-none rounded-[4px] border border-input bg-background shadow-xs transition-shadow outline-none peer checked:border-primary checked:bg-primary indeterminate:border-primary indeterminate:bg-primary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:checked:bg-primary"
+			{ p.Attributes... }
+		/>
+		<span aria-hidden="true" data-slot="checkbox-indicator" class="pointer-events-none absolute inset-0 flex items-center justify-center text-primary-foreground opacity-0 peer-checked:opacity-100">
+			if p.Icon != nil {
+				@p.Icon
+			} else {
+				@icons.Render(icons.Done, icons.Props{Size: 14})
+			}
+		</span>
+		<span aria-hidden="true" class="pointer-events-none absolute inset-0 flex items-center justify-center text-primary-foreground opacity-0 peer-indeterminate:opacity-100">
+			@icons.Render(icons.Remove, icons.Props{Size: 14})
+		</span>
+	</span>
+}

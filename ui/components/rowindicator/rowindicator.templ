@@ -1,0 +1,17 @@
+package rowindicator
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type Props struct {
+	Class string
+}
+
+// Indicator overlays a positioned row, above its controls, without taking events.
+// Inset shadows keep both borders inside the row's clipping boundary.
+//
+// Wherever it is rendered it sets --collection-current: shown, which tells the
+// collection controller the list draws its current row at this width, so the
+// first Up or Down from off the list moves on from that row.
+templ Indicator(props Props) {
+	<span aria-hidden="true" data-slot="row-indicator" class={ utils.TwMerge("pointer-events-none absolute inset-0 z-3 [box-shadow:inset_3px_0_0_var(--color-primary),inset_0_0_0_2px_var(--color-border)] [--collection-current:shown]", props.Class) }></span>
+}

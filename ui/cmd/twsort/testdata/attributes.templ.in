@@ -1,0 +1,14 @@
+package testdata
+
+templ Attributes() {
+	<div class="px-3 flex gap-2 items-center">
+		<span class="gm-row text-sm hover:bg-accent p-2"></span>
+		<a class="contents"></a>
+		<p
+			class="rotate-45 absolute h-2.5 w-2.5"
+		></p>
+	</div>
+	<script>
+		document.body.innerHTML = '<div class="px-4 flex">untouched</div>';
+	</script>
+}

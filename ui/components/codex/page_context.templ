@@ -1,0 +1,21 @@
+package codex
+
+import (
+	"github.com/housecat-inc/scratch/ui/icons"
+)
+
+templ pageContext(in ChatIn) {
+	{{ href := pageContextURL(in) }}
+	{{ label := LinkPreview(ctx, href, in.LinkOrigins) }}
+	{{ key := MailContextKey(href, in.LinkOrigins) }}
+	{{ last := lastContext(ctx, in) }}
+	<div data-slot="chat-page-context" data-url={ href } data-context-key={ key } data-last-context={ last } data-dismissed="false" hidden class="px-3 pt-2">
+		<div class="squircle-pill flex w-fit max-w-full items-center gap-1 border border-border bg-muted px-1.5 py-0.5 type-caption-100 text-primary">
+			@icons.Render(icons.Mail, icons.Props{Class: "size-3 shrink-0"})
+			<a data-slot="chat-page-context-link" href={ href } title={ href } target="_blank" rel="noopener noreferrer" class="min-w-0 truncate hover:underline focus-visible:outline-2 focus-visible:outline-ring"><span data-slot="chat-page-context-label">{ label.Label }</span><span data-slot="chat-page-context-detail" class="text-muted-foreground">{ contextDetail(label.Context) }</span></a>
+			<button data-slot="chat-page-context-remove" type="button" aria-label="Remove current page from message" title="Remove current page from message" class="flex size-6 shrink-0 items-center justify-center rounded hover:bg-selected focus-visible:outline-2 focus-visible:outline-ring">
+				@icons.Render(icons.Close, icons.Props{Class: "size-3"})
+			</button>
+		</div>
+	</div>
+}

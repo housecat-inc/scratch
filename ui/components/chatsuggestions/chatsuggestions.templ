@@ -1,0 +1,49 @@
+// Package chatsuggestions renders a chat's starter prompts: a heading and a
+// row of chips, each of which sends its own text. It ships no script of its
+// own. A chip states what it would send in data-prompt and the composer, which
+// owns the field, acts on it -- see chatcomposer's sendPrompt. That is what
+// lets these chips render anywhere a composer does, including a story with no
+// chat around it.
+package chatsuggestions
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	Heading    string
+	Prompts    []string
+}
+
+// Prompts heads its chips with a <p> rather than a heading element: the chat
+// section around it is already labelled, and a heading rendered from inside
+// the composer would put a level into the page outline that belongs to neither
+// the page nor the transcript.
+templ Prompts(props Props) {
+	<div class={ utils.TwMerge("mb-3 space-y-2", props.Class) } data-slot="chat-suggestions" { props.Attributes... }>
+		<p class="type-title-200 text-primary @md:type-title-300">{ props.Heading }</p>
+		<div class="flex flex-wrap gap-2" role="group" aria-label="Suggested prompts">
+			for _, prompt := range props.Prompts {
+				@promptChip(prompt)
+			}
+		</div>
+	</div>
+}
+
+// promptChip is a standard outline button rather than a chip of its own, so it
+// reads as something to press: an informational chip in this app is flat and
+// muted, and a hand-rolled bordered pill is indistinguishable from one. It
+// wraps because a prompt is a sentence and the mail rail is 368px wide.
+templ promptChip(prompt string) {
+	@button.Button(button.Props{
+		Attributes: templ.Attributes{"data-prompt": prompt},
+		Multiline:  true,
+		Size:       button.SizeSm,
+		Variant:    button.VariantOutline,
+	}) {
+		{ prompt }
+	}
+}

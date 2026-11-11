@@ -1,0 +1,63 @@
+package toast
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type Props struct {
+	ActionAttributes templ.Attributes
+	ActionLabel      string
+	Attributes       templ.Attributes
+	Class            string
+	Href             string
+	Message          string
+}
+
+templ Toast(props Props) {
+	<div data-slot="toast" role="status" class={ utils.TwMerge("pointer-events-auto flex items-center gap-6 rounded-lg bg-[hsl(20_14%_16%)] px-6 py-3.5 type-body-200 text-white shadow-[0_3px_5px_rgba(0,0,0,0.3)]", props.Class) } { props.Attributes... }>
+		<span data-slot="toast-message">{ props.Message }</span>
+		if props.ActionLabel != "" {
+			if props.Href != "" {
+				<a data-slot="toast-action" class={ actionClass() } href={ templ.SafeURL(props.Href) } { props.ActionAttributes... }>{ props.ActionLabel }</a>
+			} else {
+				<button data-slot="toast-action" type="button" class={ actionClass() } { props.ActionAttributes... }>{ props.ActionLabel }</button>
+			}
+		}
+	</div>
+}
+
+func actionClass() string {
+	return "shrink-0 cursor-pointer border-0 bg-transparent p-0 type-body-200-medium text-[hsl(173_70%_60%)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 disabled:cursor-default disabled:opacity-70"
+}
+
+templ Viewport() {
+	@viewport("hc-toasts") {
+		{ children... }
+	}
+}
+
+// viewport draws the toast viewport. Script's template keeps a copy with no
+// id, so a page has one #hc-toasts; a viewport made from it is given the id
+// as it is added.
+templ viewport(id string) {
+	<div
+		if id != "" {
+			id={ id }
+		}
+		data-slot="toast-viewport"
+		class="pointer-events-none fixed bottom-6 left-1/2 z-[70] flex max-w-[90vw] -translate-x-1/2 flex-col items-center gap-2"
+	>
+		{ children... }
+	</div>
+}
+
+templ Script() {
+	<template id="hc-toast-template">
+		@Toast(Props{ActionLabel: "Action"})
+	</template>
+	<template id="hc-toast-link-template">
+		@Toast(Props{ActionLabel: "Action", Href: "#"})
+	</template>
+	<template id="hc-toast-viewport-template">
+		@viewport("")
+	</template>
+	<template data-script="toast"></template>
+}

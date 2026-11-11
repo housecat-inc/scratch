@@ -1,0 +1,12 @@
+{
+  "extends": "../../bundle/tsconfig.json",
+  "compilerOptions": {
+    "typeRoots": [
+      "../../bundle/node_modules/@types"
+    ],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "*.ts"
+  ]
+}

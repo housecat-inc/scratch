@@ -1,0 +1,140 @@
+// Package section lays a settings page out as flat sections: no boxes, only a
+// line and the same space between one section and the next. Stack holds them
+// and owns that rhythm; Section is one of them, with its heading, an optional
+// description and actions beside it, its body, and a footer whose buttons sit
+// at its right edge, the primary one last and a destructive one first.
+//
+// A section that is a form is wrapped in its <form> inside the Stack, so its
+// footer's submit buttons are the form's own. The Stack spaces and divides its
+// direct children, so the form, not the section in it, takes the line.
+package section
+
+import (
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type StackProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+}
+
+// Stack divides its children with a line and spaces each one py-6 from it,
+// with no space above the first or below the last, so a page's first section
+// starts where its content does.
+templ Stack(props ...StackProps) {
+	{{ var p StackProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		data-slot="section-stack"
+		class={ utils.TwMerge("flex flex-col divide-y divide-border *:py-6 *:first:pt-0 *:last:pb-0", p.Class) }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+type Props struct {
+	// Actions sit at the heading's right, for a control that acts on the whole
+	// section rather than submitting it: a link to edit it, a menu. They are
+	// centred on the heading's 24px line, so a small button reaches past it
+	// equally above and below without making the row taller, and a line of
+	// text sits on it.
+	Actions    templ.Component
+	Attributes templ.Attributes
+	Class      string
+	// Description is the line under the heading saying what the section is for.
+	Description string
+	DescriptionContent templ.Component
+	// Danger holds the section's destructive action -- Delete, Remove --
+	// first in the footer, before Footer's buttons. A destructive submit
+	// button that came first in a form would be the button Enter presses, so
+	// Danger implies DefaultSubmit. A form with no fields, whose one button is
+	// destructive, has nothing Enter could submit and puts that button in
+	// Footer.
+	Danger templ.Component
+	// DefaultSubmit starts the footer with a hidden submit button, so Enter
+	// submits the form plainly, as a primary button without a name or
+	// formaction does, rather than pressing whichever submit button comes
+	// first: a destructive one, or a secondary one with a formaction of its
+	// own, such as a preview. Footer and Danger keep the order they are shown
+	// in, so Tab follows the buttons as they are seen. The primary button
+	// must then be a plain submit, since Enter never presses it.
+	DefaultSubmit bool
+	// Footer holds the section's buttons, at its right edge in the order given,
+	// so the primary one goes last.
+	Footer templ.Component
+	// FooterClass is merged into the footer's own, to hide it where its
+	// buttons live elsewhere, such as a phone's bottom bar.
+	FooterClass string
+	// ID names the section; its heading is ID + "-title", and labels it, so
+	// a section with an ID and a Title is a region. Without an ID it has
+	// none: a random one would change with every render, and a reload's morph
+	// matches elements by id.
+	ID    string
+	Title string
+}
+
+// Section is one section of a Stack: its heading row, then its children, then
+// its footer. A section with no title, description or actions draws no
+// heading row.
+templ Section(p Props) {
+	<section
+		if p.ID != "" {
+			id={ p.ID }
+			if p.Title != "" {
+				aria-labelledby={ p.ID + "-title" }
+			}
+		}
+		data-slot="section"
+		class={ utils.TwMerge("flex min-w-0 flex-col gap-4", p.Class) }
+		{ p.Attributes... }
+	>
+		if p.Title != "" || p.Description != "" || p.DescriptionContent != nil || p.Actions != nil {
+			<header data-slot="section-header" class="flex items-start justify-between gap-4">
+				<div class="flex min-w-0 flex-col gap-1">
+					if p.Title != "" {
+						<h2
+								if p.ID != "" {
+									id={ p.ID + "-title" }
+								}
+								data-slot="section-title"
+								class="type-body-300-heavy text-foreground"
+							>{ p.Title }</h2>
+					}
+					if p.DescriptionContent != nil {
+						<p data-slot="section-description" class="type-body-200 text-muted-foreground">@p.DescriptionContent</p>
+					} else if p.Description != "" {
+						<p data-slot="section-description" class="type-body-200 text-muted-foreground">{ p.Description }</p>
+					}
+				</div>
+				if p.Actions != nil {
+					<div data-slot="section-actions" class="flex h-6 shrink-0 items-center gap-2">
+						@p.Actions
+					</div>
+				}
+			</header>
+		}
+		<div data-slot="section-body" class="flex min-w-0 flex-col gap-4 empty:hidden">
+			{ children... }
+		</div>
+		if p.Footer != nil || p.Danger != nil {
+			<footer data-slot="section-footer" class={ utils.TwMerge("flex flex-wrap items-center justify-end gap-2", p.FooterClass) }>
+				if p.Danger != nil || p.DefaultSubmit {
+					<button type="submit" tabindex="-1" aria-hidden="true" class="sr-only" data-slot="section-default-submit"></button>
+				}
+				if p.Danger != nil {
+					@p.Danger
+				}
+				if p.Footer != nil {
+					@p.Footer
+				}
+			</footer>
+		}
+	</section>
+}

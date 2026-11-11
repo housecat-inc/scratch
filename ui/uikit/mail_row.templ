@@ -1,0 +1,450 @@
+package uikit
+
+import (
+	"maps"
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/bottomfade"
+	"github.com/housecat-inc/scratch/ui/components/collection"
+	"github.com/housecat-inc/scratch/ui/components/popover"
+	"github.com/housecat-inc/scratch/ui/components/rowindicator"
+	"github.com/housecat-inc/scratch/ui/components/star"
+	"github.com/housecat-inc/scratch/ui/components/swiperow"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type MailListProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// Label names the list for assistive technology; Conversations when unset.
+	Label string
+	// ListKey is the page the list shows as scroll memory names it
+	// (ui/dom/scrollmemory.ts), rendered as data-list-key; a list with no
+	// memory leaves it empty and carries no key.
+	ListKey string
+}
+
+templ MailList(props ...MailListProps) {
+	{{ var p MailListProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div
+		class={ utils.TwMerge(mailListClass, bottomfade.ScrollerClass, p.Class) }
+		data-slot="mail-list"
+		data-focus="landing"
+		{ collection.Root(utils.IfElse(p.Label != "", p.Label, "Conversations"), collection.Props{EnterFromPage: true, HoverCurrent: true, RowNavigation: true})... }
+		if p.ListKey != "" {
+			data-list-key={ p.ListKey }
+		}
+		{ p.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+const mailListClass = "min-h-0 flex-1 scroll-pb-edge-toggle-clearance overflow-y-auto pb-edge-toggle-clearance data-[mail-pull-settling]:transition-[transform,opacity] data-[mail-pull-settling]:duration-220 data-[mail-pull-settling]:ease-[ease]"
+
+templ MailListEmpty(text string) {
+	<div class="p-12 text-center type-body-200 text-muted-foreground" data-slot="mail-list-empty">{ text }</div>
+}
+
+type MailRowProps struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+	Unread     bool
+}
+
+// MailRow is one Gmail-style line of a list: star, sender, subject and preview,
+// badges, the hover actions and the date. Above docked it is a single 40px line;
+// below docked it is a grid that gives the preview two lines.
+//
+// On a touch screen it is a swipe row (ui/components/swiperow): its actions
+// are a tray at its right end, uncovered by sliding the row left, and a full
+// swipe deletes where the row has a Delete action. Long press or the
+// swipe tray's More action opens the complete action card.
+//
+// Its state lives on the row as the classes and data attributes the list
+// scripts toggle -- focused, data-read-state, data-done-pending, and data-popup-open on
+// the trigger of a menu in it -- so each part reads it through group/mail-row.
+// A part styled from its caller's data instead would go stale the moment a
+// script changes the state without a re-render.
+templ MailRow(props MailRowProps) {
+	<div class="contents" { collection.Row()... }>
+		<div class={ utils.TwMerge(mailRowClass, swiperow.RowClass, props.Class) } data-slot="mail-row" data-read-state={ utils.IfElse(props.Unread, "unread", "read") } { collection.Cell()... } data-id={ props.ID } { mailRowAttributes(props)... }>
+			@rowindicator.Indicator(rowindicator.Props{Class: "-inset-y-px hidden md:group-[.focused]/mail-row:block"})
+			{ children... }
+		</div>
+	</div>
+}
+
+// mailRowAttributes are the swipe row's, under the caller's: a caller's
+// attribute of the same name wins.
+func mailRowAttributes(props MailRowProps) templ.Attributes {
+	out := swiperow.Attributes(swiperow.Props{})
+	maps.Copy(out, props.Attributes)
+	return out
+}
+
+// The row's own controls -- its buttons, its actions wherever they sit, any
+// other link, and the badges whose chips show tooltips -- sit above its
+// stretched MailRowLink, so they keep their taps and hovers. :where keeps the
+// whole selector at no specificity, so a control's own position and stacking
+// classes still win.
+//
+// From md up the row indicator marks the current row. Below md it is hidden,
+// so keyboard focus on the row or its link draws a ring on the row instead;
+// the link itself is outline-none.
+var mailRowClass = utils.TwMerge(
+	"group/mail-row", HoverActionsRow, "relative cursor-pointer border-b border-border bg-background/95 [--hover-actions-bg:color-mix(in_oklab,var(--color-background)_95%,transparent)]",
+	"[:where(&)_:where(button,a[href]:not([data-slot=mail-row-link]),[data-slot=mail-row-badges])]:relative [:where(&)_:where(button,a[href]:not([data-slot=mail-row-link]),[data-slot=mail-row-badges])]:z-1",
+	"data-[read-state=unread]:bg-background/88 data-[read-state=unread]:[--hover-actions-bg:color-mix(in_oklab,var(--color-background)_88%,transparent)]",
+	"[&.focused]:z-1",
+	"max-md:focus-visible:[box-shadow:inset_0_0_0_2px_var(--color-ring)] max-md:has-[[data-collection=trigger]:focus-visible]:[box-shadow:inset_0_0_0_2px_var(--color-ring)]",
+	"data-[done-pending]:pointer-events-none data-[done-pending]:translate-x-[18px] data-[done-pending]:opacity-0 data-[done-pending]:transition-[opacity,translate] data-[done-pending]:duration-90 data-[done-pending]:ease-[ease]",
+)
+
+templ MailRowSummary() {
+	<div class={ mailRowSummaryClass } data-slot="mail-row-summary">
+		{ children... }
+	</div>
+}
+
+const mailRowSummaryClass = "type-body-200 flex h-10 items-center gap-1 pr-(--entry-list-p-r) pl-(--entry-list-p-l)" +
+	" max-docked:grid max-docked:h-auto max-docked:items-baseline max-docked:content-center max-docked:auto-rows-max max-docked:gap-x-2 max-docked:gap-y-0 max-docked:py-2 max-docked:[--mail-row-badges-column:2] max-docked:has-[[data-slot=avatar]]:[--mail-row-badges-column:3]" +
+	" max-docked:grid-cols-[minmax(0,1fr)_auto] max-docked:[grid-template-areas:'from_date'_'main_main'_'main_main'] max-docked:has-[[data-slot=avatar]]:grid-cols-[40px_minmax(0,1fr)_auto] max-docked:has-[[data-slot=avatar]]:[grid-template-areas:'avatar_from_date'_'avatar_main_main'_'avatar_main_main']" +
+	" max-docked:no-touch:has-[[data-slot=mail-row-more]]:grid-cols-[minmax(0,1fr)_auto_auto] max-docked:no-touch:has-[[data-slot=mail-row-more]]:[grid-template-areas:'from_date_date'_'main_main_more'_'main_main_more']" +
+	" max-docked:no-touch:has-[[data-slot=mail-row-more]]:has-[[data-slot=avatar]]:grid-cols-[40px_minmax(0,1fr)_auto_auto] max-docked:no-touch:has-[[data-slot=mail-row-more]]:has-[[data-slot=avatar]]:[grid-template-areas:'avatar_from_date_date'_'avatar_main_main_more'_'avatar_main_main_more']"
+
+type MailRowLinkProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Href       string
+}
+
+// MailRowLink is a row's one link, to what the row shows. It wraps the
+// subject, which names it, and stretches over the whole row, so a tap
+// anywhere on the row -- sender, preview, avatar, padding -- opens it, while
+// the row's own controls sit above it (mailRowSummaryClass). It is the row's
+// collection trigger: the cell's one tab stop, and what Enter opens.
+templ MailRowLink(props MailRowLinkProps) {
+	<a class={ utils.TwMerge(mailRowLinkClass, props.Class) } data-slot="mail-row-link" { collection.Trigger()... } href={ templ.SafeURL(props.Href) } { props.Attributes... }>
+		{ children... }
+	</a>
+}
+
+// The stretch is the link's own, so a copy of the row that keeps its classes
+// but drops its href -- the action card's summary (ui/dom/rowmore.ts) -- is
+// not stretched over whatever it sits in.
+//
+// The link's own content sits above its stretch, as a Button's does, so what
+// is under a pointer on the subject is the subject.
+const mailRowLinkClass = "outline-none *:relative *:z-1 [&[href]]:after:absolute [&[href]]:after:inset-0 [&[href]]:after:content-['']"
+
+type MailRowStarProps struct {
+	Starred bool
+	// URL toggles the star. A row without one has nothing to star and shows
+	// no star at all.
+	URL string
+}
+
+// MailRowStar is star.Star as it sits in a MailRow. It adds only what the row
+// needs: its desktop offset, a checked row's accent colour, and visibility
+// above the docked breakpoint. The mobile indicator reads this control's
+// aria-pressed state, including optimistic changes and rollbacks.
+//
+// The star opens the row, and the header above the list is text, so the row's
+// left edge should read as the star's glyph rather than its hit box: -ms-1.5 is
+// half of a 20px glyph centred in a 32px box. Re-measure it if either size
+// changes. A checked row recolours the star by setting the --star-color it reads
+// for both states.
+templ MailRowStar(props MailRowStarProps) {
+	if props.URL != "" {
+		@star.Star(star.Props{
+			Attributes:   mailRowStarAttributes(props.URL),
+			Class:        mailRowStarClass,
+			Starred:      props.Starred,
+			Tooltip:      "Star",
+		})
+	}
+}
+
+const mailRowStarClass = "-ms-1.5 group-[.checked]/mail-row:[--star-color:var(--color-primary)] max-docked:hidden"
+
+templ MailRowStarIndicator(props MailRowStarProps) {
+	<span
+		class={ utils.TwMerge("pointer-events-none hidden shrink-0 items-center text-star max-docked:ms-auto", utils.IfElse(props.URL == "" && props.Starred, "max-docked:inline-flex", "max-docked:group-has-[[data-slot=star][aria-pressed=true]]/mail-row:inline-flex")) }
+		data-slot="mail-row-star-indicator"
+		role="img"
+		aria-label="Starred"
+	>
+		@star.Mark(icons.Props{Class: "size-3.5 fill-current stroke-none", Size: 14})
+	</span>
+}
+
+func mailRowStarAttributes(url string) templ.Attributes {
+	return templ.Attributes{"data-optimistic-star": true, "hx-post": url, "hx-swap": "outerHTML", "data-stop-click": true}
+}
+
+type MailRowPartProps struct {
+	Class string
+}
+
+// MailRowFrom is the sender column: MailRowNames, then a MailRowCount when the
+// thread holds more than one message.
+templ MailRowFrom(props ...MailRowPartProps) {
+	<span class={ utils.TwMerge("flex w-[168px] flex-none items-center gap-0 text-muted-foreground group-data-[read-state=unread]/mail-row:type-body-200-heavy group-data-[read-state=unread]/mail-row:text-foreground max-docked:mb-0.5 max-docked:w-auto max-docked:min-w-0 max-docked:[grid-area:from]", mailRowPartClass(props)) } data-slot="mail-row-from">
+		{ children... }
+	</span>
+}
+
+templ MailRowNames() {
+	<span class="min-w-0 truncate max-docked:type-body-300-medium max-docked:group-data-[read-state=unread]/mail-row:type-body-300-heavy max-docked:group-data-[read-state=unread]/mail-row:[--type-body-weight-bold:700]" data-slot="mail-row-names">
+		{ children... }
+	</span>
+}
+
+type MailRowPersonProps struct {
+	// Accent picks out the account's own address among the thread's people.
+	Accent bool
+	Email  string
+	Label  string
+}
+
+templ MailRowPerson(props MailRowPersonProps) {
+	<span
+		class={ utils.If(props.Accent, "type-body-200-heavy text-primary max-docked:type-body-300-heavy max-docked:[--type-body-weight-bold:700]") }
+		data-slot="mail-row-person"
+		if props.Email != "" {
+			data-email={ props.Email }
+			data-name={ props.Label }
+		}
+	>{ props.Label }</span>
+}
+
+templ MailRowCount(count int) {
+	<span class="ml-0.5 inline-flex h-4 flex-none items-center type-caption-100 text-[11px] leading-none text-muted-foreground tabular-nums" data-slot="mail-row-count">{ strconv.Itoa(count) }</span>
+}
+
+// MailRowMain contains the subject, status badges and preview. Mobile callers
+// keep the subject and its indicator on one line and the preview on the next.
+templ MailRowMain(props ...MailRowPartProps) {
+	<span class={ utils.TwMerge("flex-1 truncate max-docked:min-w-0 max-docked:overflow-hidden max-docked:leading-[1.35] max-docked:whitespace-normal max-docked:[grid-area:main]", mailRowPartClass(props)) } data-slot="mail-row-main">
+		{ children... }
+	</span>
+}
+
+templ MailRowInboxBadge() {
+	<span class="inline-flex h-[18px] items-center rounded-[9px] bg-selected px-[7px] type-caption-100-heavy text-[11px] tracking-[0.02em] text-primary" data-slot="mail-row-inbox-badge">Inbox</span>
+}
+
+type MailRowSubjectProps struct {
+	// Blank stands in for a draft with nothing in it yet, in the subject's place.
+	Blank bool
+	Class string
+	Text  string
+}
+
+templ MailRowSubject(props MailRowSubjectProps) {
+	if props.Blank {
+		<span class={ utils.TwMerge("text-muted-foreground", props.Class) } data-slot="mail-row-subject" data-blank>Blank draft</span>
+	} else {
+		<span class={ utils.TwMerge("type-body-200-medium text-secondary-foreground group-data-[read-state=unread]/mail-row:type-body-200-heavy group-data-[read-state=unread]/mail-row:text-foreground", props.Class) } data-slot="mail-row-subject">{ props.Text }</span>
+	}
+}
+
+type MailRowSnippetProps struct {
+	Class string
+	Text  string
+}
+
+// MailRowSnippet renders even with no text, so the script that updates a row
+// after a send has a preview to write into rather than having to build one.
+templ MailRowSnippet(props MailRowSnippetProps) {
+	<span class={ utils.TwMerge("text-muted-foreground", props.Class) } data-slot="mail-row-snippet">
+		if props.Text != "" {
+			— { props.Text }
+		}
+	</span>
+}
+
+// MailRowBadges holds attachment and note markers and labels. Below docked,
+// its grid column reserves space to the right of the preview text.
+templ MailRowBadges() {
+	<span class="inline-flex min-w-px flex-none items-center max-docked:[grid-column:var(--mail-row-badges-column)] max-docked:row-start-3 max-docked:ms-1 max-docked:max-w-full max-docked:items-baseline max-docked:self-baseline max-docked:justify-self-end max-docked:overflow-hidden" data-slot="mail-row-badges">
+		{ children... }
+	</span>
+}
+
+const mailRowMarkerClass = "mx-0.5 inline-flex flex-none items-center text-muted-foreground max-docked:m-0"
+
+type MailRowAttachmentProps struct {
+	Title string
+	// URL downloads the attachment. Without one the marker only says the thread
+	// has attachments.
+	URL string
+}
+
+templ MailRowAttachment(props MailRowAttachmentProps) {
+	if props.URL != "" {
+		@tooltip.Tooltip(tooltip.Props{Text: props.Title}) {
+			<a href={ templ.SafeURL(props.URL) } class={ mailRowMarkerClass } data-slot="mail-row-attachment" aria-label={ "Download " + props.Title } data-stop-click>
+				@icons.Render(icons.Attachment, icons.Props{Size: 16})
+			</a>
+		}
+	} else {
+		@tooltip.Tooltip(tooltip.Props{Text: "Has attachments"}) {
+			<span class={ mailRowMarkerClass } data-slot="mail-row-attachment" role="img" aria-label="Has attachments">
+				@icons.Render(icons.Attachment, icons.Props{Size: 16})
+			</span>
+		}
+	}
+}
+
+// MailRowNote opens the Housecat note left on a thread. The popover trigger owns
+// its data-slot, so data-mail-row-note is what MailRowBadges finds it by.
+templ MailRowNote(text string) {
+	@popover.Text(popover.TextProps{Attributes: templ.Attributes{"aria-label": "Housecat note", "data-mail-row-note": true, "data-stop-click": true}, Class: mailRowMarkerClass, Text: text}) {
+		@icons.Render(icons.Note, icons.Props{Size: 16})
+	}
+}
+
+// MailRowActions is the row's HoverActions, overlaying its end from docked up on a
+// screen with a pointer. It fills the row's height so its buttons centre on the
+// line, and stays open while a menu it opened is showing. Below docked any other
+// screen gives it a cell of its own.
+//
+// Touch actions are revealed by swiping; long press opens the complete action
+// card. More leads the left-swipe tray, while the commit action stays at its
+// screen edge through swiperow.ActionClass.
+templ MailRowActions(leading ...templ.Component) {
+	@HoverActions(HoverActionsProps{Breakpoint: HoverBreakpointDocked, Class: utils.TwMerge(mailRowActionsClass, "touch:pointer-events-auto touch:contents touch:opacity-100 touch:before:hidden"), CurrentOnly: true}) {
+		<span class={ utils.TwMerge("contents", swiperow.TrayClass) } data-swipe-part="tray" data-swipe-side="left" data-presentation="swipe">
+			@MailRowSwipeChevron()
+			<span class="hidden touch:contents">
+				<span class={ swiperow.ActionClass } data-swipe-part="action">
+					@swiperow.Surface()
+					@button.ButtonIcon(button.IconProps{Attributes: templ.Attributes{"aria-haspopup": "dialog", "data-swipe-more": true, "data-stop-click": true}, Class: swiperow.ActionButtonClass, Icon: icons.More, Size: button.IconSizeMd, Tooltip: "More", Variant: button.IconVariantGhost})
+					@swiperow.Caption("More")
+				</span>
+			</span>
+			{ children... }
+		</span>
+		if len(leading) > 0 {
+			<span class={ utils.TwMerge("contents", swiperow.TrayClass) } data-swipe-part="tray" data-swipe-side="right" data-presentation="swipe">
+				@MailRowSwipeChevron()
+				@leading[0]
+			</span>
+		}
+	}
+}
+
+templ MailRowMore() {
+	<span class="hidden max-docked:no-touch:block max-docked:no-touch:self-end max-docked:no-touch:justify-self-end max-docked:no-touch:[grid-area:more]" data-slot="mail-row-more">
+		@button.ButtonIcon(button.IconProps{Attributes: templ.Attributes{"aria-haspopup": "dialog", "data-swipe-more": true, "data-stop-click": true}, Icon: icons.More, Size: button.IconSizeMd, Tooltip: "More", Variant: button.IconVariantGhost})
+	</span>
+}
+
+templ MailRowSwipeChevron() {
+	<span class={ swiperow.ChevronClass } aria-hidden="true" data-swipe-part="chevron">
+		@icons.Render(icons.CollapseLeft, icons.Props{Size: 16})
+	</span>
+}
+
+const mailRowActionsClass = "docked:[@media(hover:hover)]:bottom-0 docked:[@media(hover:hover)]:right-4 docked:[@media(hover:hover)]:before:h-full" +
+	" group-has-[[data-slot=menu-trigger][data-popup-open]]/mail-row:pointer-events-auto group-has-[[data-slot=menu-trigger][data-popup-open]]/mail-row:opacity-100" +
+	" max-docked:no-touch:pointer-events-none max-docked:no-touch:absolute max-docked:no-touch:right-4 max-docked:no-touch:bottom-2 max-docked:no-touch:size-px max-docked:no-touch:overflow-hidden max-docked:no-touch:opacity-0"
+
+type MailRowActionProps struct {
+	Attributes templ.Attributes
+	// Caption is what a touch screen's swipe tray shows under the action;
+	// empty shows Label. A stateful action shows its current state's
+	// (button.IconState.Caption).
+	Caption string
+	Class   string
+	Icon    icons.Name
+	Label   string
+	// PressedCaption makes the caption follow the action's aria-pressed, for
+	// a toggle whose script flips it: Caption while it is not pressed,
+	// PressedCaption while it is.
+	PressedCaption string
+	// State and States make the action a stateful ButtonIcon, whose states
+	// replace Icon and Label.
+	State  string
+	States []button.IconState
+}
+
+// MailRowAction is 30px below docked, to fit the row's last line, except on a touch
+// screen, where it is in the swipe tray and the tray sizes it to the row.
+templ MailRowAction(props MailRowActionProps) {
+	<span class={ swiperow.ActionClass } data-swipe-part="action">
+		@swiperow.Surface()
+	@button.ButtonIcon(button.IconProps{
+		Attributes:   props.Attributes,
+		Class:        utils.TwMerge("max-docked:size-[30px]", swiperow.ActionButtonClass, props.Class),
+		Icon:         props.Icon,
+		Size:         button.IconSizeMd,
+		State:        props.State,
+		States:       props.States,
+		Tooltip:      props.Label,
+		Variant:      button.IconVariantGhost,
+	})
+		@mailRowActionCaption(props)
+	</span>
+}
+
+templ mailRowActionCaption(props MailRowActionProps) {
+	switch {
+		case len(props.States) > 0:
+			@swiperow.StateCaptions(stateCaptions(props.States)...)
+		case props.PressedCaption != "":
+			@swiperow.ToggleCaptions(utils.IfElse(props.Caption != "", props.Caption, props.Label), props.PressedCaption)
+		default:
+			@swiperow.Caption(utils.IfElse(props.Caption != "", props.Caption, props.Label))
+	}
+}
+
+func stateCaptions(states []button.IconState) []string {
+	out := make([]string, len(states))
+	for i, state := range states {
+		out[i] = utils.IfElse(state.Caption != "", state.Caption, state.Label)
+	}
+	return out
+}
+
+type MailRowDateProps struct {
+	Attributes templ.Attributes
+	// Reminder widens the column to hold a MailRowReminder in place of the date.
+	Reminder bool
+}
+
+// MailRowDate is the row's last column. Above docked a row's actions overlay it, so
+// on a row that has them it hides whenever they show; below docked the date has the
+// grid's top right corner and stays.
+templ MailRowDate(props MailRowDateProps) {
+	<span class={ utils.TwMerge(mailRowDateClass, utils.If(props.Reminder, "flex w-auto min-w-[86px] justify-end max-docked:min-w-0")) } data-slot="mail-row-date" { props.Attributes... }>
+		{ children... }
+	</span>
+}
+
+const mailRowDateClass = "type-caption-100 w-16 flex-none text-right whitespace-nowrap text-muted-foreground group-data-[read-state=unread]/mail-row:type-caption-100-heavy group-data-[read-state=unread]/mail-row:text-foreground" +
+	" docked:[@media(hover:hover)]:group-[.focused:has([data-slot=hover-actions])]/mail-row:invisible docked:[@media(hover:hover)]:group-[:has([data-slot=hover-actions]):has(:focus-visible)]/mail-row:invisible docked:[@media(hover:hover)]:group-has-[[data-slot=menu-trigger][data-popup-open]]/mail-row:invisible" +
+	" max-docked:w-auto max-docked:min-w-0 max-docked:justify-self-end max-docked:[grid-area:date]"
+
+templ MailRowReminder(text string) {
+	<span class="inline-flex items-center gap-1 whitespace-nowrap text-muted-foreground [&>svg]:flex-none" data-slot="mail-row-reminder">
+		@icons.Render(icons.Remind, icons.Props{Size: 14})
+		<span data-local-time-text="true">{ text }</span>
+	</span>
+}
+
+func mailRowPartClass(props []MailRowPartProps) string {
+	if len(props) == 0 {
+		return ""
+	}
+	return props[0].Class
+}
