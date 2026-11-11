@@ -103,16 +103,81 @@ func TestLoginFlowsHTML(t *testing.T) {
 			},
 		},
 		{
-			Name:  "codex login polls until done",
+			Name:  "codex browser login accepts a pasted callback",
+			Setup: sessionSetup(&fakeDeps{codexInstalled: true, codexLogin: &fakeCodexLogin{url: "https://auth.openai.com/oauth/authorize?state=s"}, installed: true}),
+			Steps: []tk.Step[*sessionHarness]{
+				ss.Visit("/setup"),
+				ss.Click(`[hx-post="/codex/login"]:not([hx-vals])`),
+				sBool("browser mode", func(h *sessionHarness) bool { return !h.fd.codexDevice }),
+				ss.Present(`#card-codex-login [href*="oauth/authorize"]`),
+				ss.Text("#card-codex-login", "Sign in with ChatGPT"),
+				ss.Click(`[hx-get="/codex/login"]`),
+				ss.Present(`form[hx-post="/codex/login/callback"]`),
+				ss.Fill(`[name="callback"]`, "http://localhost:1455/auth/callback?code=c&state=s"),
+				ss.Submit(`form[hx-post="/codex/login/callback"]`),
+				sBool("callback forwarded", func(h *sessionHarness) bool {
+					return h.fd.codexLogin.callback == "http://localhost:1455/auth/callback?code=c&state=s"
+				}),
+				sBool("codex login closed", func(h *sessionHarness) bool { return h.fd.codexLogin.closed }),
+				ss.Absent(`form[hx-post="/codex/login/callback"]`),
+				ss.Present("#card-codex-login.is-done"),
+			},
+		},
+		{
+			Name:  "codex browser login keeps the form on a bad paste",
+			Setup: sessionSetup(&fakeDeps{codexInstalled: true, codexLogin: &fakeCodexLogin{callbackErr: errors.New("paste the full URL"), url: "https://auth.openai.com/oauth/authorize"}, installed: true}),
+			Steps: []tk.Step[*sessionHarness]{
+				ss.Visit("/setup"),
+				ss.Click(`[hx-post="/codex/login"]:not([hx-vals])`),
+				ss.Fill(`[name="callback"]`, "nope"),
+				ss.Submit(`form[hx-post="/codex/login/callback"]`),
+				ss.Text("#card-codex-login", "paste the full URL"),
+				ss.Present(`form[hx-post="/codex/login/callback"]`),
+			},
+		},
+		{
+			Name:  "codex browser login shows codex errors and resets",
+			Setup: sessionSetup(&fakeDeps{codexInstalled: true, codexLogin: &fakeCodexLogin{url: "https://auth.openai.com/oauth/authorize"}, installed: true}),
+			Steps: []tk.Step[*sessionHarness]{
+				ss.Visit("/setup"),
+				ss.Click(`[hx-post="/codex/login"]:not([hx-vals])`),
+				sMutate(func(h *sessionHarness) {
+					h.fd.codexLogin.done = true
+					h.fd.codexLogin.err = errors.New("token exchange failed")
+				}),
+				ss.Click(`[hx-get="/codex/login"]`),
+				ss.Text("#card-codex-login", "token exchange failed"),
+				ss.Present(`[hx-post="/codex/login"]`),
+			},
+		},
+		{
+			Name:  "codex device login polls until done",
 			Setup: sessionSetup(&fakeDeps{codexInstalled: true, codexLogin: &fakeCodexLogin{code: "32LO-RHYUX", url: "https://auth.openai.com/codex/device"}, installed: true}),
 			Steps: []tk.Step[*sessionHarness]{
 				ss.Visit("/setup"),
-				ss.Click(`[hx-post="/codex/login"]`),
+				ss.Click(`[hx-post="/codex/login"][hx-vals]`),
+				sBool("device mode", func(h *sessionHarness) bool { return h.fd.codexDevice }),
+				ss.Text("#card-codex-login", "32LO-RHYUX"),
+				ss.Absent(`form[hx-post="/codex/login/callback"]`),
+				ss.Click(`[hx-get="/codex/login"]`),
+				ss.Text("#card-codex-login", "32LO-RHYUX"),
 				sMutate(func(h *sessionHarness) { h.fd.codexLogin.done = true }),
 				ss.Click(`[hx-get="/codex/login"]`),
 				sBool("codex login closed", func(h *sessionHarness) bool { return h.fd.codexLogin.closed }),
 				ss.Absent(`[hx-get="/codex/login"]`),
-				ss.Present("#card-codex-login"),
+				ss.Present("#card-codex-login.is-done"),
+			},
+		},
+		{
+			Name:  "codex login cancel returns to connect",
+			Setup: sessionSetup(&fakeDeps{codexInstalled: true, codexLogin: &fakeCodexLogin{url: "https://auth.openai.com/oauth/authorize"}, installed: true}),
+			Steps: []tk.Step[*sessionHarness]{
+				ss.Visit("/setup"),
+				ss.Click(`[hx-post="/codex/login"]:not([hx-vals])`),
+				ss.Click(`[hx-delete="/codex/login"]`),
+				sBool("codex login closed", func(h *sessionHarness) bool { return h.fd.codexLogin.closed }),
+				ss.Present(`[hx-post="/codex/login"]`),
+				ss.Absent(`[hx-get="/codex/login"]`),
 			},
 		},
 		{
