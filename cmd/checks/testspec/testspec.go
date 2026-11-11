@@ -14,7 +14,6 @@ var Analyzer = &analysis.Analyzer{
 }
 
 var Pending = []string{
-	"github.com/housecat-inc/scratch/pkg/chat",
 	"github.com/housecat-inc/scratch/pkg/inbox",
 	"github.com/housecat-inc/scratch/pkg/server/code",
 	"github.com/housecat-inc/scratch/pkg/server/sessions",
