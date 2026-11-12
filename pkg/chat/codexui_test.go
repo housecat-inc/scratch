@@ -2,10 +2,13 @@ package chat
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -134,6 +137,114 @@ func TestCodexServer(t *testing.T) {
 		threads, err := svc.Threads()
 		a.NoError(err)
 		a.Empty(threads)
+	})
+
+	upload := func(t *testing.T, h http.Handler, name, body string) *httptest.ResponseRecorder {
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		part, err := w.CreateFormFile("file", name)
+		require.NoError(t, err)
+		_, err = part.Write([]byte(body))
+		require.NoError(t, err)
+		require.NoError(t, w.Close())
+		req := httptest.NewRequest(http.MethodPost, "/codex/attachments", &buf)
+		req.Header.Set("Content-Type", w.FormDataContentType())
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("when attaching files", func(t *testing.T) {
+		t.Run("uploads a draft before any thread exists", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+			svc, h := setup(t)
+
+			rec := upload(t, h, "notes.txt", "hello")
+
+			a.Equal(http.StatusOK, rec.Code)
+			a.Contains(rec.Body.String(), `data-attachment-id="1"`)
+			a.Contains(rec.Body.String(), "data-attachment-remove")
+			attachment, err := svc.Attachment(1)
+			r.NoError(err)
+			t.Cleanup(func() { os.Remove(attachment.FilePath) })
+			a.Zero(attachment.ThreadID)
+			a.Nil(attachment.MessageID)
+		})
+
+		t.Run("links drafts to the message that starts a thread", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+			svc, h := setup(t)
+			upload(t, h, "a.txt", "a")
+			upload(t, h, "b.txt", "b")
+			t.Cleanup(func() {
+				for _, id := range []int64{1, 2} {
+					if attachment, err := svc.Attachment(id); err == nil {
+						os.Remove(attachment.FilePath)
+					}
+				}
+			})
+
+			post(h, "/codex/threads", url.Values{"attachments": {"1,2"}, "client_id": {"c1"}, "prompt": {"look"}})
+
+			r.Eventually(func() bool {
+				view, err := svc.View(1)
+				return err == nil && !view.Streaming && len(view.Messages) == 2
+			}, 5*time.Second, 10*time.Millisecond)
+			view, err := svc.View(1)
+			r.NoError(err)
+			r.Len(view.Attachments[view.Messages[0].ID], 2)
+			a.Equal(int64(1), view.Attachments[view.Messages[0].ID][0].ThreadID)
+
+			req := httptest.NewRequest(http.MethodGet, "/codex?chat=1", nil)
+			req.Header.Set("HX-Request", "true")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			a.Contains(rec.Body.String(), "user-message-attachments")
+			a.Contains(rec.Body.String(), `href="/codex/attachments/2"`)
+		})
+
+		t.Run("serves an attachment inline", func(t *testing.T) {
+			a := assert.New(t)
+			svc, h := setup(t)
+			upload(t, h, "notes.txt", "hello")
+			t.Cleanup(func() {
+				if attachment, err := svc.Attachment(1); err == nil {
+					os.Remove(attachment.FilePath)
+				}
+			})
+
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/codex/attachments/1", nil))
+
+			a.Equal(http.StatusOK, rec.Code)
+			a.Equal("hello", rec.Body.String())
+			a.Contains(rec.Header().Get("Content-Disposition"), "inline")
+		})
+
+		t.Run("removes a draft", func(t *testing.T) {
+			a := assert.New(t)
+			svc, h := setup(t)
+			upload(t, h, "notes.txt", "hello")
+
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/codex/attachments/1", nil))
+
+			a.Equal(http.StatusNoContent, rec.Code)
+			_, err := svc.Attachment(1)
+			a.True(db.IsAttachmentNotFound(err))
+		})
+
+		t.Run("rejects a send naming a missing attachment", func(t *testing.T) {
+			a := assert.New(t)
+			_, h := setup(t)
+
+			rec := post(h, "/codex/threads", url.Values{"attachments": {"99"}, "client_id": {"c1"}, "prompt": {"look"}})
+
+			a.Equal(http.StatusBadRequest, rec.Code)
+			a.Contains(rec.Body.String(), "no longer available")
+		})
 	})
 
 	t.Run("streams the thread as server sent events", func(t *testing.T) {

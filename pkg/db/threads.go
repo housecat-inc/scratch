@@ -98,7 +98,7 @@ func (d *DB) DeleteThread(id int64) error {
 	if err := q.DeleteThreadMessageEvents(ctx, id); err != nil {
 		return errors.Wrap(err, "delete thread message events")
 	}
-	if err := q.DeleteThreadAttachments(ctx, id); err != nil {
+	if err := q.DeleteThreadAttachments(ctx, nullID(id)); err != nil {
 		return errors.Wrap(err, "delete thread attachments")
 	}
 	if err := q.DeleteThreadMessages(ctx, id); err != nil {

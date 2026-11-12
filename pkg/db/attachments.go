@@ -39,7 +39,7 @@ func (d *DB) AddAttachment(a NewAttachment) (Attachment, error) {
 		MimeType:  a.MimeType,
 		Name:      a.Name,
 		Size:      a.Size,
-		ThreadID:  a.ThreadID,
+		ThreadID:  nullID(a.ThreadID),
 	})
 	if err != nil {
 		return Attachment{}, errors.Wrap(err, "insert attachment")
@@ -76,7 +76,7 @@ func (d *DB) LinkAttachments(threadID, messageID int64, ids []int64) error {
 	err := d.queries.LinkAttachments(context.Background(), sqlite.LinkAttachmentsParams{
 		Ids:       ids,
 		MessageID: sql.NullInt64{Int64: messageID, Valid: true},
-		ThreadID:  threadID,
+		ThreadID:  nullID(threadID),
 	})
 	return errors.Wrap(err, "link attachments")
 }
@@ -94,7 +94,7 @@ func (d *DB) ListMessageAttachments(messageID int64) ([]Attachment, error) {
 }
 
 func (d *DB) ListThreadAttachments(threadID int64) ([]Attachment, error) {
-	rows, err := d.queries.ListThreadAttachments(context.Background(), threadID)
+	rows, err := d.queries.ListThreadAttachments(context.Background(), nullID(threadID))
 	if err != nil {
 		return nil, errors.Wrap(err, "list thread attachments")
 	}
@@ -113,10 +113,14 @@ func fromSqliteAttachment(a sqlite.Attachment) Attachment {
 		MimeType:  a.MimeType,
 		Name:      a.Name,
 		Size:      a.Size,
-		ThreadID:  a.ThreadID,
+		ThreadID:  a.ThreadID.Int64,
 	}
 	if a.MessageID.Valid {
 		att.MessageID = &a.MessageID.Int64
 	}
 	return att
+}
+
+func nullID(id int64) sql.NullInt64 {
+	return sql.NullInt64{Int64: id, Valid: id != 0}
 }

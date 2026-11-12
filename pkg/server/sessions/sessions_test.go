@@ -180,8 +180,8 @@ func TestSessions(t *testing.T) {
 			name   string
 			path   string
 		}{
-			{active: "sessions", name: "highlights sessions on the root page", path: "/"},
-			{active: "setup", name: "highlights setup on the setup page", path: "/setup"},
+			{name: "lists chats instead of sessions on the root page", path: "/"},
+			{active: `href="/setup" title="Setup" aria-current="page"`, name: "highlights setup on the setup page", path: "/setup"},
 		}
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
@@ -196,16 +196,12 @@ func TestSessions(t *testing.T) {
 				s.Handler().ServeHTTP(rec, req)
 
 				body := rec.Body.String()
-				a.Contains(body, `title="Sessions"`)
+				a.Contains(body, `title="Chats"`)
+				a.NotContains(body, `title="Sessions"`)
 				a.Contains(body, `title="Code review"`)
 				a.Contains(body, `title="Setup"`)
 				a.Contains(body, `href="/code/"`)
-
-				activeNeedle := map[string]string{
-					"sessions": `href="/sessions" title="Sessions" aria-current="page"`,
-					"setup":    `href="/setup" title="Setup" aria-current="page"`,
-				}[tc.active]
-				a.Contains(body, activeNeedle)
+				a.Contains(body, tc.active)
 			})
 		}
 	})

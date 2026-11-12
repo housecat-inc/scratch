@@ -23,9 +23,10 @@ const (
 var ErrAttachmentTooLarge = errors.New("attachment exceeds 32 MiB")
 
 func (s *Service) AddAttachment(threadID int64, name, mimeType string, r io.Reader) (db.Attachment, error) {
-	thread, err := s.store.GetThread(threadID)
-	if err != nil {
-		return db.Attachment{}, err
+	if threadID != 0 {
+		if _, err := s.store.GetThread(threadID); err != nil {
+			return db.Attachment{}, err
+		}
 	}
 	dir, err := attachmentsDir()
 	if err != nil {
@@ -60,7 +61,7 @@ func (s *Service) AddAttachment(threadID int64, name, mimeType string, r io.Read
 		MimeType: mimeType,
 		Name:     name,
 		Size:     size,
-		ThreadID: thread.ID,
+		ThreadID: threadID,
 	})
 	if err != nil {
 		_ = os.Remove(path)

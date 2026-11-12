@@ -2,6 +2,7 @@ package codex
 
 import (
 	"fmt"
+	"github.com/housecat-inc/scratch/ui/components/chatcomposer"
 	"github.com/housecat-inc/scratch/ui/components/codeblock"
 	"github.com/housecat-inc/scratch/ui/components/disclosure"
 	"github.com/housecat-inc/scratch/ui/components/filediff"
@@ -25,7 +26,8 @@ type ChatTurn struct {
 }
 
 type ChatItem struct {
-	Blocks []DetailBlock
+	Attachments []chatcomposer.Attachment
+	Blocks      []DetailBlock
 	// ClientID is the page's id for a user message it sent, which the app
 	// server echoes back; empty for any other item and for messages sent
 	// without one.
@@ -157,6 +159,13 @@ templ TurnView(turn ChatTurn, first bool) {
 			} else {
 				@UserMessage(userMessageAttributes(prompt)) {
 					@chatLinkChips(ctx, uikit.LinkedText(userMessageText(ctx, prompt.Text, messagePage(ctx, prompt)), chatLinks(ctx)))
+				}
+				if len(prompt.Attachments) > 0 {
+					<div class="flex flex-wrap justify-end gap-1.5" data-slot="user-message-attachments">
+						for _, attachment := range prompt.Attachments {
+							@chatcomposer.AttachmentChip(attachment, false)
+						}
+					</div>
 				}
 			}
 		}
