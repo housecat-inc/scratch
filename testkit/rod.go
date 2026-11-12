@@ -94,7 +94,7 @@ func (t *T) Click(page *rod.Page, selector string) {
 	t.t.Helper()
 
 	t.R.Eventually(func() bool {
-		el, err := page.Timeout(BrowserOperationTimeout).Element(selector)
+		el, err := page.Timeout(BrowserAttemptTimeout).Element(selector)
 		if err != nil {
 			return false
 		}

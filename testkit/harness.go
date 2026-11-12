@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	BrowserAttemptTimeout   = time.Second
 	BrowserOperationTimeout = 5 * time.Second
 	BrowserPollInterval     = 50 * time.Millisecond
 	BrowserSessionTimeout   = 60 * time.Second
