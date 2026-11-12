@@ -1,0 +1,70 @@
+// Package button vendors templui's button and adds ButtonUnstyled, the
+// element-level base every Housecat button composes from: the anchor-vs-button
+// choice, the type/form/disabled/target/href attributes, and the attribute
+// spread. Wrappers supply a finished class string; ButtonUnstyled has no
+// styling of its own and runs no class merge, so components built on legacy CSS
+// class names pass through intact.
+package button
+
+type ButtonUnstyledProps struct {
+	Attributes templ.Attributes
+	Class      string
+	Disabled   bool
+	Form       string
+	Href       string
+	ID         string
+	// Slot is the data-slot; a data-slot in Attributes replaces it, so a wrapper's slot never duplicates the caller's.
+	Slot       string
+	Target     string
+	Type       Type
+}
+
+templ ButtonUnstyled(props ...ButtonUnstyledProps) {
+	{{ var p ButtonUnstyledProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.Type == "" {
+		{{ p.Type = TypeButton }}
+	}
+	if p.Href != "" && !p.Disabled {
+		<a
+			if p.ID != "" {
+				id={ p.ID }
+			}
+			href={ templ.SafeURL(p.Href) }
+			if p.Target != "" {
+				target={ p.Target }
+			}
+			if p.Class != "" {
+				class={ p.Class }
+			}
+			if p.Slot != "" && p.Attributes["data-slot"] == nil {
+				data-slot={ p.Slot }
+			}
+			{ p.Attributes... }
+		>
+			{ children... }
+		</a>
+	} else {
+		<button
+			if p.ID != "" {
+				id={ p.ID }
+			}
+			if p.Class != "" {
+				class={ p.Class }
+			}
+			type={ string(p.Type) }
+			if p.Form != "" {
+				form={ p.Form }
+			}
+			disabled?={ p.Disabled }
+			if p.Slot != "" && p.Attributes["data-slot"] == nil {
+				data-slot={ p.Slot }
+			}
+			{ p.Attributes... }
+		>
+			{ children... }
+		</button>
+	}
+}

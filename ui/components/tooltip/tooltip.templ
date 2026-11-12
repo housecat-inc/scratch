@@ -1,0 +1,214 @@
+package tooltip
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// The parts follow Base UI's tooltip anatomy: Root groups a Trigger with a
+// Positioner that holds the Popup. Portal is the native popover attribute on
+// the Positioner, which puts it in the browser's top layer above every
+// stacking context and outside every overflow clip, so nothing is moved in
+// the DOM. tooltip.ts is the Provider: one delegated script opens, places and
+// closes every tooltip on the page, and shares the delay grouping between
+// them, and it rides along in ui.js, which a layout loads once.
+//
+// A tooltip is a visual label for pointer and keyboard users. It does not
+// open on touch and screen readers do not read it, so the trigger carries an
+// aria-label of its own and anything the user needs goes in a popover or in
+// the page instead.
+
+type Align string
+
+const (
+	AlignCenter Align = ""
+	AlignEnd    Align = "end"
+	AlignStart  Align = "start"
+)
+
+func (a Align) name() string {
+	if a == AlignCenter {
+		return "center"
+	}
+	return string(a)
+}
+
+type Side string
+
+const (
+	SideBottom Side = "bottom"
+	SideLeft   Side = "left"
+	SideRight  Side = "right"
+	SideTop    Side = ""
+)
+
+func (s Side) name() string {
+	if s == SideTop {
+		return "top"
+	}
+	return string(s)
+}
+
+type RootProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// DefaultOpen opens the tooltip as soon as the script sees it, for a
+	// story or a screenshot that has no pointer to hover with.
+	DefaultOpen bool
+	Disabled    bool
+}
+
+// Root groups the parts and renders no box of its own: display: contents
+// leaves the trigger to take part in whatever layout it sat in before.
+templ Root(props RootProps) {
+	<span
+		class={ utils.TwMerge("contents", props.Class) }
+		data-slot="tooltip"
+		data-default-open?={ props.DefaultOpen }
+		data-disabled?={ props.Disabled }
+		{ props.Attributes... }
+	>
+		{ children... }
+	</span>
+}
+
+type TriggerProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Trigger wraps the element that opens the tooltip, which should be focusable
+// and carry its own aria-label. The wrapper has no box, so the popup is
+// anchored to the first element inside it. The script sets data-popup-open on
+// it while the tooltip shows.
+templ Trigger(props TriggerProps) {
+	<span
+		class={ utils.TwMerge("contents", props.Class) }
+		data-slot="tooltip-trigger"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</span>
+}
+
+type PositionerProps struct {
+	Align       Align
+	AlignOffset int
+	Attributes  templ.Attributes
+	Class       string
+	// CollisionPadding is the gap kept from the viewport edge; 5px when unset.
+	CollisionPadding int
+	Side             Side
+	SideOffset       int
+}
+
+// Positioner is the element in the top layer. The script writes its left and
+// top, flips Side when the preferred side has no room, shifts along Align to
+// stay in the viewport, and mirrors the side and align it settled on into
+// data-side and data-align on it and on the popup. The classes undo the
+// browser's default popover box so only the popup paints; none of them may set
+// display, since an author display rule would beat the rule that hides a
+// closed popover.
+templ Positioner(props PositionerProps) {
+	<span
+		popover="manual"
+		class={ utils.TwMerge("pointer-events-none fixed inset-auto m-0 w-max overflow-visible border-0 bg-transparent p-0", props.Class) }
+		data-slot="tooltip-positioner"
+		data-align={ props.Align.name() }
+		data-side={ props.Side.name() }
+		if props.AlignOffset != 0 {
+			data-align-offset={ strconv.Itoa(props.AlignOffset) }
+		}
+		if props.CollisionPadding != 0 {
+			data-collision-padding={ strconv.Itoa(props.CollisionPadding) }
+		}
+		if props.SideOffset != 0 {
+			data-side-offset={ strconv.Itoa(props.SideOffset) }
+		}
+		{ props.Attributes... }
+	>
+		{ children... }
+	</span>
+}
+
+// Paint is the tooltip's colours and type scale, and nothing about its shape.
+// The popover's hint variant wears the same three, so it takes them from here
+// rather than writing them out again, and the two cannot drift apart.
+const Paint = "bg-tooltip type-body-100 text-tooltip-foreground"
+
+type PopupProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Popup is the painted label. The script marks it data-starting-style for the
+// first frame after it opens and data-ending-style while it closes, and waits
+// for the transition those drive before the positioner leaves the top layer.
+//
+// The width cap is what the native title this replaced gave for nothing. A
+// label is usually a couple of words and still sits on one line, since the
+// positioner is sized to its content, but a tooltip carrying a filename or a
+// URL ran off the side of the screen: placement pushes a popup back from the
+// edge, it never narrows one, so the wrapping has to come from here. It wraps
+// only because nothing forbids it, which is why whitespace-nowrap is gone.
+templ Popup(props PopupProps) {
+	<span
+		role="tooltip"
+		class={ utils.TwMerge(
+			// select-none keeps the label out of a selection dragged across whatever
+			// the tooltip wraps. The popup sits in the top layer but stays where it
+			// was in the DOM, so a range still runs through it. The label is help
+			// text pinned to an element, never part of the content around it, so
+			// pasting it back would be noise -- but it stays in the accessibility
+			// tree, since user-select says nothing to a screen reader.
+			"block max-w-xs rounded-md px-2 py-1 shadow-md transition-opacity duration-100 select-none data-ending-style:opacity-0 data-starting-style:opacity-0",
+			Paint,
+			props.Class,
+		) }
+		data-slot="tooltip-popup"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</span>
+}
+
+type Props struct {
+	Align            Align
+	Attributes       templ.Attributes
+	Class            string
+	CollisionPadding int
+	DefaultOpen      bool
+	// PopupAttributes land on the popup rather than the root, for a caller whose
+	// label is written client-side: an hx-live:text belongs on the element whose
+	// text it replaces.
+	PopupAttributes templ.Attributes
+	Side            Side
+	Text            string
+}
+
+// Tooltip is the parts composed for the common case: a short text label on
+// whatever it wraps, using the shared arrowless side offset.
+//
+// The parts sit hard against each other, with no newline and no comment between
+// any two of them. Whitespace between two nodes renders as one space, and
+// neither Root nor Trigger draws a box to trim it against, so a space here
+// lands in the layout the trigger sat in -- between an address and the comma
+// after it, where it is a space that pastes.
+//
+// A tooltip with no text renders anyway, and tooltip.ts refuses to open it. The
+// parts are what a label arrives into: text can be written into a popup after
+// the page is running, and a popup the server decided not to render is one no
+// expression can fill and no script can find. Emptiness is a state, so it is
+// answered where the state is known, and a closed popover is display: none, so
+// an empty one is out of the accessibility tree as well as off the screen.
+templ Tooltip(props Props) {
+	@Root(RootProps{Attributes: props.Attributes, Class: props.Class, DefaultOpen: props.DefaultOpen}) {@Trigger(TriggerProps{}) {
+			{ children... }
+		}@Positioner(PositionerProps{Align: props.Align, CollisionPadding: props.CollisionPadding, Side: props.Side}) {
+			@Popup(PopupProps{Attributes: props.PopupAttributes}) {
+				{ props.Text }
+			}
+		}
+	}
+}

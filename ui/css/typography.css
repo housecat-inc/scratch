@@ -1,0 +1,1170 @@
+/* Typographic system.
+ *
+ * type-<use>-<size>[-<weight>] sets every text property at once -- family,
+ * size, line-height, letter-spacing, weight, variation settings, style and
+ * transform -- so a call site names the role of its text instead of
+ * assembling a look from text-*, font-*, leading-* and tracking-*, and no
+ * property leaks in from an ancestor.
+ *
+ * Every value comes from a token below, so a use can be retuned in one place
+ * and an ancestor can override a token for a subtree. Sizes and line-heights
+ * on Tailwind's scale reference its --text-* tokens, whose line-heights are
+ * unitless ratios (calc(1.25 / 0.875)); the rest are unitless too, and
+ * letter-spacing is always in em, so a size override on top of a type-* class
+ * scales leading and tracking with it.
+ *
+ * Nested <b>/<strong> and <i>/<em>, and the type-bold and type-italic
+ * utilities, read --type-bold-* and --type-italic-*,
+ * which every utility sets from its use's optional --type-<use>-font-bold,
+ * -bold-var, -italic-font, -italic-weight, -italic-style and -italic-var
+ * tokens. A token a use never declares leaves the pass-through property
+ * guaranteed-invalid, so the b/i rules fall back -- a use only declares the
+ * italic or bold tokens it wants to change, say a separate italic family.
+ * Custom properties inherit, so the nearest type-* ancestor decides and a
+ * heading inside a paragraph keeps its own answer.
+ *
+ * Each fallback is what the browser does unaided: the UA's own value where it
+ * declares one (bold for <b>, italic for <i>), inherit where it does not, which
+ * is what keeps an <i> inside a <b> bold. Not bolder, which is relative and
+ * resolves down off a parent lighter than 400; not `initial`, which on
+ * font-weight means normal. `initial` reads as guaranteed-invalid only on a
+ * custom property, which is how a subtree hands a declaration back here.
+ *
+ * type-bold and type-italic are <b> and <i> as classes, for the element that
+ * cannot change its tag -- a link, a truncating span. They read the same
+ * tokens, falling back through --type-font, --type-weight and --type-var (the
+ * utility's own resolved values) so that on the same element as a type-*
+ * class they keep its family and weight rather than inheriting the parent's.
+ * Tailwind's own font-bold and italic cannot be redefined: v4 keeps the
+ * built-in declarations beside a same-named @utility, and they come last.
+ *
+ * Sizes are per use: 100 is the smallest size that use comes in, and the
+ * unnamed weight is that use's regular one. typography.md beside this file
+ * says what each use is for; it and the Storybook sheet are generated from
+ * ui/storybook/registry/typography.go. */
+
+@layer base {
+  :root {
+    --type-body-font: var(--font-sans);
+    --type-body-var: normal;
+    --type-body-weight: 400;
+    --type-body-weight-medium: 500;
+    --type-body-weight-bold: 600;
+    --type-body-100-size: var(--text-xs);
+    --type-body-100-lh: var(--text-xs--line-height);
+    --type-body-100-ls: 0;
+    --type-body-200-size: var(--text-sm);
+    --type-body-200-lh: var(--text-sm--line-height);
+    --type-body-200-ls: 0;
+    --type-body-300-size: var(--text-base);
+    --type-body-300-lh: var(--text-base--line-height);
+    --type-body-300-ls: 0;
+    --type-body-400-size: var(--text-lg);
+    --type-body-400-lh: var(--text-lg--line-height);
+    --type-body-400-ls: 0;
+
+    --type-caption-font: var(--font-sans);
+    --type-caption-var: normal;
+    --type-caption-weight: 400;
+    --type-caption-weight-medium: 500;
+    --type-caption-weight-bold: 600;
+    --type-caption-100-size: var(--text-xs);
+    --type-caption-100-lh: var(--text-xs--line-height);
+    --type-caption-100-ls: 0;
+
+    --type-paragraph-font: var(--font-sans);
+    --type-paragraph-var: normal;
+    --type-paragraph-weight: 400;
+    --type-paragraph-weight-bold: 600;
+    --type-paragraph-200-size: var(--text-sm);
+    --type-paragraph-200-lh: 1.625;
+    --type-paragraph-200-ls: 0;
+    --type-paragraph-300-size: var(--text-base);
+    --type-paragraph-300-lh: 1.75;
+    --type-paragraph-300-ls: 0;
+
+    --type-title-font: var(--font-sans);
+    --type-title-var: normal;
+    --type-title-weight: 600;
+    --type-title-weight-bold: 700;
+    --type-title-100-size: var(--text-base);
+    --type-title-100-lh: 1.25;
+    --type-title-100-ls: -0.01em;
+    --type-title-200-size: var(--text-lg);
+    --type-title-200-lh: 1.25;
+    --type-title-200-ls: -0.01em;
+    --type-title-300-size: var(--text-xl);
+    --type-title-300-lh: 1.25;
+    --type-title-300-ls: -0.01em;
+    --type-title-400-size: var(--text-2xl);
+    --type-title-400-lh: 1.2;
+    --type-title-400-ls: -0.02em;
+    --type-title-500-size: var(--text-3xl);
+    --type-title-500-lh: 1.2;
+    --type-title-500-ls: -0.02em;
+    --type-title-600-size: var(--text-4xl);
+    --type-title-600-lh: 1.1;
+    --type-title-600-ls: -0.025em;
+
+    --type-label-font: var(--font-sans);
+    --type-label-var: normal;
+    --type-label-weight: 600;
+    --type-label-weight-bold: 700;
+    --type-label-100-size: var(--text-xs);
+    --type-label-100-lh: var(--text-xs--line-height);
+    --type-label-100-ls: 0.05em;
+    --type-label-200-size: var(--text-sm);
+    --type-label-200-lh: var(--text-sm--line-height);
+    --type-label-200-ls: 0.05em;
+
+    --type-code-font: var(--font-mono);
+    --type-code-var: normal;
+    --type-code-weight: 400;
+    --type-code-weight-bold: 600;
+    --type-code-optical-scale: 0.9;
+    --type-code-100-size: calc(var(--text-xs) * var(--type-code-optical-scale));
+    --type-code-100-lh: calc(
+      var(--text-xs--line-height) / var(--type-code-optical-scale)
+    );
+    --type-code-100-ls: 0;
+    --type-code-200-size: calc(var(--text-sm) * var(--type-code-optical-scale));
+    --type-code-200-lh: calc(
+      var(--text-sm--line-height) / var(--type-code-optical-scale)
+    );
+    --type-code-200-ls: 0;
+    --type-code-300-size: calc(
+      var(--text-base) * var(--type-code-optical-scale)
+    );
+    --type-code-300-lh: calc(
+      var(--text-base--line-height) / var(--type-code-optical-scale)
+    );
+    --type-code-300-ls: 0;
+
+    --type-display-font: var(
+      --font-display,
+      "Concourse 4",
+      ui-sans-serif,
+      system-ui,
+      sans-serif
+    );
+    --type-display-font-bold: var(
+      --font-display-heavy,
+      "Concourse 6",
+      ui-sans-serif,
+      system-ui,
+      sans-serif
+    );
+    --type-display-var: normal;
+    --type-display-weight: 400;
+    --type-display-weight-bold: 400;
+    --type-display-100-size: 1.2rem;
+    --type-display-100-lh: 1;
+    --type-display-100-ls: -0.01em;
+    --type-display-200-size: 1.35rem;
+    --type-display-200-lh: 1;
+    --type-display-200-ls: -0.01em;
+    --type-display-300-size: var(--text-2xl);
+    --type-display-300-lh: 1;
+    --type-display-300-ls: -0.01em;
+  }
+
+  b,
+  strong {
+    font-family: var(--type-bold-family, inherit);
+    font-variation-settings: var(--type-bold-var, inherit);
+    font-weight: var(--type-bold-weight, bold);
+  }
+
+  i,
+  em {
+    font-family: var(--type-italic-family, inherit);
+    font-style: var(--type-italic-style, italic);
+    font-variation-settings: var(--type-italic-var, inherit);
+    font-weight: var(--type-italic-weight, inherit);
+  }
+}
+
+/* The page itself is body-300: 16px on 1.5, the browser's default, so text
+   outside any type-* class renders as the system says it does and a stray <b>
+   still resolves to body's bold. */
+@layer base {
+  html {
+    @apply type-body-300;
+  }
+}
+
+@utility type-bold {
+  font-family: var(--type-bold-family, var(--type-font, inherit));
+  font-variation-settings: var(--type-bold-var, var(--type-var, inherit));
+  font-weight: var(--type-bold-weight, bold);
+}
+
+@utility type-italic {
+  font-family: var(--type-italic-family, var(--type-font, inherit));
+  font-style: var(--type-italic-style, italic);
+  font-variation-settings: var(--type-italic-var, var(--type-var, inherit));
+  font-weight: var(--type-italic-weight, var(--type-weight, inherit));
+}
+
+/* body: UI text. <b> is medium, the quieter emphasis the app uses for names
+   and menu items; -heavy is for a whole element that needs to stand out. */
+@utility type-body-100 {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-100-size);
+  line-height: var(--type-body-100-lh);
+  letter-spacing: var(--type-body-100-ls);
+  font-weight: var(--type-body-weight);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-100-medium {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-medium);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-100-size);
+  line-height: var(--type-body-100-lh);
+  letter-spacing: var(--type-body-100-ls);
+  font-weight: var(--type-body-weight-medium);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-100-heavy {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-bold);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-100-size);
+  line-height: var(--type-body-100-lh);
+  letter-spacing: var(--type-body-100-ls);
+  font-weight: var(--type-body-weight-bold);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-200 {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-200-size);
+  line-height: var(--type-body-200-lh);
+  letter-spacing: var(--type-body-200-ls);
+  font-weight: var(--type-body-weight);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-200-medium {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-medium);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-200-size);
+  line-height: var(--type-body-200-lh);
+  letter-spacing: var(--type-body-200-ls);
+  font-weight: var(--type-body-weight-medium);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-200-heavy {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-bold);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-200-size);
+  line-height: var(--type-body-200-lh);
+  letter-spacing: var(--type-body-200-ls);
+  font-weight: var(--type-body-weight-bold);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-300 {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-300-size);
+  line-height: var(--type-body-300-lh);
+  letter-spacing: var(--type-body-300-ls);
+  font-weight: var(--type-body-weight);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-300-medium {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-medium);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-300-size);
+  line-height: var(--type-body-300-lh);
+  letter-spacing: var(--type-body-300-ls);
+  font-weight: var(--type-body-weight-medium);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-300-heavy {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-bold);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-300-size);
+  line-height: var(--type-body-300-lh);
+  letter-spacing: var(--type-body-300-ls);
+  font-weight: var(--type-body-weight-bold);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-400 {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-400-size);
+  line-height: var(--type-body-400-lh);
+  letter-spacing: var(--type-body-400-ls);
+  font-weight: var(--type-body-weight);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-400-medium {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-medium);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-400-size);
+  line-height: var(--type-body-400-lh);
+  letter-spacing: var(--type-body-400-ls);
+  font-weight: var(--type-body-weight-medium);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-body-400-heavy {
+  --type-bold-family: var(--type-body-font-bold);
+  --type-bold-var: var(--type-body-bold-var);
+  --type-bold-weight: var(--type-body-weight-medium);
+  --type-italic-family: var(--type-body-italic-font);
+  --type-italic-style: var(--type-body-italic-style);
+  --type-italic-var: var(--type-body-italic-var);
+  --type-italic-weight: var(--type-body-italic-weight);
+  --type-font: var(--type-body-font);
+  --type-var: var(--type-body-var);
+  --type-weight: var(--type-body-weight-bold);
+  font-family: var(--type-body-font);
+  font-size: var(--type-body-400-size);
+  line-height: var(--type-body-400-lh);
+  letter-spacing: var(--type-body-400-ls);
+  font-weight: var(--type-body-weight-bold);
+  font-variation-settings: var(--type-body-var);
+  font-style: normal;
+  text-transform: none;
+}
+
+/* caption: secondary and meta text -- timestamps, helper text, counts. <b> is
+   medium so an emphasised name in a meta line stays quiet. */
+@utility type-caption-100 {
+  --type-bold-family: var(--type-caption-font-bold);
+  --type-bold-var: var(--type-caption-bold-var);
+  --type-bold-weight: var(--type-caption-weight-medium);
+  --type-italic-family: var(--type-caption-italic-font);
+  --type-italic-style: var(--type-caption-italic-style);
+  --type-italic-var: var(--type-caption-italic-var);
+  --type-italic-weight: var(--type-caption-italic-weight);
+  --type-font: var(--type-caption-font);
+  --type-var: var(--type-caption-var);
+  --type-weight: var(--type-caption-weight);
+  font-family: var(--type-caption-font);
+  font-size: var(--type-caption-100-size);
+  line-height: var(--type-caption-100-lh);
+  letter-spacing: var(--type-caption-100-ls);
+  font-weight: var(--type-caption-weight);
+  font-variation-settings: var(--type-caption-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-caption-100-medium {
+  --type-bold-family: var(--type-caption-font-bold);
+  --type-bold-var: var(--type-caption-bold-var);
+  --type-bold-weight: var(--type-caption-weight-medium);
+  --type-italic-family: var(--type-caption-italic-font);
+  --type-italic-style: var(--type-caption-italic-style);
+  --type-italic-var: var(--type-caption-italic-var);
+  --type-italic-weight: var(--type-caption-italic-weight);
+  --type-font: var(--type-caption-font);
+  --type-var: var(--type-caption-var);
+  --type-weight: var(--type-caption-weight-medium);
+  font-family: var(--type-caption-font);
+  font-size: var(--type-caption-100-size);
+  line-height: var(--type-caption-100-lh);
+  letter-spacing: var(--type-caption-100-ls);
+  font-weight: var(--type-caption-weight-medium);
+  font-variation-settings: var(--type-caption-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-caption-100-heavy {
+  --type-bold-family: var(--type-caption-font-bold);
+  --type-bold-var: var(--type-caption-bold-var);
+  --type-bold-weight: var(--type-caption-weight-medium);
+  --type-italic-family: var(--type-caption-italic-font);
+  --type-italic-style: var(--type-caption-italic-style);
+  --type-italic-var: var(--type-caption-italic-var);
+  --type-italic-weight: var(--type-caption-italic-weight);
+  --type-font: var(--type-caption-font);
+  --type-var: var(--type-caption-var);
+  --type-weight: var(--type-caption-weight-bold);
+  font-family: var(--type-caption-font);
+  font-size: var(--type-caption-100-size);
+  line-height: var(--type-caption-100-lh);
+  letter-spacing: var(--type-caption-100-ls);
+  font-weight: var(--type-caption-weight-bold);
+  font-variation-settings: var(--type-caption-var);
+  font-style: normal;
+  text-transform: none;
+}
+
+/* paragraph: long-form reading text such as message bodies, with the looser
+   leading multi-line prose needs. */
+@utility type-paragraph-200 {
+  --type-bold-family: var(--type-paragraph-font-bold);
+  --type-bold-var: var(--type-paragraph-bold-var);
+  --type-bold-weight: var(--type-paragraph-weight-bold);
+  --type-italic-family: var(--type-paragraph-italic-font);
+  --type-italic-style: var(--type-paragraph-italic-style);
+  --type-italic-var: var(--type-paragraph-italic-var);
+  --type-italic-weight: var(--type-paragraph-italic-weight);
+  --type-font: var(--type-paragraph-font);
+  --type-var: var(--type-paragraph-var);
+  --type-weight: var(--type-paragraph-weight);
+  font-family: var(--type-paragraph-font);
+  font-size: var(--type-paragraph-200-size);
+  line-height: var(--type-paragraph-200-lh);
+  letter-spacing: var(--type-paragraph-200-ls);
+  font-weight: var(--type-paragraph-weight);
+  font-variation-settings: var(--type-paragraph-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-paragraph-200-heavy {
+  --type-bold-family: var(--type-paragraph-font-bold);
+  --type-bold-var: var(--type-paragraph-bold-var);
+  --type-bold-weight: var(--type-paragraph-weight-bold);
+  --type-italic-family: var(--type-paragraph-italic-font);
+  --type-italic-style: var(--type-paragraph-italic-style);
+  --type-italic-var: var(--type-paragraph-italic-var);
+  --type-italic-weight: var(--type-paragraph-italic-weight);
+  --type-font: var(--type-paragraph-font);
+  --type-var: var(--type-paragraph-var);
+  --type-weight: var(--type-paragraph-weight-bold);
+  font-family: var(--type-paragraph-font);
+  font-size: var(--type-paragraph-200-size);
+  line-height: var(--type-paragraph-200-lh);
+  letter-spacing: var(--type-paragraph-200-ls);
+  font-weight: var(--type-paragraph-weight-bold);
+  font-variation-settings: var(--type-paragraph-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-paragraph-300 {
+  --type-bold-family: var(--type-paragraph-font-bold);
+  --type-bold-var: var(--type-paragraph-bold-var);
+  --type-bold-weight: var(--type-paragraph-weight-bold);
+  --type-italic-family: var(--type-paragraph-italic-font);
+  --type-italic-style: var(--type-paragraph-italic-style);
+  --type-italic-var: var(--type-paragraph-italic-var);
+  --type-italic-weight: var(--type-paragraph-italic-weight);
+  --type-font: var(--type-paragraph-font);
+  --type-var: var(--type-paragraph-var);
+  --type-weight: var(--type-paragraph-weight);
+  font-family: var(--type-paragraph-font);
+  font-size: var(--type-paragraph-300-size);
+  line-height: var(--type-paragraph-300-lh);
+  letter-spacing: var(--type-paragraph-300-ls);
+  font-weight: var(--type-paragraph-weight);
+  font-variation-settings: var(--type-paragraph-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-paragraph-300-heavy {
+  --type-bold-family: var(--type-paragraph-font-bold);
+  --type-bold-var: var(--type-paragraph-bold-var);
+  --type-bold-weight: var(--type-paragraph-weight-bold);
+  --type-italic-family: var(--type-paragraph-italic-font);
+  --type-italic-style: var(--type-paragraph-italic-style);
+  --type-italic-var: var(--type-paragraph-italic-var);
+  --type-italic-weight: var(--type-paragraph-italic-weight);
+  --type-font: var(--type-paragraph-font);
+  --type-var: var(--type-paragraph-var);
+  --type-weight: var(--type-paragraph-weight-bold);
+  font-family: var(--type-paragraph-font);
+  font-size: var(--type-paragraph-300-size);
+  line-height: var(--type-paragraph-300-lh);
+  letter-spacing: var(--type-paragraph-300-ls);
+  font-weight: var(--type-paragraph-weight-bold);
+  font-variation-settings: var(--type-paragraph-var);
+  font-style: normal;
+  text-transform: none;
+}
+
+/* title: headings. Semibold by default, -heavy for page titles; tracking
+   tightens as the size grows. */
+@utility type-title-100 {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-100-size);
+  line-height: var(--type-title-100-lh);
+  letter-spacing: var(--type-title-100-ls);
+  font-weight: var(--type-title-weight);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-100-heavy {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight-bold);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-100-size);
+  line-height: var(--type-title-100-lh);
+  letter-spacing: var(--type-title-100-ls);
+  font-weight: var(--type-title-weight-bold);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-200 {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-200-size);
+  line-height: var(--type-title-200-lh);
+  letter-spacing: var(--type-title-200-ls);
+  font-weight: var(--type-title-weight);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-200-heavy {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight-bold);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-200-size);
+  line-height: var(--type-title-200-lh);
+  letter-spacing: var(--type-title-200-ls);
+  font-weight: var(--type-title-weight-bold);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-300 {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-300-size);
+  line-height: var(--type-title-300-lh);
+  letter-spacing: var(--type-title-300-ls);
+  font-weight: var(--type-title-weight);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-300-heavy {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight-bold);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-300-size);
+  line-height: var(--type-title-300-lh);
+  letter-spacing: var(--type-title-300-ls);
+  font-weight: var(--type-title-weight-bold);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-400 {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-400-size);
+  line-height: var(--type-title-400-lh);
+  letter-spacing: var(--type-title-400-ls);
+  font-weight: var(--type-title-weight);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-400-heavy {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight-bold);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-400-size);
+  line-height: var(--type-title-400-lh);
+  letter-spacing: var(--type-title-400-ls);
+  font-weight: var(--type-title-weight-bold);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-500 {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-500-size);
+  line-height: var(--type-title-500-lh);
+  letter-spacing: var(--type-title-500-ls);
+  font-weight: var(--type-title-weight);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-500-heavy {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight-bold);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-500-size);
+  line-height: var(--type-title-500-lh);
+  letter-spacing: var(--type-title-500-ls);
+  font-weight: var(--type-title-weight-bold);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-600 {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-600-size);
+  line-height: var(--type-title-600-lh);
+  letter-spacing: var(--type-title-600-ls);
+  font-weight: var(--type-title-weight);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-title-600-heavy {
+  --type-bold-family: var(--type-title-font-bold);
+  --type-bold-var: var(--type-title-bold-var);
+  --type-bold-weight: var(--type-title-weight-bold);
+  --type-italic-family: var(--type-title-italic-font);
+  --type-italic-style: var(--type-title-italic-style);
+  --type-italic-var: var(--type-title-italic-var);
+  --type-italic-weight: var(--type-title-italic-weight);
+  --type-font: var(--type-title-font);
+  --type-var: var(--type-title-var);
+  --type-weight: var(--type-title-weight-bold);
+  font-family: var(--type-title-font);
+  font-size: var(--type-title-600-size);
+  line-height: var(--type-title-600-lh);
+  letter-spacing: var(--type-title-600-ls);
+  font-weight: var(--type-title-weight-bold);
+  font-variation-settings: var(--type-title-var);
+  font-style: normal;
+  text-transform: none;
+}
+
+/* label: uppercase section labels and eyebrows. Not for form labels, which
+   are body-*-medium. */
+@utility type-label-100 {
+  --type-bold-family: var(--type-label-font-bold);
+  --type-bold-var: var(--type-label-bold-var);
+  --type-bold-weight: var(--type-label-weight-bold);
+  --type-italic-family: var(--type-label-italic-font);
+  --type-italic-style: var(--type-label-italic-style);
+  --type-italic-var: var(--type-label-italic-var);
+  --type-italic-weight: var(--type-label-italic-weight);
+  --type-font: var(--type-label-font);
+  --type-var: var(--type-label-var);
+  --type-weight: var(--type-label-weight);
+  font-family: var(--type-label-font);
+  font-size: var(--type-label-100-size);
+  line-height: var(--type-label-100-lh);
+  letter-spacing: var(--type-label-100-ls);
+  font-weight: var(--type-label-weight);
+  font-variation-settings: var(--type-label-var);
+  font-style: normal;
+  text-transform: uppercase;
+}
+@utility type-label-100-heavy {
+  --type-bold-family: var(--type-label-font-bold);
+  --type-bold-var: var(--type-label-bold-var);
+  --type-bold-weight: var(--type-label-weight-bold);
+  --type-italic-family: var(--type-label-italic-font);
+  --type-italic-style: var(--type-label-italic-style);
+  --type-italic-var: var(--type-label-italic-var);
+  --type-italic-weight: var(--type-label-italic-weight);
+  --type-font: var(--type-label-font);
+  --type-var: var(--type-label-var);
+  --type-weight: var(--type-label-weight-bold);
+  font-family: var(--type-label-font);
+  font-size: var(--type-label-100-size);
+  line-height: var(--type-label-100-lh);
+  letter-spacing: var(--type-label-100-ls);
+  font-weight: var(--type-label-weight-bold);
+  font-variation-settings: var(--type-label-var);
+  font-style: normal;
+  text-transform: uppercase;
+}
+@utility type-label-200 {
+  --type-bold-family: var(--type-label-font-bold);
+  --type-bold-var: var(--type-label-bold-var);
+  --type-bold-weight: var(--type-label-weight-bold);
+  --type-italic-family: var(--type-label-italic-font);
+  --type-italic-style: var(--type-label-italic-style);
+  --type-italic-var: var(--type-label-italic-var);
+  --type-italic-weight: var(--type-label-italic-weight);
+  --type-font: var(--type-label-font);
+  --type-var: var(--type-label-var);
+  --type-weight: var(--type-label-weight);
+  font-family: var(--type-label-font);
+  font-size: var(--type-label-200-size);
+  line-height: var(--type-label-200-lh);
+  letter-spacing: var(--type-label-200-ls);
+  font-weight: var(--type-label-weight);
+  font-variation-settings: var(--type-label-var);
+  font-style: normal;
+  text-transform: uppercase;
+}
+@utility type-label-200-heavy {
+  --type-bold-family: var(--type-label-font-bold);
+  --type-bold-var: var(--type-label-bold-var);
+  --type-bold-weight: var(--type-label-weight-bold);
+  --type-italic-family: var(--type-label-italic-font);
+  --type-italic-style: var(--type-label-italic-style);
+  --type-italic-var: var(--type-label-italic-var);
+  --type-italic-weight: var(--type-label-italic-weight);
+  --type-font: var(--type-label-font);
+  --type-var: var(--type-label-var);
+  --type-weight: var(--type-label-weight-bold);
+  font-family: var(--type-label-font);
+  font-size: var(--type-label-200-size);
+  line-height: var(--type-label-200-lh);
+  letter-spacing: var(--type-label-200-ls);
+  font-weight: var(--type-label-weight-bold);
+  font-variation-settings: var(--type-label-var);
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+/* code: monospace -- identifiers, logs, JSON, editors. */
+@utility type-code-100 {
+  --type-bold-family: var(--type-code-font-bold);
+  --type-bold-var: var(--type-code-bold-var);
+  --type-bold-weight: var(--type-code-weight-bold);
+  --type-italic-family: var(--type-code-italic-font);
+  --type-italic-style: var(--type-code-italic-style);
+  --type-italic-var: var(--type-code-italic-var);
+  --type-italic-weight: var(--type-code-italic-weight);
+  --type-font: var(--type-code-font);
+  --type-var: var(--type-code-var);
+  --type-weight: var(--type-code-weight);
+  font-family: var(--type-code-font);
+  font-size: var(--type-code-100-size);
+  line-height: var(--type-code-100-lh);
+  letter-spacing: var(--type-code-100-ls);
+  font-weight: var(--type-code-weight);
+  font-variation-settings: var(--type-code-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-code-100-heavy {
+  --type-bold-family: var(--type-code-font-bold);
+  --type-bold-var: var(--type-code-bold-var);
+  --type-bold-weight: var(--type-code-weight-bold);
+  --type-italic-family: var(--type-code-italic-font);
+  --type-italic-style: var(--type-code-italic-style);
+  --type-italic-var: var(--type-code-italic-var);
+  --type-italic-weight: var(--type-code-italic-weight);
+  --type-font: var(--type-code-font);
+  --type-var: var(--type-code-var);
+  --type-weight: var(--type-code-weight-bold);
+  font-family: var(--type-code-font);
+  font-size: var(--type-code-100-size);
+  line-height: var(--type-code-100-lh);
+  letter-spacing: var(--type-code-100-ls);
+  font-weight: var(--type-code-weight-bold);
+  font-variation-settings: var(--type-code-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-code-200 {
+  --type-bold-family: var(--type-code-font-bold);
+  --type-bold-var: var(--type-code-bold-var);
+  --type-bold-weight: var(--type-code-weight-bold);
+  --type-italic-family: var(--type-code-italic-font);
+  --type-italic-style: var(--type-code-italic-style);
+  --type-italic-var: var(--type-code-italic-var);
+  --type-italic-weight: var(--type-code-italic-weight);
+  --type-font: var(--type-code-font);
+  --type-var: var(--type-code-var);
+  --type-weight: var(--type-code-weight);
+  font-family: var(--type-code-font);
+  font-size: var(--type-code-200-size);
+  line-height: var(--type-code-200-lh);
+  letter-spacing: var(--type-code-200-ls);
+  font-weight: var(--type-code-weight);
+  font-variation-settings: var(--type-code-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-code-200-heavy {
+  --type-bold-family: var(--type-code-font-bold);
+  --type-bold-var: var(--type-code-bold-var);
+  --type-bold-weight: var(--type-code-weight-bold);
+  --type-italic-family: var(--type-code-italic-font);
+  --type-italic-style: var(--type-code-italic-style);
+  --type-italic-var: var(--type-code-italic-var);
+  --type-italic-weight: var(--type-code-italic-weight);
+  --type-font: var(--type-code-font);
+  --type-var: var(--type-code-var);
+  --type-weight: var(--type-code-weight-bold);
+  font-family: var(--type-code-font);
+  font-size: var(--type-code-200-size);
+  line-height: var(--type-code-200-lh);
+  letter-spacing: var(--type-code-200-ls);
+  font-weight: var(--type-code-weight-bold);
+  font-variation-settings: var(--type-code-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-code-300 {
+  --type-bold-family: var(--type-code-font-bold);
+  --type-bold-var: var(--type-code-bold-var);
+  --type-bold-weight: var(--type-code-weight-bold);
+  --type-italic-family: var(--type-code-italic-font);
+  --type-italic-style: var(--type-code-italic-style);
+  --type-italic-var: var(--type-code-italic-var);
+  --type-italic-weight: var(--type-code-italic-weight);
+  --type-font: var(--type-code-font);
+  --type-var: var(--type-code-var);
+  --type-weight: var(--type-code-weight);
+  font-family: var(--type-code-font);
+  font-size: var(--type-code-300-size);
+  line-height: var(--type-code-300-lh);
+  letter-spacing: var(--type-code-300-ls);
+  font-weight: var(--type-code-weight);
+  font-variation-settings: var(--type-code-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-code-300-heavy {
+  --type-bold-family: var(--type-code-font-bold);
+  --type-bold-var: var(--type-code-bold-var);
+  --type-bold-weight: var(--type-code-weight-bold);
+  --type-italic-family: var(--type-code-italic-font);
+  --type-italic-style: var(--type-code-italic-style);
+  --type-italic-var: var(--type-code-italic-var);
+  --type-italic-weight: var(--type-code-italic-weight);
+  --type-font: var(--type-code-font);
+  --type-var: var(--type-code-var);
+  --type-weight: var(--type-code-weight-bold);
+  font-family: var(--type-code-font);
+  font-size: var(--type-code-300-size);
+  line-height: var(--type-code-300-lh);
+  letter-spacing: var(--type-code-300-ls);
+  font-weight: var(--type-code-weight-bold);
+  font-variation-settings: var(--type-code-var);
+  font-style: normal;
+  text-transform: none;
+}
+
+/* display: the brand face. Concourse ships as two cuts rather than a weight
+   axis, so -heavy and <b> swap the family to Concourse 6 (--type-display-
+   font-bold) instead of asking the browser to embolden Concourse 4. 100-300
+   are wordmark sizes; a one-off larger figure is a text-[...] override on
+   300. */
+@utility type-display-100 {
+  --type-bold-family: var(--type-display-font-bold);
+  --type-bold-var: var(--type-display-bold-var);
+  --type-bold-weight: var(--type-display-weight-bold);
+  --type-italic-family: var(--type-display-italic-font);
+  --type-italic-style: var(--type-display-italic-style);
+  --type-italic-var: var(--type-display-italic-var);
+  --type-italic-weight: var(--type-display-italic-weight);
+  --type-font: var(--type-display-font);
+  --type-var: var(--type-display-var);
+  --type-weight: var(--type-display-weight);
+  font-family: var(--type-display-font);
+  font-size: var(--type-display-100-size);
+  line-height: var(--type-display-100-lh);
+  letter-spacing: var(--type-display-100-ls);
+  font-weight: var(--type-display-weight);
+  font-variation-settings: var(--type-display-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-display-100-heavy {
+  --type-bold-family: var(--type-display-font-bold);
+  --type-bold-var: var(--type-display-bold-var);
+  --type-bold-weight: var(--type-display-weight-bold);
+  --type-italic-family: var(--type-display-italic-font);
+  --type-italic-style: var(--type-display-italic-style);
+  --type-italic-var: var(--type-display-italic-var);
+  --type-italic-weight: var(--type-display-italic-weight);
+  --type-font: var(--type-display-font-bold);
+  --type-var: var(--type-display-var);
+  --type-weight: var(--type-display-weight-bold);
+  font-family: var(--type-display-font-bold);
+  font-size: var(--type-display-100-size);
+  line-height: var(--type-display-100-lh);
+  letter-spacing: var(--type-display-100-ls);
+  font-weight: var(--type-display-weight-bold);
+  font-variation-settings: var(--type-display-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-display-200 {
+  --type-bold-family: var(--type-display-font-bold);
+  --type-bold-var: var(--type-display-bold-var);
+  --type-bold-weight: var(--type-display-weight-bold);
+  --type-italic-family: var(--type-display-italic-font);
+  --type-italic-style: var(--type-display-italic-style);
+  --type-italic-var: var(--type-display-italic-var);
+  --type-italic-weight: var(--type-display-italic-weight);
+  --type-font: var(--type-display-font);
+  --type-var: var(--type-display-var);
+  --type-weight: var(--type-display-weight);
+  font-family: var(--type-display-font);
+  font-size: var(--type-display-200-size);
+  line-height: var(--type-display-200-lh);
+  letter-spacing: var(--type-display-200-ls);
+  font-weight: var(--type-display-weight);
+  font-variation-settings: var(--type-display-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-display-200-heavy {
+  --type-bold-family: var(--type-display-font-bold);
+  --type-bold-var: var(--type-display-bold-var);
+  --type-bold-weight: var(--type-display-weight-bold);
+  --type-italic-family: var(--type-display-italic-font);
+  --type-italic-style: var(--type-display-italic-style);
+  --type-italic-var: var(--type-display-italic-var);
+  --type-italic-weight: var(--type-display-italic-weight);
+  --type-font: var(--type-display-font-bold);
+  --type-var: var(--type-display-var);
+  --type-weight: var(--type-display-weight-bold);
+  font-family: var(--type-display-font-bold);
+  font-size: var(--type-display-200-size);
+  line-height: var(--type-display-200-lh);
+  letter-spacing: var(--type-display-200-ls);
+  font-weight: var(--type-display-weight-bold);
+  font-variation-settings: var(--type-display-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-display-300 {
+  --type-bold-family: var(--type-display-font-bold);
+  --type-bold-var: var(--type-display-bold-var);
+  --type-bold-weight: var(--type-display-weight-bold);
+  --type-italic-family: var(--type-display-italic-font);
+  --type-italic-style: var(--type-display-italic-style);
+  --type-italic-var: var(--type-display-italic-var);
+  --type-italic-weight: var(--type-display-italic-weight);
+  --type-font: var(--type-display-font);
+  --type-var: var(--type-display-var);
+  --type-weight: var(--type-display-weight);
+  font-family: var(--type-display-font);
+  font-size: var(--type-display-300-size);
+  line-height: var(--type-display-300-lh);
+  letter-spacing: var(--type-display-300-ls);
+  font-weight: var(--type-display-weight);
+  font-variation-settings: var(--type-display-var);
+  font-style: normal;
+  text-transform: none;
+}
+@utility type-display-300-heavy {
+  --type-bold-family: var(--type-display-font-bold);
+  --type-bold-var: var(--type-display-bold-var);
+  --type-bold-weight: var(--type-display-weight-bold);
+  --type-italic-family: var(--type-display-italic-font);
+  --type-italic-style: var(--type-display-italic-style);
+  --type-italic-var: var(--type-display-italic-var);
+  --type-italic-weight: var(--type-display-italic-weight);
+  --type-font: var(--type-display-font-bold);
+  --type-var: var(--type-display-var);
+  --type-weight: var(--type-display-weight-bold);
+  font-family: var(--type-display-font-bold);
+  font-size: var(--type-display-300-size);
+  line-height: var(--type-display-300-lh);
+  letter-spacing: var(--type-display-300-ls);
+  font-weight: var(--type-display-weight-bold);
+  font-variation-settings: var(--type-display-var);
+  font-style: normal;
+  text-transform: none;
+}

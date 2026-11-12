@@ -1,0 +1,63 @@
+package codex
+
+import "github.com/housecat-inc/scratch/ui/components/button"
+
+type ApprovalIn struct {
+	ApproveLabel string
+	CanApprove   bool
+	Fields       []ApprovalField
+	ID           string
+	Message      string
+	Status       string
+	URL          string
+}
+
+type ApprovalField struct {
+	Label string
+	Value string
+}
+
+templ DecisionCard(attributes templ.Attributes) {
+	<section class="space-y-3 rounded-md border border-amber-500/40 p-4" { attributes... }>
+		{ children... }
+	</section>
+}
+
+templ Approval(in ApprovalIn) {
+	@DecisionCard(templ.Attributes{"id": "codex-approval-" + in.ID, "data-chat-approval": true, "aria-label": "Tool approval"}) {
+		if in.Status == "" {
+			<p class="type-body-200-medium">Approval required</p>
+		} else {
+			<p class="type-body-200-medium">Approval decision</p>
+		}
+		<p class="type-body-200 break-words whitespace-pre-wrap">{ in.Message }</p>
+		<dl class="space-y-3">
+			for _, field := range in.Fields {
+				<div>
+					<dt class="type-caption-100 text-muted-foreground">{ field.Label }</dt>
+					<dd class="type-body-200 break-words whitespace-pre-wrap">{ field.Value }</dd>
+				</div>
+			}
+		</dl>
+		if in.Status != "" {
+			<p role="status" class="type-body-200">{ in.Status }</p>
+		} else {
+			if !in.CanApprove {
+				<p class="type-body-200">This request needs a form that is not supported here yet. You can decline it or stop the turn.</p>
+			}
+			<div data-approval-actions class="space-y-2">
+				<form hx-post={ in.URL } hx-target="closest [data-approval-actions]" hx-swap="innerHTML" hx-disabled-elt="find button" hx-status:4xx='{"target":"next [role=alert]","swap":"innerHTML"}' hx-status:5xx='{"target":"next [role=alert]","swap":"innerHTML"}' class="flex gap-2">
+					if in.CanApprove {
+						@button.Button(button.Props{Type: button.TypeSubmit, Size: button.SizeSm, Attributes: templ.Attributes{"name": "action", "value": "accept"}}) {
+							{ in.ApproveLabel }
+						}
+					}
+					@button.Button(button.Props{Type: button.TypeSubmit, Size: button.SizeSm, Variant: button.VariantOutline, Attributes: templ.Attributes{"name": "action", "value": "decline"}}) {
+						{ "Decline" }
+					}
+				</form>
+				<p role="alert" class="type-body-200 text-destructive"></p>
+			</div>
+		}
+	}
+}

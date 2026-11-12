@@ -68,9 +68,7 @@ func TestCodeHTML(t *testing.T) {
 			h.ElementTextContains("body", "func main() {")
 			h.ElementPresent(`[hx-get*="direction=up"]`)
 			h.ElementPresent(`[hx-get*="direction=all"]`)
-			for _, src := range []string{"/static/chat.js", "/static/htmx-ext-sse.min.js"} {
-				a.Equal(1, h.Doc.Find(`script[src="`+src+`"]`).Length(), "expected one %s", src)
-			}
+			a.Equal(1, h.Doc.Find(`script[src^="/assets/hx-sse.min.js"]`).Length(), "expected one hx-sse.min.js")
 		})
 		t.Run("returns not found for an unknown repo", func(t *testing.T) {
 			a := assert.New(t)

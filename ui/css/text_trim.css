@@ -1,0 +1,18 @@
+/* cap-trim trims an element's text box to the span from its cap height to its
+ * baseline, so centring it centres its capitals. Named without a text- prefix
+ * so tailwind-merge does not read it as a text colour or size.
+ *
+ * truncate-inline is truncate for text-box-trimmed text: it clips only the inline
+ * axis (overflow-x: clip), where truncate's overflow: hidden clips both and
+ * would crop the ascenders and descenders a trimmed box no longer contains.
+ * clip leaves overflow-y visible; hidden would compute it to auto. */
+
+@utility cap-trim {
+  text-box: trim-both cap alphabetic;
+}
+
+@utility truncate-inline {
+  overflow-x: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

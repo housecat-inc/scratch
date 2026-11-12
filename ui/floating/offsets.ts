@@ -1,0 +1,2 @@
+export const DEFAULT_SIDE_OFFSET = 6;
+export const DEFAULT_SIDE_OFFSET_WITH_ARROW = 10;

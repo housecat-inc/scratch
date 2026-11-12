@@ -1,0 +1,31 @@
+package bottombar
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	// Label names the bar for a screen reader.
+	Label string
+}
+
+templ BottomBar(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<nav
+		aria-label={ p.Label }
+		class={ utils.TwMerge(bottomBarClass, p.Class) }
+		data-slot="bottombar"
+		{ p.Attributes... }
+	>
+		{ children... }
+	</nav>
+}
+
+const bottomBarClass = "relative z-60 flex h-(--bottombar-height) flex-none items-center gap-2 border-t bg-background px-3 pb-(--bottombar-inset) in-data-[keyboard-open]:hidden docked:hidden"
+
+// ControlClass gives the bar's buttons the switch track's fill. ButtonIcon
+// owns its size and touch target through IconProps.
+const ControlClass = "bg-muted text-foreground"

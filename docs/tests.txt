@@ -118,19 +118,25 @@ pkg/chat/codex_test.go
     titles a web search by its query
     turns a todo list into a plan
 
-pkg/chat/hypertext_test.go
+pkg/chat/codexui_test.go
+  CodexServer
+    answers a retried send without sending twice
+    deletes a thread and tells the rail
+    rejects a follow-up before its thread exists
+    renders the thread's turns for the rail
+    reports a recorded send by client id
+    sends a follow-up to the thread its first message started
+    starts a labeled thread from the first message
+    streams the thread as server sent events
+  CodexServerMiddleware
+    carries the open chat through a post redirect
+    ignores a chat from another site
+    keeps a chat the redirect already names
+    leaves a redirect alone when no chat is open
+
+pkg/chat/forms_test.go
   FormProps
     unescapes html entities in field defaults
-  HandleNewPopout
-    drops an unknown model from the anchor
-    keeps a known model in the anchor
-  HandleSend
-    queues the posted prompt while a turn is streaming
-    sends the posted prompt to the agent
-  HandleStop
-    ends the running turn with an error
-  Handler
-    does not mount the legacy chat pages
 
 pkg/chat/metadata_test.go
   FriendlyDescription
@@ -179,7 +185,7 @@ pkg/chat/runner_test.go
 pkg/chat/sse_test.go
   View
     shows the first unresolved form until every form is answered
-  WriteMessagesEvent
+  WriteEventData
     strips carriage returns so every line stays valid SSE
 
 pkg/db/comments_test.go
@@ -519,23 +525,31 @@ pkg/inbox/cancel_browser_test.go
     cancelling a durable run exposes a resume control on the row
     resuming a cancelled run restarts it and restores the cancel control
 
-pkg/inbox/chat_browser_test.go
-  ChatBrowser
-    composer
-      restores an unsent draft after navigation
-      sends a message and streams the echoed reply
-      sends an uploaded attachment as a pill
-      stops a streaming turn
-      toggles between full access and safe mode
-    floating chat
+pkg/inbox/chat_rail_browser_test.go
+  ChatRailBrowser
+    when docked
+      closes and reopens with back and forward
+      closes from the toggle
       continues an existing thread
-      keeps its actions inside the panel when minimized
-    inspector
-      captures a message as image and html attachments
-      starts a chat from a captured inbox section
-      starts a chat from a task page without creating a task
-    transcript
+      creates a task in the main section with the chat open
+      keeps the chat open while the left nav changes pages
+      opens a chat page link in the rail
+      opens a new chat beside the page from the toggle
+      opens a thread from a deep link
       renders thinking, tool, plan, and markdown parts
+      reopens the last chat from the toggle
+      starts a new chat from the rail header
+      starts a thread and streams the reply
+      stops a streaming turn
+    when narrow
+      opens the left nav from the bottom bar and navigates
+      switches between the page and the chat from the bottom bar
+
+pkg/inbox/codex_chat_browser_test.go
+  CodexChatBrowser
+    lists the new chat under chats
+    resumes the codex thread for a follow-up
+    starts a new chat and streams the codex reply
 
 pkg/inbox/events_test.go
   Events
@@ -543,13 +557,11 @@ pkg/inbox/events_test.go
 
 pkg/inbox/inbox_browser_test.go
   InboxBrowser
-    composer
-      creates the thread when sending from a draft chat
-      starts a chat from the tasks footer
-    new chat
-      opens a floating chat from the new chat action
-      opens a floating chat when a provider is selected
-      opens a floating chat when the default provider is selected
+    chats
+      archives a chat from its row and drops it from the list
+      hides archived chats by default
+      opens a row in the chat rail
+      shows archived chats under the all filter
     tasks
       hides done and archived tasks under the active filter
       saves an edited description
@@ -557,21 +569,10 @@ pkg/inbox/inbox_browser_test.go
 pkg/inbox/inbox_test.go
   ArchiveFilter
     defaults an unknown filter to all
+    defaults chats to active
     ignores the filter in the inbox view
-    keeps the active filter for chats
+    keeps the all filter for chats
     keeps the archived filter for tasks
-  ChatAgent
-    accepts a known agent
-    is empty when no agent is given
-    rejects an unknown agent
-  ChatAgentOptions
-    lists every agent
-  ChatModel
-    accepts a claude model
-    accepts a codex model
-    is empty for an agent without models
-    is empty for the default model
-    rejects a model from another provider
   IncludeArchiveFilter
     active excludes archived
     active includes active
@@ -590,11 +591,10 @@ pkg/inbox/inbox_test.go
   NewServer
     does not mount the legacy task pages
   ResolveComposeMode
-    defaults to chat
-    falls back to chat for an unknown mode
-    keeps chat
+    is empty without a mode
     keeps task
     keeps workflow
+    rejects the retired chat mode
   ScheduleLastFired
     formats the last fire time
     is empty before the first fire
@@ -606,17 +606,6 @@ pkg/inbox/inbox_test.go
 pkg/inbox/poll_browser_test.go
   PollBrowser
     appends later workflow steps without re-rendering earlier ones
-
-pkg/inbox/popout_browser_test.go
-  PopoutBrowser
-    minimize
-      collapses the popout to its header
-    restore
-      brings back a usable composer
-      scrolls to the latest message
-    when minimized
-      keeps the action icons visible with a long description
-      stays fully collapsed with visible actions after reload
 
 pkg/inbox/schedule_browser_test.go
   ScheduleBrowser
@@ -753,7 +742,7 @@ pkg/server/sql/sql_browser_test.go
   SQLBrowser
     mounts a single codemirror editor beside saved queries and schema
     runs a table query from the sidebar
-    shows shared shell counts and opens chat
+    shows shared shell counts
 
 pkg/server/sql/sql_html_test.go
   SQLHTML
@@ -782,14 +771,12 @@ pkg/server/sql/sql_test.go
 
 pkg/todo/web_browser_test.go
   WebBrowser
+    chat panel
+      chat toggle starts a todo chat in the panel
+      survives navigation
     chats list
       lists todo chats without scratch chats
-      opens a todo chat row in a floating chat
-    floating chat
-      chat history action opens chats
-      chat history action refreshes the current chats page
-      new chat action opens a floating chat
-      survives navigation
+      opens a todo chat row in the chat panel
     inbox
       archives and unarchives from list actions
       creates a task
@@ -801,12 +788,6 @@ pkg/todo/web_browser_test.go
     tasks list
       deletes an archived task after confirmation
       lists all tasks with archived actions
-
-pkg/ui/chat_views_test.go
-  ChatPartGroups
-    folds consecutive tool calls into a summarized group and marks the last part
-  ChatToolGroupSummary
-    counts running failed and completed tools
 
 pkg/workflow/single_db_test.go
   SingleDB
@@ -824,6 +805,14 @@ pkg/workspace/workspace_test.go
   Resolve
     finds the worktree root and branch inside a repo
     reports no repo outside git
+
+testkit/console_test.go
+  SSEDisconnect
+    ignores calls without a message string
+    ignores empty calls
+    keeps a failed reconnect as an error
+    keeps other htmx network errors
+    matches a stream cut by navigation
 
 testkit/html_test.go
   Click

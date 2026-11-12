@@ -1,0 +1,332 @@
+package app
+
+import (
+	"cmp"
+
+	"github.com/housecat-inc/scratch/ui/components/bottombar"
+	"github.com/housecat-inc/scratch/ui/components/bottomfade"
+	"github.com/housecat-inc/scratch/ui/components/button"
+	codexui "github.com/housecat-inc/scratch/ui/components/codex"
+	"github.com/housecat-inc/scratch/ui/components/collapsible"
+	"github.com/housecat-inc/scratch/ui/components/drawer"
+	"github.com/housecat-inc/scratch/ui/components/navitem"
+	"github.com/housecat-inc/scratch/ui/components/segmented"
+	"github.com/housecat-inc/scratch/ui/components/toast"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	hclayouts "github.com/housecat-inc/scratch/ui/layouts"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+templ Document(title string, head templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta name="mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+			<meta name="htmx-config" content='{"noSwap": [204, 304, "4xx", "5xx"]}'/>
+			<title>{ title }</title>
+			<link rel="icon" type="image/png" href={ AssetsPath + "img/favicon.png" }/>
+			@Head()
+			if head != nil {
+				@head
+			}
+		</head>
+		{ children... }
+	</html>
+}
+
+templ Shell(in ShellIn) {
+	@Document(in.Title, in.Head) {
+		<body class={ BodyClass }>
+			@Body(in) {
+				{ children... }
+			}
+		</body>
+	}
+}
+
+const BodyClass = "group/body flex h-[var(--mail-viewport-height,100dvh)] flex-col overflow-hidden bg-background text-foreground"
+
+templ Head() {
+	<meta name="theme-color" content={ ThemeColor }/>
+	<link rel="preload" href={ AssetsPath + "fonts/concourse_4_regular.woff2" } as="font" type="font/woff2" crossorigin/>
+	<link rel="preload" href={ AssetsPath + "fonts/concourse_6_regular.woff2" } as="font" type="font/woff2" crossorigin/>
+	<link rel="stylesheet" href={ asset("ui.css") }/>
+	@hclayouts.KeysStub()
+	@hclayouts.ViewportStub()
+	<script src={ asset("htmx.min.js") }></script>
+	<script src={ asset("hx-live.min.js") }></script>
+	<script src={ asset("hx-sse.min.js") }></script>
+	<script src={ asset("ui.js") } defer></script>
+}
+
+templ Body(in ShellIn) {
+	@collapsible.Script()
+	@toast.Script()
+	@shellView(in) {
+		{ children... }
+	}
+	@MailNavigationScript()
+	@MailSidebarScript()
+}
+
+const sidebarScrollerClass = "min-h-0 flex-1 overflow-y-auto" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-margin-start:calc(var(--spacing)*2)]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-height:44px]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-indent-step:12px]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-max-depth:3]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-toggle-size:44px]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-section-toggle-start:0px]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-section-toggle-end:var(--nav-row-icon-size)]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-section-toggle-gap:14px]" +
+	" max-docked:group-data-[compact-side=bottom]/drawer:[--nav-row-section-glyph:var(--nav-row-icon-size)]"
+
+templ shellView(in ShellIn) {
+	<div class="mail-shell relative flex flex-col [--bottom-fade-inset:var(--bottombar-inset)] [--bottom-navigation-height:var(--bottombar-height)] group/shell in-data-[keyboard-open]:[--bottom-fade-inset:0px]">
+		@drawer.Backdrop(drawer.BackdropProps{Class: "absolute", ID: "mail-sidebar"})
+		@topBar(in)
+		<div class="relative flex min-h-0 flex-1 max-docked:[--mail-safe-bottom:0px] max-docked:[--spacing-baseline:calc(var(--spacing)*3.5)]" data-slot="app-stage">
+			<div class="contents [--drawer-width:min(20rem,88vw)] docked:[--drawer-width:var(--shell-sidebar-width)]">
+				@drawer.Drawer(drawer.Props{
+					Attributes:     templ.Attributes{"data-close-on-navigate": true, "data-drawer-over": "chat-rail", "data-mail-sidebar": true},
+					Backdrop:       templ.NopComponent,
+					Class:          "mail-sidebar bg-(--mail-sidebar-bg) max-docked:pr-[env(safe-area-inset-right)] max-docked:pb-(--bottombar-inset) max-docked:pl-[env(safe-area-inset-left)] data-[drawer-open]:max-docked:shadow-[0_-12px_28px_rgba(0,0,0,0.18)]",
+					CollapsedWidth: "var(--shell-sidebar-collapsed-width)",
+					CompactSide:    drawer.SideBottom,
+					Control:        drawer.ControlSelf,
+					Docked:         drawer.DockedExpanded,
+					Handle:         mobileNavigationClose(),
+					ID:             "mail-sidebar",
+					Label:          "Navigation",
+					Side:           drawer.SideLeft,
+				}) {
+					if in.NavHeader != nil {
+						<div class="flex shrink-0 items-center px-3 py-1 docked:min-h-12">
+							@in.NavHeader
+						</div>
+					}
+					<div id={ SidebarContentID } class={ sidebarScrollerClass }>
+						@Sidebar(in.Nav)
+					</div>
+				}
+			</div>
+			<main class="group/app-main group/bottom-fade relative flex min-w-0 flex-1 flex-col overflow-hidden bg-white max-docked:pb-(--bottom-navigation-height)" data-slot="app-main">
+				<div class="flex min-h-0 flex-1 flex-col" data-mail-content hx-sync="replace">
+					{ children... }
+				</div>
+				<div class="gm-navigation-loading" data-mail-navigation-loading role="status" aria-live="polite">
+					<span class="gm-navigation-loading-bar" aria-hidden="true"></span>
+					<span class="sr-only" data-mail-navigation-loading-text>Loading…</span>
+				</div>
+				@bottomfade.Backdrop("max-docked:hidden")
+			</main>
+			if in.Chat != nil {
+				@ChatRail(in.Chat, in.ChatOpen)
+			}
+		</div>
+		<div id={ SidebarDialogsID }></div>
+		@hclayouts.ShellCookiesScript()
+		@bottomBar(in)
+		@toast.Viewport()
+	</div>
+}
+
+templ topBar(in ShellIn) {
+	<header class="mail-topbar relative flex h-14 shrink-0 items-center gap-0 border-b bg-background text-foreground max-docked:z-45 max-docked:h-(--topbar-height) max-docked:pt-(--topbar-inset)" data-slot="app-topbar">
+		<div class="mail-brand-col hidden min-w-0 shrink-0 items-center gap-2 px-2 md:flex md:px-3 xl:px-6">
+			<a href={ templ.SafeURL(cmp.Or(in.BrandHref, "/")) } class="mail-brand-text hidden type-display-200-heavy text-foreground transition-opacity cap-trim hover:opacity-80 md:inline">{ cmp.Or(in.BrandName, "Scratch") }</a>
+		</div>
+		<div class="min-w-0 flex-1"></div>
+		<div class="mail-topbar-actions ml-auto flex shrink-0 items-center gap-1 pr-2 max-docked:rounded-full md:gap-2 md:pr-4">
+			if in.TopBar != nil {
+				@in.TopBar
+			}
+		</div>
+	</header>
+}
+
+templ Sidebar(items []NavItem) {
+	<ul data-slot="nav" class={ navitem.ListClass }>
+		for _, group := range groups(items) {
+			if group.Name == "" {
+				for _, item := range group.Items {
+					@navLink(item)
+				}
+			} else {
+				@navSection(group)
+			}
+		}
+	</ul>
+}
+
+templ navSection(group NavGroup) {
+	<li>
+		<details class="group" data-nav-section={ group.Name } open>
+			<summary data-slot="nav-section-header" class={ navitem.SectionHeaderClass }>
+				<span data-slot="nav-section-toggle" class="ms-(--nav-row-section-toggle-start) me-(--nav-row-section-toggle-gap) inline-flex h-5 w-[calc(var(--nav-row-section-toggle-end)_-_var(--nav-row-section-toggle-start))] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--gm-secondary) transition-transform duration-[120ms] group-open:rotate-90">
+					@icons.Render(icons.ExpandRight, icons.Props{Class: "size-(--nav-row-section-glyph)", Size: 12})
+				</span>
+				<span data-slot="nav-section-name" class="flex-1 group-hover/nav-section:text-(--gm-text)">{ group.Name }</span>
+			</summary>
+			<ul data-slot="nav-section-list" class={ navitem.ListClass } aria-label={ group.Name }>
+				for _, item := range group.Items {
+					@navLink(item)
+				}
+			</ul>
+		</details>
+	</li>
+}
+
+templ navLink(item NavItem) {
+	@navitem.Item(navitem.ItemIn{NavItem: navitem.In{
+		Count:         item.Count,
+		Current:       navitem.PageIf(item.Current),
+		Href:          item.Href,
+		Icon:          item.Icon,
+		IconComponent: item.IconComponent,
+		Label:         item.Label,
+	}})
+}
+
+templ bottomBar(in ShellIn) {
+	@bottombar.BottomBar(bottombar.Props{Class: "absolute inset-x-0 bottom-0 border-t-0 bg-transparent", Label: "App"}) {
+		@button.ButtonIcon(button.IconProps{
+			Attributes: templ.Attributes{"aria-controls": "mail-sidebar", "aria-expanded": "false", "aria-label": "Open navigation", "data-drawer-trigger": "mail-sidebar"},
+			Class:      bottombar.ControlClass,
+			Corner:     button.IconCornerSquircle,
+			Icon:       icons.Menu,
+			Size:       button.IconSizeLg,
+			Tooltip:    "Navigation",
+		})
+		if in.Chat != nil {
+			@segmented.Segmented(segmented.Props{
+				Attributes: templ.Attributes{"data-shell-area": "other"},
+				Class:      "flex-1 [--segmented-inset:3px] max-docked:h-11 max-docked:py-0",
+				ID:         "mail-shell-switch",
+				Label:      "Show",
+				Items: []segmented.Item{
+					{Active: !in.ChatOpen, Attributes: templ.Attributes{"data-shell-switch": "mail"}, Href: cmp.Or(in.BrandHref, "/"), Icon: icons.Inbox, Label: "Main"},
+					{Active: in.ChatOpen, Attributes: templ.Attributes{"data-shell-switch": "chat"}, Badge: chatRailToggleBadge(), Href: chatHref(cmp.Or(in.BrandHref, "/")), Icon: icons.Chat, Label: "Chat"},
+				},
+			})
+			<div class="ml-auto grid shrink-0">
+				@button.ButtonIcon(button.IconProps{
+					Attributes: NewChatAttributes(templ.Attributes{"data-shell-action": "new-chat"}),
+					Class:      utils.TwMerge(bottombar.ControlClass, "invisible col-start-1 row-start-1 group-has-[[data-chat-rail][data-drawer-open]]/shell:visible"),
+					Corner:     button.IconCornerSquircle,
+					Icon:       icons.ChatNew,
+					Size:       button.IconSizeLg,
+					Tooltip:    "New chat",
+				})
+			</div>
+		}
+	}
+}
+
+const NewChatDisabled = `!!window.housecatChatRail?.newChatEmpty?.()`
+
+func NewChatAttributes(attrs templ.Attributes) templ.Attributes {
+	out := templ.Attributes{"data-chat-id": "new", "data-chat-open": true, "hx-live:disabled": NewChatDisabled}
+	for k, v := range attrs {
+		out[k] = v
+	}
+	return out
+}
+
+templ mobileNavigationClose() {
+	<div class="invisible absolute inset-x-0 bottom-full mb-3 flex justify-center group-data-[drawer-open]/drawer:visible docked:hidden">
+		<div class="sr-only has-[:focus-visible]:not-sr-only">
+			@button.Button(button.Props{
+				Attributes: templ.Attributes{"data-drawer-close": true},
+				Class:      "transition-colors",
+				Size:       button.SizeSm,
+				Variant:    button.VariantOutline,
+			}) {
+				Close navigation
+			}
+		</div>
+	</div>
+}
+
+templ MailSidebarScript() {
+	<template data-script="mail-sidebar"></template>
+}
+
+templ MailNavigationScript() {
+	@templ.JSONScript("settings-card-paths", []string{})
+	<template data-script="content-navigation"></template>
+	<template data-script="mail-navigation"></template>
+}
+
+const chatToggleLabelExpression = `document.querySelector('[data-chat-rail]').getAttribute('data-docked') === 'expanded' ? 'Close chat' : 'Open chat'`
+
+templ ChatRail(chat templ.Component, open bool) {
+	<div class="contents [--drawer-width:100%] docked:[--drawer-width:var(--shell-rail-width)]">
+		@drawer.Drawer(drawer.Props{
+			Attributes:     templ.Attributes{"data-chat-rail": true},
+			Class:          "max-docked:top-[calc(-1*var(--topbar-height))] max-docked:z-46 max-docked:bg-background max-docked:duration-200 max-docked:ease-out max-docked:motion-reduce:transition-none docked:bg-white data-[docked=expanded]:docked:z-[80] max-docked:[&:not([data-drawer-open])>[data-slot=drawer-clip]]:duration-200",
+			CollapsedWidth: drawer.CollapsedHidden,
+			Compact:        drawer.CompactView,
+			Docked:         chatRailDocked(open),
+			Handle:         chatRailToggle(open),
+			ID:             "mail-chat-rail",
+			Label:          "Chat",
+			Open:           open,
+			Side:           drawer.SideRight,
+		}) {
+			@chat
+		}
+	</div>
+	@ChatRailScript()
+}
+
+templ chatRailToggle(open bool) {
+	@tooltip.Tooltip(tooltip.Props{
+		PopupAttributes: templ.Attributes{"hx-live:text": chatToggleLabelExpression},
+		Side:            tooltip.SideLeft,
+		Text:            railToggleLabel(open),
+	}) {
+		@button.EdgeToggle(button.EdgeToggleProps{
+			Attributes: templ.Attributes{
+				"data-chat-rail-toggle": true,
+				"hx-live:aria-label":    chatToggleLabelExpression,
+			},
+			Badge:    chatRailToggleBadge(),
+			Class:    "right-full max-docked:hidden",
+			Edge:     button.EdgeRight,
+			Expanded: open,
+			Icon:     icons.Chat,
+			ID:       "mail-chat-rail-toggle",
+			Label:    railToggleLabel(open),
+			Text:     "Chat",
+		})
+	}
+}
+
+templ chatRailToggleBadge() {
+	<span class="flex" data-chat-rail-toggle-status data-thread-status="">
+		@codexui.LiveStatusDots(codexui.LiveStatusDotsIn{Reverse: true})
+	</span>
+}
+
+func railToggleLabel(open bool) string {
+	if open {
+		return "Close chat"
+	}
+	return "Open chat"
+}
+
+func chatRailDocked(open bool) drawer.Docked {
+	if open {
+		return drawer.DockedExpanded
+	}
+	return drawer.DockedCollapsed
+}
+
+templ ChatRailScript() {
+	<template data-script="chat-rail" data-chat-param={ ChatParam } data-chat-path={ codexui.Path } data-content-id={ codexui.MailContentID } data-thread-created-event={ codexui.Namespace + ":thread-created" } data-thread-deleted-event={ codexui.Namespace + ":thread-deleted" }></template>
+}

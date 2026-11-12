@@ -66,8 +66,7 @@ function highlightNew(root) {
   });
 }
 window.addEventListener('load', () => highlightNew());
-document.body.addEventListener('htmx:afterSwap', evt => highlightNew(evt.detail.target));
-document.body.addEventListener('htmx:oobAfterSwap', evt => highlightNew(evt.detail.target));
+document.body.addEventListener('htmx:after:swap', () => highlightNew());
 function handlePrevClick(btn, event) {
   const span = btn.closest('[id^="prev-buttons-"]');
   if (!span) return;

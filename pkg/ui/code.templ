@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/housecat-inc/scratch/ui/app"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -87,7 +88,7 @@ templ overviewItem(r repo.Repo) {
 							Attributes: templ.Attributes{
 								"hx-post":         "/sessions",
 								"hx-vals":         fmt.Sprintf(`{"dir":"%s","prompt":"commit then push local changes","redirect":"1"}`, r.Path),
-								"hx-disabled-elt": "this",
+								"hx-disable": "this",
 							},
 						}) {
 							Commit &amp; Push
@@ -101,7 +102,7 @@ templ overviewItem(r repo.Repo) {
 							Attributes: templ.Attributes{
 								"hx-post":         "/sessions",
 								"hx-vals":         fmt.Sprintf(`{"dir":"%s","prompt":"git pull remote changes","redirect":"1"}`, r.Path),
-								"hx-disabled-elt": "this",
+								"hx-disable": "this",
 							},
 						}) {
 							Pull
@@ -140,12 +141,10 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@Head(title)
-		<body>
+		<body class={ app.BodyClass }>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(subnav.Shell),
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Footer:     ToolComposer(),
 				Nav:        toolNavItems("code", subnav.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {
@@ -162,12 +161,10 @@ templ DiffPage(p DiffProps) {
 		@MailHead(p.Repo.Slug() + " · diff") {
 			@DiffHeadExtras()
 		}
-		<body>
+		<body class={ app.BodyClass }>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(p.Shell),
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Footer:     ToolComposer(),
 				Nav:        toolNavItems("code", p.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {
@@ -338,7 +335,7 @@ templ PrevButtonsInner(s ExpandSpot) {
 			s.Slug, url.QueryEscape(s.Path), s.FullFrom, s.FullTo, s.Offset, url.QueryEscape(s.HunkKey)) }
 		hx-target={ "#prev-buttons-" + s.HunkKey }
 		hx-swap="outerHTML"
-		hx-on::before-request="handlePrevClick(this, event)">
+		hx-on::before:request="handlePrevClick(this, event)">
 		@lucide.Maximize(templ.Attributes{"class": "w-3.5 h-3.5"})
 	</button>
 	<button type="button" title="Expand context"
@@ -347,7 +344,7 @@ templ PrevButtonsInner(s ExpandSpot) {
 			s.Slug, url.QueryEscape(s.Path), s.From, s.To, s.Direction, s.Bound, s.Offset, url.QueryEscape(s.HunkKey)) }
 		hx-target={ "#prev-buttons-" + s.HunkKey }
 		hx-swap="outerHTML"
-		hx-on::before-request="handlePrevClick(this, event)">
+		hx-on::before:request="handlePrevClick(this, event)">
 		@lucide.Plus(templ.Attributes{"class": "w-3.5 h-3.5"})
 	</button>
 }
@@ -538,7 +535,7 @@ templ CommentForm(p CommentFormProps) {
 		hx-post={ fmt.Sprintf("/code/%s/comments", p.Slug) }
 		hx-target={ "#comment-thread-" + p.Anchor }
 		hx-swap="outerHTML"
-		hx-on::after-request="if(event.detail.successful)this.closest('[id^=comment-form-]').innerHTML=''">
+		hx-on::after:swap="if(event.detail.ctx.response.status<400)this.closest('[id^=comment-form-]').innerHTML=''">
 		<input type="hidden" name="path" value={ p.Path }/>
 		<input type="hidden" name="side" value={ p.Side }/>
 		<input type="hidden" name="line" value={ strconv.Itoa(p.Line) }/>

@@ -1,0 +1,291 @@
+package navitem
+
+import (
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// Current is a row's aria-current value. Exactly one row per render should
+// carry CurrentPage: the row for what fills the main pane. A row selected in
+// its own list while something else fills the main pane -- a chat open in the
+// rail while a mailbox shows -- carries CurrentTrue instead, so both keep the
+// selected styling but a page reader is told which one is the page.
+type Current string
+
+const (
+	CurrentNone Current = ""
+	CurrentPage Current = "page"
+	CurrentTrue Current = "true"
+)
+
+// PageIf is CurrentPage when active, CurrentNone otherwise: the common case,
+// a row in a list with no other list's selection to keep distinct from it.
+func PageIf(active bool) Current {
+	if active {
+		return CurrentPage
+	}
+	return CurrentNone
+}
+
+// TrueIf is CurrentTrue when active, CurrentNone otherwise: a row selected in
+// its own list while another row elsewhere is the page.
+func TrueIf(active bool) Current {
+	if active {
+		return CurrentTrue
+	}
+	return CurrentNone
+}
+
+// In is one row of a sidebar list. Children render after the label, ahead of
+// the count, so a status dot sits against the text it belongs to.
+type In struct {
+	// Action is a control for the row, such as a ⋮ opening the row's menu,
+	// drawn at its end outside the link. Docked it shows over the count
+	// while the row is hovered, holds keyboard focus or has its menu open;
+	// below docked it always shows, after the count.
+	Action templ.Component
+	// Current is the row's aria-current value: CurrentNone, CurrentPage or
+	// CurrentTrue.
+	Current Current
+	// Attributes render in the order an Attributer gives them, so a caller
+	// whose order matters passes templ.OrderedAttributes.
+	Attributes templ.Attributer
+	Class      string
+	Count      string
+	// CountID names the count part for a script that fills it in by id, as
+	// the mail sidebar's counts do; the part renders whenever CountID is set,
+	// even with no count yet. Without one it renders only when Count has
+	// something to show.
+	CountID string
+	Href    string
+	Icon    icons.Name
+	// IconCollapsedOnly keeps Icon out of an expanded row, which leads with
+	// its label, and draws it only in a collapsed list: one that sets
+	// --nav-row-collapsed to 1, where the icon slides in over the label at
+	// every other row's icon x-position, on a cover of the row's own fill
+	// that feathers out over the clipped text.
+	IconCollapsedOnly bool
+	// IconComponent draws a glyph outside the semantic set, or one at a size
+	// of its own, and wins over Icon.
+	IconComponent templ.Component
+	Label         string
+	// Tooltip nil leaves the row unwrapped with the label as its title; an
+	// empty one still wraps it, and the tooltip script keeps an empty tooltip
+	// shut.
+	Tooltip *string
+}
+
+// ItemIn is a row as a list item, for the lists whose <li> carries an id or a
+// data-slot of its own.
+type ItemIn struct {
+	ID      string
+	NavItem In
+	Slot    string
+}
+
+templ Item(in ItemIn) {
+	<li
+		if in.ID != "" {
+			id={ in.ID }
+		}
+		if in.Slot != "" {
+			data-slot={ in.Slot }
+		}
+	>
+		@NavItem(in.NavItem) {
+			{ children... }
+		}
+	</li>
+}
+
+templ NavItem(in In) {
+	if in.Tooltip != nil {
+		@tooltip.Tooltip(tooltip.Props{Side: tooltip.SideRight, Text: *in.Tooltip}) {
+			@link(in) {
+				{ children... }
+			}
+		}
+	} else {
+		@link(in) {
+			{ children... }
+		}
+	}
+}
+
+// CountOf is what a row's Count shows for n: nothing for zero or less, so an
+// id-less count part stays out of the row.
+func CountOf(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strconv.Itoa(n)
+}
+
+templ countPart(id, count string, action bool) {
+	<span
+		if id != "" {
+			id={ id }
+		}
+		data-slot="nav-item-count"
+		class={ utils.TwMerge(countClass, utils.If(action, countUnderActionClass)) }
+	>{ count }</span>
+}
+
+templ link(in In) {
+	<span data-slot="nav-item-surface"
+		{ surfaceAttributes(in)... }
+		class={ utils.TwMerge("squircle-pill relative isolate ms-(--nav-row-margin-start) me-(--nav-row-margin-end) flex h-(--nav-row-height) min-w-0 cursor-pointer items-center gap-[14px] bg-(--nav-row-fill) ps-(--nav-row-icon-start) pe-[calc(var(--nav-row-inset-end)_-_var(--nav-row-margin-end))] type-body-200 text-foreground [--nav-row-fill:transparent] [--nav-row-icon-start:calc(var(--nav-row-inset-start)_-_var(--nav-row-margin-start)_+_min(var(--nav-row-depth),var(--nav-row-max-depth))_*_var(--nav-row-indent-step))] hover:[--nav-row-fill:color-mix(in_srgb,var(--foreground)_3%,transparent)] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:outline-none has-[:focus-visible]:ring-inset has-[>[aria-current]]:type-body-200-heavy has-[>[aria-current]]:text-primary has-[>[aria-current]]:[--nav-row-fill:var(--color-selected)] max-docked:type-body-300 max-docked:has-[>[aria-current]]:type-body-300-heavy docked:squircle-pill-e", pressClass, utils.If(in.Action != nil, utils.TwMerge("group/nav-surface", holdClass)), in.Class) }
+	>
+		<a
+			data-slot="nav-item"
+			href={ templ.URL(in.Href) }
+			if in.Tooltip == nil {
+				title={ in.Label }
+			}
+			if in.Current != CurrentNone {
+				aria-current={ string(in.Current) }
+			}
+			class={ utils.TwMerge(button.StretchedControlClass, "group/nav-item") }
+			{ attributes(in)... }
+		>
+			@glyph(in)
+			<span data-slot="nav-item-label" class="min-w-0 flex-1 truncate">{ in.Label }</span>
+			{ children... }
+			if in.CountID != "" || in.Count != "" {
+				@countPart(in.CountID, in.Count, in.Action != nil)
+			}
+		</a>
+		@collapsedGlyph(in)
+		@actionPart(in.Action)
+	</span>
+}
+
+templ actionPart(action templ.Component) {
+	if action != nil {
+		<span data-slot="nav-item-action" class={ actionClass }>
+			@action
+		</span>
+	}
+}
+
+templ glyph(in In) {
+	if !in.IconCollapsedOnly && hasIcon(in) {
+		<span data-slot="nav-item-icon" class="size-(--nav-row-icon-size) shrink-0 text-muted-foreground group-aria-[current]/nav-item:text-primary">
+			@iconContent(in)
+		</span>
+	}
+}
+
+func hasIcon(in In) bool {
+	return in.IconComponent != nil || in.Icon != ""
+}
+
+// iconContent is a row's glyph: IconComponent when set, else Icon.
+templ iconContent(in In) {
+	if in.IconComponent != nil {
+		@in.IconComponent
+	} else {
+		@icons.Render(in.Icon, icons.Props{Size: 20})
+	}
+}
+
+// collapsedGlyph is an IconCollapsedOnly row's icon, laid over the label
+// outside the link (whose children the stretched control lifts) so the
+// pointer goes through it to the link. Its clip box spans the row from its
+// start to the icon's end plus the feather, and never past the row's end;
+// inside it, the cover is translated a whole width to the start, out of the
+// clip, by --nav-row-collapsed 0, and slides home as the token turns 1, over
+// the label the shrinking row is truncating. The cover paints the sidebar's
+// background under the row's own --nav-row-fill, so it matches a hovered or
+// current row. The label names the row, so the icon is aria-hidden.
+templ collapsedGlyph(in In) {
+	if in.IconCollapsedOnly && hasIcon(in) {
+		<span data-slot="nav-item-collapsed-icon" aria-hidden="true" class={ collapsedClipClass }>
+			<span class={ collapsedCoverClass }>
+				<span class="size-(--nav-row-icon-size) shrink-0 text-muted-foreground in-[[data-slot=nav-item-surface]:has(>[aria-current])]:text-primary">
+					@iconContent(in)
+				</span>
+			</span>
+		</span>
+	}
+}
+
+func attributes(in In) templ.Attributer {
+	var out templ.OrderedAttributes
+	if in.Attributes == nil {
+		return out
+	}
+	for _, attr := range in.Attributes.Items() {
+		if attr.Key != "data-tour-anchor" && attr.Key != "style" {
+			out = append(out, attr)
+		}
+	}
+	return out
+}
+
+func surfaceAttributes(in In) templ.Attributer {
+	var out templ.OrderedAttributes
+	if in.Attributes == nil {
+		return out
+	}
+	for _, attr := range in.Attributes.Items() {
+		if attr.Key == "data-tour-anchor" || attr.Key == "style" {
+			out = append(out, attr)
+		}
+	}
+	return out
+}
+
+// countClass is a row's count; countUnderActionClass hides it, keeping its
+// place, while the row's Action shows over it.
+const (
+	countClass            = "type-caption-100 text-muted-foreground group-aria-[current]/nav-item:type-caption-100-heavy group-aria-[current]/nav-item:text-primary empty:hidden max-docked:type-body-200 max-docked:group-aria-[current]/nav-item:type-body-200-heavy"
+	countUnderActionClass = "docked:no-touch:group-hover/nav-surface:invisible docked:no-touch:group-has-[:focus-visible]/nav-surface:invisible docked:no-touch:group-has-[[aria-expanded=true]]/nav-surface:invisible"
+)
+
+// actionClass lifts a row's Action over the link's stretched hit area. Below
+// docked it follows the count; docked it lies over the count at the row's
+// end and shows only while the row is hovered, holds keyboard focus, or has
+// the action's menu open. Docked it sits as far from the row's end as the
+// row's 34px leaves above and below a 24px (IconSizeXs) action, so the gap
+// is even on its three outer sides. A touch screen cannot hover, so there
+// it follows the count docked too, always showing, at its docked size.
+const actionClass = "relative z-10 flex shrink-0 items-center docked:no-touch:absolute docked:no-touch:inset-y-0 docked:no-touch:end-[5px] docked:no-touch:opacity-0 docked:no-touch:group-hover/nav-surface:opacity-100 docked:no-touch:group-has-[:focus-visible]/nav-surface:opacity-100 docked:no-touch:group-has-[[aria-expanded=true]]/nav-surface:opacity-100"
+
+// pressClass tints a row while a finger is down on its link, the tint the
+// row-More card's items take (ui/dom/rowmore.ts), in place of the browser's
+// own tap highlight: a touch screen has no hover to say a row was hit
+// before the page moves on.
+const pressClass = "touch:[-webkit-tap-highlight-color:transparent] touch:has-[>a:active]:[--nav-row-fill:var(--color-muted)]"
+
+// holdClass leaves a long press on a row with an Action to the row, which
+// opens the Action's menu (ui/dom/navhold.ts), rather than to the browser,
+// which would select the row's text or preview its link.
+const holdClass = "touch:select-none touch:[-webkit-touch-callout:none]"
+
+// SectionHeaderClass is a sidebar section's <summary>. Below docked it is at
+// least a row tall and its text a size up, so in the phone sheet a header is
+// a 44px target like the rows under it, reads beside their larger text, and
+// a finger on it tints it as one on a row does.
+const SectionHeaderClass = "group/nav-section sticky top-0 z-[1] flex cursor-pointer list-none items-center bg-(--mail-sidebar-bg) ps-(--nav-row-inset-start) pe-[calc(var(--nav-row-inset-end)_-_var(--nav-row-margin-end))] pt-3 pb-1 type-label-100-heavy leading-[inherit] tracking-[0.5px] text-(--gm-secondary) marker:hidden max-docked:min-h-(--nav-row-height) max-docked:text-[13.5px] docked:text-[11px] touch:[-webkit-tap-highlight-color:transparent] touch:active:bg-muted [&::-webkit-details-marker]:hidden"
+
+// collapsedClipClass is the box an IconCollapsedOnly icon slides within, from
+// the row's start to the icon's end plus a 4-spacing feather. It stands the
+// row's 2px focus ring (ring-2, drawn under the row's content) in from the
+// row's start, top and bottom so the cover never hides it, and it stops at
+// the row's own end less the ring: in a column narrower than the feather it
+// would otherwise reach past the row, painting its fill into the margin and
+// widening the scroll container's content. --nav-row-icon-start, which the
+// surface sets as its start padding, is where every row's icon starts;
+// --nav-row-icon-end is where this one ends, measured from the clip's start.
+const collapsedClipClass = "pointer-events-none absolute inset-y-0.5 start-0.5 z-20 w-[calc(var(--nav-row-icon-end)_+_var(--spacing)_*_4)] max-w-[calc(100%_-_var(--spacing))] overflow-hidden [--nav-row-icon-end:calc(var(--nav-row-icon-start)_+_var(--nav-row-icon-size)_-_var(--spacing)_*_0.5)]"
+
+// collapsedCoverClass slides with --nav-row-collapsed over the width animation
+// the collapsed column is planned with, and jumps under reduced motion. Its
+// feather is placed from the icon's end rather than from the cover's, so a
+// clip cut short by a narrow row never fades the icon itself.
+const collapsedCoverClass = "flex h-full w-full translate-x-[calc((var(--nav-row-collapsed)_-_1)_*_100%)] items-center bg-(--mail-sidebar-bg) bg-[linear-gradient(var(--nav-row-fill),var(--nav-row-fill))] [mask-image:linear-gradient(to_right,#000_var(--nav-row-icon-end),transparent_calc(var(--nav-row-icon-end)_+_var(--spacing)_*_4))] ps-[calc(var(--nav-row-icon-start)_-_var(--spacing)_*_0.5)] transition-[translate] duration-[180ms] ease-out motion-reduce:transition-none rtl:translate-x-[calc((1_-_var(--nav-row-collapsed))_*_100%)] rtl:[mask-image:linear-gradient(to_left,#000_var(--nav-row-icon-end),transparent_calc(var(--nav-row-icon-end)_+_var(--spacing)_*_4))]"

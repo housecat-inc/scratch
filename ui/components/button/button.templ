@@ -1,0 +1,489 @@
+// templui component button - version: v1.5.0 installed by templui v1.5.0
+// 📚 Documentation: https://templui.io/docs/components/button
+// LOCAL MODIFICATION: emits data-slot and delegates markup to ButtonUnstyled
+// (button_unstyled.templ). `templui add button` reverts this file; re-apply
+// from git.
+package button
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"slices"
+	"strings"
+
+	"github.com/cockroachdb/errors"
+
+	"github.com/housecat-inc/scratch/ui/components/kbd"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Variant string
+type Size string
+type Type string
+
+const (
+	VariantDefault     Variant = "default"
+	VariantDestructive Variant = "destructive"
+	VariantOutline     Variant = "outline"
+	VariantSecondary   Variant = "secondary"
+	VariantLink        Variant = "link"
+)
+
+const (
+	SizeDefault Size = "default"
+	SizeSm      Size = "sm"
+)
+
+// sizes and variants are every value Button's Size and Variant take, sizes
+// widest first. A new constant goes in its list too: the tests hold the lists
+// to the stylesheet, a utility in Class may name only a value listed here, and
+// Storybook builds its Button controls and contact sheet from Sizes and
+// Variants and holds its safelist to them.
+var (
+	sizes    = []Size{SizeDefault, SizeSm}
+	variants = []Variant{VariantDefault, VariantDestructive, VariantLink, VariantOutline, VariantSecondary}
+)
+
+// Sizes returns every value Button's Size takes, widest first.
+func Sizes() []Size {
+	return slices.Clone(sizes)
+}
+
+// Variants returns every value Button's Variant takes.
+func Variants() []Variant {
+	return slices.Clone(variants)
+}
+
+const (
+	TypeButton Type = "button"
+	TypeReset  Type = "reset"
+	TypeSubmit Type = "submit"
+)
+
+type Props struct {
+	ID string
+	// Class is merged after everything Button renders, so a caller's utility
+	// replaces Button's own for the same property. It is also where a call
+	// site changes the look under a Tailwind variant: a size or variant
+	// utility written out under a prefix -- docked: for a breakpoint,
+	// has-[[aria-pressed=true]]: for a state -- re-sets the paint variables. A
+	// bare one replaces the utility the prop renders. Either must name a
+	// constant; Button returns an error naming any that does not.
+	Class      string
+	Attributes templ.Attributes
+	Variant    Variant
+	Size       Size
+	FullWidth  bool
+	Href       string
+	// IconStart draws before the label, at the inline-start edge -- start
+	// meaning the logical-property direction, not "the more important icon"
+	// when both are set.
+	IconStart icons.Name
+	// IconEnd draws after the label, at the inline-end edge. Both may be set
+	// together; each renders in its own data-slot="button-glyph" with a
+	// data-position modifier, so CSS can show or hide either independently of
+	// the other.
+	IconEnd icons.Name
+	// Kbd is the shortcut that triggers the button, drawn in the end glyph
+	// slot after any IconEnd. Its variant follows the button's: inverse on the
+	// filled default and destructive buttons, default everywhere else.
+	Kbd []kbd.Key
+	// Multiline lets a label that is a sentence wrap instead of running past
+	// the button's edge. A wrapping button cannot hold a fixed height, so the
+	// size's height becomes a floor it grows from rather than a ceiling, and
+	// its lines stop being centred: a wrapped label reads as text, not as a
+	// stack of centred fragments.
+	Multiline bool
+	Target    string
+	Disabled  bool
+	Type      Type
+	Form      string
+	// Tooltip is a label shown while the pointer rests on the button or it
+	// holds keyboard focus. It is a visual label only: a button whose text
+	// does not already say the same thing needs an aria-label as well.
+	Tooltip string
+	// State names the entry of States the button starts in; empty means the
+	// first.
+	State string
+	// States make the button one control with several faces -- a send button
+	// that reads Chat until a tool is ready, then shows the arrow that runs it.
+	// A state with an Icon draws that glyph alone, squaring the button, and
+	// its Label is only its accessible name; a state without one shows its
+	// Label as text. They replace the children, IconStart and IconEnd. Every
+	// state renders, so script switches between them in place
+	// (button_state.ts) and focus stays on the button through the change.
+	States []IconState
+}
+
+// current is the state the button starts in: the one State names, or the
+// first when it names none.
+func (b Props) current() IconState {
+	current := b.States[0]
+	for _, state := range b.States {
+		if state.Name == b.State {
+			current = state
+		}
+	}
+	return current
+}
+
+// Button is a plain Go function rather than a templ one so it can read its
+// caller's children before templ's own generated preamble would otherwise
+// clear them: it renders them once, itself, into label, and hands buttonElement
+// that string rather than the raw children -- which is what lets an icon+label
+// call site keep passing its label as a bare child while the component decides,
+// from the rendered result, whether a label slot exists at all.
+func Button(props ...Props) templ.Component {
+	var p Props
+	if len(props) > 0 {
+		p = props[0]
+	}
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		if err := p.validate(); err != nil {
+			return err
+		}
+		var labelBuf bytes.Buffer
+		if err := templ.GetChildren(ctx).Render(ctx, &labelBuf); err != nil {
+			return errors.Wrap(err, "rendering button label")
+		}
+		element := buttonElement(p, labelBuf.String())
+		if p.Tooltip == "" {
+			return errors.Wrap(element.Render(ctx, w), "rendering button")
+		}
+		tt := tooltip.Tooltip(tooltip.Props{Text: p.Tooltip})
+		return errors.Wrap(tt.Render(templ.WithChildren(ctx, element), w), "rendering button tooltip")
+	})
+}
+
+// The label slot carries display:contents, so it names the part without
+// becoming a box. The button is the flex container and whatever a caller passed
+// as children stays a flex item of it: that is what keeps the button's gap
+// between a bare glyph and its text, and what lets a call site put
+// justify-between on the button and have it separate the children it passed.
+// Hiding the label still works, because display:none replaces contents rather
+// than nesting inside it.
+//
+// A label that is only text is a box instead, trimmed to its cap height so the
+// button centres its capitals; text-box has nothing to trim on a contents
+// span. A label with markup keeps contents, so its parts stay flex items.
+// StretchedControlClass keeps labels inside the native control while its
+// absolutely positioned hit area covers the painted surface's padding.
+// Visible children sit above that area so secondary actions retain their own
+// pointer targets rather than being covered by the stretched control.
+const StretchedControlClass = "flex min-w-0 flex-1 [align-items:inherit] [justify-content:inherit] gap-[inherit] self-stretch [text-align:inherit] outline-none *:relative *:z-10 after:absolute after:inset-0 after:z-0 after:content-['']"
+
+templ buttonElement(p Props, label string) {
+	<span data-slot="button-surface" class={ p.classes() } data-size={ string(p.size()) } data-variant={ string(p.variant()) } { p.surfaceAttributes()... }>
+		@ButtonUnstyled(ButtonUnstyledProps{
+			Attributes: p.dataAttributes(),
+			Class:      StretchedControlClass,
+			Disabled:   p.Disabled,
+			Form:       p.Form,
+			Href:       p.Href,
+			ID:         p.ID,
+			Slot:       "button",
+			Target:     p.Target,
+			Type:       p.Type,
+		}) {
+			if len(p.States) > 0 {
+				@buttonStates(p)
+			} else {
+				if p.IconStart != "" {
+					@buttonIconSlot(p.IconStart, "start")
+				}
+				if label != "" {
+					<span class={ utils.IfElse(strings.Contains(label, "<"), "contents", "cap-trim supports-text-box:py-1") } data-slot="button-label">
+						@templ.Raw(label)
+					</span>
+				}
+				@buttonEndGlyphs(p)
+			}
+		}
+	</span>
+}
+
+// buttonStates draws every one of a stateful button's faces and hides all but
+// the current one. data-icon-only marks a face that is a glyph alone, which is
+// what squares the button while it shows.
+templ buttonStates(p Props) {
+	{{ current := p.current() }}
+	for _, state := range p.States {
+		<span data-slot="button-state" data-name={ state.Name } data-label={ state.Label } data-icon-only?={ state.Icon != "" } hidden?={ state.Name != current.Name } if state.Icon == "" { class="cap-trim supports-text-box:py-1" }>
+			if state.Icon != "" {
+				@icons.Render(state.Icon)
+			} else {
+				{ state.Label }
+			}
+		</span>
+	}
+}
+
+// buttonEndGlyphs is one child of ButtonUnstyled however many end glyphs the
+// button has. Whitespace between two children of a component's children block
+// renders as a space, so a second end-glyph sibling there would add a space to
+// every button, with a shortcut or without; at a templ's top level, as here,
+// whitespace is dropped.
+templ buttonEndGlyphs(p Props) {
+	if p.IconEnd != "" {
+		@buttonIconSlot(p.IconEnd, "end")
+	}
+	if len(p.Kbd) > 0 {
+		<span data-slot="button-glyph" data-position="end">
+			@kbd.KbdBlock(kbd.BlockProps{Props: kbd.Props{Class: kbdPaint, Keys: p.Kbd, Variant: p.kbdVariant()}})
+		</span>
+	}
+}
+
+// kbdPaint colours the shortcut chip from two variables every variant utility
+// sets, so the chip follows a variant written in Class under a breakpoint the
+// way the button around it does. Through TwMerge it replaces the colours the
+// chip's own variant paints.
+const kbdPaint = "border-(--button-kbd-border) text-(--button-kbd-fg)"
+
+// kbdVariant names the surface Variant puts the chip on, inverse for the
+// filled variants. Its colours come from kbdPaint, so what this sets is the
+// chip's data-variant, which names the prop's surface the way Button's own
+// data-variant names the prop's value.
+func (b Props) kbdVariant() kbd.Variant {
+	switch b.variant() {
+	case VariantDefault, VariantDestructive:
+		return kbd.VariantInverse
+	default:
+		return kbd.VariantDefault
+	}
+}
+
+// buttonIconSlot renders one of Button's two icons under the shared
+// "button-glyph" slot name, with data-position as the modifier that tells the
+// two apart -- a data-slot names the component part, and position modifies
+// that part rather than naming a different one.
+//
+// The name is "button-glyph" rather than "button-icon" because ButtonIcon
+// stamps "button-icon" on its whole element to mark an icon-only button. One
+// name for both would make [data-slot=button-icon] match a labelled Button's
+// glyph as well, so a selector meaning "an icon-only button" would have to
+// exclude spans by hand.
+templ buttonIconSlot(name icons.Name, position string) {
+	<span data-slot="button-glyph" data-position={ position }>
+		@icons.Render(name)
+	</span>
+}
+
+// dataAttributes stamps the resolved variant and size onto the element so both
+// are greppable in the DOM and in a page snapshot, where they are otherwise only
+// inferable by reading a long merged class string. Resolved, not raw: an unset
+// Variant renders as "default" rather than an empty attribute. They name the
+// props alone; a size or variant utility from Class shows in the class
+// attribute, not here.
+func (b Props) dataAttributes() templ.Attributes {
+	out := templ.Attributes{
+		"data-size":    string(b.size()),
+		"data-variant": string(b.variant()),
+	}
+	for name, value := range b.Attributes {
+		if name != "data-tour-anchor" && name != "style" {
+			out[name] = value
+		}
+	}
+	// A stateful button's name is its current state's label, which setState
+	// rewrites on every change, so a caller's own aria-label would last only
+	// until the first one.
+	if len(b.States) > 0 {
+		current := b.current()
+		out["aria-label"] = current.Label
+		out["data-state"] = current.Name
+	}
+	return out
+}
+
+func (b Props) surfaceAttributes() templ.Attributes {
+	out := templ.Attributes{}
+	for _, key := range []string{"data-tour-anchor", "style"} {
+		if value, ok := b.Attributes[key]; ok {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+// validate checks every Class token whose utility, after its variant
+// prefixes, is one of Button's own -- button-size-* or button-variant-* --
+// against sizes and variants. The utility is the text after the token's last
+// colon outside brackets and parentheses, less one leading and one trailing
+// ! (Tailwind's important marker), so an arbitrary property, whose own colon
+// sits inside its brackets, is never Button's. It runs before anything
+// renders, so a token naming no constant reaches the caller as an error
+// naming that token rather than the page as a class with no rule behind it.
+func (b Props) validate() error {
+	for _, token := range strings.Fields(b.Class) {
+		utility := strings.TrimPrefix(strings.TrimSuffix(token[variantsEnd(token):], "!"), "!")
+		if value, ok := strings.CutPrefix(utility, "button-size-"); ok && !slices.Contains(sizes, Size(value)) {
+			return errors.Newf("button class %q names no size; the sizes are %v", token, sizes)
+		}
+		if value, ok := strings.CutPrefix(utility, "button-variant-"); ok && !slices.Contains(variants, Variant(value)) {
+			return errors.Newf("button class %q names no variant; the variants are %v", token, variants)
+		}
+	}
+	return nil
+}
+
+// variantsEnd is where a Class token's utility starts: just past its last
+// colon outside brackets and parentheses, or 0 for a token with no variant. A
+// colon inside them belongs to an arbitrary value, as in data-[x=a:b] or an
+// arbitrary property, not to a variant.
+func variantsEnd(token string) int {
+	end, depth := 0, 0
+	for i := 0; i < len(token); i++ {
+		switch token[i] {
+		case '[', '(':
+			depth++
+		case ']', ')':
+			depth--
+		case ':':
+			if depth == 0 {
+				end = i + 1
+			}
+		}
+	}
+	return end
+}
+
+func (b Props) size() Size {
+	if b.Size == "" {
+		return SizeDefault
+	}
+	return b.Size
+}
+
+func (b Props) variant() Variant {
+	if b.Variant == "" {
+		return VariantDefault
+	}
+	return b.Variant
+}
+
+func (b Props) classes() string {
+	return utils.TwMerge(
+		"relative isolate inline-flex items-center justify-center type-body-200-medium whitespace-nowrap transition-all",
+		"has-[:disabled]:pointer-events-none has-[:disabled]:opacity-50 has-[:focus-visible]:ring-2 has-[>[hidden]]:hidden",
+		"has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-destructive/20 dark:has-[[aria-invalid=true]]:ring-destructive/40",
+		"shrink-0 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		"outline-none focus-visible:ring-2",
+		"aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
+		"cursor-pointer",
+		b.paintClasses(),
+		b.variantClasses(),
+		b.sizeClasses(),
+		b.paddingClasses(),
+		b.modifierClasses(),
+		utils.If(len(b.States) > 0, buttonIconOnlyClass),
+		b.Class,
+	)
+}
+
+// buttonIconOnlyClass squares a stateful button while the face it shows is a
+// glyph alone, and drops the padding a label would have wanted.
+const buttonIconOnlyClass = "has-[[data-slot=button-state][data-icon-only]:not([hidden])]:aspect-square has-[[data-slot=button-state][data-icon-only]:not([hidden])]:px-0"
+
+// paintClasses draw the button from the variables ui/css/button.css sets, and
+// are the same for every variant and size. That is the whole mechanism: a
+// variant or size is one utility that sets those variables, so an override at
+// a breakpoint re-sets them under a prefix, and no paint class needs a
+// prefixed twin.
+//
+// Lengths take the bracket form because the Go TwMerge does not file the
+// parenthesised variable form of a height utility as a height, and a caller's
+// fixed height has to replace it. Colours take the untyped parenthesised form,
+// which Tailwind compiles to a colour and TwMerge files as one, so a caller's
+// text colour replaces it rather than sitting beside it.
+func (b Props) paintClasses() string {
+	return utils.TwMerge(
+		"bg-(--button-bg) text-(--button-fg) shadow-(--button-shadow)",
+		"border-[length:var(--button-border-width)] border-(--button-border)",
+		"underline-offset-4 hover:bg-(--button-bg-hover) hover:[text-decoration-line:var(--button-decoration-hover)]",
+		"focus-visible:border-(--button-border-focus) focus-visible:ring-(--button-ring)",
+		"has-[:focus-visible]:border-(--button-border-focus) has-[:focus-visible]:ring-(--button-ring)",
+	)
+}
+
+// variantClasses is the variant's utility, which sets the variables the paint
+// classes read. Each arm is a literal so Tailwind's scanner finds it.
+func (b Props) variantClasses() string {
+	switch b.variant() {
+	case VariantDestructive:
+		return "button-variant-destructive"
+	case VariantLink:
+		return "button-variant-link"
+	case VariantOutline:
+		return "button-variant-outline"
+	case VariantSecondary:
+		return "button-variant-secondary"
+	default:
+		return "button-variant-default"
+	}
+}
+
+// variantPaint is a Button variant's look for another component to wear: the
+// variant's utility together with the paint classes that read it. The two
+// only mean something together -- the utility alone paints nothing, and the
+// paint classes alone have no values to read.
+func variantPaint(v Variant) string {
+	p := Props{Variant: v}
+	return utils.TwMerge(p.paintClasses(), p.variantClasses())
+}
+
+// sizeClasses is the size's utility plus the size's arm: a fixed height, or
+// for a multiline label a floor it grows from, with the padding and radius
+// that arm takes. The lengths come from the size's variables, so the arm
+// reads the same at every size; the arithmetic that keeps a one-line
+// multiline button the height of a plain one is with the values, in
+// ui/css/button.css.
+func (b Props) sizeClasses() string {
+	return utils.TwMerge(
+		utils.IfElse(b.size() == SizeSm, "button-size-sm", "button-size-default"),
+		"gap-[var(--button-gap)]",
+		utils.If(b.Multiline || b.size() != SizeSm, "squircle-amt-(--button-squircle-amt)"),
+		utils.IfElse(b.Multiline,
+			"min-h-[var(--button-h)] px-[var(--button-px)] py-[var(--button-py-multiline)] squircle-(--button-radius-multiline)",
+			utils.TwMerge(
+				"h-[var(--button-h)] px-[var(--button-px)] py-[var(--button-py)]",
+				utils.IfElse(b.pillShape(), "squircle-pill", "squircle-(--button-radius)"),
+			),
+		),
+	)
+}
+
+func (b Props) pillShape() bool {
+	if b.size() == SizeSm {
+		return true
+	}
+	for _, token := range strings.Fields(b.Class) {
+		utility := strings.TrimPrefix(strings.TrimSuffix(token[variantsEnd(token):], "!"), "!")
+		if utility == "button-size-sm" {
+			return true
+		}
+	}
+	return false
+}
+
+// paddingClasses tightens the padding on whichever edge carries an icon,
+// leaving the label's edge at the size's base padding. Both props are known
+// at render time, so this drives the padding directly from them rather than
+// guessing from the DOM with has-[>svg], which set both edges together and
+// starved the label side whenever the button had one.
+func (b Props) paddingClasses() string {
+	return utils.TwMerge(
+		utils.If(b.IconStart != "", "ps-[var(--button-px-icon)]"),
+		utils.If(b.IconEnd != "" || len(b.Kbd) > 0, "pe-[var(--button-px-icon)]"),
+	)
+}
+
+func (b Props) modifierClasses() string {
+	return utils.TwMerge(
+		utils.If(b.FullWidth, "w-full"),
+		utils.If(b.Multiline, "max-w-full justify-start whitespace-normal text-left"),
+	)
+}

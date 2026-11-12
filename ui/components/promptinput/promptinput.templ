@@ -1,0 +1,153 @@
+package promptinput
+
+import (
+	"cmp"
+	"strconv"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/inputpill"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type In struct {
+	Above      templ.Component
+	Attributes templ.Attributes
+	AutoGrow   bool
+	// Below renders under the text field, in the pill's first column, with
+	// Send in a column of its own: a model picker, say. Nil leaves the field
+	// as the first column on its own, exactly as a pill without it renders.
+	Below            templ.Component
+	Class            string
+	Disabled         bool
+	InputAttributes  templ.Attributes
+	MaxHeight        int
+	Name             string
+	Placeholder      string
+	SubmitAttributes templ.Attributes
+	// SubmitClass merges into the submit button's own class list via
+	// utils.TwMerge, for a caller that needs to react to the button's state
+	// from outside -- hiding it in favor of a sibling control passed through
+	// children, say -- without hand-maintaining a duplicate of its base
+	// classes. Empty leaves the button exactly as it was before this field
+	// existed.
+	SubmitClass string
+	// SubmitContent replaces the submit button's plain text content when set,
+	// for a caller that needs an icon or a reactive label rather than a
+	// static string. Nil keeps the SubmitLabel/"Send" text exactly as before.
+	SubmitContent templ.Component
+	SubmitLabel   string
+	SubmitOnEnter bool
+	// SubmitTooltip labels the submit button with a tooltip, for a caller
+	// whose submit hides its label at some widths. Empty draws none, since a
+	// tooltip repeating a label already on screen says nothing.
+	SubmitTooltip string
+	// SubmitTooltipAttributes land on the tooltip's popup, for a caller whose
+	// label changes client-side: an hx-live:text there keeps the tooltip
+	// saying what the label says.
+	SubmitTooltipAttributes templ.Attributes
+	Value                   string
+}
+
+templ PromptInput(in In) {
+	@inputpill.InputPill(inputpill.Props{
+		Attributes: utils.MergeAttributes(formAttributes(in), in.Attributes),
+		Class:      in.Class,
+		Slot:       "prompt-input",
+	}) {
+		if in.Above != nil {
+			<div class="flex min-w-0 flex-1 flex-col self-stretch">
+				@in.Above
+				@fieldColumn(in)
+			</div>
+		} else {
+			@fieldColumn(in)
+		}
+		@inputpill.Actions() {
+			{ children... }
+			if in.SubmitTooltip != "" {
+				@submitTooltip(in) {
+					@submitButton(in)
+				}
+			} else {
+				@submitButton(in)
+			}
+		}
+	}
+}
+
+templ submitButton(in In) {
+	@button.Button(button.Props{
+		Attributes: submitAttributes(in),
+		Class:      utils.TwMerge("shrink-0", inputpill.ControlHeight, in.SubmitClass),
+		Disabled:   in.Disabled,
+		Size:       button.SizeSm,
+		Type:       button.TypeSubmit,
+	}) {
+		if in.SubmitContent != nil {
+			@in.SubmitContent
+		} else {
+			{ cmp.Or(in.SubmitLabel, "Send") }
+		}
+	}
+}
+
+templ submitTooltip(in In) {
+	@tooltip.Tooltip(tooltip.Props{PopupAttributes: in.SubmitTooltipAttributes, Text: in.SubmitTooltip}) {
+		{ children... }
+	}
+}
+
+func fieldAttributes(in In) templ.Attributes {
+	label := cmp.Or(in.Placeholder, "Choose a tool or ask anything…")
+	return utils.MergeAttributes(templ.Attributes{
+		"aria-label":        label,
+		"data-prompt-field": true,
+		"disabled":          in.Disabled,
+		"name":              cmp.Or(in.Name, "prompt"),
+		"placeholder":       label,
+		"required":          true,
+		"rows":              "1",
+	}, in.InputAttributes)
+}
+
+func formAttributes(in In) templ.Attributes {
+	attrs := templ.Attributes{}
+	if in.AutoGrow {
+		attrs["data-prompt-max-height"] = strconv.Itoa(max(1, cmp.Or(in.MaxHeight, 160)))
+	}
+	// Enter sends unless an input method is committing text, which ui.js's
+	// HousecatKeys.composing tells. A page where ui.js never ran has no such
+	// fact -- and, without the app layout's KeysStub, no HousecatKeys at all --
+	// and there Enter types a new line rather than throwing.
+	if in.SubmitOnEnter {
+		attrs["data-submit-on-enter"] = true
+	}
+	return attrs
+}
+
+// submitAttributes carries data-prompt-submit onto the button through
+// button.Props.Attributes rather than as literal markup, since Button owns
+// the element and only ever spreads its Attributes onto it. The keydown
+// handler in formAttributes queries for this marker to submit on Enter, so
+// losing it here breaks Enter-to-send without failing a class assertion.
+func submitAttributes(in In) templ.Attributes {
+	attrs := templ.Attributes{"data-prompt-submit": true}
+	for name, value := range in.SubmitAttributes {
+		attrs[name] = value
+	}
+	return attrs
+}
+
+templ fieldColumn(in In) {
+	if in.Below != nil {
+		@inputpill.Stack() {
+			@inputpill.Field(inputpill.FieldProps{Attributes: fieldAttributes(in), Multiline: true, Value: in.Value})
+			@inputpill.Below() {
+				@in.Below
+			}
+		}
+	} else {
+		@inputpill.Field(inputpill.FieldProps{Attributes: fieldAttributes(in), Multiline: true, Value: in.Value})
+	}
+}

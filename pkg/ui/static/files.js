@@ -143,11 +143,11 @@ function attrSel(value) {
 function waitForTreeLoad(treeChildren) {
   return new Promise(resolve => {
     function done() {
-      treeChildren.removeEventListener('htmx:afterSwap', done);
+      treeChildren.removeEventListener('htmx:after:swap', done);
       clearTimeout(timer);
       resolve();
     }
-    treeChildren.addEventListener('htmx:afterSwap', done);
+    treeChildren.addEventListener('htmx:after:swap', done);
     const timer = setTimeout(done, 3000);
   });
 }

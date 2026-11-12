@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-rod/rod/lib/proto"
 	"github.com/housecat-inc/scratch/pkg/chat"
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/pkg/flow"
@@ -52,6 +51,33 @@ type TaskOption func(*todo.Service, db.Task) (db.Task, error)
 
 func newHarness(t *testing.T) *Harness {
 	t.Helper()
+	return newHarnessWithAgent(t, chat.EchoAgent{Delay: 10 * time.Millisecond})
+}
+
+func newCodexHarness(t *testing.T) *Harness {
+	t.Helper()
+	bin := t.TempDir()
+	stub := `#!/bin/sh
+for last; do :; done
+resume=""
+[ "$2" = "resume" ] && resume="again "
+echo '{"type":"thread.started","thread_id":"stub-thread"}'
+echo '{"type":"item.completed","item":{"id":"r1","type":"reasoning","text":"reading the stub"}}'
+echo '{"type":"item.started","item":{"id":"c1","type":"command_execution","command":"ls"}}'
+echo '{"type":"item.completed","item":{"id":"c1","type":"command_execution","command":"ls","aggregated_output":"main.go","exit_code":0}}'
+printf '{"type":"item.completed","item":{"id":"m1","type":"agent_message","text":"codex %sheard: %s"}}\n' "$resume" "$(printf %s "$last" | tail -n 1)"
+echo '{"type":"turn.completed","usage":{}}'
+`
+	if err := os.WriteFile(filepath.Join(bin, "codex"), []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HOME", t.TempDir())
+	return newHarnessWithAgent(t, chat.CodexAgent{Dir: t.TempDir()})
+}
+
+func newHarnessWithAgent(t *testing.T, agent chat.Agent) *Harness {
+	t.Helper()
 	kit := testkit.New(t)
 	clock, restore := ts.Mock(time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC))
 	t.Cleanup(restore)
@@ -75,13 +101,15 @@ func newHarness(t *testing.T) *Harness {
 	kit.R.NoError(workflows.Launch())
 	t.Cleanup(func() { workflows.Close() })
 
-	chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.New(logs))
+	chatSvc := chat.NewService(store, agent, slog.New(logs))
 	t.Cleanup(chatSvc.Close)
 	taskSvc := todo.NewService(store)
 
 	mux := http.NewServeMux()
-	mux.Handle("/chat/", chat.NewServer(chatSvc, slog.New(logs)).Handler())
-	mux.Handle("/", NewServer(taskSvc, chatSvc, flows, slog.New(logs)).Handler())
+	codex := chat.NewCodexServer(chatSvc)
+	mux.Handle("/codex", codex.Handler())
+	mux.Handle("/codex/", codex.Handler())
+	mux.Handle("/", codex.Middleware(NewServer(taskSvc, chatSvc, flows, slog.New(logs)).Handler()))
 
 	h := &Harness{
 		Harness: testkit.NewHarnessWithT(t, kit, mux),
@@ -95,17 +123,6 @@ func newHarness(t *testing.T) *Harness {
 	}
 	t.Cleanup(h.checkConsole)
 	return h
-}
-
-func (h *Harness) AllowConsole(messages ...string) {
-	h.console = append(h.console, messages...)
-}
-
-func (h *Harness) AttachFile(name, contents string) {
-	h.t.Helper()
-	path := filepath.Join(h.t.TempDir(), name)
-	h.R.NoError(os.WriteFile(path, []byte(contents), 0o644))
-	h.Page.MustElement("#chat-file").MustSetFiles(path)
 }
 
 func (h *Harness) AwaitWorkflowRunning(running bool) {
@@ -122,16 +139,6 @@ func (h *Harness) AwaitWorkflowRunning(running bool) {
 		run, err := h.Flows.Run(id)
 		return err == nil && run.Running() == running
 	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-}
-
-func (h *Harness) CaptureElement(selector string) {
-	h.t.Helper()
-	h.Page.MustElement("#chat-snap").MustClick()
-	el := h.Page.MustElement(selector)
-	box := el.MustShape().Box()
-	h.Page.Mouse.MustMoveTo(box.X+box.Width/2, box.Y+box.Height/2)
-	h.ElementVisible("#chat-select-overlay")
-	h.Page.Mouse.MustClick(proto.InputMouseButtonLeft)
 }
 
 func (h *Harness) ChatThreadCount(want int) {
@@ -165,14 +172,6 @@ func (h *Harness) EventuallyTrue(js string, args ...any) {
 func (h *Harness) Hover(selector string) {
 	h.t.Helper()
 	h.Page.MustElement(selector).MustHover()
-}
-
-func (h *Harness) InputValueContains(selector, expected string) {
-	h.t.Helper()
-	h.R.Eventuallyf(func() bool {
-		el, err := h.Page.Element(selector)
-		return err == nil && strings.Contains(el.MustProperty("value").Str(), expected)
-	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s value should contain %q", selector, expected)
 }
 
 func (h *Harness) Open(path string) {
@@ -210,7 +209,7 @@ func (h *Harness) SeedChatThread(title string) {
 	h.R.NoError(err)
 }
 
-func (h *Harness) SeedPopoutThread(messages ...string) int64 {
+func (h *Harness) SeedRailThread(messages ...string) int64 {
 	h.t.Helper()
 	thread, err := h.Chat.CreateThread("", "")
 	h.R.NoError(err)
@@ -219,6 +218,17 @@ func (h *Harness) SeedPopoutThread(messages ...string) int64 {
 		h.R.NoError(err)
 	}
 	return thread.ID
+}
+
+func (h *Harness) SeedRailThreadMessage(body string) {
+	h.t.Helper()
+	_, err := h.Store.AddMessage(db.NewMessage{
+		Author:   "user",
+		Body:     body,
+		Role:     db.MessageRoleUser,
+		ThreadID: 1,
+	})
+	h.R.NoError(err)
 }
 
 func (h *Harness) SeedSchedule() {
@@ -275,12 +285,6 @@ func (h *Harness) SelectOption(selector, value string) {
 	h.R.True(ok.Value.Bool())
 }
 
-func (h *Harness) SetPopoutState(mode string, threadID int64) {
-	h.t.Helper()
-	_, err := h.Page.Eval(`(mode, id) => sessionStorage.setItem('scratch.chat.popout', JSON.stringify({mode, threadID: String(id)}))`, mode, threadID)
-	h.R.NoError(err)
-}
-
 func (h *Harness) TaskCount(want int) {
 	h.t.Helper()
 	h.R.Eventually(func() bool {
@@ -307,11 +311,6 @@ func (h *Harness) TextEventuallyContains(selector, expected string) {
 		text, err := el.Text()
 		return err == nil && strings.Contains(text, expected)
 	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s text should contain %q", selector, expected)
-}
-
-func (h *Harness) WaitChatReady() {
-	h.t.Helper()
-	h.EventuallyTrue(`() => Boolean(window.htmx && document.querySelector("#chat-form"))`)
 }
 
 func (h *Harness) checkConsole() {

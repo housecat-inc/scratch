@@ -56,12 +56,12 @@
     if (e.key === "Escape") closeSaveModal();
   });
 
-  document.addEventListener("htmx:configRequest", function () {
+  document.addEventListener("htmx:config:request", function () {
     if (ta && window.sqlGetEditor) ta.value = window.sqlGetEditor();
   });
 
-  document.addEventListener("htmx:afterRequest", function (e) {
-    if (e.target && e.target.id === "sql-save-confirm" && e.detail.successful) {
+  document.addEventListener("htmx:after:request", function (e) {
+    if (e.target && e.target.id === "sql-save-confirm" && e.detail.ctx.response.status < 400) {
       closeSaveModal();
     }
   });

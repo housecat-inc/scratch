@@ -1,0 +1,22 @@
+package bottomfade
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+// Footer height includes its margins; navigation height includes the safe area.
+// Padding and the backdrop share these measurements so the last item clears
+// the fade without inspecting the scroll position.
+const ScrollerClass = "max-docked:scroll-pb-[calc(var(--bottom-navigation-height,0px)+var(--scroll-footer-height,0px))] max-docked:pb-[calc(var(--bottom-navigation-height,0px)+var(--scroll-footer-height,0px))]"
+
+const FooterClass = "max-docked:absolute max-docked:inset-x-0 max-docked:bottom-(--bottom-navigation-height) max-docked:z-30"
+
+const TrayClass = "max-docked:group-has-[#readerBody]/bottom-fade:not-data-[compose-active]:absolute max-docked:group-has-[#readerBody]/bottom-fade:not-data-[compose-active]:inset-x-0 max-docked:group-has-[#readerBody]/bottom-fade:not-data-[compose-active]:bottom-(--bottom-navigation-height) max-docked:group-has-[#readerBody]/bottom-fade:not-data-[compose-active]:z-30"
+
+templ Backdrop(class string) {
+	<div
+		aria-hidden="true"
+		data-slot="bottom-fade"
+		class={ utils.TwMerge("pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden h-[calc(var(--bottom-navigation-height,0px)+var(--scroll-footer-height,0px))] bg-[linear-gradient(to_bottom_in_oklch,var(--scroll-fade-stops))] bg-[length:100%_calc(100%_-_var(--bottom-fade-inset,0px))] bg-top bg-no-repeat max-docked:block", class) }
+	>
+		<div class="absolute inset-x-0 bottom-0 h-(--bottom-fade-inset) bg-background"></div>
+	</div>
+}

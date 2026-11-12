@@ -26,69 +26,40 @@ type webHarness struct {
 	Tasks *Service
 }
 
+const railPrompt = "#mail-chat-rail-content [data-prompt-field]"
+
 type webTaskOption func(*Service, db.Task) (db.Task, error)
 
 func TestWebBrowser(t *testing.T) {
-	t.Run("floating chat", func(t *testing.T) {
+	t.Run("chat panel", func(t *testing.T) {
 		tests := []webCase{
 			{
 				act: func(h *webHarness) {
-					h.Click("[data-new-chat]")
+					h.Click("[data-chat-rail-toggle]")
+					h.eventuallyPresent(railPrompt)
+					h.Type(railPrompt, "hello todo")
+					h.Press(railPrompt, "Enter")
 				},
 				assert: func(h *webHarness) {
 					h.chatThreadCount(1)
 					h.chatThreadLabel(1, chatLabelTodo)
-					h.eventuallyPresent("#floating-chat [data-chat-input]")
-					h.ElementTextContains("#floating-chat", "New chat")
+					h.ElementTextContains("#mail-chat-rail-content [data-chat-entries]", "You said: hello todo")
 				},
-				name: "new chat action opens a floating chat",
+				name: "chat toggle starts a todo chat in the panel",
 				path: "/",
 			},
 			{
 				act: func(h *webHarness) {
-					h.Click("[data-new-chat]")
-					h.eventuallyPresent("#floating-chat [data-chat-input]")
-					h.Click(`.gm-label[href="/tasks"]`)
+					h.Click("[data-chat-rail-toggle]")
+					h.eventuallyPresent(railPrompt)
+					h.Click(`[data-slot="nav-item"][href="/tasks"]`)
 				},
 				assert: func(h *webHarness) {
 					h.pathEventuallyEquals("/tasks")
-					h.eventuallyPresent("#floating-chat [data-chat-input]")
-					h.ElementTextContains("#floating-chat", "New chat")
+					h.eventuallyPresent(railPrompt)
 				},
 				name: "survives navigation",
 				path: "/",
-			},
-			{
-				act: func(h *webHarness) {
-					h.Click("[data-new-chat]")
-					h.eventuallyPresent("#floating-chat")
-					h.Click(`[aria-label="Chat history"]`)
-				},
-				assert: func(h *webHarness) {
-					h.pathEventuallyEquals("/chats")
-					h.ElementTextContains(".mail-mainbar", "Chats")
-					h.ElementAbsent("#floating-chat")
-				},
-				name: "chat history action opens chats",
-				path: "/",
-				seed: func(h *webHarness) {
-					h.seedChat("old chat", chatLabelTodo)
-				},
-			},
-			{
-				act: func(h *webHarness) {
-					h.Click("[data-new-chat]")
-					h.eventuallyPresent("#floating-chat")
-					h.Click(`[aria-label="Chat history"]`)
-				},
-				assert: func(h *webHarness) {
-					h.pathEventuallyEquals("/chats")
-					h.chatThreadCount(1)
-					h.eventuallyPresent(`[data-kind="chat"][data-id="1"]`)
-					h.ElementAbsent("#floating-chat")
-				},
-				name: "chat history action refreshes the current chats page",
-				path: "/chats",
 			},
 		}
 		for _, tt := range tests {
@@ -277,10 +248,10 @@ func TestWebBrowser(t *testing.T) {
 				},
 				assert: func(h *webHarness) {
 					h.pathEventuallyEquals("/chats")
-					h.eventuallyPresent("#floating-chat [data-chat-input]")
-					h.ElementTextContains("#floating-chat", "old chat")
+					h.eventuallyPresent(railPrompt)
+					h.ElementTextContains("#mail-chat-rail-content", "old chat")
 				},
-				name: "opens a todo chat row in a floating chat",
+				name: "opens a todo chat row in the chat panel",
 				path: "/chats",
 				seed: func(h *webHarness) {
 					h.seedChat("old chat", chatLabelTodo)
@@ -307,9 +278,11 @@ func newWebHarness(t *testing.T) *webHarness {
 	chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.Default())
 	t.Cleanup(chatSvc.Close)
 	mux := http.NewServeMux()
-	mux.Handle("/chat/", chat.NewServer(chatSvc, slog.Default()).Handler())
 	mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-	mux.Handle("/", NewWebServerWithChat(tasks, chatSvc, slog.Default()).Handler())
+	codex := chat.NewCodexServer(chatSvc).WithLabel(ChatLabel)
+	mux.Handle("/codex", codex.Handler())
+	mux.Handle("/codex/", codex.Handler())
+	mux.Handle("/", codex.Middleware(NewWebServerWithChat(tasks, chatSvc, slog.Default()).Handler()))
 
 	return &webHarness{
 		Chat:    chatSvc,

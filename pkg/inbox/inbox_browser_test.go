@@ -1,59 +1,61 @@
 package inbox
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/housecat-inc/scratch/pkg/db"
+)
 
 func TestInboxBrowser(t *testing.T) {
-	t.Run("new chat", func(t *testing.T) {
-		tests := []struct {
-			model string
-			name  string
-		}{
-			{model: "codex:default", name: "opens a floating chat when the default provider is selected"},
-			{model: "echo:default", name: "opens a floating chat when a provider is selected"},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				h := newHarness(t)
-				h.Open("/")
-				h.SelectOption(`[name="provider_model"]`, tt.model)
-
-				h.ChatThreadCount(1)
-				h.ElementEventuallyPresent("#floating-chat [data-chat-input]")
-				h.ElementTextContains("#floating-chat", "New chat")
-			})
-		}
-
-		t.Run("opens a floating chat from the new chat action", func(t *testing.T) {
+	t.Run("chats", func(t *testing.T) {
+		t.Run("hides archived chats by default", func(t *testing.T) {
 			h := newHarness(t)
-			h.Open("/")
-			h.Click("[data-new-chat]")
+			h.SeedRailThread("open chat")
+			archived := h.SeedRailThread("archived chat")
+			h.R.NoError(h.Chat.SetThreadState(archived, db.ThreadStateArchived))
+			h.Open("/inbox/chats")
 
-			h.ChatThreadCount(1)
-			h.ElementEventuallyPresent("#floating-chat [data-chat-input]")
-			h.ElementTextContains("#floating-chat", "New chat")
+			h.ElementTextContains(".mail-list", "open chat")
+			h.ElementAbsent(`[data-kind="chat"][data-id="2"]`)
+			h.ElementTextContains(".mail-filter-tab.active", "Active")
 		})
-	})
 
-	t.Run("composer", func(t *testing.T) {
-		tests := []struct {
-			name string
-			path string
-			text string
-		}{
-			{name: "creates the thread when sending from a draft chat", path: "/inbox/chats/new", text: "hello from draft"},
-			{name: "starts a chat from the tasks footer", path: "/inbox/tasks", text: "buy milk"},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				h := newHarness(t)
-				h.Open(tt.path)
-				h.Type("#chat-input", tt.text)
-				h.Click("#chat-send")
+		t.Run("shows archived chats under the all filter", func(t *testing.T) {
+			h := newHarness(t)
+			h.SeedRailThread("open chat")
+			archived := h.SeedRailThread("archived chat")
+			h.R.NoError(h.Chat.SetThreadState(archived, db.ThreadStateArchived))
+			h.Open("/inbox/chats")
+			h.Click(`.mail-filter-tab[href="/inbox/chats?archived=all"]`)
 
-				h.ChatThreadCount(1)
-				h.ElementTextContains(".mail-reader-title", tt.text)
-			})
-		}
+			h.PathEventuallyEquals("/inbox/chats")
+			h.ElementEventuallyPresent(`[data-kind="chat"][data-id="2"]`)
+			h.ElementTextContains(".mail-filter-tab.active", "All")
+		})
+
+		t.Run("archives a chat from its row and drops it from the list", func(t *testing.T) {
+			h := newHarness(t)
+			h.SeedRailThread("to archive")
+			h.Open("/inbox/chats")
+			h.Hover(`[data-kind="chat"][data-id="1"]`)
+			h.Click(`[data-kind="chat"][data-id="1"] [aria-label="Archive"]`)
+
+			h.EventuallyTrue(`() => !document.querySelector('[data-kind="chat"][data-id="1"]')`)
+			h.R.Eventually(func() bool {
+				thread, err := h.Chat.Thread(1)
+				return err == nil && thread.State == db.ThreadStateArchived
+			}, 5e9, 1e8)
+		})
+
+		t.Run("opens a row in the chat rail", func(t *testing.T) {
+			h := newHarness(t)
+			h.SeedRailThread("from the row")
+			h.Open("/inbox/chats")
+			h.Click(`[data-kind="chat"][data-id="1"] .gm-row-link`)
+
+			h.PathEventuallyEquals("/inbox/chats")
+			h.TextEventuallyContains(`#mail-chat-rail-content article[aria-label="You"]`, "from the row")
+		})
 	})
 
 	t.Run("tasks", func(t *testing.T) {

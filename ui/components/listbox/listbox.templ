@@ -1,0 +1,63 @@
+package listbox
+
+import "strconv"
+import "github.com/housecat-inc/scratch/ui/icons"
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type PositionerProps struct {
+	Align      Align
+	Attributes templ.Attributes
+	Class      string
+	// ID is what the trigger's popovertarget names.
+	ID         string
+	Side       Side
+	SideOffset int
+	// Slot is the component's own data-slot, so a component's script and
+	// styles match only its own positioner.
+	Slot string
+}
+
+// Positioner is the popup's box in the top layer, where no ancestor's
+// overflow can clip it. The browser shows it from the trigger's
+// popovertarget and hides it on an outside press; listbox.ts places it
+// against the trigger through ui/floating. None of its classes may set
+// display, since an author display rule would beat the one that hides a
+// closed popover.
+//
+// overlay transitions only on the way out, where it keeps the fading box in
+// the top layer. On the way in a discrete overlay transition holds the box
+// out of the top layer for half the fade, and there its fixed position
+// resolves against the nearest @container ancestor instead of the viewport,
+// so the list would open offset by the composer's own position.
+templ Positioner(props PositionerProps) {
+	<div
+		popover="auto"
+		id={ props.ID }
+		class={ utils.TwMerge("fixed inset-auto m-0 w-max overflow-visible border-0 bg-transparent p-0 opacity-0 transition-[opacity,display,overlay] transition-discrete duration-100 open:opacity-100 open:transition-[opacity,display] starting:open:opacity-0", props.Class) }
+		data-slot={ props.Slot }
+		data-align={ props.Align.Name() }
+		data-side={ props.Side.Name() }
+		if props.SideOffset != 0 {
+			data-side-offset={ strconv.Itoa(props.SideOffset) }
+		}
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}
+
+type ItemIndicatorProps struct {
+	Slot string
+}
+
+// ItemIndicator is the check on a selected option, shown by the option's
+// data-selected through the listbox-item group.
+templ ItemIndicator(props ItemIndicatorProps) {
+	<span
+		aria-hidden="true"
+		class="invisible absolute top-2 right-2 group-data-[selected]/listbox-item:visible"
+		data-slot={ props.Slot }
+	>
+		@icons.Render(icons.Done, icons.Props{Size: 16})
+	</span>
+}

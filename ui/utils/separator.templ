@@ -1,0 +1,22 @@
+package utils
+
+// Adjacent renders an optional component with nothing between it and whatever
+// came before, and exists for the same reason SeparatorAfter does: templ renders
+// any whitespace between two nodes, a newline included, as one space.
+//
+// SeparatorAfter covers the case where the thing to place is text, which can sit
+// on the same line as a closing tag. This covers the case where it is a
+// component and may be nil -- an `if` cannot share a line with a tag, so writing
+// the nil check at the call site puts a newline, and therefore a space, exactly
+// where the space must not be:
+//
+//	<span>{ value }</span>@utils.Adjacent(props.After)
+//
+// A space there is not only visible, it is copied: a selection dragged across
+// the pair takes it along, so an address meant to read as <someone@example.com>
+// pastes as < someone@example.com >.
+templ Adjacent(component templ.Component) {
+	if component != nil {
+		@component
+	}
+}

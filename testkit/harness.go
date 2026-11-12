@@ -2,6 +2,7 @@ package testkit
 
 import (
 	"context"
+	"github.com/housecat-inc/scratch/ui/dist"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,7 +42,7 @@ func NewHarness(t *testing.T, handler http.Handler) *Harness {
 
 func NewHarnessWithT(t *testing.T, kit *T, handler http.Handler) *Harness {
 	t.Helper()
-	server := httptest.NewServer(handler)
+	server := httptest.NewServer(withAssets(handler))
 	ctx, cancel := context.WithTimeout(t.Context(), BrowserSessionTimeout)
 
 	controlURL := launcher.New().
@@ -136,4 +137,11 @@ func (h *Harness) Viewport(width int, height int) {
 func viewport(page *rod.Page, width int, height int) {
 	page.MustSetViewport(width, height, 1, false)
 	page.MustSetUserAgent(&proto.NetworkSetUserAgentOverride{UserAgent: "go-rod"})
+}
+
+func withAssets(handler http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(dist.FS)))
+	mux.Handle("/", handler)
+	return mux
 }

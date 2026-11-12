@@ -1,0 +1,172 @@
+// Package segmented is a two-or-more-way switch: one track, one sliding
+// thumb, and an item per destination, at most one active. With none active
+// (the user is somewhere none of the items lead) the thumb is hidden, the
+// root carries data-none-active, and the first item holds the tab stop. It
+// is the WAI-ARIA tabs pattern over links -- each item navigates, so a page
+// without script still works -- with arrow keys moving between items
+// (segmented.ts).
+//
+// The active index rides on the root as --segmented-index, with
+// --segmented-count beside it, so the thumb's position is pure CSS: a script
+// that changes the active item sets one variable and the thumb slides.
+package segmented
+
+import (
+	"fmt"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/tooltip"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Item struct {
+	Active bool
+	Attributes templ.Attributes
+	// Badge draws after the label, e.g. live status dots.
+	Badge templ.Component
+	Href  string
+	Icon  icons.Name
+	Label string
+}
+
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	ID         string
+	Items      []Item
+	// Label names the switch for a screen reader.
+	Label string
+}
+
+type Classes struct {
+	Control string
+	Icon    string
+	Item    string
+	Label   string
+	Root    string
+	Thumb   string
+}
+
+type UnstyledProps struct {
+	Props
+	Classes Classes
+}
+
+// active is the index of the first Active item, or -1 when none is.
+func (p Props) active() int {
+	for i, it := range p.Items {
+		if it.Active {
+			return i
+		}
+	}
+	return -1
+}
+
+// tabStop is the item that takes tabindex 0: the active one, or the first
+// when none is, so the switch stays reachable by Tab.
+func (p Props) tabStop() int {
+	return max(p.active(), 0)
+}
+
+func (p Props) style() string {
+	return fmt.Sprintf("--segmented-index:%d;--segmented-count:%d", p.tabStop(), len(p.Items))
+}
+
+templ SegmentedUnstyled(in UnstyledProps) {
+	{{ p := in.Props }}
+	<div
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		aria-label={ p.Label }
+		if in.Classes.Root != "" {
+			class={ in.Classes.Root }
+		}
+		data-none-active?={ p.active() < 0 }
+		data-slot="segmented"
+		role="tablist"
+		style={ p.style() }
+		{ p.Attributes... }
+	>
+		<span
+			aria-hidden="true"
+			if in.Classes.Thumb != "" {
+				class={ in.Classes.Thumb }
+			}
+			data-slot="segmented-thumb"
+		></span>
+		for i, it := range p.Items {
+			@tooltip.Tooltip(tooltip.Props{Text: it.Label}) {
+				<span data-slot="segmented-item-surface" class={ in.Classes.Item }>
+					<a
+						href={ templ.SafeURL(it.Href) }
+						aria-selected={ boolString(i == p.active()) }
+						tabindex={ tabIndex(i == p.tabStop()) }
+						aria-label={ it.Label }
+						if in.Classes.Control != "" {
+							class={ in.Classes.Control }
+						}
+						data-active?={ i == p.active() }
+						data-slot="segmented-item"
+						data-has-icon?={ it.Icon != "" }
+						role="tab"
+						{ it.Attributes... }
+					>
+						if it.Icon != "" {
+							@icons.Render(it.Icon, icons.Props{Class: in.Classes.Icon, Size: 20})
+						}
+						<span data-slot="segmented-label"
+							if in.Classes.Label != "" {
+								class={ in.Classes.Label }
+							}
+						>{ it.Label }</span>
+						if it.Badge != nil {
+							@it.Badge
+						}
+					</a>
+				</span>
+			}
+		}
+	</div>
+}
+
+templ Segmented(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	@SegmentedUnstyled(UnstyledProps{Props: p, Classes: Classes{
+		Control: utils.TwMerge(button.StretchedControlClass, "group/segmented-item"),
+		Icon:  "size-5 shrink-0 @min-[10rem]/segmented:size-4 @min-[15rem]/segmented:size-5",
+		Item:  segmentedItemClass,
+		Label: "min-w-0 truncate group-data-[has-icon]/segmented-item:hidden @min-[10rem]/segmented:group-data-[has-icon]/segmented-item:block",
+		Root:  utils.TwMerge(segmentedRootClass, p.Class),
+		Thumb: segmentedThumbClass,
+	}})
+}
+
+// The thumb is one item wide and translated by whole item widths, so its
+// position is the index and nothing else. It and the items share the track's
+// inner box: the track's padding is the thumb's inset on every side. With no
+// item active the thumb is hidden, through the root's named group. Below
+// docked the 48px track leaves 44px for each item inside its default 2px inset.
+const (
+	segmentedRootClass  = "@container/segmented squircle-pill relative isolate flex h-9 min-w-0 items-stretch bg-muted p-(--segmented-inset) [--segmented-inset:2px] group/segmented max-docked:h-12"
+	segmentedThumbClass = "squircle-pill pointer-events-none absolute! inset-y-(--segmented-inset) left-(--segmented-inset) z-0 w-[calc((100%-var(--segmented-inset)*2)/var(--segmented-count))] translate-x-[calc(var(--segmented-index)*100%)] bg-background shadow-sm transition-transform duration-200 ease-out group-data-[none-active]/segmented:hidden motion-reduce:transition-none"
+	segmentedItemClass  = "squircle-pill relative flex min-w-0 flex-1 items-center justify-center gap-1.5 px-3 type-body-300 text-muted-foreground outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[>[data-active]]:type-body-300-heavy has-[>[data-active]]:text-primary @min-[10rem]/segmented:type-body-200 @min-[10rem]/segmented:has-[>[data-active]]:type-body-200-heavy @min-[15rem]/segmented:type-body-300 @min-[15rem]/segmented:has-[>[data-active]]:type-body-300-heavy"
+)
+
+func boolString(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
+func tabIndex(active bool) string {
+	if active {
+		return "0"
+	}
+	return "-1"
+}

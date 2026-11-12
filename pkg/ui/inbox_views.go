@@ -35,13 +35,11 @@ type InboxProps struct {
 	ArchiveFilter string
 	ChatOptions   []uikit.SelectOption
 	Counts        InboxCounts
-	Draft         *InboxDraftDetail
 	Items         []InboxItem
 	Schedule      *InboxScheduleDetail
 	Schedules     []WorkflowScheduleView
 	Selected      InboxSelection
 	Task          *InboxTaskDetail
-	Thread        *InboxThreadDetail
 	View          string
 	Workflow      *InboxWorkflowDetail
 }
@@ -76,27 +74,8 @@ type InboxSelection struct {
 	Name string
 }
 
-type InboxDraftDetail struct {
-	Agent string
-	Model string
-	Title string
-}
-
 type InboxTaskDetail struct {
 	Task db.Task
-}
-
-type InboxThreadDetail struct {
-	Access      string
-	Agent       string
-	Archived    bool
-	Description string
-	ID          int64
-	Kind        string
-	Messages    []ChatMessageProps
-	Starred     bool
-	Streaming   bool
-	Title       string
 }
 
 type InboxWorkflowDetail struct {
