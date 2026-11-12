@@ -1,3 +1,3 @@
 package utils
 
-//go:generate go tool templ generate
+//go:generate go tool templ generate -path ..

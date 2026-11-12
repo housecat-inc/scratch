@@ -16,7 +16,7 @@ import (
 
 var skipDirs = []string{".git", "node_modules", "testdata", "tmp", "vendor"}
 
-func Tree(root string) (map[string][]*Node, error) {
+func tree(root string) (map[string][]*Node, error) {
 	fset := token.NewFileSet()
 	files := map[string][]*Node{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -46,7 +46,11 @@ func Tree(root string) (map[string][]*Node, error) {
 	return files, errors.Wrapf(err, "walk %s", root)
 }
 
-func Write(w io.Writer, files map[string][]*Node) error {
+func Spec(w io.Writer, root string) error {
+	files, err := tree(root)
+	if err != nil {
+		return err
+	}
 	paths := make([]string, 0, len(files))
 	for path, nodes := range files {
 		if len(nodes) > 0 {
@@ -54,31 +58,22 @@ func Write(w io.Writer, files map[string][]*Node) error {
 		}
 	}
 	slices.Sort(paths)
+	var b strings.Builder
 	for i, path := range paths {
 		if i > 0 {
-			if _, err := fmt.Fprintln(w); err != nil {
-				return errors.Wrap(err, "write")
-			}
+			b.WriteString("\n")
 		}
-		if _, err := fmt.Fprintln(w, path); err != nil {
-			return errors.Wrap(err, "write")
-		}
-		if err := writeNodes(w, files[path], 1); err != nil {
-			return err
-		}
+		b.WriteString(path + "\n")
+		writeNodes(&b, files[path], 1)
 	}
-	return nil
+	_, err = io.WriteString(w, b.String())
+	return errors.Wrap(err, "write")
 }
 
-func writeNodes(w io.Writer, nodes []*Node, depth int) error {
+func writeNodes(b *strings.Builder, nodes []*Node, depth int) {
 	nodes = slices.SortedFunc(slices.Values(nodes), func(a, b *Node) int { return cmp.Compare(a.Name, b.Name) })
 	for _, n := range nodes {
-		if _, err := fmt.Fprintf(w, "%s%s\n", strings.Repeat("  ", depth), n.Name); err != nil {
-			return errors.Wrap(err, "write")
-		}
-		if err := writeNodes(w, n.Children, depth+1); err != nil {
-			return err
-		}
+		fmt.Fprintf(b, "%s%s\n", strings.Repeat("  ", depth), n.Name)
+		writeNodes(b, n.Children, depth+1)
 	}
-	return nil
 }

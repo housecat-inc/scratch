@@ -51,7 +51,7 @@ func TestAddComment(t *testing.T) {
 }
 ```
 
-Run `go run ./cmd/checks lint <dir>` to check one package.
+Run `go run ./cmd/checks ./pkg/<dir>` to check one package.
 
 ## Build & codegen
 

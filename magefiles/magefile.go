@@ -279,7 +279,7 @@ func processInfo(pid int) (int, string, error) {
 }
 
 func Generate() error {
-	if err := sh.RunV("go", "generate", "./pkg/db/...", "./pkg/ui/...", "./uikit/..."); err != nil {
+	if err := sh.RunV("go", "generate", "./pkg/db/...", "./pkg/ui/...", "./ui/utils", "./uikit/..."); err != nil {
 		return err
 	}
 	return sh.RunV("go", "generate", "./pkg/api/...")
@@ -290,14 +290,7 @@ func Check() error {
 	if err := sh.RunV("go", "vet", "./..."); err != nil {
 		return err
 	}
-	checks, err := filepath.Abs(filepath.Join("tmp", "checks"))
-	if err != nil {
-		return errors.Wrap(err, "resolve checks path")
-	}
-	if err := sh.RunV("go", "build", "-o", checks, "./cmd/checks"); err != nil {
-		return err
-	}
-	if err := sh.RunV("go", "vet", "-vettool="+checks, "./..."); err != nil {
+	if err := sh.RunV("go", "run", "./cmd/checks", "./..."); err != nil {
 		return err
 	}
 	if err := Tests(); err != nil {

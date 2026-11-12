@@ -5,10 +5,7 @@ cmd/checks/errors/errors_test.go
 cmd/checks/testspec/testspec_test.go
   Analyzer
     reports every naming and structure violation
-  Lint
-    passes a conforming package
-    reports test file problems with positions
-  Write
+  Spec
     prints each file with its sorted Test, group, case hierarchy
 
 pkg/agents/agents_test.go

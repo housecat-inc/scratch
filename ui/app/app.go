@@ -1,7 +1,5 @@
 package app
 
-//go:generate go tool templ generate
-
 import (
 	"net/url"
 

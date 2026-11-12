@@ -1,7 +1,6 @@
 package testspec
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -16,37 +15,13 @@ func TestAnalyzer(t *testing.T) {
 	})
 }
 
-func TestLint(t *testing.T) {
-	t.Run("reports test file problems with positions", func(t *testing.T) {
-		a := assert.New(t)
-		r := require.New(t)
-
-		problems, err := Lint("testdata/src/a")
-		r.NoError(err)
-		a.Contains(problems, "testdata/src/a/flat_test.go:5:6: TestFlat must describe behavior with t.Run cases")
-		a.True(slices.IsSorted(problems))
-	})
-
-	t.Run("passes a conforming package", func(t *testing.T) {
-		a := assert.New(t)
-		r := require.New(t)
-
-		problems, err := Lint(".")
-		r.NoError(err)
-		a.Empty(problems)
-	})
-}
-
-func TestWrite(t *testing.T) {
+func TestSpec(t *testing.T) {
 	t.Run("prints each file with its sorted Test, group, case hierarchy", func(t *testing.T) {
 		a := assert.New(t)
 		r := require.New(t)
 
-		files, err := Tree("testdata/src")
-		r.NoError(err)
-
 		var b strings.Builder
-		r.NoError(Write(&b, files))
+		r.NoError(Spec(&b, "testdata/src"))
 		a.Equal(strings.TrimLeft(`
 a/deep_test.go
   Deep
