@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/housecat-inc/scratch/pkg/db"
 	"github.com/housecat-inc/scratch/ui/app"
+	"github.com/housecat-inc/scratch/ui/components/chatcomposer"
 	codexui "github.com/housecat-inc/scratch/ui/components/codex"
 )
 
@@ -47,6 +49,9 @@ func (s *CodexServer) WithLabel(label string) *CodexServer {
 func (s *CodexServer) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /codex", s.handleChat)
+	mux.HandleFunc("POST /codex/attachments", s.handleUpload)
+	mux.HandleFunc("DELETE /codex/attachments/{attachment}", s.handleDeleteAttachment)
+	mux.HandleFunc("GET /codex/attachments/{attachment}", s.handleAttachment)
 	mux.HandleFunc("GET /codex/chat/events", s.handleEvents)
 	mux.HandleFunc("GET /codex/link-preview", http.NotFound)
 	mux.HandleFunc("GET /codex/sends", s.handleSends)
@@ -172,12 +177,24 @@ func (s *CodexServer) handleMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *CodexServer) send(w http.ResponseWriter, r *http.Request, threadID int64, clientID string) {
+	attachmentIDs, err := parseAttachmentIDs(r.FormValue("attachments"))
+	if err != nil {
+		s.writeSendError(w, r, http.StatusBadRequest, "Remove the broken attachment and resend.")
+		return
+	}
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
+	if prompt == "" && len(attachmentIDs) > 0 {
+		prompt = attachmentPrompt
+	}
 	if prompt == "" {
 		s.writeSendError(w, r, http.StatusBadRequest, "Write a message first.")
 		return
 	}
-	msg, err := s.svc.Send(threadID, prompt)
+	msg, err := s.svc.Send(threadID, prompt, attachmentIDs...)
+	if db.IsAttachmentNotFound(err) {
+		s.writeSendError(w, r, http.StatusBadRequest, "An attachment is no longer available. Remove it and resend.")
+		return
+	}
 	if err != nil {
 		s.writeSendError(w, r, http.StatusInternalServerError, "Unable to send. Please try again.")
 		return
@@ -191,6 +208,100 @@ func (s *CodexServer) send(w http.ResponseWriter, r *http.Request, threadID int6
 	}
 	s.svc.Publish(threadID)
 	s.writeOutgoing(w, r, clientID, send)
+}
+
+func parseAttachmentIDs(raw string) ([]int64, error) {
+	ids := []int64{}
+	for field := range strings.SplitSeq(raw, ",") {
+		if field = strings.TrimSpace(field); field == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(field, 10, 64)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse attachment id")
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+func (s *CodexServer) handleUpload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, attachmentMaxBytes+(1<<20))
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			http.Error(w, ErrAttachmentTooLarge.Error(), http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "file is required", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	attachment, err := s.svc.AddAttachment(0, header.Filename, header.Header.Get("Content-Type"), file)
+	if errors.Is(err, ErrAttachmentTooLarge) {
+		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Unable to attach the file. Please try again.", http.StatusInternalServerError)
+		return
+	}
+	render(w, r, chatcomposer.AttachmentChip(composerAttachment(attachment), true))
+}
+
+func (s *CodexServer) handleAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, ok := s.attachment(w, r)
+	if !ok {
+		return
+	}
+	w.Header().Set("Content-Type", attachment.MimeType)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": attachment.Name}))
+	http.ServeFile(w, r, attachment.FilePath)
+}
+
+func (s *CodexServer) handleDeleteAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, ok := s.attachment(w, r)
+	if !ok {
+		return
+	}
+	err := s.svc.DeleteDraftAttachment(attachment.ID)
+	if db.IsAttachmentNotFound(err) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Unable to remove the attachment. Please try again.", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *CodexServer) attachment(w http.ResponseWriter, r *http.Request) (db.Attachment, bool) {
+	id, err := strconv.ParseInt(r.PathValue("attachment"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid attachment id", http.StatusBadRequest)
+		return db.Attachment{}, false
+	}
+	attachment, err := s.svc.Attachment(id)
+	if db.IsAttachmentNotFound(err) {
+		http.Error(w, "attachment not found", http.StatusNotFound)
+		return db.Attachment{}, false
+	}
+	if err != nil {
+		http.Error(w, "Unable to load the attachment.", http.StatusInternalServerError)
+		return db.Attachment{}, false
+	}
+	return attachment, true
+}
+
+func composerAttachment(a db.Attachment) chatcomposer.Attachment {
+	return chatcomposer.Attachment{
+		ID:    itoa(a.ID),
+		Image: strings.HasPrefix(a.MimeType, "image/"),
+		Name:  a.Name,
+		URL:   codexui.Path + "/attachments/" + itoa(a.ID),
+	}
 }
 
 func (s *CodexServer) sent(clientID string) (codexSend, bool) {
@@ -349,6 +460,7 @@ func (s *CodexServer) newChatIn() codexui.ChatIn {
 
 func (s *CodexServer) baseChatIn() codexui.ChatIn {
 	return codexui.ChatIn{
+		AttachURL:         codexui.Path + "/attachments",
 		EventsURLTemplate: codexui.Path + "/chat/events?" + url.Values{"surface": {"mail"}, "thread": {codexui.ThreadPlaceholder}}.Encode(),
 		History:           codexui.HistoryPagesApart,
 		ID:                codexui.MailContentID,
@@ -407,7 +519,7 @@ func (s *CodexServer) turns(view ThreadView) []codexui.ChatTurn {
 			s.mu.Unlock()
 			turns = append(turns, codexui.ChatTurn{
 				ID:        thread + "/" + itoa(m.ID),
-				Prompt:    []codexui.ChatItem{{ClientID: clientID, ID: thread + "/" + itoa(m.ID) + "/prompt", Kind: "message", Text: m.Body, Title: "You"}},
+				Prompt:    []codexui.ChatItem{{Attachments: composerAttachments(view.Attachments[m.ID]), ClientID: clientID, ID: thread + "/" + itoa(m.ID) + "/prompt", Kind: "message", Text: m.Body, Title: "You"}},
 				StartedAt: m.CreatedAt.Time,
 				Status:    "completed",
 			})
@@ -432,6 +544,14 @@ func (s *CodexServer) turns(view ThreadView) []codexui.ChatTurn {
 		}
 	}
 	return turns
+}
+
+func composerAttachments(attachments []db.Attachment) []chatcomposer.Attachment {
+	out := make([]chatcomposer.Attachment, 0, len(attachments))
+	for _, a := range attachments {
+		out = append(out, composerAttachment(a))
+	}
+	return out
 }
 
 func turnStatus(status string) string {

@@ -427,7 +427,7 @@ func (s *Service) validateDraftAttachments(threadID int64, ids []int64) error {
 		if err != nil {
 			return err
 		}
-		if attachment.MessageID != nil || attachment.ThreadID != threadID {
+		if attachment.MessageID != nil || (attachment.ThreadID != 0 && attachment.ThreadID != threadID) {
 			return db.ErrAttachmentNotFound
 		}
 	}

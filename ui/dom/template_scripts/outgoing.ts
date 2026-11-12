@@ -7,6 +7,7 @@ import * as Opt from "effect/Option";
 import * as Random from "effect/Random";
 import * as Schema from "effect/Schema";
 import * as Str from "effect/String";
+import { attachmentIDs, clearAttachments } from "../../components/chatcomposer/attachments";
 import { cloneElement } from "../clone";
 import { decode } from "../decode";
 import { required } from "../required";
@@ -16,6 +17,7 @@ const LinkSchema = Schema.Struct({
   source: Schema.optionalKey(Schema.String),
 });
 const EntrySchema = Schema.Struct({
+  attachments: Schema.optionalKey(Schema.Array(Schema.String)),
   id: Schema.String,
   model: Schema.optionalKey(Schema.String),
   text: Schema.String,
@@ -31,6 +33,7 @@ const SavedSchema = Schema.Struct({
 });
 type Link = { url: string; label: string; source?: string | undefined };
 type Entry = {
+  attachments?: readonly string[] | undefined;
   id: string;
   model?: string | undefined;
   text: string;
@@ -42,6 +45,7 @@ type Entry = {
 };
 type Saved = { draft: string; pending: Entry[] };
 type Item = {
+  attachments?: readonly string[] | undefined;
   bubble: HTMLElement;
   id: string;
   model: string;
@@ -148,6 +152,7 @@ export function outgoing(_hook: HTMLElement, _swapped: boolean): void {
       const key = storageKey(chat, chat.dataset.selectedThread);
       const saved = load(key);
       saved.pending.push({
+        attachments: item.attachments,
         id: item.id,
         model: item.model,
         text: item.prompt,
@@ -214,6 +219,7 @@ export function outgoing(_hook: HTMLElement, _swapped: boolean): void {
       let item = items.get(entry.id);
       if (!item || !item.bubble.isConnected) {
         item = track({
+          attachments: entry.attachments,
           bubble: bubbleFor(chat, entry.text, entry.id, entry.links),
           id: entry.id,
           model: entry.model || "",
@@ -587,6 +593,7 @@ export function outgoing(_hook: HTMLElement, _swapped: boolean): void {
             swap: "innerHTML",
             values: {
               prompt: item.body ?? item.prompt,
+              attachments: Arr.join(item.attachments ?? [], ","),
               contexts: JSON.stringify(
                 Arr.map(item.links ?? [], (link) => {
                   if (link.source !== "automatic") return link;
@@ -774,7 +781,9 @@ export function outgoing(_hook: HTMLElement, _swapped: boolean): void {
         }),
       );
       const id = newID();
+      const attachments = text === undefined ? attachmentIDs(form) : [];
       const item = track({
+        attachments,
         bubble: bubbleFor(required(chat), prompt, id, links),
         body,
         links,
@@ -789,6 +798,7 @@ export function outgoing(_hook: HTMLElement, _swapped: boolean): void {
         new CustomEvent("codex:context-pending", { bubbles: true, detail: { id: item.id, links } }),
       );
       if (text === undefined) {
+        clearAttachments(form);
         required(input).value = "";
         required(input).dispatchEvent(new Event("input", { bubbles: true }));
       }

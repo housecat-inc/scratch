@@ -125,6 +125,12 @@ pkg/chat/codexui_test.go
     sends a follow-up to the thread its first message started
     starts a labeled thread from the first message
     streams the thread as server sent events
+    when attaching files
+      links drafts to the message that starts a thread
+      rejects a send naming a missing attachment
+      removes a draft
+      serves an attachment inline
+      uploads a draft before any thread exists
   CodexServerMiddleware
     carries the open chat through a post redirect
     ignores a chat from another site
@@ -721,8 +727,8 @@ pkg/server/sessions/sessions_test.go
       returns not found for an unknown session
       serves the session QR code as png
     nav
-      highlights sessions on the root page
       highlights setup on the setup page
+      lists chats instead of sessions on the root page
     sessions page
       omits agents repo hints
       serves the sessions route when not mounted at root

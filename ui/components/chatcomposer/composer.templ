@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/housecat-inc/scratch/ui/components/button"
 	"github.com/housecat-inc/scratch/ui/components/inputpill"
 	"github.com/housecat-inc/scratch/ui/components/promptinput"
 	"github.com/housecat-inc/scratch/ui/components/selectbox"
@@ -121,6 +122,13 @@ type ModelOption struct {
 	Value       string
 }
 
+type Attachment struct {
+	ID    string
+	Image bool
+	Name  string
+	URL   string
+}
+
 type Props struct {
 	// Above renders inside the composer's padded box, over the send-error
 	// slot, so a caller's own content stands on the composer's edge tokens and
@@ -130,6 +138,7 @@ type Props struct {
 	// relies on. Anything it renders carrying data-prompt sends that value on
 	// click -- see sendPrompt.
 	Above      templ.Component
+	AttachURL  string
 	Attributes templ.Attributes
 	Class      string
 	Context    templ.Component
@@ -182,6 +191,9 @@ templ Composer(props Props) {
 		id={ cmp.Or(props.ID, "chat") + "-composer-" + props.SelectedID }
 		class={ utils.TwMerge("@container mx-auto w-full max-w-4xl shrink-0 group/composer", props.Class) }
 		data-chat-composer
+		if props.AttachURL != "" {
+			data-attach-url={ props.AttachURL }
+		}
 		data-scroll-fade-part="footer"
 		data-empty="true"
 		data-message=""
@@ -201,7 +213,7 @@ templ Composer(props Props) {
 			}
 			@SendError("")
 			@promptinput.PromptInput(promptinput.In{
-				Above:    props.Context,
+				Above:    aboveField(props),
 				AutoGrow: true,
 				Attributes: templ.Attributes{
 					"action":                     props.SubmitURL,
@@ -235,10 +247,51 @@ templ Composer(props Props) {
 				SubmitTooltip:           "Send",
 				SubmitTooltipAttributes: templ.Attributes{"hx-live:text": stateExpression},
 			}) {
+				if props.AttachURL != "" {
+					@attachButtons()
+				}
 				@stopButton(props.StopURL)
 			}
 		</div>
 	</div>
+}
+
+func aboveField(props Props) templ.Component {
+	if props.AttachURL == "" {
+		return props.Context
+	}
+	return attachmentStrip(props.Context)
+}
+
+templ attachmentStrip(context templ.Component) {
+	<div class="flex flex-wrap gap-1.5 px-3 pt-2 empty:hidden" data-chat-attachments></div>
+	if context != nil {
+		@context
+	}
+}
+
+templ attachButtons() {
+	<input type="file" multiple hidden data-chat-file/>
+	@button.ButtonIcon(button.IconProps{Attributes: templ.Attributes{"data-chat-attach": true}, Icon: icons.Attachment, Size: button.IconSizeMd, Tooltip: "Attach files", Type: button.TypeButton})
+	@button.ButtonIcon(button.IconProps{Attributes: templ.Attributes{"data-chat-inspect": true}, Icon: icons.Screenshot, Size: button.IconSizeMd, Tooltip: "Inspect a section of the page", Type: button.TypeButton})
+}
+
+templ AttachmentChip(a Attachment, draft bool) {
+	<span class="squircle-pill inline-flex max-w-60 items-center gap-1.5 border border-border bg-muted py-0.5 pr-1 pl-1.5 type-caption-100" data-attachment-id={ a.ID }>
+		<a class="flex min-w-0 items-center gap-1.5 hover:underline" href={ templ.SafeURL(a.URL) } target="_blank" rel="noopener">
+			if a.Image {
+				<img class="size-5 shrink-0 rounded-sm object-cover" src={ a.URL } alt="" loading="lazy"/>
+			} else {
+				@icons.Render(icons.Attachment, icons.Props{Class: "size-3 shrink-0"})
+			}
+			<span class="truncate">{ a.Name }</span>
+		</a>
+		if draft {
+			<button type="button" class="flex size-5 shrink-0 items-center justify-center rounded hover:bg-selected" aria-label={ "Remove " + a.Name } title={ "Remove " + a.Name } data-attachment-remove>
+				@icons.Render(icons.Close, icons.Props{Class: "size-3"})
+			</button>
+		}
+	</span>
 }
 
 // SendError is the composer's out-of-band error slot. It renders here, ahead
@@ -347,7 +400,7 @@ func modelEntries(options []ModelOption) []selectbox.Entry {
 // that says the chat is busy until Stop or a reply takes the slot.
 templ submitContent() {
 	<span class="inline-flex items-center gap-1.5">
-		<span aria-hidden="true" class="group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="send">
+		<span aria-hidden="true" class="inline-flex group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="send">
 			@icons.Render(icons.Send, icons.Props{Size: SendGlyph})
 		</span>
 		<span aria-hidden="true" class="hidden group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:inline-flex group-data-[working=true]/composer:group-data-[empty=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="queue">

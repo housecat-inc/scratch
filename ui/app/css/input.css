@@ -8,6 +8,7 @@
 @import "../../css/text_trim.css";
 @import "./shell.css";
 @import "./chat.css";
+@import "./templui.css";
 
 @plugin "@tailwindcss/typography";
 @plugin "../../squircle/tailwind-pill.mjs";

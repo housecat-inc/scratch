@@ -38,6 +38,7 @@ import "../components/codex/outgoing_links";
 import "../dom/crossing";
 import "../components/drawer/drawer";
 import "../components/drawer/sheet";
+import "../components/chatcomposer/attachments";
 import "../components/chatcomposer/links";
 import "../components/popover/popover";
 import "../components/promptinput/promptinput";

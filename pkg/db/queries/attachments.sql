@@ -11,8 +11,8 @@ RETURNING *;
 SELECT * FROM attachments WHERE id = ?;
 
 -- name: LinkAttachments :exec
-UPDATE attachments SET message_id = @message_id
-WHERE thread_id = @thread_id AND message_id IS NULL AND id IN (sqlc.slice('ids'));
+UPDATE attachments SET message_id = @message_id, thread_id = @thread_id
+WHERE (thread_id = @thread_id OR thread_id IS NULL) AND message_id IS NULL AND id IN (sqlc.slice('ids'));
 
 -- name: ListMessageAttachments :many
 SELECT * FROM attachments WHERE message_id = ? ORDER BY id ASC;

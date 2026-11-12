@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -22,6 +23,9 @@ func run() error {
 		return err
 	}
 	if err := bundle(); err != nil {
+		return err
+	}
+	if err := templuiSources(); err != nil {
 		return err
 	}
 	if err := copyFile("ui/node_modules/@klinking/squircle/dist/pill-shape.worklet.mjs", "ui/dist/pill-shape.worklet.mjs"); err != nil {
@@ -55,6 +59,18 @@ func bundle() error {
 		msgs = append(msgs, loc+e.Text)
 	}
 	return errors.Newf("bundle ui.js:\n%s", strings.Join(msgs, "\n"))
+}
+
+func templuiSources() error {
+	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/templui/templui").Output()
+	if err != nil {
+		return errors.Wrap(err, "locate templui module")
+	}
+	var css strings.Builder
+	for _, component := range []string{"badge", "button", "card"} {
+		fmt.Fprintf(&css, "@source %q;\n", filepath.Join(strings.TrimSpace(string(out)), "components", component))
+	}
+	return errors.Wrap(os.WriteFile("ui/app/css/templui.css", []byte(css.String()), 0o644), "write templui sources")
 }
 
 func npm(args ...string) error {

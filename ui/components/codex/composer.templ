@@ -42,6 +42,7 @@ const starterHide = "group-has-[[data-outgoing]]/chat:hidden group-has-[[data-ch
 // reused outside this package.
 templ Composer(in ChatIn) {
 	@chatcomposer.Composer(chatcomposer.Props{
+		AttachURL:       in.AttachURL,
 		Class:           utils.If(in.ID == MailContentID, bottomfade.FooterClass),
 		Context:         pageContextSlot(in),
 		FieldAttributes: tour.Anchor(PromptFieldTourAnchor),
