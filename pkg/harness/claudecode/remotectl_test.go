@@ -16,19 +16,19 @@ func TestURLRegex(t *testing.T) {
 		name string
 		want string
 	}{
-		{name: "claude.ai session URL", in: "open https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht to connect\n", want: "https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht"},
-		{name: "code.claude.com session URL", in: "url: https://code.claude.com/code/session_abc123\n", want: "https://code.claude.com/code/session_abc123"},
-		{name: "ignores environment redirect URL", in: "Connecting https://claude.ai/code?environment=env_01QB\nthen https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht\n", want: "https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht"},
-		{name: "no URL", in: "no link here\n", want: ""},
+		{name: "matches a claude.ai session URL", in: "open https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht to connect\n", want: "https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht"},
+		{name: "matches a code.claude.com session URL", in: "url: https://code.claude.com/code/session_abc123\n", want: "https://code.claude.com/code/session_abc123"},
+		{name: "skips an environment redirect URL", in: "Connecting https://claude.ai/code?environment=env_01QB\nthen https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht\n", want: "https://claude.ai/code/session_01HcAF1wLDAtAuisjuGPAdht"},
+		{name: "finds nothing without a URL", in: "no link here\n", want: ""},
 		{name: "ignores other domains", in: "see https://example.com/code/session_x\n", want: ""},
 		{name: "ignores non-session paths", in: "see https://claude.ai/code?environment=env_01QB\n", want: ""},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
-			got := urlRegex.FindString(tc.in)
-			a.Equal(tc.want, got)
+			got := urlRegex.FindString(tt.in)
+			a.Equal(tt.want, got)
 		})
 	}
 }
@@ -40,17 +40,17 @@ func TestExtractLastAssistantMessage(t *testing.T) {
 		want string
 	}{
 		{
-			name: "plain assistant message",
+			name: "returns a plain assistant message",
 			pane: "● Hello world\n",
 			want: "Hello world",
 		},
 		{
-			name: "skips tool call before assistant",
+			name: "skips a tool call before the assistant reply",
 			pane: "● Bash(go test ./...)\n  ⎿  ok pkg/foo\n● All tests pass on main.\n",
 			want: "All tests pass on main.",
 		},
 		{
-			name: "skips trailing tool call to find prior assistant",
+			name: "skips a trailing tool call to find the prior reply",
 			pane: "● Earlier reply from claude.\n● Read(/etc/hosts)\n  ⎿  127.0.0.1 localhost\n",
 			want: "Earlier reply from claude.",
 		},
@@ -60,20 +60,20 @@ func TestExtractLastAssistantMessage(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "treats nested-parens tool call as tool call",
+			name: "treats a nested-parens tool call as a tool call",
 			pane: "● Edit(pkg/server/code/code.go)\n  ⎿  Modified 1 line\n",
 			want: "",
 		},
 		{
-			name: "lowercase word + parens is prose, not tool call",
+			name: "treats a lowercase word with parens as prose",
 			pane: "● go test (1 failure)\n",
 			want: "go test (1 failure)",
 		},
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
-			a.Equal(tc.want, extractLastAssistantMessage(tc.pane))
+			a.Equal(tt.want, extractLastAssistantMessage(tt.pane))
 		})
 	}
 }
@@ -83,59 +83,59 @@ func TestSessionPrefix(t *testing.T) {
 		dir  string
 		host string
 		name string
-		test string
+		user string
 		want string
 	}{
-		{test: "host plus user name", host: "jukelab", name: "foobar", dir: "/tmp/x", want: "jukelab-foobar"},
-		{test: "host plus dir basename when no name", host: "jukelab", dir: "/home/exedev", want: "jukelab-exedev"},
-		{test: "trailing slash uses parent basename", host: "h", dir: "/tmp/work/", want: "h-work"},
-		{test: "root dir falls back to session", host: "h", dir: "/", want: "h-session"},
-		{test: "no host returns base only", name: "n", dir: "/tmp/x", want: "n"},
+		{name: "joins the host and user name", host: "jukelab", user: "foobar", dir: "/tmp/x", want: "jukelab-foobar"},
+		{name: "joins the host and dir basename without a name", host: "jukelab", dir: "/home/exedev", want: "jukelab-exedev"},
+		{name: "uses the basename before a trailing slash", host: "h", dir: "/tmp/work/", want: "h-work"},
+		{name: "falls back to session for the root dir", host: "h", dir: "/", want: "h-session"},
+		{name: "returns the base alone without a host", user: "n", dir: "/tmp/x", want: "n"},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.test, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
-			a.Equal(tc.want, sessionPrefix(tc.host, tc.name, tc.dir))
+			a.Equal(tt.want, sessionPrefix(tt.host, tt.user, tt.dir))
 		})
 	}
 }
 
-func TestManagerStart(t *testing.T) {
-	r := require.New(t)
-	a := assert.New(t)
+func TestStart(t *testing.T) {
+	t.Run("starts lists and stops a session", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
 
-	dir := t.TempDir()
-	tmuxBin := writeFakeTmux(t)
-	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_abc123")
+		dir := t.TempDir()
+		tmuxBin := writeFakeTmux(t)
+		claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_abc123")
 
-	var trustedDir string
-	m := NewManager()
-	m.ClaudeBin = claudeBin
-	m.Hostname = "jukelab"
-	m.StartTimeout = 3 * time.Second
-	m.TmuxBin = tmuxBin
-	m.TrustProject = func(d string) error { trustedDir = d; return nil }
+		var trustedDir string
+		m := NewManager()
+		m.ClaudeBin = claudeBin
+		m.Hostname = "jukelab"
+		m.StartTimeout = 3 * time.Second
+		m.TmuxBin = tmuxBin
+		m.TrustProject = func(d string) error { trustedDir = d; return nil }
 
-	s, err := m.Start("foobar", dir, "")
-	r.NoError(err)
-	a.Equal("https://claude.ai/code/session_abc123", s.URL)
-	a.Equal("jukelab-foobar", s.Name)
-	a.Equal(dir, s.Dir)
-	a.Equal(dir, trustedDir)
-	a.NotEmpty(s.ID)
+		s, err := m.Start("foobar", dir, "")
+		r.NoError(err)
+		a.Equal("https://claude.ai/code/session_abc123", s.URL)
+		a.Equal("jukelab-foobar", s.Name)
+		a.Equal(dir, s.Dir)
+		a.Equal(dir, trustedDir)
+		a.NotEmpty(s.ID)
 
-	a.Len(m.List(), 1)
-	a.Equal(s, m.Get(s.ID))
+		a.Len(m.List(), 1)
+		a.Equal(s, m.Get(s.ID))
 
-	r.NoError(m.Stop(s.ID))
-	a.Len(m.List(), 0)
-	a.Nil(m.Get(s.ID))
+		r.NoError(m.Stop(s.ID))
+		a.Len(m.List(), 0)
+		a.Nil(m.Get(s.ID))
 
-	r.NoError(m.Stop(s.ID), "stop is idempotent")
-}
+		r.NoError(m.Stop(s.ID), "stop is idempotent")
+	})
 
-func TestManagerStartErrors(t *testing.T) {
 	tmuxBin := writeFakeTmux(t)
 	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_abc")
 	dir := t.TempDir()
@@ -143,17 +143,17 @@ func TestManagerStartErrors(t *testing.T) {
 	tests := []struct {
 		dir     string
 		name    string
+		session string
 		setup   func(*Manager)
-		test    string
 		wantErr string
 	}{
-		{test: "empty dir errors", name: "x", dir: "", wantErr: "dir is required"},
-		{test: "missing dir errors", name: "x", dir: "/nope/does/not/exist", wantErr: "stat"},
-		{test: "non-dir errors", name: "x", dir: writeFile(t), wantErr: "not a directory"},
-		{test: "invalid name errors", name: "bad name!", dir: dir, wantErr: "must match"},
+		{name: "rejects an empty dir", session: "x", dir: "", wantErr: "dir is required"},
+		{name: "rejects a missing dir", session: "x", dir: "/nope/does/not/exist", wantErr: "stat"},
+		{name: "rejects a dir that is a file", session: "x", dir: writeFile(t), wantErr: "not a directory"},
+		{name: "rejects an invalid name", session: "bad name!", dir: dir, wantErr: "must match"},
 		{
-			test: "no URL within timeout errors",
-			name: "ok", dir: dir,
+			name:    "times out when no URL is printed",
+			session: "ok", dir: dir,
 			setup: func(m *Manager) {
 				m.ClaudeBin = writeFakeClaudeRemoteCtl(t, "")
 				m.StartTimeout = 300 * time.Millisecond
@@ -162,129 +162,135 @@ func TestManagerStartErrors(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.test, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
 			m := NewManager()
 			m.TmuxBin = tmuxBin
 			m.ClaudeBin = claudeBin
 			m.StartTimeout = 2 * time.Second
 			m.TrustProject = func(string) error { return nil }
-			if tc.setup != nil {
-				tc.setup(m)
+			if tt.setup != nil {
+				tt.setup(m)
 			}
-			_, err := m.Start(tc.name, tc.dir, "")
-			a.ErrorContains(err, tc.wantErr)
+			_, err := m.Start(tt.session, tt.dir, "")
+			a.ErrorContains(err, tt.wantErr)
 		})
 	}
 }
 
-func TestManagerRecover(t *testing.T) {
-	r := require.New(t)
-	a := assert.New(t)
+func TestRecover(t *testing.T) {
+	t.Run("restores sessions from tmux in a fresh manager", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
 
-	dir := t.TempDir()
-	tmuxBin := writeFakeTmux(t)
-	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_recovered")
+		dir := t.TempDir()
+		tmuxBin := writeFakeTmux(t)
+		claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_recovered")
 
-	first := NewManager()
-	first.ClaudeBin = claudeBin
-	first.Hostname = "jukelab"
-	first.StartTimeout = 3 * time.Second
-	first.TmuxBin = tmuxBin
-	first.TrustProject = func(string) error { return nil }
+		first := NewManager()
+		first.ClaudeBin = claudeBin
+		first.Hostname = "jukelab"
+		first.StartTimeout = 3 * time.Second
+		first.TmuxBin = tmuxBin
+		first.TrustProject = func(string) error { return nil }
 
-	s, err := first.Start("foobar", dir, "")
-	r.NoError(err)
-
-	fresh := NewManager()
-	fresh.TmuxBin = tmuxBin
-	r.NoError(fresh.Recover())
-	a.Len(fresh.List(), 1)
-
-	recovered := fresh.Get(s.ID)
-	r.NotNil(recovered, "session id survives across managers via tmux scan")
-	a.Equal(s.URL, recovered.URL)
-	a.Equal(s.Dir, recovered.Dir)
-	a.Equal(s.Name, recovered.Name, "prefix recovered from tmux env")
-}
-
-func TestManagerRecoverIsIdempotent(t *testing.T) {
-	r := require.New(t)
-	a := assert.New(t)
-
-	dir := t.TempDir()
-	tmuxBin := writeFakeTmux(t)
-	claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
-
-	m := NewManager()
-	m.ClaudeBin = claudeBin
-	m.Hostname = "h"
-	m.StartTimeout = 3 * time.Second
-	m.TmuxBin = tmuxBin
-	m.TrustProject = func(string) error { return nil }
-
-	_, err := m.Start("alpha", dir, "")
-	r.NoError(err)
-
-	r.NoError(m.Recover())
-	r.NoError(m.Recover())
-	a.Len(m.List(), 1, "running Recover twice does not duplicate sessions")
-}
-
-func TestManagerRecoverIgnoresUnreadySessions(t *testing.T) {
-	r := require.New(t)
-	a := assert.New(t)
-
-	dir := t.TempDir()
-	tmuxBin := writeFakeTmux(t)
-	claudeBin := writeFakeClaudeRemoteCtl(t, "")
-
-	starter := NewManager()
-	starter.ClaudeBin = claudeBin
-	starter.Hostname = "h"
-	starter.StartTimeout = 300 * time.Millisecond
-	starter.TmuxBin = tmuxBin
-	starter.TrustProject = func(string) error { return nil }
-
-	_, err := starter.Start("nourl", dir, "")
-	a.Error(err, "session start fails because no URL emitted")
-
-	fresh := NewManager()
-	fresh.TmuxBin = tmuxBin
-	r.NoError(fresh.Recover())
-	a.Empty(fresh.List(), "session without URL is skipped on recover")
-}
-
-func TestManagerStopAll(t *testing.T) {
-	r := require.New(t)
-	a := assert.New(t)
-
-	dir := t.TempDir()
-	m := NewManager()
-	m.TmuxBin = writeFakeTmux(t)
-	m.ClaudeBin = writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
-	m.StartTimeout = 3 * time.Second
-	m.TrustProject = func(string) error { return nil }
-
-	for _, name := range []string{"a", "b", "c"} {
-		_, err := m.Start(name, dir, "")
+		s, err := first.Start("foobar", dir, "")
 		r.NoError(err)
-	}
-	a.Len(m.List(), 3)
 
-	m.StopAll()
-	a.Len(m.List(), 0)
+		fresh := NewManager()
+		fresh.TmuxBin = tmuxBin
+		r.NoError(fresh.Recover())
+		a.Len(fresh.List(), 1)
+
+		recovered := fresh.Get(s.ID)
+		r.NotNil(recovered, "session id survives across managers via tmux scan")
+		a.Equal(s.URL, recovered.URL)
+		a.Equal(s.Dir, recovered.Dir)
+		a.Equal(s.Name, recovered.Name, "prefix recovered from tmux env")
+	})
+
+	t.Run("does not duplicate sessions when run twice", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+
+		dir := t.TempDir()
+		tmuxBin := writeFakeTmux(t)
+		claudeBin := writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
+
+		m := NewManager()
+		m.ClaudeBin = claudeBin
+		m.Hostname = "h"
+		m.StartTimeout = 3 * time.Second
+		m.TmuxBin = tmuxBin
+		m.TrustProject = func(string) error { return nil }
+
+		_, err := m.Start("alpha", dir, "")
+		r.NoError(err)
+
+		r.NoError(m.Recover())
+		r.NoError(m.Recover())
+		a.Len(m.List(), 1, "running Recover twice does not duplicate sessions")
+	})
+
+	t.Run("skips sessions that never printed a URL", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+
+		dir := t.TempDir()
+		tmuxBin := writeFakeTmux(t)
+		claudeBin := writeFakeClaudeRemoteCtl(t, "")
+
+		starter := NewManager()
+		starter.ClaudeBin = claudeBin
+		starter.Hostname = "h"
+		starter.StartTimeout = 300 * time.Millisecond
+		starter.TmuxBin = tmuxBin
+		starter.TrustProject = func(string) error { return nil }
+
+		_, err := starter.Start("nourl", dir, "")
+		a.Error(err, "session start fails because no URL emitted")
+
+		fresh := NewManager()
+		fresh.TmuxBin = tmuxBin
+		r.NoError(fresh.Recover())
+		a.Empty(fresh.List(), "session without URL is skipped on recover")
+	})
 }
 
-func TestSessionQRPNG(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-	s := &Session{URL: "https://claude.ai/code/session_abc"}
-	png, err := s.QRPNG(0)
-	r.NoError(err)
-	a.True(len(png) > 0)
-	a.Equal([]byte{0x89, 'P', 'N', 'G'}, png[:4])
+func TestStopAll(t *testing.T) {
+	t.Run("stops every session", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+
+		dir := t.TempDir()
+		m := NewManager()
+		m.TmuxBin = writeFakeTmux(t)
+		m.ClaudeBin = writeFakeClaudeRemoteCtl(t, "https://claude.ai/code/session_x")
+		m.StartTimeout = 3 * time.Second
+		m.TrustProject = func(string) error { return nil }
+
+		for _, name := range []string{"a", "b", "c"} {
+			_, err := m.Start(name, dir, "")
+			r.NoError(err)
+		}
+		a.Len(m.List(), 3)
+
+		m.StopAll()
+		a.Len(m.List(), 0)
+	})
+}
+
+func TestQRPNG(t *testing.T) {
+	t.Run("encodes the session URL as a PNG", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
+		s := &Session{URL: "https://claude.ai/code/session_abc"}
+		png, err := s.QRPNG(0)
+		r.NoError(err)
+		a.True(len(png) > 0)
+		a.Equal([]byte{0x89, 'P', 'N', 'G'}, png[:4])
+	})
 }
 
 func writeFile(t *testing.T) string {

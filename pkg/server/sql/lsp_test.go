@@ -16,57 +16,59 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLSPBridge(t *testing.T) {
-	r := require.New(t)
+func TestLSP(t *testing.T) {
+	t.Run("bridges a websocket to sqls and answers initialize with completion", func(t *testing.T) {
+		r := require.New(t)
 
-	src, err := exec.LookPath("sqls")
-	if err != nil {
-		t.Skip("sqls not installed; skipping LSP bridge test")
-	}
-
-	binDir := t.TempDir()
-	copyExec(t, src, filepath.Join(binDir, "sqls"))
-
-	s := newServer(t, seedDB(t))
-	s.deps.BinDir = binDir
-
-	srv := httptest.NewServer(http.StripPrefix("/sql", s.Handler()))
-	defer srv.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/sql/lsp"
-	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		if resp != nil {
-			body, _ := io.ReadAll(resp.Body)
-			t.Logf("handshake status=%d body=%q", resp.StatusCode, body)
+		src, err := exec.LookPath("sqls")
+		if err != nil {
+			t.Skip("sqls not installed; skipping LSP bridge test")
 		}
-	}
-	r.NoError(err)
-	defer conn.Close()
 
-	send(t, conn, map[string]any{
-		"jsonrpc": "2.0",
-		"id":      1,
-		"method":  "initialize",
-		"params":  map[string]any{"rootUri": "file:///", "capabilities": map[string]any{}},
-	})
+		binDir := t.TempDir()
+		copyExec(t, src, filepath.Join(binDir, "sqls"))
 
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	var reply map[string]any
-	for {
-		_, data, err := conn.ReadMessage()
+		s := newServer(t, seedDB(t))
+		s.deps.BinDir = binDir
+
+		srv := httptest.NewServer(http.StripPrefix("/sql", s.Handler()))
+		defer srv.Close()
+
+		wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/sql/lsp"
+		conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if err != nil {
+			if resp != nil {
+				body, _ := io.ReadAll(resp.Body)
+				t.Logf("handshake status=%d body=%q", resp.StatusCode, body)
+			}
+		}
 		r.NoError(err)
-		r.NoError(json.Unmarshal(data, &reply))
-		if id, ok := reply["id"].(float64); ok && id == 1 {
-			break
-		}
-	}
+		defer conn.Close()
 
-	result, ok := reply["result"].(map[string]any)
-	r.True(ok, "initialize result")
-	caps, ok := result["capabilities"].(map[string]any)
-	r.True(ok, "server capabilities")
-	r.Contains(caps, "completionProvider")
+		send(t, conn, map[string]any{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"method":  "initialize",
+			"params":  map[string]any{"rootUri": "file:///", "capabilities": map[string]any{}},
+		})
+
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		var reply map[string]any
+		for {
+			_, data, err := conn.ReadMessage()
+			r.NoError(err)
+			r.NoError(json.Unmarshal(data, &reply))
+			if id, ok := reply["id"].(float64); ok && id == 1 {
+				break
+			}
+		}
+
+		result, ok := reply["result"].(map[string]any)
+		r.True(ok, "initialize result")
+		caps, ok := result["capabilities"].(map[string]any)
+		r.True(ok, "server capabilities")
+		r.Contains(caps, "completionProvider")
+	})
 }
 
 func send(t *testing.T, conn *websocket.Conn, msg map[string]any) {

@@ -130,7 +130,6 @@ func newRootCmd() *cobra.Command {
 				return errors.Wrap(err, "new sql server")
 			}
 			todoSvc = todo.NewService(store)
-			chatSrv := chat.NewServer(chatSvc, logger)
 			inboxSrv := inbox.NewServer(todoSvc, chatSvc, flows, logger)
 			inboxSrv.SetContacts(store)
 
@@ -151,12 +150,14 @@ func newRootCmd() *cobra.Command {
 			sessionsSrv.Register(srv.Mux, false)
 			contacts.NewServer(store).RegisterAPI(srv.Mux)
 			srv.Mux.HandleFunc("/chat", http.NotFound)
-			srv.Mux.Handle("/chat/", chatSrv.Handler())
-			srv.Mux.Handle("/code/", http.StripPrefix("/code", codeSrv.Handler()))
-			srv.Mux.Handle("/files/", http.StripPrefix("/files", filesSrv.Handler()))
-			srv.Mux.Handle("/sql/", http.StripPrefix("/sql", sqlSrv.Handler()))
+			codex := chat.NewCodexServer(chatSvc)
+			srv.Mux.Handle("/codex", codex.Handler())
+			srv.Mux.Handle("/codex/", codex.Handler())
+			srv.Mux.Handle("/code/", codex.Middleware(http.StripPrefix("/code", codeSrv.Handler())))
+			srv.Mux.Handle("/files/", codex.Middleware(http.StripPrefix("/files", filesSrv.Handler())))
+			srv.Mux.Handle("/sql/", codex.Middleware(http.StripPrefix("/sql", sqlSrv.Handler())))
 			srv.Mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			srv.Mux.Handle("/", inboxSrv.Handler())
+			srv.Mux.Handle("/", codex.Middleware(inboxSrv.Handler()))
 
 			slog.Info("listening", "addr", addr, "agent", agent.Author(), "dir", ws.Dir, "branch", ws.Branch)
 			return srv.Run()

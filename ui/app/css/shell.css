@@ -1,0 +1,327 @@
+/*
+ * Styles for the mail content panes (thread list, reader, message cards,
+ * compose card, toasts). The surrounding chrome — top bar, search, account
+ * avatar, Mail/Tasks rail, Compose button — is owned by the shared
+ * InboxLayout shell (Tailwind / design system), not this file.
+ */
+/* The shell's widths, declared once: the sidebar drawer, the top bar's brand
+   column above it, the chat rail and the popup composer pinned beside the
+   rail all read them. They sit on :root rather than on .mail-shell because
+   the popup composer is mounted on <body>, outside the shell, and still has
+   to clear the rail. A media query cannot read a custom property, so
+   ui/layouts/viewport.go keeps a copy of each for the too-narrow queries,
+   and TestShellWidthTokens pins the two together: change both at once.
+   The collapsed width and main's minimum have no reader yet; they are for
+   the collapsible sidebar. */
+:root {
+  --shell-sidebar-width: 16rem;
+  --shell-sidebar-collapsed-width: 3.5rem;
+  --shell-rail-width: 400px;
+  --shell-main-min-width: 35rem;
+}
+/* Derive every mail token from the shared design-system theme variables
+   (defined in input.css) so the mail panes follow the app theme. */
+:root {
+  --gm-text: var(--foreground);
+  --gm-secondary: var(--muted-foreground);
+  --gm-border: var(--border);
+  --gm-hover: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --gm-selected: var(--selected);
+  --gm-accent: var(--primary);
+  --gm-on-accent: var(--primary-foreground);
+  --gm-surface: var(--background);
+  --gm-elevated: var(--popover);
+  --mail-sidebar-bg: #fafaf9;
+  --mail-safe-top: var(--topbar-inset);
+  --mail-safe-right: env(safe-area-inset-right, 0px);
+  --mail-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mail-safe-left: env(safe-area-inset-left, 0px);
+  --mail-floating-action-height: 38px;
+  --mail-floating-bottom-gap: 14px;
+  --mail-floating-control-radius: 999px;
+  --mail-floating-control-shadow: 0 1px 2px rgba(60, 64, 67, 0.10);
+  --mail-floating-gutter: 24px;
+  --mail-floating-header-bg: color-mix(
+    in srgb,
+    var(--gm-elevated) 92%,
+    var(--gm-accent)
+  );
+  --mail-floating-panel-max-height: min(64vh, 620px);
+  --mail-floating-radius: 10px;
+  --mail-floating-shadow: 0 8px 22px rgba(60, 64, 67, 0.14);
+  --mail-floating-surface: var(--gm-elevated);
+  --mail-floating-top-gap: 14px;
+  --mail-reader-bottom-fade: 28px;
+}
+
+/* The canvas behind the page -- the status bar's area on a phone, the
+   overscroll past an edge -- is the top bar's own background, as is the
+   theme-color the document declares (ui/layouts ThemeColor). */
+html {
+  background-color: var(--background);
+}
+
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+svg {
+  display: block;
+}
+svg:not([data-lucide]):not([fill="none"]) {
+  fill: currentColor;
+}
+
+.gm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gm-secondary);
+  cursor: pointer;
+}
+.gm-icon-btn:hover {
+  background: var(--gm-hover);
+}
+.gm-icon-btn:disabled {
+  color: var(--gm-border);
+  cursor: default;
+}
+.gm-icon-btn:disabled:hover {
+  background: transparent;
+}
+.gm-icon-btn.on {
+  color: var(--star);
+}
+.gm-icon-btn.danger {
+  color: #b91c1c;
+}
+
+/* The navigation bar (MailNavigationScript's markup in ui/layouts) is drawn
+   from data-loading on main, the content lane's one record of a request in
+   flight (ui/dom/content.ts): the attribute shows the bar and runs its
+   trickle, its absence hides it, and nothing shows or hides it by hand.
+   Docked it waits 120ms before drawing, so a swap that lands at once never
+   flashes it: the status region stays visibility:hidden for that long, so
+   its "Loading mail…" is not announced for a swap that lands at once
+   either, and the bar's trickle starts as it shows. Below docked every
+   navigation shows it. The trickle runs from 8% towards 92% and stops
+   there until the attribute goes. */
+.gm-navigation-loading {
+  display: none;
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+[data-slot="app-main"][data-loading] .gm-navigation-loading {
+  display: block;
+}
+.gm-navigation-loading-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 0 999px 999px 0;
+  background: var(--gm-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gm-accent) 65%, transparent);
+}
+[data-slot="app-main"][data-loading] .gm-navigation-loading-bar {
+  animation: gm-navigation-trickle 12s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+@media (width >= 48rem) {
+  [data-slot="app-main"][data-loading] .gm-navigation-loading {
+    animation: gm-navigation-wait 0s linear 120ms both;
+  }
+  [data-slot="app-main"][data-loading] .gm-navigation-loading-bar {
+    animation-delay: 120ms;
+  }
+}
+@keyframes gm-navigation-wait {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+@keyframes gm-navigation-trickle {
+  from {
+    width: 8%;
+  }
+  to {
+    width: 92%;
+  }
+}
+
+/* Shared mail chrome */
+/* clip, not hidden: the stage's off-screen layers -- the chat view parked a
+   screen to the right -- overflow the shell, and a hidden box can still be
+   scrolled by script or by the browser bringing a focused field into view,
+   which slides the whole app sideways. A clipped box cannot be scrolled. */
+.mail-shell {
+  height: var(--mail-shell-height, var(--mail-viewport-height, 100dvh));
+  min-height: 0;
+  overflow: clip;
+}
+.mail-topbar {
+  gap: 0;
+}
+/* As wide as the sidebar below it at every docked width, so the column's
+   edge lines up with the sidebar's. */
+.mail-brand-col {
+  flex: 0 0 var(--shell-sidebar-width);
+  width: var(--shell-sidebar-width);
+  min-width: 0;
+}
+.mail-topbar-search {
+  flex: 1 1 auto;
+  min-width: 14rem;
+  max-width: 48rem;
+  padding: 0 1rem;
+  margin: 0 auto;
+}
+.mail-topbar-search > * {
+  width: 100%;
+}
+.mail-topbar-actions {
+  flex: 0 0 auto;
+}
+/* 1120px - no Tailwind breakpoint */
+@media (width < 70rem) {
+  .mail-topbar-search {
+    max-width: none;
+    min-width: 12rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+}
+
+/* 768px - below Tailwind md */
+@media (width < 48rem) {
+  .mail-topbar .mail-brand-text {
+    display: none;
+  }
+  .mail-topbar {
+    gap: 0.25rem;
+  }
+  .mail-topbar-search {
+    min-width: 0;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+  .mail-topbar-actions {
+    gap: 0.25rem;
+    padding-right: 0.5rem;
+  }
+  .mail-topbar-optional {
+    display: none !important;
+  }
+  .mail-account-email {
+    display: none;
+  }
+  /* The shell is the screen's size, so the document never scrolls: nothing
+     pans sideways or rubber-bands under a drag. */
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  /* The body is pinned to the screen rather than laid out in the document,
+     so the document has nothing to scroll at all -- not even for iOS, which
+     scrolls a document to bring a focused field above its keyboard and then
+     animates it back. With no keyboard it is the largest viewport tall
+     (100lvh), so it runs to the very bottom of the screen behind a floating
+     browser toolbar; ui/dom/viewport.ts measures how much of it such a
+     toolbar covers (--viewport-toolbar-inset), and the bottom bar stands
+     clear of that. With the keyboard open it is the visible area's height
+     (--mail-viewport-height) and moves down by however far iOS has panned
+     the visible area within the layout viewport (--mail-viewport-offset-top),
+     so it sits exactly on what can be seen and only the keyboard -- and, from
+     iOS 26, Safari's form bar floating over the foot of the visible area,
+     which the height leaves out -- is below it. The translate also makes the body the containing block for every
+     fixed layer in it -- toasts, the command palette, dialogs -- so they
+     follow the visible area as well.
+     Its z-index of -1 changes nothing on screen -- the body is the only box
+     the root draws, and the root's colour is the canvas under it -- but it
+     keeps Safari from painting the status bar's band and the band behind its
+     floating toolbar a solid colour over the page. Safari 26 on iOS fills
+     those bands with a solid colour wherever the page shows a fixed or
+     sticky box at the screen's edge: it hit-tests 4px inside each edge,
+     walks up to the first fixed or sticky ancestor and, finding one the
+     size of the screen, paints its colour (or a sampled one) over the band
+     (WebKit's LocalFrameView::fixedContainerEdges and WKWebView's
+     fixed colour extension views). A pinned body is such a box for every
+     point on the page, so the bands were always the page's white. WebKit
+     passes over a screen-sized box with a negative z-index, and with no
+     other fixed box at an edge it leaves the bands to its usual soft edge
+     over what scrolls behind them. */
+  body {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: var(--mail-viewport-height, 100lvh);
+    translate: 0 var(--mail-viewport-offset-top, 0px);
+  }
+  /* While the on-screen keyboard is up only what is being typed into shows
+     above it: the bottom bar steps aside (ui/components/bottombar), and so
+     does the top bar, unless the field is its own search box. The chat
+     view's header goes too, so its messages run up to the top of the screen
+     and under the status bar; the scroller pads its top by the inset, so its
+     first message still starts clear of it. With the top bar gone, main pads
+     its own top instead. */
+  html[data-keyboard-open] [data-slot="app-topbar"]:not(:focus-within) {
+    display: none;
+  }
+  html[data-keyboard-open]:not(:has([data-slot="app-topbar"]:focus-within)) {
+    --topbar-height: 0px;
+  }
+  html[data-keyboard-open] #mail-chat-rail [data-chat-header] {
+    display: none;
+  }
+  html[data-keyboard-open] #mail-chat-rail [data-chat-scroll] {
+    padding-top: var(--mail-safe-top);
+  }
+  /* The transcript keeps a drag to itself, rather than handing what it
+     cannot scroll on to the page (ui/dom/viewport.ts holds the page still
+     under any other drag while the keyboard is open). */
+  #mail-chat-rail [data-chat-scroll] {
+    overscroll-behavior-y: contain;
+  }
+  html[data-keyboard-open]:not(:has([data-slot="app-topbar"]:focus-within))
+    [data-slot="app-main"] {
+    padding-top: var(--mail-safe-top);
+  }
+  /* A phone has no keyboard to press a shortcut on, so the action row's
+     buttons drop their shortcut hints. */
+  [data-slot="tool-action-row"]
+    [data-slot="button-glyph"][data-position="end"]:has([data-slot="kbd-block"]) {
+    display: none;
+  }
+  /* Toasts float clear of the bar, so an Undo never covers the switch. */
+  html:not([data-keyboard-open])
+    body:has([data-slot="bottombar"])
+    [data-slot="toast-viewport"] {
+    bottom: calc(var(--bottombar-height) + 0.75rem);
+  }
+}
+
+/* iOS zooms the page in on focusing a field set under 16px and leaves it
+   zoomed, so the whole app pans sideways under a finger afterwards. Below
+   docked, every field is set at 16px. */
+@media (width < 48rem) {
+  input:not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]),
+  textarea,
+  select,
+  [contenteditable]:not([contenteditable="false"]) {
+    font-size: 16px;
+  }
+}
+

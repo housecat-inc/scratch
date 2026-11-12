@@ -1,0 +1,39 @@
+package control
+
+type RequiredProps struct {
+	Attributes templ.Attributes
+	Disabled   bool
+	Form       string
+	ID         string
+	Name       string
+	Slot       string
+	Value      string
+}
+
+// A textarea participates in constraint validation without blocking a form's
+// implicit Enter submission, unlike an extra text input.
+templ RequiredProxy(p RequiredProps) {
+	<textarea
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		if p.Name != "" {
+			name={ p.Name }
+		}
+		if p.Form != "" {
+			form={ p.Form }
+		}
+		required
+		disabled?={ p.Disabled }
+		tabindex="-1"
+		aria-hidden="true"
+		class="pointer-events-none absolute bottom-0 left-3 size-px opacity-0"
+		autocomplete="off"
+		data-slot={ p.Slot }
+		{ p.Attributes... }
+	>{ p.Value }</textarea>
+}
+
+templ RequiredError(id string) {
+	<span id={ id } data-slot="control-validation-error" role="alert" hidden class="mt-1 block type-caption-100 text-destructive"></span>
+}

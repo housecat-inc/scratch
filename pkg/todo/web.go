@@ -17,7 +17,9 @@ import (
 	"github.com/housecat-inc/scratch/uikit"
 )
 
-const chatLabelTodo = "todo"
+const ChatLabel = "todo"
+
+const chatLabelTodo = ChatLabel
 
 type WebServer struct {
 	chat     *chat.Service

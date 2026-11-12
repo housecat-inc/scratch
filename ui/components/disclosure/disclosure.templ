@@ -1,0 +1,37 @@
+package disclosure
+
+import (
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type In struct {
+	Attributes   templ.Attributes
+	Class        string
+	ContentClass string
+	ID           string
+	Open         bool
+	Summary      templ.Component
+	SummaryClass string
+}
+
+var scriptOnce = templ.NewOnceHandle()
+
+templ Disclosure(in In) {
+	@Script()
+	<details id={ in.ID } data-slot="disclosure" data-preserve-open open?={ in.Open } class={ utils.TwMerge("min-w-0 group/disclosure", in.Class) } { in.Attributes... }>
+		<summary class={ utils.TwMerge("flex cursor-pointer list-none items-center gap-2 rounded py-2 type-body-200 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden", in.SummaryClass) }>
+			@icons.Render(icons.ExpandRight, icons.Props{Class: "size-3 shrink-0 transition-transform group-open/disclosure:rotate-90"})
+			@in.Summary
+		</summary>
+		<div class={ in.ContentClass }>
+			{ children... }
+		</div>
+	</details>
+}
+
+templ Script() {
+	@scriptOnce.Once() {
+		<template data-script="disclosure"></template>
+	}
+}

@@ -1,0 +1,153 @@
+package kbd
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+// Key names a shortcut modifier, a KeyboardEvent key, or a literal label.
+type Key string
+
+// Modifier names match HousecatKeys chords; arrow names match KeyboardEvent.key.
+const (
+	KeyAlt       Key = "alt"
+	KeyArrowDown Key = "ArrowDown"
+	KeyArrowUp   Key = "ArrowUp"
+	KeyControl   Key = "ctrl"
+	KeyMeta      Key = "meta"
+	// KeyMod is Command on a Mac and Ctrl elsewhere, selected by data-platform.
+	KeyMod       Key = "mod"
+	KeyShift     Key = "shift"
+)
+
+// Variant is the surface the shortcut sits on. Default suits a light one;
+// Inverse suits a filled one -- a primary or destructive button -- where the
+// muted border and text would drop below readable contrast.
+type Variant string
+
+const (
+	VariantDefault Variant = "default"
+	VariantInverse Variant = "inverse"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	Keys       []Key
+	Variant    Variant
+}
+
+func (p Props) variant() Variant {
+	if p.Variant == "" {
+		return VariantDefault
+	}
+	return p.Variant
+}
+
+func (p Props) variantClasses() string {
+	if p.variant() == VariantInverse {
+		return "border-primary-foreground/40 text-primary-foreground/80"
+	}
+	return "border-border text-muted-foreground"
+}
+
+type Size string
+
+const (
+	SizeSm      Size = "sm"
+	SizeDefault Size = "default"
+	SizeLg      Size = "lg"
+)
+
+func Sizes() []Size {
+	return []Size{SizeSm, SizeDefault, SizeLg}
+}
+
+type BlockProps struct {
+	Props
+	Size Size
+}
+
+const keyClasses = "shrink-0 items-center justify-center squircle-[0.3125em] border [baseline-source:last] squircle-amt-2 *:cap-trim"
+
+// KbdInline follows its surrounding text at the code font's optical scale.
+// The last key exports the text baseline even when a modifier glyph leads it.
+templ KbdInline(props Props) {
+	<kbd
+		class={ utils.TwMerge(keyClasses, "inline-flex min-h-[calc(1.4em+2px)] min-w-[calc(1.4em+2px)] gap-[0.25em] px-[0.35em] py-[0.2em] align-baseline type-code-100-heavy [font-size:calc(1em*var(--type-code-optical-scale))] leading-none", props.variantClasses(), props.Class) }
+		data-slot="kbd-inline"
+		data-variant={ string(props.variant()) }
+		{ props.Attributes... }
+	>
+		if len(props.Keys) > 0 {
+			for _, key := range props.Keys {
+				@kbdKey(key)
+			}
+		} else {
+			<kbd data-slot="kbd-key">{ children... }</kbd>
+		}
+	</kbd>
+}
+
+// KbdBlock is a fixed-size shortcut hint for controls and toolbars.
+templ KbdBlock(props BlockProps) {
+	<kbd
+		class={ utils.TwMerge(keyClasses, "flex w-max", props.sizeClasses(), props.variantClasses(), props.Class) }
+		data-slot="kbd-block"
+		data-size={ string(props.size()) }
+		data-variant={ string(props.variant()) }
+		{ props.Attributes... }
+	>
+		for _, key := range props.Keys {
+			@kbdKey(key)
+		}
+	</kbd>
+}
+
+func (p BlockProps) size() Size {
+	switch p.Size {
+	case SizeSm, SizeLg:
+		return p.Size
+	default:
+		return SizeDefault
+	}
+}
+
+func (p BlockProps) sizeClasses() string {
+	switch p.size() {
+	case SizeSm:
+		return "h-4 min-w-6 gap-0.5 px-1 type-code-100-heavy"
+	case SizeLg:
+		return "h-6 min-w-10 gap-1 px-1.5 type-code-200-heavy"
+	default:
+		return "h-5 min-w-8 gap-[3px] px-[5px] type-code-100-heavy"
+	}
+}
+
+templ kbdKey(key Key) {
+	if key == KeyMod {
+		<kbd class="hidden [font-family:system-ui] [font-size:calc(1em/var(--type-code-optical-scale))] mac:inline-block" data-slot="kbd-key">
+			<span aria-hidden="true">⌘</span>
+			<span class="sr-only">Command</span>
+		</kbd>
+		<kbd class="mac:hidden" data-slot="kbd-key">Ctrl</kbd>
+	} else if key == KeyAlt {
+		<kbd class="hidden mac:inline" data-slot="kbd-key">Option</kbd>
+		<kbd class="mac:hidden" data-slot="kbd-key">Alt</kbd>
+	} else if key == KeyControl {
+		<kbd class="hidden mac:inline" data-slot="kbd-key">Control</kbd>
+		<kbd class="mac:hidden" data-slot="kbd-key">Ctrl</kbd>
+	} else if key == KeyMeta {
+		<kbd class="hidden mac:inline" data-slot="kbd-key">Command</kbd>
+		<kbd class="mac:hidden" data-slot="kbd-key">Meta</kbd>
+	} else {
+		<kbd data-slot="kbd-key">{ keyLabel(key) }</kbd>
+	}
+}
+
+
+func keyLabel(key Key) string {
+	switch key {
+	case KeyShift: return "Shift"
+	case KeyArrowUp: return "↑"
+	case KeyArrowDown: return "↓"
+	default: return string(key)
+	}
+}

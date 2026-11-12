@@ -63,195 +63,238 @@ func makeDeps() Deps {
 	}
 }
 
-func TestContextEndpoint(t *testing.T) {
-	tests := []struct {
-		name      string
-		query     string
-		wantLines []string
-	}{
-		{
-			name:      "up to boundary",
-			query:     "path=foo.txt&from=1&to=2&direction=up&bound=1&offset=0",
-			wantLines: []string{"line1", "line2"},
-		},
-		{
-			name:      "down with more available",
-			query:     "path=foo.txt&from=7&to=7&direction=down&bound=8&offset=-1",
-			wantLines: []string{"line7"},
-		},
-		{
-			name:      "down to end",
-			query:     "path=foo.txt&from=7&to=8&direction=down&bound=8&offset=-1",
-			wantLines: []string{"line7", "line8"},
-		},
-		{
-			name:      "expand all",
-			query:     "path=foo.txt&from=1&to=2&direction=all&offset=0",
-			wantLines: []string{"line1", "line2"},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+func TestCode(t *testing.T) {
+	t.Run("file context", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			query     string
+			wantLines []string
+		}{
+			{
+				name:      "expands up to the hunk boundary",
+				query:     "path=foo.txt&from=1&to=2&direction=up&bound=1&offset=0",
+				wantLines: []string{"line1", "line2"},
+			},
+			{
+				name:      "expands down while more lines remain",
+				query:     "path=foo.txt&from=7&to=7&direction=down&bound=8&offset=-1",
+				wantLines: []string{"line7"},
+			},
+			{
+				name:      "expands down to the end of the file",
+				query:     "path=foo.txt&from=7&to=8&direction=down&bound=8&offset=-1",
+				wantLines: []string{"line7", "line8"},
+			},
+			{
+				name:      "expands every hidden line at once",
+				query:     "path=foo.txt&from=1&to=2&direction=all&offset=0",
+				wantLines: []string{"line1", "line2"},
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				a := assert.New(t)
+				r := require.New(t)
+
+				s, err := NewServer(makeDeps())
+				r.NoError(err)
+				rec := httptest.NewRecorder()
+				u := &url.URL{Path: "/acme/alpha/file/lines", RawQuery: tc.query}
+				s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, u.String(), nil))
+
+				a.Equal(http.StatusOK, rec.Code)
+				body := rec.Body.String()
+				for _, want := range tc.wantLines {
+					a.Contains(body, want)
+				}
+				a.Contains(body, `data-expand-all="true"`, "buttons always rendered")
+			})
+		}
+	})
+
+	t.Run("comment validation", func(t *testing.T) {
+		tests := []struct {
+			body       url.Values
+			method     string
+			name       string
+			path       string
+			wantStatus int
+		}{
+			{
+				body:       url.Values{"path": {"foo.txt"}, "side": {"new"}, "line": {"4"}, "body": {"hi"}},
+				method:     http.MethodPost,
+				name:       "rejects a comment on an unknown repo",
+				path:       "/acme/missing/comments",
+				wantStatus: http.StatusNotFound,
+			},
+			{
+				body:       url.Values{"path": {"foo.txt"}, "side": {"bogus"}, "line": {"4"}, "body": {"hi"}},
+				method:     http.MethodPost,
+				name:       "rejects an unknown diff side",
+				path:       "/acme/alpha/comments",
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				body:       url.Values{"path": {"foo.txt"}, "side": {"new"}, "line": {"4"}, "body": {"   "}},
+				method:     http.MethodPost,
+				name:       "rejects a blank body",
+				path:       "/acme/alpha/comments",
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				method:     http.MethodGet,
+				name:       "rejects a comment form for line zero",
+				path:       "/acme/alpha/comments/form?path=foo.txt&side=new&line=0",
+				wantStatus: http.StatusBadRequest,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				r := require.New(t)
+				s := commentServer(t)
+
+				var req *http.Request
+				if tc.method == http.MethodPost {
+					req = httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body.Encode()))
+					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				} else {
+					req = httptest.NewRequest(tc.method, tc.path, nil)
+				}
+				rec := httptest.NewRecorder()
+				s.server.Handler().ServeHTTP(rec, req)
+				r.Equal(tc.wantStatus, rec.Code, rec.Body.String())
+			})
+		}
+	})
+
+	t.Run("comments", func(t *testing.T) {
+		t.Run("edits a comment and shows the new body", func(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
+			f := commentServer(t)
+			s, store := f.server, f.store
 
-			s, err := NewServer(makeDeps())
+			c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "first")
 			r.NoError(err)
-			rec := httptest.NewRecorder()
-			u := &url.URL{Path: "/acme/alpha/file/lines", RawQuery: tc.query}
-			s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, u.String(), nil))
 
-			a.Equal(http.StatusOK, rec.Code)
-			body := rec.Body.String()
-			for _, want := range tc.wantLines {
-				a.Contains(body, want)
-			}
-			a.Contains(body, `data-expand-all="true"`, "buttons always rendered")
+			editRec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(editRec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments/"+c.ID+"/edit?view=list", nil))
+			r.Equal(http.StatusOK, editRec.Code)
+			a.Contains(editRec.Body.String(), `name="body"`)
+			a.Contains(editRec.Body.String(), `value="list"`)
+			a.Contains(editRec.Body.String(), "first")
+
+			form := url.Values{"body": {"second"}, "view": {"list"}}
+			putReq := httptest.NewRequest(http.MethodPut, "/acme/alpha/comments/"+c.ID, strings.NewReader(form.Encode()))
+			putReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			putRec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(putRec, putReq)
+			r.Equal(http.StatusOK, putRec.Code, putRec.Body.String())
+			a.Contains(putRec.Body.String(), "second")
+			a.NotContains(putRec.Body.String(), `name="body"`)
+
+			got, err := store.GetComment("acme/alpha", c.ID)
+			r.NoError(err)
+			a.Equal("second", got.Body)
+
+			showRec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(showRec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments/"+c.ID, nil))
+			r.Equal(http.StatusOK, showRec.Code)
+			a.Contains(showRec.Body.String(), "second")
 		})
-	}
-}
-
-func TestCommentRoutesValidation(t *testing.T) {
-	tests := []struct {
-		name       string
-		method     string
-		path       string
-		body       url.Values
-		wantStatus int
-	}{
-		{
-			name:       "missing slug",
-			method:     http.MethodPost,
-			path:       "/acme/missing/comments",
-			body:       url.Values{"path": {"foo.txt"}, "side": {"new"}, "line": {"4"}, "body": {"hi"}},
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "invalid side",
-			method:     http.MethodPost,
-			path:       "/acme/alpha/comments",
-			body:       url.Values{"path": {"foo.txt"}, "side": {"bogus"}, "line": {"4"}, "body": {"hi"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "empty body",
-			method:     http.MethodPost,
-			path:       "/acme/alpha/comments",
-			body:       url.Values{"path": {"foo.txt"}, "side": {"new"}, "line": {"4"}, "body": {"   "}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "form bad line",
-			method:     http.MethodGet,
-			path:       "/acme/alpha/comments/form?path=foo.txt&side=new&line=0",
-			wantStatus: http.StatusBadRequest,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("toggles resolved on each resolve", func(t *testing.T) {
+			a := assert.New(t)
 			r := require.New(t)
-			store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
-			r.NoError(err)
-			t.Cleanup(func() { store.Close() })
+			f := commentServer(t)
+			s, store := f.server, f.store
 
-			deps := makeDeps()
-			deps.Comments = store
-			s, err := NewServer(deps)
+			c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "ping")
 			r.NoError(err)
 
-			var req *http.Request
-			if tc.method == http.MethodPost {
-				req = httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body.Encode()))
+			post := func() {
+				req := httptest.NewRequest(http.MethodPost, "/acme/alpha/comments/"+c.ID+"/resolve", strings.NewReader("view=thread"))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			} else {
-				req = httptest.NewRequest(tc.method, tc.path, nil)
+				rec := httptest.NewRecorder()
+				s.Handler().ServeHTTP(rec, req)
+				r.Equal(http.StatusOK, rec.Code)
 			}
-			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
-			require.Equal(t, tc.wantStatus, rec.Code, rec.Body.String())
+
+			post()
+			got, err := store.GetComment("acme/alpha", c.ID)
+			r.NoError(err)
+			a.True(got.Resolved)
+
+			post()
+			got, err = store.GetComment("acme/alpha", c.ID)
+			r.NoError(err)
+			a.False(got.Resolved)
 		})
-	}
-}
+		t.Run("lists comments grouped by file in name order", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+			f := commentServer(t)
+			s, store := f.server, f.store
 
-func TestCommentEditFlow(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
+			_, err := store.AddComment("acme/alpha", "feature", "bar.txt", "new", 2, "bar comment")
+			r.NoError(err)
+			_, err = store.AddComment("acme/alpha", "feature", "foo.txt", "new", 9, "foo comment")
+			r.NoError(err)
 
-	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
-	r.NoError(err)
-	t.Cleanup(func() { store.Close() })
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments", nil))
+			r.Equal(http.StatusOK, rec.Code)
+			body := rec.Body.String()
+			a.Contains(body, "bar comment")
+			a.Contains(body, "foo comment")
+			a.Contains(body, "bar.txt")
+			a.Contains(body, "foo.txt")
+			a.Less(strings.Index(body, "bar.txt"), strings.Index(body, "foo.txt"), "files sorted lexicographically")
+		})
+		t.Run("deletes a comment with an empty ok response", func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
+			f := commentServer(t)
+			s, store := f.server, f.store
 
-	deps := makeDeps()
-	deps.Comments = store
-	s, err := NewServer(deps)
-	r.NoError(err)
+			c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "x")
+			r.NoError(err)
 
-	c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "first")
-	r.NoError(err)
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/acme/alpha/comments/"+c.ID, nil))
+			a.Equal(http.StatusOK, rec.Code)
+			a.Empty(rec.Body.String())
 
-	editRec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(editRec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments/"+c.ID+"/edit?view=list", nil))
-	r.Equal(http.StatusOK, editRec.Code)
-	a.Contains(editRec.Body.String(), `name="body"`)
-	a.Contains(editRec.Body.String(), `value="list"`)
-	a.Contains(editRec.Body.String(), "first")
+			list, err := store.ListComments("acme/alpha", "feature")
+			r.NoError(err)
+			a.Empty(list)
+		})
+	})
 
-	form := url.Values{"body": {"second"}, "view": {"list"}}
-	putReq := httptest.NewRequest(http.MethodPut, "/acme/alpha/comments/"+c.ID, strings.NewReader(form.Encode()))
-	putReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	putRec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(putRec, putReq)
-	r.Equal(http.StatusOK, putRec.Code, putRec.Body.String())
-	a.Contains(putRec.Body.String(), "second")
-	a.NotContains(putRec.Body.String(), `name="body"`)
+	t.Run("shows repo listing errors on the overview", func(t *testing.T) {
+		a := assert.New(t)
+		r := require.New(t)
 
-	got, err := store.GetComment("acme/alpha", c.ID)
-	r.NoError(err)
-	a.Equal("second", got.Body)
-
-	showRec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(showRec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments/"+c.ID, nil))
-	r.Equal(http.StatusOK, showRec.Code)
-	a.Contains(showRec.Body.String(), "second")
-}
-
-func TestCommentResolveToggle(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
-	r.NoError(err)
-	t.Cleanup(func() { store.Close() })
-
-	deps := makeDeps()
-	deps.Comments = store
-	s, err := NewServer(deps)
-	r.NoError(err)
-
-	c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "ping")
-	r.NoError(err)
-
-	post := func() {
-		req := httptest.NewRequest(http.MethodPost, "/acme/alpha/comments/"+c.ID+"/resolve", strings.NewReader("view=thread"))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		deps := Deps{
+			Home:      "/tmp",
+			ListRepos: func() ([]repo.Repo, error) { return nil, errors.New("boom") },
+		}
+		s, err := NewServer(deps)
+		r.NoError(err)
 		rec := httptest.NewRecorder()
-		s.Handler().ServeHTTP(rec, req)
-		require.Equal(t, http.StatusOK, rec.Code)
-	}
+		s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
-	post()
-	got, err := store.GetComment("acme/alpha", c.ID)
-	r.NoError(err)
-	a.True(got.Resolved)
-
-	post()
-	got, err = store.GetComment("acme/alpha", c.ID)
-	r.NoError(err)
-	a.False(got.Resolved)
+		a.Equal(http.StatusOK, rec.Code)
+		a.Contains(rec.Body.String(), "boom")
+	})
 }
 
-func TestCommentListPage(t *testing.T) {
-	a := assert.New(t)
+type commentFixture struct {
+	server *Server
+	store  *db.DB
+}
+
+func commentServer(t *testing.T) commentFixture {
+	t.Helper()
 	r := require.New(t)
 
 	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
@@ -262,62 +305,5 @@ func TestCommentListPage(t *testing.T) {
 	deps.Comments = store
 	s, err := NewServer(deps)
 	r.NoError(err)
-
-	_, err = store.AddComment("acme/alpha", "feature", "bar.txt", "new", 2, "bar comment")
-	r.NoError(err)
-	_, err = store.AddComment("acme/alpha", "feature", "foo.txt", "new", 9, "foo comment")
-	r.NoError(err)
-
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/acme/alpha/comments", nil))
-	r.Equal(http.StatusOK, rec.Code)
-	body := rec.Body.String()
-	a.Contains(body, "bar comment")
-	a.Contains(body, "foo comment")
-	a.Contains(body, "bar.txt")
-	a.Contains(body, "foo.txt")
-	a.Less(strings.Index(body, "bar.txt"), strings.Index(body, "foo.txt"), "files sorted lexicographically")
-}
-
-func TestCommentDeleteReturnsOK(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	store, err := db.New(filepath.Join(t.TempDir(), "scratch.db"))
-	r.NoError(err)
-	t.Cleanup(func() { store.Close() })
-
-	deps := makeDeps()
-	deps.Comments = store
-	s, err := NewServer(deps)
-	r.NoError(err)
-
-	c, err := store.AddComment("acme/alpha", "feature", "foo.txt", "new", 4, "x")
-	r.NoError(err)
-
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/acme/alpha/comments/"+c.ID, nil))
-	a.Equal(http.StatusOK, rec.Code)
-	a.Empty(rec.Body.String())
-
-	list, err := store.ListComments("acme/alpha", "feature")
-	r.NoError(err)
-	a.Empty(list)
-}
-
-func TestHandlerSurfacesErrors(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	deps := Deps{
-		Home:      "/tmp",
-		ListRepos: func() ([]repo.Repo, error) { return nil, errors.New("boom") },
-	}
-	s, err := NewServer(deps)
-	r.NoError(err)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-
-	a.Equal(http.StatusOK, rec.Code)
-	a.Contains(rec.Body.String(), "boom")
+	return commentFixture{server: s, store: store}
 }

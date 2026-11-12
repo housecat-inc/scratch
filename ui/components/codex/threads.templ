@@ -1,0 +1,81 @@
+package codex
+
+import (
+	"github.com/housecat-inc/scratch/ui/components/navitem"
+	"github.com/housecat-inc/scratch/ui/utils"
+	"strings"
+)
+
+type Thread struct {
+	ClientID string
+	Href     string
+	ID       string
+	Status   string
+	Title    string
+}
+
+type ThreadsIn struct {
+	Class     string
+	EventsURL string
+	List      ThreadsListIn
+}
+
+type ThreadsListIn struct {
+	Error      string
+	Loading    bool
+	SelectedID string
+	Target     string
+	Threads    []Thread
+}
+
+templ Threads(in ThreadsIn) {
+	<section class={ utils.TwMerge("flex min-h-0 flex-col gap-3 py-3", in.Class) } aria-label="Codex chats" data-codex-threads data-filter="">
+		<div class="px-5 pt-2 type-label-100 text-muted-foreground">Recent chats</div>
+		<div
+			if in.EventsURL != "" {
+				hx-sse:connect={ in.EventsURL }
+			}
+			hx-swap="innerMorph"
+			{ connectionAttributes()... }
+		>
+			@ThreadsList(in.List)
+		</div>
+	</section>
+}
+
+templ ThreadsList(in ThreadsListIn) {
+	if in.Error != "" {
+		<p class="px-2 py-2 type-body-200 text-muted-foreground" role="status">{ in.Error }</p>
+	}
+	if in.Loading {
+		<p class="px-2 py-2 type-body-200 text-muted-foreground" role="status">Loading chats…</p>
+	} else if len(in.Threads) == 0 && in.Error == "" {
+		<p class="px-2 py-2 type-body-200 text-muted-foreground">No recent chats yet.</p>
+	}
+	<ul class="mt-1" aria-label="Recent Codex chats">
+		for _, thread := range in.Threads {
+			<li id={ "codex-thread-" + thread.ID } data-thread-title={ strings.ToLower(thread.Title) } data-thread-status={ thread.Status } hx-live:hidden="!this.dataset.threadTitle.includes(data.filter)">
+				@navitem.NavItem(navitem.In{Current: navitem.PageIf(thread.ID == in.SelectedID), Attributes: threadAttributes(in, thread), Href: thread.Href, Label: thread.Title}) {
+					@LiveStatusDots(LiveStatusDotsIn{Status: thread.Status})
+				}
+			</li>
+		}
+	</ul>
+	if len(in.Threads) > 0 {
+		<p class="px-2 py-2 type-body-200 text-muted-foreground" hidden hx-live:hidden="Array.from(this.previousElementSibling.children).some(row => row.dataset.threadTitle.includes(data.filter))">No matching chats.</p>
+	}
+}
+
+func threadAttributes(in ThreadsListIn, thread Thread) templ.Attributes {
+	attrs := ClientThreadID(thread.ClientID)
+	attrs["data-thread-id"] = thread.ID
+	if in.Target != "" {
+		attrs["hx-get"] = thread.Href
+		attrs["hx-target"] = in.Target
+		attrs["hx-swap"] = "outerMorph"
+		attrs["hx-push-url"] = "true"
+		attrs["hx-sync"] = "closest [data-codex-threads]:replace"
+		attrs["hx-live:aria-current"] = "document.querySelector(this.getAttribute('hx-target'))?.dataset.selectedThread === this.dataset.threadId ? 'page' : null"
+	}
+	return attrs
+}

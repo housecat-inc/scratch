@@ -1,0 +1,23 @@
+package codex
+
+import "github.com/housecat-inc/scratch/ui/components/toast"
+
+templ ConnectionToast() {
+	@toast.Viewport() {
+		@toast.Toast(toast.Props{
+			Attributes: templ.Attributes{"data-codex-reconnecting": "", "hidden": true, "hx-live:hidden": "!document.querySelector('[data-codex-connection][data-disconnected=\"true\"]')"},
+			Message:    "Reconnecting to chats…",
+		})
+	}
+}
+
+func connectionAttributes() templ.Attributes {
+	return templ.Attributes{
+		"data-codex-connection":           "",
+		"data-disconnected":               "false",
+		"hx-on:htmx:sse:error":            "if (await forEvent('htmx:sse:after:connection', 'htmx:sse:after:message', 'htmx:sse:close', 1000) === 1000) data.disconnected = true",
+		"hx-on:htmx:sse:after:connection": "data.disconnected = false",
+		"hx-on:htmx:sse:after:message":    "data.disconnected = false",
+		"hx-on:htmx:sse:close":            "data.disconnected = false",
+	}
+}

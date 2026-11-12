@@ -3,27 +3,43 @@ package claudecode
 import (
 	"testing"
 
-	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSanitizeSlug(t *testing.T) {
-	tk.Run(t, []tk.Test[string, string]{
-		{Name: "basic kebab", In: "fix login bug", Out: "fix-login-bug"},
-		{Name: "already kebab", In: "rename-feature-x", Out: "rename-feature-x"},
-		{Name: "uppercase folded", In: "Fix Login Bug", Out: "fix-login-bug"},
-		{Name: "strips punctuation", In: "feat: add login!?", Out: "feat-add-login"},
-		{Name: "trims leading dashes", In: "  -- hello world", Out: "hello-world"},
-		{Name: "trims trailing dashes", In: "hello world---", Out: "hello-world"},
-		{Name: "newline cuts response", In: "fix-login\nmore text after", Out: "fix-login"},
-		{Name: "underscore becomes dash", In: "fix_login_bug", Out: "fix-login-bug"},
-		{Name: "max length", In: "this slug is going to be way too long for our liking", Out: "this-slug-is-going-to-be-way-too"},
-		{Name: "empty", In: "   ", Out: ""},
-	}, tk.Pure(sanitizeSlug))
+	tests := []struct {
+		in   string
+		name string
+		want string
+	}{
+		{name: "joins words with dashes", in: "fix login bug", want: "fix-login-bug"},
+		{name: "keeps an existing kebab slug", in: "rename-feature-x", want: "rename-feature-x"},
+		{name: "folds uppercase", in: "Fix Login Bug", want: "fix-login-bug"},
+		{name: "strips punctuation", in: "feat: add login!?", want: "feat-add-login"},
+		{name: "trims leading dashes", in: "  -- hello world", want: "hello-world"},
+		{name: "trims trailing dashes", in: "hello world---", want: "hello-world"},
+		{name: "cuts the response at a newline", in: "fix-login\nmore text after", want: "fix-login"},
+		{name: "turns underscores into dashes", in: "fix_login_bug", want: "fix-login-bug"},
+		{name: "caps the length", in: "this slug is going to be way too long for our liking", want: "this-slug-is-going-to-be-way-too"},
+		{name: "returns empty for blank input", in: "   ", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			a.Equal(tt.want, sanitizeSlug(tt.in))
+		})
+	}
 }
 
-func TestSlugForPromptNoBinary(t *testing.T) {
-	a := assert.New(t)
-	a.Empty(SlugForPrompt("definitely-not-a-binary-xyz", "anything"))
-	a.Empty(SlugForPrompt("claude", ""))
+func TestSlugForPrompt(t *testing.T) {
+	t.Run("returns empty when the binary is missing", func(t *testing.T) {
+		a := assert.New(t)
+		a.Empty(SlugForPrompt("definitely-not-a-binary-xyz", "anything"))
+	})
+
+	t.Run("returns empty for an empty prompt", func(t *testing.T) {
+		a := assert.New(t)
+		a.Empty(SlugForPrompt("claude", ""))
+	})
 }

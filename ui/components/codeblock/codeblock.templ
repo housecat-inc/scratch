@@ -1,0 +1,16 @@
+package codeblock
+
+type In struct {
+	Text  string
+	Title string
+}
+
+templ CodeBlock(in In) {
+	<section class="min-w-0 space-y-1" aria-label={ in.Title } data-copied="false" data-copy-failed="false">
+		<div class="flex items-center justify-between gap-3 type-caption-100 text-muted-foreground">
+			<span>{ in.Title }</span>
+			<button type="button" class="rounded px-1 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" aria-label={ "Copy " + in.Title } hx-on:click="try { await navigator.clipboard.writeText(this.closest('section').querySelector('code').textContent); data.copied = true; data.copyFailed = false } catch { data.copyFailed = true }" hx-live="this.textContent = data.copyFailed ? 'Copy failed' : data.copied ? 'Copied' : 'Copy'">Copy</button>
+		</div>
+		<pre class="max-h-96 overflow-auto rounded-md bg-muted px-3 py-2 type-code-200"><code>{ in.Text }</code></pre>
+	</section>
+}

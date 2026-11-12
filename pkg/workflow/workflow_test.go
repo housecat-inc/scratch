@@ -9,26 +9,27 @@ import (
 )
 
 func TestGreet(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "empty", in: "", want: "Hello, !"},
-		{name: "name", in: "Ada", want: "Hello, Ada!"},
-	}
-
 	r := require.New(t)
 	w, err := New(filepath.Join(t.TempDir(), "workflows.db"))
 	r.NoError(err)
 	defer w.Close()
 	r.NoError(w.Launch())
 
+	tests := []struct {
+		in   string
+		name string
+		want string
+	}{
+		{in: "", name: "greets an empty name", want: "Hello, !"},
+		{in: "Ada", name: "greets by name", want: "Hello, Ada!"},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
+			r := require.New(t)
+
 			got, err := w.Greet(tt.in)
-			a.NoError(err)
+			r.NoError(err)
 			a.Equal(tt.want, got)
 		})
 	}

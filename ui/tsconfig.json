@@ -1,0 +1,65 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // The installed Effect's declarations, as its "./*" export maps them. A
+    // script under app/ imports Effect too, and resolving from there never
+    // reaches ui/node_modules, where the workspace installs it.
+    "paths": {
+      "effect/*": ["./node_modules/effect/dist/*"]
+    },
+    "plugins": [
+      {
+        // Editors' language server reads this plugin, for the Effect
+        // diagnostics editors and Claude Code show as code is written, and so
+        // does `ui/tsc.sh -p`; CI doesn't, since its check is `vp lint`. Its
+        // severities mirror the ones the root vite.config.ts gives `vp lint`,
+        // which `make -C app lint-ts` checks with ui/tools/effect_severities.ts.
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "abortControllerInEffect": "suggestion",
+          "asyncFunction": "suggestion",
+          "cryptoRandomUUID": "suggestion",
+          "cryptoRandomUUIDInEffect": "suggestion",
+          "extendsNativeError": "suggestion",
+          "globalConsole": "suggestion",
+          "globalConsoleInEffect": "suggestion",
+          "globalDate": "suggestion",
+          "globalDateInEffect": "suggestion",
+          "globalFetch": "suggestion",
+          "globalFetchInEffect": "suggestion",
+          "globalRandom": "suggestion",
+          "globalRandomInEffect": "suggestion",
+          "globalTimers": "suggestion",
+          "globalTimersInEffect": "suggestion",
+          "instanceOfSchema": "suggestion",
+          "newPromise": "suggestion",
+          "nodeBuiltinImport": "suggestion",
+          "preferEffectArray": "suggestion",
+          "preferEffectRecord": "suggestion",
+          "preferEffectString": "suggestion",
+          "preferSchemaOverJson": "suggestion",
+          "processEnv": "suggestion",
+          "processEnvInEffect": "suggestion",
+          "schemaSync": "suggestion"
+        }
+      }
+    ],
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": []
+  },
+  "exclude": ["**/node_modules", "lint-canary"],
+  "include": ["**/*.ts"]
+}

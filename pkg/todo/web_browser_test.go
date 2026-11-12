@@ -12,345 +12,298 @@ import (
 	"github.com/housecat-inc/scratch/testkit"
 )
 
+type webCase struct {
+	act    func(h *webHarness)
+	assert func(h *webHarness)
+	name   string
+	path   string
+	seed   func(h *webHarness)
+}
+
 type webHarness struct {
 	*testkit.Harness
 	Chat  *chat.Service
 	Tasks *Service
 }
 
-type webStep = testkit.BrowserStep[*webHarness]
-
-func runWebBrowser(t *testing.T, cases []testkit.BrowserCase[*webHarness]) {
-	t.Helper()
-	testkit.RunBrowserCases(t, cases, testkit.BrowserCaseRunner[*webHarness]{
-		ConsoleErrors: func(h *webHarness) []string {
-			return h.Console.Errors()
-		},
-		Load: func(h *webHarness, path string) {
-			h.Load(path)
-		},
-		Setup: func(t *testing.T, kit *testkit.T, _ testkit.BrowserCase[*webHarness]) *webHarness {
-			store, err := db.New(":memory:")
-			kit.R.NoError(err)
-			t.Cleanup(func() { store.Close() })
-
-			tasks := NewService(store)
-			chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.Default())
-			t.Cleanup(chatSvc.Close)
-			mux := http.NewServeMux()
-			mux.Handle("/chat/", chat.NewServer(chatSvc, slog.Default()).Handler())
-			mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
-			mux.Handle("/", NewWebServerWithChat(tasks, chatSvc, slog.Default()).Handler())
-
-			return &webHarness{
-				Harness: testkit.NewHarnessWithT(t, kit, mux),
-				Chat:    chatSvc,
-				Tasks:   tasks,
-			}
-		},
-	})
-}
-
-func TestTodoWebBrowser(t *testing.T) {
-	runWebBrowser(t, []testkit.BrowserCase[*webHarness]{
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness]("[data-new-chat]"),
-			},
-			Assert: []webStep{
-				webChatThreadCount(1),
-				webChatThreadLabel(1, chatLabelTodo),
-				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				testkit.TextContainsStep[*webHarness]("#floating-chat", "New chat"),
-			},
-			Name: "new chat action opens a floating chat",
-			Path: "/",
-		},
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness]("[data-new-chat]"),
-				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				testkit.ClickStep[*webHarness](`.gm-label[href="/tasks"]`),
-			},
-			Assert: []webStep{
-				webPathEventuallyEquals("/tasks"),
-				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				testkit.TextContainsStep[*webHarness]("#floating-chat", "New chat"),
-			},
-			Name: "floating chat survives navigation",
-			Path: "/",
-		},
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness]("[data-new-chat]"),
-				webElementEventuallyPresent("#floating-chat"),
-				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
-			},
-			Assert: []webStep{
-				webPathEventuallyEquals("/chats"),
-				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Chats"),
-				webElementAbsent("#floating-chat"),
-			},
-			Name: "chat history action opens chats",
-			Path: "/",
-			Seed: []webStep{
-				seedWebChat("old chat", chatLabelTodo),
-			},
-		},
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness]("[data-new-chat]"),
-				webElementEventuallyPresent("#floating-chat"),
-				testkit.ClickStep[*webHarness](`[aria-label="Chat history"]`),
-			},
-			Assert: []webStep{
-				webPathEventuallyEquals("/chats"),
-				webChatThreadCount(1),
-				webElementEventuallyPresent(`[data-kind="chat"][data-id="1"]`),
-				webElementAbsent("#floating-chat"),
-			},
-			Name: "chat history action refreshes current chats page",
-			Path: "/chats",
-		},
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness](`[aria-label="New task"]`),
-			},
-			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "New task"),
-				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Active"),
-				webElementAbsent("section.mail-card"),
-			},
-			Name: "creates a task",
-			Path: "/",
-		},
-		{
-			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Inbox"),
-				testkit.TextContainsStep[*webHarness](`[data-id="1"]`, "active one"),
-				testkit.VisibleStep[*webHarness](`[data-id="1"] form[action="/tasks/1/done"] button`),
-				testkit.VisibleStep[*webHarness](`[data-id="1"] button[aria-label="Archive"]`),
-				webElementAbsent(".mail-reader-head"),
-				webElementAbsent(`[data-id="2"]`),
-				webElementAbsent(`[data-id="3"]`),
-			},
-			Name: "inbox lists active tasks",
-			Path: "/",
-			Seed: []webStep{
-				seedWebTask("active one"),
-				seedWebTask("done one", webTaskCompleted(true)),
-				seedWebTask("archived one", webTaskArchived(true)),
-			},
-		},
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness](".gm-row-link"),
-			},
-			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "open task"),
-				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Active"),
-				webElementAbsent("section.mail-card"),
-			},
-			Name: "opens a task page from the inbox row",
-			Path: "/",
-			Seed: []webStep{
-				seedWebTask("open task"),
-			},
-		},
-		{
-			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Tasks"),
-				testkit.TextContainsStep[*webHarness](`[data-id="1"]`, "active one"),
-				testkit.TextContainsStep[*webHarness](`[data-id="2"]`, "done one"),
-				testkit.TextContainsStep[*webHarness](`[data-id="3"]`, "archived one"),
-				testkit.VisibleStep[*webHarness](`[data-id="3"] button[aria-label="Unarchive"]`),
-				testkit.VisibleStep[*webHarness](`[data-id="3"] button[aria-label="Delete"]`),
-				webElementAbsent(".mail-reader-head"),
-			},
-			Name: "tasks lists all tasks with archived actions",
-			Path: "/tasks",
-			Seed: []webStep{
-				seedWebTask("active one"),
-				seedWebTask("done one", webTaskCompleted(true)),
-				seedWebTask("archived one", webTaskArchived(true)),
-			},
-		},
-		{
-			Act: []webStep{
-				webHover(`[data-id="1"]`),
-				testkit.ClickStep[*webHarness](`[data-id="1"] button[aria-label="Archive"]`),
-				webLoad("/tasks"),
-				webHover(`[data-id="1"]`),
-				testkit.ClickStep[*webHarness](`[data-id="1"] button[aria-label="Unarchive"]`),
-			},
-			Assert: []webStep{
-				webTaskArchivedState(1, false),
-				testkit.VisibleStep[*webHarness](`[data-id="1"] button[aria-label="Archive"]`),
-			},
-			Name: "archives and unarchives from list actions",
-			Path: "/",
-			Seed: []webStep{
-				seedWebTask("archive me"),
-			},
-		},
-		{
-			Act: []webStep{
-				webHover(`[data-id="1"]`),
-				testkit.ClickStep[*webHarness](`[data-id="1"] button[aria-label="Delete"]`),
-				webTaskPresent(1),
-				testkit.VisibleStep[*webHarness](`[data-id="1"] [data-trash-submit]`),
-				testkit.ClickStep[*webHarness](`[data-id="1"] [data-trash-submit]`),
-			},
-			Assert: []webStep{
-				webTaskDeleted(1),
-				webElementAbsent(`[data-id="1"]`),
-			},
-			Name: "deletes archived tasks from the tasks list",
-			Path: "/tasks",
-			Seed: []webStep{
-				seedWebTask("remove me", webTaskArchived(true)),
-			},
-		},
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness](`.mail-reader-head form[action="/tasks/1/done"] button`),
-			},
-			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-reader-labels", "Done"),
-				webTaskCompletedState(1, true),
-			},
-			Name: "toggles completion",
-			Path: "/tasks/1",
-			Seed: []webStep{
-				seedWebTask("draft"),
-			},
-		},
-		{
-			Act: []webStep{
-				testkit.TypeStep[*webHarness](`[name="description"]`, "Call customer"),
-				testkit.ClickStep[*webHarness](".mail-save-btn"),
-			},
-			Assert: []webStep{
-				webTaskDescription(1, "Call customer"),
-				testkit.TextContainsStep[*webHarness](".mail-reader-title", "draft"),
-			},
-			Name: "updates description",
-			Path: "/tasks/1",
-			Seed: []webStep{
-				seedWebTask("draft"),
-			},
-		},
-		{
-			Assert: []webStep{
-				testkit.TextContainsStep[*webHarness](".mail-mainbar", "Chats"),
-				testkit.TextContainsStep[*webHarness](`[data-kind="chat"][data-id="1"]`, "old chat"),
-				webElementAbsent(`[data-kind="chat"][data-id="2"]`),
-			},
-			Name: "lists todo chats without scratch chats",
-			Path: "/chats",
-			Seed: []webStep{
-				seedWebChat("old chat", chatLabelTodo),
-				seedWebChat("scratch chat", ""),
-			},
-		},
-		{
-			Act: []webStep{
-				testkit.ClickStep[*webHarness](`[data-kind="chat"][data-id="1"] .gm-row-link`),
-			},
-			Assert: []webStep{
-				webPathEventuallyEquals("/chats"),
-				webElementEventuallyPresent("#floating-chat [data-chat-input]"),
-				testkit.TextContainsStep[*webHarness]("#floating-chat", "old chat"),
-			},
-			Name: "clicking a todo chat row opens a floating chat",
-			Path: "/chats",
-			Seed: []webStep{
-				seedWebChat("old chat", chatLabelTodo),
-			},
-		},
-	})
-}
-
-func seedWebChat(title, label string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		_, err := h.Chat.CreateThreadWithLabel("", "", label, title)
-		h.R.NoError(err)
-	}
-}
-
-func webChatThreadLabel(id int64, want string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			thread, err := h.Chat.Thread(id)
-			return err == nil && h.Chat.ThreadLabel(thread) == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
-}
-
-func webChatThreadCount(want int) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			threads, err := h.Chat.Threads()
-			return err == nil && len(threads) == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
-}
+const railPrompt = "#mail-chat-rail-content [data-prompt-field]"
 
 type webTaskOption func(*Service, db.Task) (db.Task, error)
 
-func seedWebTask(title string, options ...webTaskOption) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		task, err := h.Tasks.Create(title)
-		h.R.NoError(err)
-		for _, option := range options {
-			task, err = option(h.Tasks, task)
-			h.R.NoError(err)
+func TestWebBrowser(t *testing.T) {
+	t.Run("chat panel", func(t *testing.T) {
+		tests := []webCase{
+			{
+				act: func(h *webHarness) {
+					h.Click("[data-chat-rail-toggle]")
+					h.eventuallyPresent(railPrompt)
+					h.Type(railPrompt, "hello todo")
+					h.Press(railPrompt, "Enter")
+				},
+				assert: func(h *webHarness) {
+					h.chatThreadCount(1)
+					h.chatThreadLabel(1, chatLabelTodo)
+					h.ElementTextContains("#mail-chat-rail-content [data-chat-entries]", "You said: hello todo")
+				},
+				name: "chat toggle starts a todo chat in the panel",
+				path: "/",
+			},
+			{
+				act: func(h *webHarness) {
+					h.Click("[data-chat-rail-toggle]")
+					h.eventuallyPresent(railPrompt)
+					h.Click(`[data-slot="nav-item"][href="/tasks"]`)
+				},
+				assert: func(h *webHarness) {
+					h.pathEventuallyEquals("/tasks")
+					h.eventuallyPresent(railPrompt)
+				},
+				name: "survives navigation",
+				path: "/",
+			},
 		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				runWebCase(t, tt)
+			})
+		}
+	})
+
+	t.Run("inbox", func(t *testing.T) {
+		tests := []webCase{
+			{
+				act: func(h *webHarness) {
+					h.Click(`[aria-label="New task"]`)
+				},
+				assert: func(h *webHarness) {
+					h.ElementTextContains(".mail-reader-title", "New task")
+					h.ElementTextContains(".mail-reader-labels", "Active")
+					h.ElementAbsent("section.mail-card")
+				},
+				name: "creates a task",
+				path: "/",
+			},
+			{
+				assert: func(h *webHarness) {
+					h.ElementTextContains(".mail-mainbar", "Inbox")
+					h.ElementTextContains(`[data-id="1"]`, "active one")
+					h.ElementVisible(`[data-id="1"] form[action="/tasks/1/done"] button`)
+					h.ElementVisible(`[data-id="1"] button[aria-label="Archive"]`)
+					h.ElementAbsent(".mail-reader-head")
+					h.ElementAbsent(`[data-id="2"]`)
+					h.ElementAbsent(`[data-id="3"]`)
+				},
+				name: "lists only active tasks",
+				path: "/",
+				seed: func(h *webHarness) {
+					h.seedTask("active one")
+					h.seedTask("done one", webTaskCompleted(true))
+					h.seedTask("archived one", webTaskArchived(true))
+				},
+			},
+			{
+				act: func(h *webHarness) {
+					h.Click(".gm-row-link")
+				},
+				assert: func(h *webHarness) {
+					h.ElementTextContains(".mail-reader-title", "open task")
+					h.ElementTextContains(".mail-reader-labels", "Active")
+					h.ElementAbsent("section.mail-card")
+				},
+				name: "opens a task page from a row",
+				path: "/",
+				seed: func(h *webHarness) {
+					h.seedTask("open task")
+				},
+			},
+			{
+				act: func(h *webHarness) {
+					h.hover(`[data-id="1"]`)
+					h.Click(`[data-id="1"] button[aria-label="Archive"]`)
+					h.Load("/tasks")
+					h.hover(`[data-id="1"]`)
+					h.Click(`[data-id="1"] button[aria-label="Unarchive"]`)
+				},
+				assert: func(h *webHarness) {
+					h.taskEventually(1, func(task db.Task) bool { return !task.Archived })
+					h.ElementVisible(`[data-id="1"] button[aria-label="Archive"]`)
+				},
+				name: "archives and unarchives from list actions",
+				path: "/",
+				seed: func(h *webHarness) {
+					h.seedTask("archive me")
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				runWebCase(t, tt)
+			})
+		}
+	})
+
+	t.Run("tasks list", func(t *testing.T) {
+		tests := []webCase{
+			{
+				assert: func(h *webHarness) {
+					h.ElementTextContains(".mail-mainbar", "Tasks")
+					h.ElementTextContains(`[data-id="1"]`, "active one")
+					h.ElementTextContains(`[data-id="2"]`, "done one")
+					h.ElementTextContains(`[data-id="3"]`, "archived one")
+					h.ElementVisible(`[data-id="3"] button[aria-label="Unarchive"]`)
+					h.ElementVisible(`[data-id="3"] button[aria-label="Delete"]`)
+					h.ElementAbsent(".mail-reader-head")
+				},
+				name: "lists all tasks with archived actions",
+				path: "/tasks",
+				seed: func(h *webHarness) {
+					h.seedTask("active one")
+					h.seedTask("done one", webTaskCompleted(true))
+					h.seedTask("archived one", webTaskArchived(true))
+				},
+			},
+			{
+				act: func(h *webHarness) {
+					h.hover(`[data-id="1"]`)
+					h.Click(`[data-id="1"] button[aria-label="Delete"]`)
+					h.taskEventually(1, func(db.Task) bool { return true })
+					h.ElementVisible(`[data-id="1"] [data-trash-submit]`)
+					h.Click(`[data-id="1"] [data-trash-submit]`)
+				},
+				assert: func(h *webHarness) {
+					h.taskEventuallyDeleted(1)
+					h.ElementAbsent(`[data-id="1"]`)
+				},
+				name: "deletes an archived task after confirmation",
+				path: "/tasks",
+				seed: func(h *webHarness) {
+					h.seedTask("remove me", webTaskArchived(true))
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				runWebCase(t, tt)
+			})
+		}
+	})
+
+	t.Run("task page", func(t *testing.T) {
+		tests := []webCase{
+			{
+				act: func(h *webHarness) {
+					h.Click(`.mail-reader-head form[action="/tasks/1/done"] button`)
+				},
+				assert: func(h *webHarness) {
+					h.ElementTextContains(".mail-reader-labels", "Done")
+					h.taskEventually(1, func(task db.Task) bool { return task.Completed })
+				},
+				name: "toggles completion",
+				path: "/tasks/1",
+				seed: func(h *webHarness) {
+					h.seedTask("draft")
+				},
+			},
+			{
+				act: func(h *webHarness) {
+					h.Type(`[name="description"]`, "Call customer")
+					h.Click(".mail-save-btn")
+				},
+				assert: func(h *webHarness) {
+					h.taskEventually(1, func(task db.Task) bool { return task.Description == "Call customer" })
+					h.ElementTextContains(".mail-reader-title", "draft")
+				},
+				name: "saves the description and keeps the title",
+				path: "/tasks/1",
+				seed: func(h *webHarness) {
+					h.seedTask("draft")
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				runWebCase(t, tt)
+			})
+		}
+	})
+
+	t.Run("chats list", func(t *testing.T) {
+		tests := []webCase{
+			{
+				assert: func(h *webHarness) {
+					h.ElementTextContains(".mail-mainbar", "Chats")
+					h.ElementTextContains(`[data-kind="chat"][data-id="1"]`, "old chat")
+					h.ElementAbsent(`[data-kind="chat"][data-id="2"]`)
+				},
+				name: "lists todo chats without scratch chats",
+				path: "/chats",
+				seed: func(h *webHarness) {
+					h.seedChat("old chat", chatLabelTodo)
+					h.seedChat("scratch chat", "")
+				},
+			},
+			{
+				act: func(h *webHarness) {
+					h.Click(`[data-kind="chat"][data-id="1"] .gm-row-link`)
+				},
+				assert: func(h *webHarness) {
+					h.pathEventuallyEquals("/chats")
+					h.eventuallyPresent(railPrompt)
+					h.ElementTextContains("#mail-chat-rail-content", "old chat")
+				},
+				name: "opens a todo chat row in the chat panel",
+				path: "/chats",
+				seed: func(h *webHarness) {
+					h.seedChat("old chat", chatLabelTodo)
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				runWebCase(t, tt)
+			})
+		}
+	})
+}
+
+func newWebHarness(t *testing.T) *webHarness {
+	t.Helper()
+	kit := testkit.New(t)
+
+	store, err := db.New(":memory:")
+	kit.R.NoError(err)
+	t.Cleanup(func() { store.Close() })
+
+	tasks := NewService(store)
+	chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.Default())
+	t.Cleanup(chatSvc.Close)
+	mux := http.NewServeMux()
+	mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
+	codex := chat.NewCodexServer(chatSvc).WithLabel(ChatLabel)
+	mux.Handle("/codex", codex.Handler())
+	mux.Handle("/codex/", codex.Handler())
+	mux.Handle("/", codex.Middleware(NewWebServerWithChat(tasks, chatSvc, slog.Default()).Handler()))
+
+	return &webHarness{
+		Chat:    chatSvc,
+		Harness: testkit.NewHarnessWithT(t, kit, mux),
+		Tasks:   tasks,
 	}
 }
 
-func webElementAbsent(selector string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.ElementAbsent(selector)
+func runWebCase(t *testing.T, tc webCase) {
+	t.Helper()
+	h := newWebHarness(t)
+	if tc.seed != nil {
+		tc.seed(h)
 	}
-}
-
-func webElementEventuallyPresent(selector string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventuallyf(func() bool {
-			_, err := h.Page.Element(selector)
-			return err == nil
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s should be present", selector)
+	h.Load(tc.path)
+	if tc.act != nil {
+		tc.act(h)
 	}
-}
-
-func webHover(selector string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.Page.MustElement(selector).MustHover()
-	}
-}
-
-func webLoad(path string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.Load(path)
-	}
-}
-
-func webPathEventuallyEquals(expected string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventuallyf(func() bool {
-			result, err := h.Page.Eval(`() => location.pathname`)
-			return err == nil && result.Value.Str() == expected
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "path should equal %q", expected)
+	tc.assert(h)
+	for _, msg := range h.Console.Errors() {
+		t.Errorf("unexpected console error: %s", msg)
 	}
 }
 
@@ -366,52 +319,62 @@ func webTaskCompleted(completed bool) webTaskOption {
 	}
 }
 
-func webTaskArchivedState(id int64, want bool) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			task, err := h.Tasks.Get(id)
-			return err == nil && task.Archived == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+func (h *webHarness) chatThreadCount(want int) {
+	h.R.Eventually(func() bool {
+		threads, err := h.Chat.Threads()
+		return err == nil && len(threads) == want
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+}
+
+func (h *webHarness) chatThreadLabel(id int64, want string) {
+	h.R.Eventually(func() bool {
+		thread, err := h.Chat.Thread(id)
+		return err == nil && h.Chat.ThreadLabel(thread) == want
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
+}
+
+func (h *webHarness) eventuallyPresent(selector string) {
+	h.R.Eventuallyf(func() bool {
+		_, err := h.Page.Element(selector)
+		return err == nil
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "%s should be present", selector)
+}
+
+func (h *webHarness) hover(selector string) {
+	h.Page.MustElement(selector).MustHover()
+}
+
+func (h *webHarness) pathEventuallyEquals(expected string) {
+	h.R.Eventuallyf(func() bool {
+		result, err := h.Page.Eval(`() => location.pathname`)
+		return err == nil && result.Value.Str() == expected
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval, "path should equal %q", expected)
+}
+
+func (h *webHarness) seedChat(title, label string) {
+	_, err := h.Chat.CreateThreadWithLabel("", "", label, title)
+	h.R.NoError(err)
+}
+
+func (h *webHarness) seedTask(title string, options ...webTaskOption) {
+	task, err := h.Tasks.Create(title)
+	h.R.NoError(err)
+	for _, option := range options {
+		task, err = option(h.Tasks, task)
+		h.R.NoError(err)
 	}
 }
 
-func webTaskCompletedState(id int64, want bool) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			task, err := h.Tasks.Get(id)
-			return err == nil && task.Completed == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
+func (h *webHarness) taskEventually(id int64, match func(db.Task) bool) {
+	h.R.Eventually(func() bool {
+		task, err := h.Tasks.Get(id)
+		return err == nil && match(task)
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 }
 
-func webTaskDeleted(id int64) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			_, err := h.Tasks.Get(id)
-			return db.IsTaskNotFound(err)
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
-}
-
-func webTaskPresent(id int64) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			_, err := h.Tasks.Get(id)
-			return err == nil
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
-}
-
-func webTaskDescription(id int64, want string) webStep {
-	return func(t *testing.T, h *webHarness) {
-		t.Helper()
-		h.R.Eventually(func() bool {
-			task, err := h.Tasks.Get(id)
-			return err == nil && task.Description == want
-		}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
-	}
+func (h *webHarness) taskEventuallyDeleted(id int64) {
+	h.R.Eventually(func() bool {
+		_, err := h.Tasks.Get(id)
+		return db.IsTaskNotFound(err)
+	}, testkit.BrowserWaitTimeout, testkit.BrowserPollInterval)
 }

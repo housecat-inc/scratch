@@ -1,0 +1,476 @@
+// Package selectbox is a single-choice select that submits like a form
+// field: a button that shows the chosen label, and a listbox of options in
+// the top layer.
+//
+// Baseline: templUI selectbox v1.5.0, installed with the templui v1.5.0 CLI
+// (`templui add selectbox`, its default ref) into a throwaway module on
+// 2026-09-22 and copied here by hand, since `templui add` in ui/ would
+// overwrite this module's own popover, icon and button. An upgrade diffs the
+// next upstream selectbox.templ and selectbox.min.js against v1.5.0, not
+// against this file, which has since diverged in these ways:
+//
+//   - Parts follow Base UI's Select anatomy -- Root, Trigger, Value,
+//     Positioner, Popup, Item, ItemIndicator, Group, GroupLabel -- in place
+//     of templUI's SelectBox, Trigger, Value, Content, Group, Label and Item.
+//   - The list is its own top-layer popup, not templUI's popover: Positioner
+//     is a native popover placed by ui/floating, and every part carries a
+//     selectbox-* data-slot, so no popover selector, style or listener
+//     matches a selectbox part and no selectbox rule matches a popover.
+//     Positioner, the item check and the class strings come from
+//     ui/components/listbox, which combobox shares.
+//   - The trigger is a role=combobox button and the popup a listbox of
+//     options with aria-selected, so it announces the way a native select
+//     does; selectbox.ts supplies the keys a native select has.
+//   - Value stacks every label in one grid cell with all but the chosen one
+//     invisible, so the trigger is as wide as its widest option whichever is
+//     chosen, with no script measuring.
+//   - Search, multiple selection, pills, the clear button and disabled
+//     items are gone, since nothing here uses them. Groups came back, in
+//     menu's shape, for the settings card's section switcher.
+//   - The behaviour is selectbox.ts in the ui.js bundle, not a .min.js
+//     loaded by a Script() component.
+//   - Inside a field.Field the trigger wears the field's id and is named,
+//     described and marked invalid and required by it, and the popup is
+//     named by the field's label too.
+//   - Root's value input is kept out of the browser's form restore, so a
+//     reload can't post a value the trigger doesn't show. Root's Disabled
+//     keeps it out of the form, and its Required makes it an input the
+//     browser validates; Trigger has a Disabled of its own.
+//   - Select, in select.templ, is the parts a form's select usually wants in
+//     one call. templUI has no equivalent.
+package selectbox
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"strconv"
+
+	"github.com/cockroachdb/errors"
+
+	"github.com/housecat-inc/scratch/ui/components/control"
+	"github.com/housecat-inc/scratch/ui/components/listbox"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+// Entry is one option as Value needs it: the label to stack and the value
+// that picks it out. Root takes all of them, the way Base UI's Select.Root
+// takes items, because Value draws every label whichever one is chosen.
+type Entry struct {
+	Label string
+	Value string
+}
+
+type Align = listbox.Align
+
+const (
+	AlignCenter = listbox.AlignCenter
+	AlignEnd    = listbox.AlignEnd
+	AlignStart  = listbox.AlignStart
+)
+
+type Side = listbox.Side
+
+const (
+	SideBottom = listbox.SideBottom
+	SideTop    = listbox.SideTop
+)
+
+type ctxKey int
+
+const (
+	groupKey ctxKey = iota
+	rootKey
+)
+
+type root struct {
+	disabled *bool
+	// groups counts the Groups rendered so far, so each gets an id of its own
+	// derived from the root's.
+	groups *int
+	id     string
+	items  []Entry
+	label  string
+	// labelledBy is the id of the field label the trigger is named by, set by
+	// Trigger when it wears a field.Field, so Popup is named by it too.
+	labelledBy *string
+	required   bool
+	value      string
+}
+
+func rootFrom(ctx context.Context) root {
+	r, _ := ctx.Value(rootKey).(root)
+	return r
+}
+
+func (r root) positionerID() string { return r.id + "-positioner" }
+
+func (r root) popupID() string { return r.id + "-popup" }
+
+// itemID names an option so the combobox can point at it with
+// aria-activedescendant. Values are unique within a root, so they make the
+// name without a counter to keep in step with the markup.
+func (r root) itemID(value string) string { return r.id + "-item-" + value }
+
+type RootProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// ID ties the trigger to its popup; random when unset, which is fine
+	// everywhere the markup is not compared against a golden.
+	ID    string
+	Items []Entry
+	// Label is the accessible name of both the trigger and the listbox. The
+	// trigger shows only the chosen value, so without it a screen reader
+	// hears a value with nothing to say what it is the value of.
+	Label string
+	// Disabled keeps the value out of the form, as a disabled native select
+	// does. Trigger takes its own Disabled.
+	Disabled bool
+	// Form is the id of the form the value posts with, for a Root outside it.
+	Form string
+	// Name is the form field the chosen value submits as.
+	Name string
+	// Required holds the form's submit until a value is chosen, as a native
+	// select's required does: a textarea proxy carries native validation
+	// without adding a text input that blocks implicit Enter submission.
+	Required bool
+	Value    string
+}
+
+// Root holds the hidden input the form submits and renders no box of its
+// own, so the trigger lays out as a child of whatever holds the Root.
+func Root(props RootProps) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		id, required := control.RootOf(ctx, props.ID, "-select", props.Required)
+		r := root{
+			disabled:   new(bool),
+			groups:     new(int),
+			id:         control.IDOr(id),
+			items:      props.Items,
+			label:      props.Label,
+			labelledBy: new(string),
+			required:   required,
+			value:      props.Value,
+		}
+		*r.disabled = props.Disabled
+		inner := context.WithValue(templ.ClearChildren(ctx), rootKey, r)
+		var body bytes.Buffer
+		if err := templ.GetChildren(ctx).Render(inner, &body); err != nil {
+			return errors.Wrap(err, "render select control")
+		}
+		return rootBox(props, r, templ.Raw(body.String())).Render(inner, w)
+	})
+}
+
+templ rootBox(props RootProps, r root, body templ.Component) {
+	<div class={ utils.TwMerge("contents", utils.If(r.required, "relative block"), props.Class) } data-slot="selectbox" { props.Attributes... }>
+		if r.required {
+			@control.RequiredProxy(control.RequiredProps{Disabled: *r.disabled, Form: props.Form, ID: r.id + "-required", Name: props.Name, Slot: "selectbox-input", Value: props.Value})
+		} else {
+			<input
+				type="hidden"
+				name={ props.Name }
+				value={ props.Value }
+				if props.Form != "" {
+					form={ props.Form }
+				}
+				disabled?={ *r.disabled }
+				autocomplete="off"
+				data-slot="selectbox-input"
+			/>
+		}
+		@body
+	</div>
+}
+
+// Size is the trigger's height; see listbox.FieldSize.
+type Size = listbox.FieldSize
+
+const (
+	SizeSm = listbox.FieldSizeSm
+	SizeXs = listbox.FieldSizeXs
+)
+
+// TriggerTextStart pulls a trigger left by its own start padding; see
+// listbox.FieldTriggerTextStart.
+const TriggerTextStart = listbox.FieldTriggerTextStart
+
+// Look is how a trigger draws; see listbox.FieldLook.
+type Look = listbox.FieldLook
+
+const (
+	LookBox  = listbox.FieldLookBox
+	LookPill = listbox.FieldLookPill
+)
+
+type TriggerProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// Disabled keeps the popup shut and dims the trigger with the controls'
+	// disabled look.
+	Disabled bool
+	Look     Look
+	Size     Size
+}
+
+// Trigger opens the list through popovertarget, so a click and Enter or
+// Space need no script; selectbox.ts adds the arrow keys and typeahead, and
+// keeps aria-expanded in step. It is a combobox rather than a plain button
+// so its accessible name stays the Label while the chosen value reads as its
+// value, the pair a native select announces. In a field.Field it wears the
+// Field's id and takes its name from the Field's label, so the label it sits
+// under is the one a screen reader reads, and the Field's help and error
+// describe it.
+templ Trigger(props TriggerProps) {
+	{{ r := rootFrom(ctx) }}
+	{{ props.Disabled = control.Disabled(props.Disabled, props.Attributes) || r.disabled != nil && *r.disabled }}
+	{{
+		if r.disabled != nil {
+			*r.disabled = props.Disabled
+		}
+	}}
+	{{ f := control.Claim(ctx) }}
+	{{ id := f.Take("") }}
+	{{
+		if f != nil && r.labelledBy != nil {
+			*r.labelledBy = f.LabelID
+		}
+	}}
+	<button
+		type="button"
+		if id != "" {
+			id={ id }
+		}
+		role="combobox"
+		popovertarget={ r.positionerID() }
+		if f != nil && f.LabelID != "" {
+			aria-labelledby={ f.LabelID }
+		} else {
+			if r.label != "" {
+				aria-label={ r.label }
+			}
+		}
+		aria-controls={ r.popupID() }
+		aria-expanded="false"
+		aria-haspopup="listbox"
+		disabled?={ props.Disabled }
+		if r.required || f.IsRequired() {
+			aria-required="true"
+		}
+		{ f.Attributes()... }
+		class={ listbox.FieldTriggerClass(props.Size, props.Look, props.Class) }
+		data-slot="selectbox-trigger"
+		data-size={ props.Size.Name() }
+		{ props.Attributes... }
+	>
+		{ children... }
+		<span aria-hidden="true" class={ listbox.FieldChevronClass(props.Look) }>
+			@icons.Render(icons.ExpandAll, icons.Props{Size: props.Size.Chevron()})
+		</span>
+	</button>
+}
+
+type ValueProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Value draws every label in the same grid cell and shows only the chosen
+// one, so the cell is as wide as the widest label and choosing another never
+// moves what sits beside the trigger. The hidden labels are aria-hidden as
+// well as invisible, so the trigger's value reads as the chosen label alone.
+// It is text-start because a button centres its text by default, which would
+// centre every label narrower than the widest one inside the shared cell.
+templ Value(props ValueProps) {
+	{{ r := rootFrom(ctx) }}
+	<span class={ utils.TwMerge("inline-grid text-start whitespace-nowrap", props.Class) } data-slot="selectbox-value" { props.Attributes... }>
+		for _, item := range r.items {
+			<span
+				class="invisible col-start-1 row-start-1 data-[selected]:visible"
+				data-value={ item.Value }
+				data-selected?={ item.Value == r.value }
+				if item.Value != r.value {
+					aria-hidden="true"
+				}
+			>{ item.Label }</span>
+		}
+	</span>
+}
+
+type PositionerProps struct {
+	Align      Align
+	Attributes templ.Attributes
+	Class      string
+	Side       Side
+	SideOffset int
+}
+
+// Positioner is listbox.Positioner under selectbox's slot and id.
+templ Positioner(props PositionerProps) {
+	{{ r := rootFrom(ctx) }}
+	@listbox.Positioner(listbox.PositionerProps{
+		Align:      props.Align,
+		Attributes: props.Attributes,
+		Class:      props.Class,
+		ID:         r.positionerID(),
+		Side:       props.Side,
+		SideOffset: props.SideOffset,
+		Slot:       "selectbox-positioner",
+	}) {
+		{ children... }
+	}
+}
+
+type PopupProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Popup is the listbox, painted like the app's other menus. It is never
+// narrower than the trigger: --anchor-width is the trigger's width, which
+// selectbox.ts writes on the positioner before placing it.
+templ Popup(props PopupProps) {
+	{{ r := rootFrom(ctx) }}
+	<div
+		id={ r.popupID() }
+		role="listbox"
+		if r.labelledBy != nil && *r.labelledBy != "" {
+			aria-labelledby={ *r.labelledBy }
+		} else {
+			if r.label != "" {
+				aria-label={ r.label }
+			}
+		}
+		tabindex="-1"
+		class={ utils.TwMerge(listbox.PopupClass, props.Class) }
+		data-slot="selectbox-popup"
+		{ props.Attributes... }
+	>
+		if r.required {
+			@control.RequiredError(r.id + "-validation-error")
+		}
+		{ children... }
+	</div>
+}
+
+type ItemProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// Description is secondary text under the label, for what a native
+	// select would have put in an option's title tooltip.
+	Description string
+	Value       string
+}
+
+// Item is one option; its children are the label, which is also what
+// typeahead matches. It is chosen when its Value is the Root's.
+templ Item(props ItemProps) {
+	{{ selected := props.Value == rootFrom(ctx).value }}
+	<div
+		id={ rootFrom(ctx).itemID(props.Value) }
+		role="option"
+		aria-selected={ utils.IfElse(selected, "true", "false") }
+		class={ utils.TwMerge(listbox.ItemClass, props.Class) }
+		data-slot="selectbox-item"
+		data-value={ props.Value }
+		data-selected?={ selected }
+		{ props.Attributes... }
+	>
+		<span class={ listbox.ItemTextClass } data-slot="selectbox-item-text">
+			{ children... }
+		</span>
+		if props.Description != "" {
+			<span class={ listbox.ItemDescriptionClass } data-slot="selectbox-item-description">{ props.Description }</span>
+		}
+		@ItemIndicator()
+	</div>
+}
+
+// ItemIndicator is the check on the chosen item. Item renders it, the way
+// popover's Popup renders its arrow, since every item has one and there is
+// nothing for a caller to decide about it.
+templ ItemIndicator() {
+	@listbox.ItemIndicator(listbox.ItemIndicatorProps{Slot: "selectbox-item-indicator"})
+}
+
+type GroupProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+type group struct {
+	id       string
+	labelled bool
+}
+
+// label records that the group has a label, and returns the id it wears.
+func (g *group) label() string {
+	g.labelled = true
+	return g.id + "-label"
+}
+
+func groupFrom(ctx context.Context) *group {
+	g, _ := ctx.Value(groupKey).(*group)
+	return g
+}
+
+func groupID(ctx context.Context) string {
+	r := rootFrom(ctx)
+	if r.groups == nil {
+		return utils.RandomID()
+	}
+	*r.groups++
+	return r.id + "-group-" + strconv.Itoa(*r.groups)
+}
+
+// Group holds related options, labelled by the GroupLabel inside it, as
+// menu's Group does its items. It renders its children before its own tag,
+// because whether there is a label to point aria-labelledby at is only known
+// once they have rendered.
+func Group(props GroupProps) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		g := &group{id: groupID(ctx)}
+		inner := templ.ClearChildren(ctx)
+		var body bytes.Buffer
+		if err := templ.GetChildren(ctx).Render(context.WithValue(inner, groupKey, g), &body); err != nil {
+			return errors.Wrap(err, "render group")
+		}
+		return groupBox(props, g, templ.Raw(body.String())).Render(inner, w)
+	})
+}
+
+templ groupBox(props GroupProps, g *group, body templ.Component) {
+	<div
+		role="group"
+		if g.labelled {
+			aria-labelledby={ g.id + "-label" }
+		}
+		class={ utils.TwMerge("group/selectbox-group", props.Class) }
+		data-slot="selectbox-group"
+		{ props.Attributes... }
+	>
+		@body
+	</div>
+}
+
+type GroupLabelProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// GroupLabel names the Group it sits in, in menu's GroupLabel look. It is not
+// an option: the arrows and typeahead pass over it.
+templ GroupLabel(props GroupLabelProps) {
+	{{ g := groupFrom(ctx) }}
+	<div
+		if g != nil {
+			id={ g.label() }
+		}
+		class={ utils.TwMerge("px-2 py-1.5 type-caption-100-medium text-muted-foreground", props.Class) }
+		data-slot="selectbox-group-label"
+		{ props.Attributes... }
+	>
+		{ children... }
+	</div>
+}

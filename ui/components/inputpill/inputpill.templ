@@ -1,0 +1,277 @@
+// Housecat component (not templui-managed): the pill-shaped input -- one text
+// field and a trailing cluster of round controls in a fully round border --
+// that every free-text ask in the app is typed into.
+//
+// It comes in parts so callers share the look while filling it with their
+// own elements. InputPill is the shell: border, surface, shadow, the focus
+// ring, the corner and the minimum height. Field is the text field. Actions
+// is the trailing cluster, which holds whatever controls a caller passes as
+// children. A pill with controls under its text puts Field and a Below in a
+// Stack, which is then the first column and Actions the second.
+//
+// Every dimension reads the pill tokens in ui/css/theme.css, so two pills
+// match because they are the same markup reading the same sizing tokens,
+// not because two sets of numbers are kept in step. The controls in Actions
+// are the caller's own components, so they carry ControlHeight or
+// ControlSize to take their size from the same tokens.
+package inputpill
+
+import (
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+type Variant string
+
+const (
+	VariantDefault Variant = "default"
+	VariantSearch Variant = "search"
+)
+
+// ControlHeight and ControlSize size a control inside Actions to the height
+// the pill leaves for it. They are arbitrary-value utilities rather than the
+// h-pill-control a theme token also generates, because tailwind-merge does
+// not know the theme's names: next to a Button's own height class, a bare
+// h-pill-control survives the merge and the two fight on stylesheet order,
+// while the explicit CSS-variable height replaces it outright. Written
+// without its brackets here because Tailwind scans this file as text: a
+// utility-shaped string in a comment is a candidate, and that one compiled to
+// invalid CSS. ControlSize also lowers the 44px floor an icon button keeps on
+// a touch screen below docked, since the pill's height, corner and stacked
+// rows are all laid out for controls of the token's size.
+const (
+	ControlHeight = "h-[var(--spacing-pill-control)]"
+	ControlSize   = "size-[var(--spacing-pill-control)] max-docked:min-h-0 max-docked:min-w-0"
+)
+
+type Props struct {
+	Attributes templ.Attributes
+	Class      string
+	// Slot is the shell's data-slot. A caller with selectors of its own
+	// already written against a name -- prompt-input, say -- keeps that
+	// name; empty is input-pill.
+	Slot string
+	Variant Variant
+}
+
+// InputPill is a <form>, since each pill submits what is typed into it. Its
+// items-end keeps Actions on the bottom row when the field grows past one
+// line, and squircle-pill derives smooth caps from the shell dimensions.
+//
+// The search variant leads with a magnifier that only marks the pill as a
+// search: Enter in the field submits, so the field is the pill's one focus
+// stop and the shell's focus-within ring is what shows it. That Enter is the
+// browser's implicit submission, so a search pill holds one single-line
+// Field and no other text input: a textarea takes Enter for a new line, and
+// a second text input stops Enter submitting at all.
+templ InputPill(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<form data-slot={ p.slot() } data-variant={ string(p.variant()) } class={ p.classes() } { p.Attributes... }>
+		if p.variant() == VariantSearch {
+			<span data-slot="input-pill-search" aria-hidden="true" class="inline-flex size-8 shrink-0 items-center justify-center text-muted-foreground">
+				@icons.Render(icons.Search, icons.Props{Size: 18})
+			</span>
+		}
+		{ children... }
+	</form>
+}
+
+func (p Props) slot() string {
+	if p.Slot == "" {
+		return "input-pill"
+	}
+	return p.Slot
+}
+
+func (p Props) variant() Variant {
+	if p.Variant == VariantSearch {
+		return VariantSearch
+	}
+	return VariantDefault
+}
+
+func (p Props) classes() string {
+	return utils.TwMerge(
+		"squircle-pill flex w-full border squircle-pill-max-[calc(var(--spacing-pill)/2)] group/input-pill",
+		utils.IfElse(p.variant() == VariantSearch,
+			"squircle-pill-max-[20px] h-10 min-h-10 items-center gap-1 border-transparent bg-muted p-[3px] focus-within:border-ring focus-within:bg-background",
+			"min-h-pill items-end gap-2 border-border bg-popover shadow-[0_1px_2px_rgba(60,64,67,0.10)] focus-within:border-[color-mix(in_srgb,var(--primary)_45%,var(--border))]",
+		),
+		"has-[textarea]:overflow-clip has-[textarea]:[overflow-clip-margin:8px]",
+		p.Class,
+	)
+}
+
+type FieldProps struct {
+	Attributes templ.Attributes
+	Class      string
+	// Multiline renders a <textarea>, which grows with what is typed;
+	// otherwise the field is a single-line <input>.
+	Multiline bool
+	Value     string
+}
+
+// Field renders the element itself rather than handing out a class string,
+// so its data-slot and styling cannot be left off by a caller that builds
+// the element by hand. It pads its own text and stretches to the pill's
+// height, so a one-line field centres its text on the controls beside it.
+templ Field(props ...FieldProps) {
+	{{ var p FieldProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.Multiline {
+		<textarea data-slot="input-pill-field" class={ p.classes() } { p.Attributes... }>{ p.Value }</textarea>
+	} else {
+		<input
+			data-slot="input-pill-field"
+			class={ p.classes() }
+			if p.Value != "" {
+				value={ p.Value }
+			}
+			{ p.Attributes... }
+		/>
+	}
+}
+
+// textInset is where the Field's text starts from the pill's left edge. Below
+// starts its row there too, so the first control under the field lines up
+// with the text above it; both read this one constant so they cannot drift.
+const textInset = "pl-3"
+
+func (p FieldProps) classes() string {
+	return utils.TwMerge(
+		"min-w-0 flex-1 resize-none self-stretch border-0 bg-transparent py-2 type-body-200 text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-50",
+		textInset,
+		"group-data-[variant=search]/input-pill:py-0 group-data-[variant=search]/input-pill:pr-3",
+		searchReach,
+		utils.If(p.Multiline, fieldReach),
+		p.Class,
+	)
+}
+
+// fieldReach runs a textarea's box out under everything to its right, so a
+// press anywhere in the pill that is not on a control lands on the textarea
+// and focuses it. It is a transparent end border with an equal negative
+// margin, not padding: a textarea draws its scrollbar inside its border but
+// outside its padding, so a border keeps the scrollbar against the text
+// while padding would push it to the pill's edge, under Send. The margin
+// cancels the border, so the text wraps exactly where it did without it.
+//
+// The border is a viewport wide rather than the width of the controls,
+// which varies with the Send label and which controls a caller passes; the
+// shell clips whatever runs past its edge, and a clipped box takes no
+// presses. Stack reaches the textarea down under its Below row the same way.
+const fieldReach = "-me-[100vw] border-r-[100vw] border-transparent"
+
+// searchReach runs a search pill's Field back under the magnifier: a
+// negative left margin of the magnifier's size-8 plus the shell's gap-1, and
+// equal left padding, so the text starts where it did beside the icon. The
+// Field comes after the magnifier, so it paints over it, and its transparent
+// surface lets the icon show through; a press on the icon lands on the field
+// and focuses it, where a press on a bare icon would take focus off the field
+// and do nothing.
+const searchReach = "group-data-[variant=search]/input-pill:-ml-9 group-data-[variant=search]/input-pill:pl-9"
+
+type ActionsProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// overField lifts a row of controls above the textarea that reaches under
+// it (see fieldReach) and lets presses on the row's own empty box fall
+// through to the textarea, while the controls in it take their own.
+const overField = "pointer-events-none relative z-10 *:pointer-events-auto"
+
+// Actions insets its controls by --spacing-pill-inset on every side, so a
+// round control at ControlHeight sits concentric with the pill's corner.
+templ Actions(props ...ActionsProps) {
+	{{ var p ActionsProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div data-slot="input-pill-actions" class={ p.classes() } { p.Attributes... }>
+		{ children... }
+	</div>
+}
+
+func (p ActionsProps) classes() string {
+	return utils.TwMerge("flex shrink-0 items-center gap-1 p-pill-inset", overField, p.Class)
+}
+
+type StackProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Stack is the pill's first column when something sits under the field: the
+// Field on top and a Below under it. It is a grid rather than a flex column
+// so the Field's flex-1, which sizes it across the row in a pill without a
+// Stack, has no say over its height here, which the auto-grow script sets.
+templ Stack(props ...StackProps) {
+	{{ var p StackProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div data-slot="input-pill-stack" class={ p.classes() } { p.Attributes... }>
+		{ children... }
+	</div>
+}
+
+// stackReach runs the field's box down under the Below row: bottom padding
+// beyond the field's own py-2 by exactly the row's height -- a control at
+// --input-pill-below-control, inset above and below by --spacing-pill-inset
+// -- and an equal negative margin, so the row stays where it was and the
+// text does not move. The control height falls back to
+// --spacing-pill-control unless belowXs sets it. It is padding rather than
+// border because the auto-grow script sizes the field from scrollHeight,
+// which counts padding and not border; the script adds the negative margin
+// back to its maximum, so the cap still measures text.
+//
+// The classes are written out whole, never assembled from pieces, because
+// Tailwind finds the utilities it generates by scanning this file's text.
+const stackReach = "*:data-[slot=input-pill-field]:-mb-[calc(var(--input-pill-below-control,var(--spacing-pill-control))+2*var(--spacing-pill-inset))] *:data-[slot=input-pill-field]:pb-[calc(var(--input-pill-below-control,var(--spacing-pill-control))+2*var(--spacing-pill-inset)+var(--spacing)*2)]"
+
+// belowXs sets --input-pill-below-control to 24px when the Below row holds a
+// control carrying data-size="xs", the attribute the library's extra-small
+// controls emit beside their h-6 or size-6 -- ButtonIcon at IconSizeXs, a
+// selectbox Trigger at SizeXs. Keying on that shared attribute lets the Stack
+// follow its row without importing the components in it, so a new xs control
+// has to keep emitting it at 24px. A Below holds controls of one size: an xs
+// control beside a taller one would size the reach to the xs control and
+// leave the taller one's lower edge outside it.
+const belowXs = "has-[>[data-slot=input-pill-below]_[data-size=xs]]:[--input-pill-below-control:calc(var(--spacing)*6)]"
+
+func (p StackProps) classes() string {
+	return utils.TwMerge("grid min-w-0 flex-1 self-stretch", stackReach, belowXs, p.Class)
+}
+
+type BelowProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+// Below is the row of controls under the Field in a Stack. It starts at the
+// Field's textInset, so its first control's left edge lines up with where the
+// text above it starts, and it insets the row top, bottom and right by
+// --spacing-pill-inset, as Actions does, so a control's bottom stands on the
+// same floor as Send's in the column beside it whatever its height.
+templ Below(props ...BelowProps) {
+	{{ var p BelowProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<div data-slot="input-pill-below" class={ p.classes() } { p.Attributes... }>
+		{ children... }
+	</div>
+}
+
+// min-w-0 because the row is a grid item, which will not shrink past its
+// content on its own: a control wider than the column would push the pill out
+// from the inside rather than being cut down to it.
+func (p BelowProps) classes() string {
+	return utils.TwMerge("flex min-w-0 items-center gap-1 py-pill-inset pr-pill-inset", textInset, overField, p.Class)
+}

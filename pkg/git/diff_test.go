@@ -1,26 +1,60 @@
 package git
 
 import (
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	tk "github.com/housecat-inc/scratch/testkit/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestDiff(t *testing.T) {
+	t.Run("lists the files a branch adds over main", func(t *testing.T) {
+		requireGit(t)
+		a := assert.New(t)
+		r := require.New(t)
+
+		clone, _ := setupRepo(t)
+		r.NoError(writeFile(filepath.Join(clone, "feature.txt"), "feature\n"))
+		runGit(t, clone, "checkout", "-b", "feature")
+		runGit(t, clone, "add", ".")
+		runGit(t, clone, "commit", "-m", "add feature")
+
+		files, err := Diff(clone, "main", "HEAD")
+		r.NoError(err)
+		r.Len(files, 1)
+		a.Equal("feature.txt", files[0].NewPath)
+		a.Equal(StatusAdded, files[0].Status)
+		r.Len(files[0].Hunks, 1)
+	})
+}
+
+func TestHunkKey(t *testing.T) {
+	t.Run("matches for identical headers", func(t *testing.T) {
+		a := assert.New(t)
+		a.Equal(Hunk{Header: "@@ -1,3 +1,4 @@"}.Key(), Hunk{Header: "@@ -1,3 +1,4 @@"}.Key())
+	})
+	t.Run("differs for different headers", func(t *testing.T) {
+		a := assert.New(t)
+		a.NotEqual(Hunk{Header: "@@ -1,3 +1,4 @@"}.Key(), Hunk{Header: "@@ -2,3 +2,4 @@"}.Key())
+	})
+}
+
 func TestParseDiff(t *testing.T) {
-	tk.Run(t, []tk.Test[string, []File]{
+	tests := []struct {
+		in   string
+		name string
+		want []File
+	}{
 		{
-			Name: "empty input",
-			In:   "",
-			Out:  nil,
+			name: "returns no files for empty input",
+			in:   "",
+			want: nil,
 		},
 		{
-			Name: "single modified file with one hunk",
-			In: strings.Join([]string{
+			name: "numbers old and new lines in a modified hunk",
+			in: strings.Join([]string{
 				"diff --git a/foo.txt b/foo.txt",
 				"index abc..def 100644",
 				"--- a/foo.txt",
@@ -33,7 +67,7 @@ func TestParseDiff(t *testing.T) {
 				" c",
 				"",
 			}, "\n"),
-			Out: []File{{
+			want: []File{{
 				NewPath: "foo.txt",
 				OldPath: "foo.txt",
 				Status:  StatusModified,
@@ -52,8 +86,8 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			Name: "added file",
-			In: strings.Join([]string{
+			name: "marks a new file as added with no old path",
+			in: strings.Join([]string{
 				"diff --git a/new.txt b/new.txt",
 				"new file mode 100644",
 				"index 0000000..abcdef",
@@ -64,7 +98,7 @@ func TestParseDiff(t *testing.T) {
 				"+world",
 				"",
 			}, "\n"),
-			Out: []File{{
+			want: []File{{
 				NewPath: "new.txt",
 				Status:  StatusAdded,
 				Hunks: []Hunk{{
@@ -79,8 +113,8 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			Name: "deleted file",
-			In: strings.Join([]string{
+			name: "marks a removed file as deleted with no new path",
+			in: strings.Join([]string{
 				"diff --git a/gone.txt b/gone.txt",
 				"deleted file mode 100644",
 				"--- a/gone.txt",
@@ -89,7 +123,7 @@ func TestParseDiff(t *testing.T) {
 				"-bye",
 				"",
 			}, "\n"),
-			Out: []File{{
+			want: []File{{
 				OldPath: "gone.txt",
 				Status:  StatusDeleted,
 				Hunks: []Hunk{{
@@ -101,29 +135,29 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			Name: "renamed file no content change",
-			In: strings.Join([]string{
+			name: "tracks a pure rename without hunks",
+			in: strings.Join([]string{
 				"diff --git a/old.txt b/new.txt",
 				"similarity index 100%",
 				"rename from old.txt",
 				"rename to new.txt",
 				"",
 			}, "\n"),
-			Out: []File{{
+			want: []File{{
 				NewPath: "new.txt",
 				OldPath: "old.txt",
 				Status:  StatusRenamed,
 			}},
 		},
 		{
-			Name: "binary file",
-			In: strings.Join([]string{
+			name: "flags a modified binary file",
+			in: strings.Join([]string{
 				"diff --git a/img.png b/img.png",
 				"index abc..def 100644",
 				"Binary files a/img.png and b/img.png differ",
 				"",
 			}, "\n"),
-			Out: []File{{
+			want: []File{{
 				Binary:  true,
 				NewPath: "img.png",
 				OldPath: "img.png",
@@ -131,23 +165,23 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			Name: "binary file added",
-			In: strings.Join([]string{
+			name: "flags an added binary file",
+			in: strings.Join([]string{
 				"diff --git a/img.png b/img.png",
 				"new file mode 100644",
 				"index 0000000..abc",
 				"Binary files /dev/null and b/img.png differ",
 				"",
 			}, "\n"),
-			Out: []File{{
+			want: []File{{
 				Binary:  true,
 				NewPath: "img.png",
 				Status:  StatusAdded,
 			}},
 		},
 		{
-			Name: "hunk header with section context",
-			In: strings.Join([]string{
+			name: "captures the section context after a hunk header",
+			in: strings.Join([]string{
 				"diff --git a/main.go b/main.go",
 				"--- a/main.go",
 				"+++ b/main.go",
@@ -158,7 +192,7 @@ func TestParseDiff(t *testing.T) {
 				" d",
 				"",
 			}, "\n"),
-			Out: []File{{
+			want: []File{{
 				NewPath: "main.go", OldPath: "main.go", Status: StatusModified,
 				Hunks: []Hunk{{
 					Header:   "@@ -7,3 +7,4 @@ func main() {",
@@ -175,8 +209,8 @@ func TestParseDiff(t *testing.T) {
 			}},
 		},
 		{
-			Name: "two files",
-			In: strings.Join([]string{
+			name: "splits consecutive file diffs",
+			in: strings.Join([]string{
 				"diff --git a/a.txt b/a.txt",
 				"--- a/a.txt",
 				"+++ b/a.txt",
@@ -191,7 +225,7 @@ func TestParseDiff(t *testing.T) {
 				"+y",
 				"",
 			}, "\n"),
-			Out: []File{
+			want: []File{
 				{
 					NewPath: "a.txt", OldPath: "a.txt", Status: StatusModified,
 					Hunks: []Hunk{{
@@ -218,36 +252,15 @@ func TestParseDiff(t *testing.T) {
 				},
 			},
 		},
-	}, ParseDiff)
-}
-
-func TestHunkKeyStable(t *testing.T) {
-	a := assert.New(t)
-	h1 := Hunk{Header: "@@ -1,3 +1,4 @@"}
-	h2 := Hunk{Header: "@@ -1,3 +1,4 @@"}
-	h3 := Hunk{Header: "@@ -2,3 +2,4 @@"}
-	a.Equal(h1.Key(), h2.Key())
-	a.NotEqual(h1.Key(), h3.Key())
-}
-
-func TestDiff(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
 	}
-	a := assert.New(t)
-	r := require.New(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
+			r := require.New(t)
 
-	clone, _ := setupRepo(t)
-	require.NoError(t,
-		writeFile(filepath.Join(clone, "feature.txt"), "feature\n"))
-	runGit(t, clone, "checkout", "-b", "feature")
-	runGit(t, clone, "add", ".")
-	runGit(t, clone, "commit", "-m", "add feature")
-
-	files, err := Diff(clone, "main", "HEAD")
-	r.NoError(err)
-	r.Len(files, 1)
-	a.Equal("feature.txt", files[0].NewPath)
-	a.Equal(StatusAdded, files[0].Status)
-	r.Len(files[0].Hunks, 1)
+			got, err := ParseDiff(tt.in)
+			r.NoError(err)
+			a.Equal(tt.want, got)
+		})
+	}
 }

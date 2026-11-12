@@ -1,0 +1,642 @@
+/* The colour theme shared by app and auth: the design tokens (light and dark)
+   and the theme-inline mapping that turns them into Tailwind utilities.
+   Each module keeps its own @custom-variant dark declaration -- not here --
+   since the sentinel that gates it is module-specific. */
+
+/* mac: styles a Mac, iPhone or iPad. CSS cannot tell the operating system, so
+   the server marks <html data-platform="mac"> from the request (ui/platform)
+   and the variant keys off that; an unmarked page is treated as not a Mac. */
+@custom-variant mac (&:where([data-platform="mac"], [data-platform="mac"] *));
+
+/* touch: styles a screen whose primary input is a finger -- no hover, and a
+   coarse pointer. A list row's actions there are a swipe tray
+   (ui/components/swiperow) rather than a hover overlay. Both halves count: a
+   screen with no hover and no pointer at all (a headless browser, a TV) can
+   neither hover nor swipe, so it keeps a row's actions on show in the row. */
+@custom-variant touch (@media (hover: none) and (pointer: coarse));
+
+/* no-touch: every other screen, for what a touch screen does differently.
+   Tailwind's not-touch does not negate a custom media variant. */
+@custom-variant no-touch (@media not ((hover: none) and (pointer: coarse)));
+
+@custom-variant supports-text-box (@supports (text-box: trim-both cap alphabetic));
+
+/* swipe-content: on a swipe row (ui/components/swiperow), styles the boxes
+   that slide -- every child but the tray, on a touch screen. A row's link and
+   its tooltips wrap their boxes in display:contents elements, which draw
+   nothing and ignore a translate, so the variant reaches through up to two of
+   them to the boxes inside. It knows such a wrapper by the plain contents
+   utility: one made display:contents any other way (max-sm:contents, a
+   component class) is not reached through, and its boxes do not slide. */
+@custom-variant swipe-content {
+  @media (hover: none) and (pointer: coarse) {
+    & > :not(.contents, [data-swipe-part="tray"]),
+    & > .contents > :not(.contents),
+    & > .contents > .contents > :not(.contents) {
+      @slot;
+    }
+  }
+}
+
+@font-face {
+  font-family: "Concourse 4";
+  src: url("/assets/fonts/concourse_4_regular.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Concourse 6";
+  src: url("/assets/fonts/concourse_6_regular.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@theme inline {
+  --animate-star-pending: star-pending 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --breakpoint-3xl: 1600px;
+  --breakpoint-4xl: 2000px;
+  --breakpoint-docked: 48rem;
+  --font-sans:
+    ui-sans-serif,
+    system-ui,
+    sans-serif,
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol",
+    "Noto Color Emoji";
+  --font-display: "Concourse 4", ui-sans-serif, system-ui, sans-serif;
+  --font-display-heavy: "Concourse 6", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    ui-monospace,
+    SFMono-Regular,
+    "SF Mono",
+    Consolas,
+    "Liberation Mono",
+    Menlo,
+    monospace;
+  /* rounded-full is a static Tailwind utility, not a --radius-* token, so
+     squircle-full has nothing to resolve against without this. */
+  --radius-full: calc(infinity * 1px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Theme colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-ghost-hover: var(--ghost-hover);
+  --color-outline-hover: var(--outline-hover);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-selected: var(--selected);
+  --color-selected-foreground: var(--selected-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-info: var(--info);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-code: var(--code);
+  --color-code-foreground: var(--code-foreground);
+  --color-code-highlight: var(--code-highlight);
+  --color-code-number: var(--code-number);
+  --color-selection: var(--selection);
+  --color-tooltip: var(--tooltip);
+  --color-tooltip-foreground: var(--tooltip-foreground);
+  --color-selection-foreground: var(--selection-foreground);
+  --color-star: var(--star);
+  /* Where a thread entry came from, shown as its accent gutter. */
+  --color-source-crm: var(--source-crm);
+  --color-source-calendar: var(--source-calendar);
+  --color-source-default: var(--source-default);
+  --color-source-draft: var(--source-draft);
+  --color-source-google: var(--source-google);
+  --color-source-granola: var(--source-granola);
+  --color-source-note: var(--source-note);
+  --color-source-slack: var(--source-slack);
+
+  --color-avatar-1: var(--avatar-1);
+  --color-avatar-1-foreground: var(--avatar-1-foreground);
+  --color-avatar-2: var(--avatar-2);
+  --color-avatar-2-foreground: var(--avatar-2-foreground);
+  --color-avatar-3: var(--avatar-3);
+  --color-avatar-3-foreground: var(--avatar-3-foreground);
+  --color-avatar-4: var(--avatar-4);
+  --color-avatar-4-foreground: var(--avatar-4-foreground);
+  --color-avatar-5: var(--avatar-5);
+  --color-avatar-5-foreground: var(--avatar-5-foreground);
+  --color-avatar-6: var(--avatar-6);
+  --color-avatar-6-foreground: var(--avatar-6-foreground);
+
+  /* Sums of other theme variables. Inline, so a utility evaluates the sum where
+     it is used and follows any override of its parts; a plain @theme variable
+     would be summed once on :root. */
+  --spacing-edge-toggle-clearance: calc(
+    var(--spacing-baseline) + var(--spacing-pill) + var(--spacing)
+  );
+
+  /* A pending star's fill: only fill-opacity moves, so its rim holds steady. */
+  @keyframes star-pending {
+    50% {
+      fill-opacity: 0.5;
+    }
+  }
+}
+
+/* The input pill and the floor it stands on. These are plain @theme, not
+   inline, so a utility compiles to var(--spacing-pill) rather than a copy of
+   the value, and static, so every one is declared on :root whether or not a
+   utility names it: the mail stylesheet reads them with var() too.
+
+   --spacing-pill is the pill's height, and the edge toggle's height, so the
+   toggle stands exactly as tall as the pill beside it. --spacing-edge-toggle
+   is an open edge toggle's width, which a panel narrower than the viewport
+   leaves free beside it. A pill holds one row
+   of controls inset by --spacing-pill-inset inside its 1px border, which
+   leaves --spacing-pill-control for the controls; ui/components/inputpill
+   sizes them from it and caps its corner radius at half the height, so a
+   single-row pill has fully round ends and its corner hugs its round
+   controls at exactly the inset.
+
+   --spacing-baseline is the gap between the bottom of the screen and the
+   bottom edge of everything that stands on it: the input pills, the edge
+   toggle and the account avatar. It never drops below the device's safe
+   area. */
+@theme static {
+  --spacing-baseline: max(
+    calc(var(--spacing) * 3.5),
+    env(safe-area-inset-bottom)
+  );
+  --spacing-edge-toggle: calc(var(--spacing) * 12);
+  --spacing-pill: calc(var(--spacing) * 9.5);
+  --spacing-pill-inset: calc(var(--spacing) * 0.5);
+  --spacing-pill-control: calc(
+    var(--spacing-pill) - 2 * var(--spacing-pill-inset) - 2px
+  );
+}
+
+:root {
+  /* Brand colors – Do not change in dark mode */
+  --brand-cream: oklch(0.9437 0.0168 88); /* #F1ECE0 */
+
+  /* Theme colors */
+  --radius: 0.875rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.6 0.1 185);
+  --primary-foreground: oklch(0.98 0.01 181);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.6 0.1 185);
+  --accent-foreground: oklch(0.98 0.01 181);
+  --selected: oklch(0.9345 0.02025 189.203);
+  --selected-foreground: oklch(0.141 0.005 285.823);
+  --destructive: oklch(0.577 0.21 27.325);
+  /* Status colours, for text and the tints badges and notices take from them
+     (bg-success/12): each clears 4.5:1, WCAG AA for small text, on
+     --background and on its badge's tint, in both themes. */
+  --info: oklch(0.5 0.15 252);
+  --success: oklch(0.48 0.12 155);
+  --warning: oklch(0.5 0.13 58);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.645 0.14795 246.565);
+  --chart-1: oklch(0.85 0.13 181);
+  --chart-2: oklch(0.78 0.13 182);
+  --chart-3: oklch(0.7 0.12 183);
+  --chart-4: oklch(0.6 0.1 185);
+  --chart-5: oklch(0.51 0.09 186);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.6 0.1 185);
+  --sidebar-primary-foreground: oklch(0.98 0.01 181);
+  --sidebar-accent: oklch(0.6 0.1 185);
+  --sidebar-accent-foreground: oklch(0.98 0.01 181);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --surface: oklch(0.985 0 0);
+  --surface-foreground: oklch(0.141 0.005 285.823);
+  --code: oklch(0.967 0.001 286.375);
+  --code-foreground: oklch(0.141 0.005 285.823);
+  --code-highlight: oklch(0.967 0.001 286.375);
+  --code-number: oklch(0.552 0.016 285.938);
+  --selection: oklch(0.6 0.1 185);
+  --selection-foreground: oklch(0.98 0.01 181);
+  --star: oklch(0.795 0.184 86.047);
+
+  /* Button hover fills. Each is a solid colour rather than an opacity of the
+     fill it darkens, so a hovered button looks the same over any backdrop.
+     The values are what that opacity composites to over --background:
+     primary at 90%, secondary at 80%, destructive at 90%, primary at 5% for
+     an outline button and muted at 60% for a ghost one. A base colour that
+     changes has to be re-blended into its hover here and in .dark, or the
+     two drift apart. */
+  --destructive-hover: oklch(0.604 0.195 25.7);
+  --ghost-hover: oklch(0.98 0.001 286.4);
+  --outline-hover: oklch(0.979 0.006 190.3);
+  --primary-hover: oklch(0.637 0.097 186);
+  --secondary-hover: oklch(0.974 0.001 286.4);
+
+  --tooltip: var(--color-gray-600);
+  --tooltip-foreground: var(--primary-foreground);
+
+  /* The edge every list row, list header and reader surface starts from. A
+     mailbox row, the header above it, a thread entry and the reader head all
+     pay their horizontal padding out of these, so the star, the page title and
+     the sender avatars line up down one edge however the panes are arranged.
+     Override them in a breakpoint block -- see below -- rather than reaching
+     for a different padding utility at the call site. */
+  --entry-list-p-l: 1rem;
+  --entry-list-p-r: var(--entry-list-p-l);
+
+  /* The space between the gutter column and the text beside it. It defaults to
+     the edge padding because the avatar is a disc with a hard edge: give it 16px
+     on its left and 8px on its right and it reads as shoved against the side of
+     the pane rather than sitting in a column of its own. */
+  --entry-list-gap: var(--entry-list-p-l);
+
+  /* A sidebar row's geometry. navitem, the section headers, the labels'
+     More / Less toggle and the label-folder chevrons read only these, and a
+     container restyles every row inside it by setting them: the mail sidebar's
+     phone sheet sets the start margin. Insets are measured from the list's
+     edges, so a row's padding is its inset less its pill's margin, and the
+     icon stays at inset-start (plus depth times indent-step) whatever the
+     pill does. The icon box is 5 spacing, as size-5 was, so it scales with
+     the root font size the insets scale with. --nav-row-depth is set per
+     label <li>, and indents no deeper than --nav-row-max-depth. */
+  --nav-row-inset-start: calc(var(--entry-list-p-l) + var(--spacing));
+  --nav-row-inset-end: calc(var(--entry-list-p-r) + var(--spacing) * 2);
+  --nav-row-margin-start: 0px;
+  --nav-row-margin-end: calc(var(--spacing) * 2);
+  --nav-row-height: 34px;
+  --nav-row-icon-size: calc(var(--spacing) * 5);
+  --nav-row-indent-step: 16px;
+  --nav-row-depth: 0;
+  /* 0 in an expanded list, 1 in the collapsed icon column: a row whose icon
+     shows only collapsed (navitem's IconCollapsedOnly) slides it in over its
+     label as this turns 1, and out again as it turns 0. Nothing sets it to 1
+     yet; the collapsible sidebar will. */
+  --nav-row-collapsed: 0;
+  --nav-row-max-depth: 99;
+  /* A label folder's toggle is a --nav-row-toggle-size box starting
+     --nav-row-toggle-lead before the row's icon. Centred in it is a ghost of
+     the icon's box, and the chevron sits in a badge --nav-row-toggle-badge
+     across, --nav-row-toggle-badge-inset in from the ghost's end and bottom
+     edges, filled with --nav-row-toggle-badge-fill and ringed
+     --nav-row-toggle-badge-ring wide in --nav-row-toggle-badge-ground, the
+     colour the --nav-row-toggle-glyph chevron is drawn in at
+     --nav-row-toggle-glyph-stroke. Docked, the toggle is a 20px box ending at
+     the icon, and the badge is the bare chevron filling the ghost; the phone
+     sheet makes the toggle a 44px box centred on the tag, one tap target that
+     toggles the folder while the name still opens the label, and the badge a
+     muted disc on the tag's corner with the chevron cut out of it in the
+     sheet's background. */
+  --nav-row-toggle-size: calc(var(--spacing) * 5);
+  --nav-row-toggle-lead: calc(var(--spacing) * 5);
+  --nav-row-toggle-glyph: 12px;
+  --nav-row-toggle-glyph-stroke: 2;
+  --nav-row-toggle-badge: var(--nav-row-icon-size);
+  --nav-row-toggle-badge-inset: 0px;
+  --nav-row-toggle-badge-fill: transparent;
+  --nav-row-toggle-badge-ground: currentColor;
+  --nav-row-toggle-badge-ring: 0px;
+  /* A section header's chevron is a box from --nav-row-section-toggle-start
+     to --nav-row-section-toggle-end, both measured from the header's inset,
+     with a --nav-row-section-glyph chevron centred in it and the header's
+     name --nav-row-section-toggle-gap after it: docked, the box fills the
+     margin before the inset and the name starts at the inset, with the rows'
+     icons; in the phone sheet the box is the icon column and the name lines
+     up with the rows' names. */
+  --nav-row-section-toggle-start: calc(
+    var(--spacing) - var(--nav-row-inset-start)
+  );
+  --nav-row-section-toggle-end: 0px;
+  --nav-row-section-toggle-gap: 0px;
+  --nav-row-section-glyph: 12px;
+
+  /* The reader's left gutter: the width of the avatar column, not the padding
+     before it. The reader head and the thread entries below it are separated by
+     .gm-reader-body, a scroll container, and a scroll container cannot be a
+     subgrid -- so the two grids cannot share one track. They share this token
+     instead, which keeps the back button and the sender avatars on the same
+     edge. */
+  --reader-gutter: 2rem;
+
+  /* The least a reader head's subject keeps beside its actions. What can
+     shrink in the toolbar -- the mail reader's label chips -- gives way
+     before the subject does, and the subject gives way only down to this. */
+  --reader-subject-min: min(14rem, 40%);
+
+  /* What the bottom of the screen keeps for itself below the phone bottom
+     bar's row: the home indicator's inset, or, where a browser's floating
+     toolbar covers more of the screen's foot than that, the toolbar.
+     --viewport-toolbar-inset is how much of the shell, which runs to the
+     bottom of the screen behind such a toolbar, the toolbar covers;
+     ui/dom/viewport.ts measures it. */
+  --bottombar-inset: max(
+    env(safe-area-inset-bottom),
+    var(--viewport-toolbar-inset, 0px)
+  );
+
+  --bottombar-height: calc(3.25rem + var(--bottombar-inset));
+
+  /* What the top of the screen keeps for itself above the phone top bar's
+     row: the status bar's (or Dynamic Island's) inset, under
+     viewport-fit=cover. Safari itself (not the app added to the home
+     screen) reports 0 on an upright phone, as it keeps the status bar's
+     band above the page for itself; then the bar is just its row, and
+     content still starts below it. */
+  --topbar-inset: env(safe-area-inset-top, 0px);
+
+  --topbar-height: calc(3.5rem + var(--topbar-inset));
+
+  --scroll-fade-knee: 70%;
+  --scroll-fade-start-height: min(20px, var(--scroll-fade-knee));
+  --scroll-fade-stops:
+    oklch(from var(--background) l c h / 0) 0%,
+    oklch(from var(--background) l c h / calc(var(--scroll-fade-knee) * 0.5))
+    calc(var(--scroll-fade-start-height) * 0.5),
+    oklch(from var(--background) l c h / var(--scroll-fade-knee)) var(
+    --scroll-fade-start-height
+  ),
+    oklch(
+    from var(--background)
+    l c h / calc(
+      var(--scroll-fade-knee) + (100% - var(--scroll-fade-knee)) * 0.296875
+    )
+  ) calc(
+    var(--scroll-fade-start-height) +
+      (100% - var(--scroll-fade-start-height)) * 0.25
+  ),
+    oklch(
+    from var(--background)
+    l c h / calc(
+      var(--scroll-fade-knee) + (100% - var(--scroll-fade-knee)) * 0.625
+    )
+  ) calc(
+    var(--scroll-fade-start-height) +
+      (100% - var(--scroll-fade-start-height)) * 0.5
+  ),
+    oklch(
+    from var(--background)
+    l c h / calc(
+      var(--scroll-fade-knee) + (100% - var(--scroll-fade-knee)) * 0.890625
+    )
+  ) calc(
+    var(--scroll-fade-start-height) +
+      (100% - var(--scroll-fade-start-height)) * 0.75
+  ),
+    var(--background) 100%;
+
+  /* The dark layer behind a modal: the navigation drawer, dialogs, the
+     command palette, the full-screen composer, the tour. Every one of them
+     fades in and out over the same time and curve (the scrim and
+     scrim-dialog utilities, below). */
+  --scrim: oklch(0 0 0 / 0.4);
+  --scrim-duration: 200ms;
+  --scrim-ease: ease-out;
+
+  /* Source accents. Each names what the entry came from rather than the colour
+     it happens to be, so a restyle is one line here. */
+  --source-crm: #d1d5db;
+  --source-calendar: #bfdbfe;
+  --source-default: #f59e0b;
+  --source-draft: #fbbf24;
+  --source-google: #d2e3fc;
+  --source-granola: #d9ed8b;
+  --source-note: #fde68a;
+  --source-slack: #e9d5ff;
+
+  /* Avatar tints. A person is hashed onto one of these, so they are numbered
+     rather than hue-named: swapping a hue is one line here and moves nobody.
+     All six sit at one lightness and chroma so no sender looks more important
+     than another; the hues step around the wheel away from the brand green. */
+  --avatar-1: oklch(0.9 0.05 25);
+  --avatar-1-foreground: oklch(0.4 0.12 25);
+  --avatar-2: oklch(0.9 0.05 70);
+  --avatar-2-foreground: oklch(0.4 0.1 70);
+  --avatar-3: oklch(0.9 0.05 130);
+  --avatar-3-foreground: oklch(0.4 0.1 130);
+  --avatar-4: oklch(0.9 0.05 230);
+  --avatar-4-foreground: oklch(0.4 0.1 230);
+  --avatar-5: oklch(0.9 0.05 280);
+  --avatar-5-foreground: oklch(0.4 0.1 280);
+  --avatar-6: oklch(0.9 0.05 330);
+  --avatar-6-foreground: oklch(0.4 0.1 330);
+
+  /* Badge tints, a Badge's Background and Foreground for a colour that
+     means nothing by itself: one someone picked, like a CRM status's, or a
+     plain label chip. They are hue-named because the person picking says
+     the hue. Each foreground clears 4.5:1 on its tint and on the hover
+     shade a linked badge mixes from the two, in both themes. */
+  --tint-gray: oklch(0.955 0.004 286);
+  --tint-gray-foreground: oklch(0.45 0.016 286);
+  --tint-red: oklch(0.94 0.03 18);
+  --tint-red-foreground: oklch(0.44 0.16 25);
+  --tint-amber: oklch(0.96 0.06 96);
+  --tint-amber-foreground: oklch(0.47 0.14 46);
+  --tint-green: oklch(0.96 0.04 157);
+  --tint-green-foreground: oklch(0.45 0.12 151);
+  --tint-blue: oklch(0.93 0.03 256);
+  --tint-blue-foreground: oklch(0.42 0.2 266);
+}
+
+/* The breakpoint knob for the edge. 40rem is where the reader already switches
+   to its narrow head, so the two stay in step. Everything that pays its
+   horizontal padding out of the token moves together from here -- there is no
+   second place to edit. */
+@media (width < 40rem) {
+  :root {
+    --entry-list-p-l: 0.75rem;
+  }
+}
+
+/* The bottom bar steps aside for the on-screen keyboard (ui/dom/viewport.ts
+   marks it with data-keyboard-open), and takes the room it held with it. */
+html[data-keyboard-open] {
+  --bottombar-height: 0px;
+}
+
+/* scrim is the dark layer behind a modal. It fades in when it is shown and
+   out when it goes, over --scrim-duration: shown means rendered without the
+   hidden attribute, and the hidden attribute fades it out, with display held
+   until the fade ends (a discrete transition) and no pointer events on the
+   way out. A caller that marks closed some other way sets opacity 0 itself;
+   @starting-style fades it in from 0 however it came to be drawn. Under
+   prefers-reduced-motion it comes and goes at once. background-color is in
+   the transition too, for the sheet's drag (sheet.ts), which fades the scrim
+   by its colour's alpha and drops that colour to spring it back; nothing
+   else changes a scrim's colour. */
+@utility scrim {
+  background-color: var(--scrim);
+  transition-property: opacity, display, overlay, background-color;
+  transition-duration: var(--scrim-duration);
+  transition-timing-function: var(--scrim-ease);
+  transition-behavior: allow-discrete;
+  &[hidden] {
+    opacity: 0;
+    pointer-events: none;
+  }
+  @starting-style {
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition-duration: 0s;
+  }
+}
+
+/* scrim-dialog is the same fade for a native <dialog> shown with
+   showModal(): its ::backdrop is the scrim, and the dialog fades with it.
+   Both stay in the top layer (overlay) and displayed until the fade out
+   ends. The backdrop fades by its colour rather than its opacity: iOS
+   Safari tints its own bars from a full-screen fixed layer's background
+   colour, opacity aside, so a backdrop that faded only its opacity could
+   leave them dark after it was gone. */
+@utility scrim-dialog {
+  opacity: 0;
+  transition-property: opacity, display, overlay;
+  transition-duration: var(--scrim-duration);
+  transition-timing-function: var(--scrim-ease);
+  transition-behavior: allow-discrete;
+  &::backdrop {
+    background-color: transparent;
+    transition-property: background-color, display, overlay;
+    transition-duration: var(--scrim-duration);
+    transition-timing-function: var(--scrim-ease);
+    transition-behavior: allow-discrete;
+  }
+  &[open] {
+    opacity: 1;
+  }
+  &[open]::backdrop {
+    background-color: var(--scrim);
+  }
+  @starting-style {
+    &[open] {
+      opacity: 0;
+    }
+    &[open]::backdrop {
+      background-color: transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    &::backdrop {
+      transition-duration: 0s;
+    }
+  }
+}
+
+.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --avatar-1: oklch(0.4 0.08 25);
+  --avatar-1-foreground: oklch(0.93 0.04 25);
+  --avatar-2: oklch(0.4 0.07 70);
+  --avatar-2-foreground: oklch(0.93 0.04 70);
+  --avatar-3: oklch(0.4 0.07 130);
+  --avatar-3-foreground: oklch(0.93 0.04 130);
+  --avatar-4: oklch(0.4 0.07 230);
+  --avatar-4-foreground: oklch(0.93 0.04 230);
+  --avatar-5: oklch(0.4 0.07 280);
+  --avatar-5-foreground: oklch(0.93 0.04 280);
+  --avatar-6: oklch(0.4 0.07 330);
+  --avatar-6-foreground: oklch(0.93 0.04 330);
+  --tint-gray: oklch(0.3 0.006 286);
+  --tint-gray-foreground: oklch(0.85 0.01 286);
+  --tint-red: oklch(0.33 0.08 25);
+  --tint-red-foreground: oklch(0.87 0.07 20);
+  --tint-amber: oklch(0.34 0.06 65);
+  --tint-amber-foreground: oklch(0.9 0.08 85);
+  --tint-green: oklch(0.33 0.06 155);
+  --tint-green-foreground: oklch(0.88 0.08 155);
+  --tint-blue: oklch(0.33 0.08 260);
+  --tint-blue-foreground: oklch(0.87 0.06 255);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.7 0.12 183);
+  --primary-foreground: oklch(0.28 0.04 193);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.7 0.12 183);
+  --accent-foreground: oklch(0.28 0.04 193);
+  --selected: oklch(0.38 0.06 185);
+  --selected-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --info: oklch(0.74 0.13 250);
+  --success: oklch(0.76 0.15 155);
+  --warning: oklch(0.8 0.14 75);
+  --border: oklch(0.274 0.006 286.033);
+  --input: oklch(0.274 0.006 286.033);
+  --ring: oklch(0.5 0.14795 246.565);
+  --chart-1: oklch(0.85 0.13 181);
+  --chart-2: oklch(0.78 0.13 182);
+  --chart-3: oklch(0.7 0.12 183);
+  --chart-4: oklch(0.6 0.1 185);
+  --chart-5: oklch(0.51 0.09 186);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.78 0.13 182);
+  --sidebar-primary-foreground: oklch(0.28 0.04 193);
+  --sidebar-accent: oklch(0.7 0.12 183);
+  --sidebar-accent-foreground: oklch(0.28 0.04 193);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
+  --surface: oklch(0.21 0.006 285.885);
+  --surface-foreground: oklch(0.985 0 0);
+  --code: oklch(0.274 0.006 286.033);
+  --code-foreground: oklch(0.985 0 0);
+  --code-highlight: oklch(0.274 0.006 286.033);
+  --code-number: oklch(0.705 0.015 286.067);
+  --selection: oklch(0.7 0.12 183);
+  --selection-foreground: oklch(0.28 0.04 193);
+
+  --destructive-hover: oklch(0.654 0.175 22);
+  --ghost-hover: oklch(0.223 0.006 286);
+  --outline-hover: oklch(0.174 0.012 209.3);
+  --primary-hover: oklch(0.65 0.111 183.3);
+  --secondary-hover: oklch(0.249 0.006 286);
+}

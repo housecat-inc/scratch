@@ -64,89 +64,65 @@ func formSummary(r *http.Request) string {
 	return "<span id=\"echoed\">" + strings.Join(pairs, " ") + "</span>"
 }
 
-func TestHTML(t *testing.T) {
-	type step = testkit.Step[*testkit.HTML]
+func loadPage(t *testing.T) *testkit.HTML {
+	h := testkit.NewHTML(t, htmlHandler())
+	h.Load("/")
+	return h
+}
 
-	click := testkit.ClickStep[*testkit.HTML]
-	classContains := testkit.ClassContainsStep[*testkit.HTML]
-	fill := testkit.FillStep[*testkit.HTML]
-	absent := testkit.AbsentStep[*testkit.HTML]
-	hidden := testkit.HiddenStep[*testkit.HTML]
-	selectOption := testkit.SelectOptionStep[*testkit.HTML]
-	textContains := testkit.TextContainsStep[*testkit.HTML]
-	typing := testkit.TypeStep[*testkit.HTML]
+func TestLoad(t *testing.T) {
+	t.Run("renders and queries the page", func(t *testing.T) {
+		h := loadPage(t)
+		h.ElementTextContains(".brand", "scratch")
+		h.ElementTextContains("#list", "alpha")
+		h.ElementAttributeContains(".nav", "class", "active")
+		h.ElementHidden("#secret")
+		h.ElementTextContains("#panel", "original")
+	})
+}
 
-	testkit.RunCases(t, []testkit.Case[*testkit.HTML]{
-		{
-			Assert: []step{
-				textContains(".brand", "scratch"),
-				textContains("#list", "alpha"),
-				classContains(".nav", "active"),
-				hidden("#secret"),
-				textContains("#panel", "original"),
-			},
-			Name: "renders and queries the page",
-			Path: "/",
-		},
-		{
-			Act: []step{
-				fill(`[name="q"]`, "hello"),
-				click("#form button"),
-			},
-			Assert: []step{
-				textContains("#out", "q=hello"),
-				textContains("#out", "color=green"),
-			},
-			Name: "submit button posts the enclosing form",
-			Path: "/",
-		},
-		{
-			Act: []step{
-				selectOption(`[name="color"]`, "red"),
-				click("#form button"),
-			},
-			Assert: []step{textContains("#out", "color=red")},
-			Name:   "select option changes posted value",
-			Path:   "/",
-		},
-		{
-			Act: []step{
-				typing(`[name="q"]`, "ab"),
-				typing(`[name="q"]`, "cd"),
-				click("#form button"),
-			},
-			Assert: []step{textContains("#out", "q=abcd")},
-			Name:   "type appends to the field value",
-			Path:   "/",
-		},
-		{
-			Act: []step{
-				fill("#inc", "sidecar"),
-				click("#save"),
-			},
-			Assert: []step{textContains("#out", "extra=sidecar")},
-			Name:   "hx-include gathers external fields",
-			Path:   "/",
-		},
-		{
-			Act: []step{click("#frag")},
-			Assert: []step{
-				textContains("#panel", "reloaded"),
-				absent("#out span"),
-			},
-			Name: "outerHTML swap replaces the target",
-			Path: "/",
-		},
-		{
-			Act:    []step{click("#del")},
-			Assert: []step{textContains("#panel", "original")},
-			Name:   "none swap leaves the dom unchanged",
-			Path:   "/",
-		},
-	}, testkit.CaseRunner[*testkit.HTML]{
-		Load: func(h *testkit.HTML, path string) { h.Load(path) },
-		Setup: func(t *testing.T, kit *testkit.T, _ testkit.Case[*testkit.HTML]) *testkit.HTML {
-			return testkit.NewHTMLWithT(t, kit, htmlHandler())
-		},
+func TestClick(t *testing.T) {
+	t.Run("submit button posts the enclosing form", func(t *testing.T) {
+		h := loadPage(t)
+		h.Fill(`[name="q"]`, "hello")
+		h.Click("#form button")
+		h.ElementTextContains("#out", "q=hello")
+		h.ElementTextContains("#out", "color=green")
+	})
+	t.Run("hx-include gathers external fields", func(t *testing.T) {
+		h := loadPage(t)
+		h.Fill("#inc", "sidecar")
+		h.Click("#save")
+		h.ElementTextContains("#out", "extra=sidecar")
+	})
+	t.Run("outerHTML swap replaces the target", func(t *testing.T) {
+		h := loadPage(t)
+		h.Click("#frag")
+		h.ElementTextContains("#panel", "reloaded")
+		h.ElementAbsent("#out span")
+	})
+	t.Run("none swap leaves the dom unchanged", func(t *testing.T) {
+		h := loadPage(t)
+		h.Click("#del")
+		h.ElementTextContains("#panel", "original")
+	})
+}
+
+func TestSelectOption(t *testing.T) {
+	t.Run("changes the posted value", func(t *testing.T) {
+		h := loadPage(t)
+		h.SelectOption(`[name="color"]`, "red")
+		h.Click("#form button")
+		h.ElementTextContains("#out", "color=red")
+	})
+}
+
+func TestType(t *testing.T) {
+	t.Run("appends to the field value", func(t *testing.T) {
+		h := loadPage(t)
+		h.Type(`[name="q"]`, "ab")
+		h.Type(`[name="q"]`, "cd")
+		h.Click("#form button")
+		h.ElementTextContains("#out", "q=abcd")
 	})
 }

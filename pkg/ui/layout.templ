@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/app"
 	"strconv"
 	"strings"
 
@@ -62,21 +64,17 @@ templ MailHead(title string) {
 		<meta name="apple-mobile-web-app-title" content="scratch"/>
 		<meta name="mobile-web-app-capable" content="yes"/>
 		<meta name="application-name" content="scratch"/>
-		<meta name="theme-color" content="#0f172a"/>
 		<link rel="apple-touch-icon" href="/static/icon-180.png"/>
 		<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
+		@app.Head()
 		@InboxCSS()
 		@ChatCSS()
 		@DataTableCSS()
-		@TempluiCSS()
-		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		@ToolShellCSS()
-		<script src="/static/htmx.min.js"></script>
-		<script src="/static/htmx-ext-sse.min.js"></script>
+		<meta name="htmx-config" content='{"noSwap": [204, 304, "4xx", "5xx"]}'/>
 		<script src="/static/register-sw.js" defer></script>
 		<script src="/static/ptr.js" defer></script>
-		<script src="/static/html2canvas.min.js" defer></script>
-		<script src="/static/chat.js" defer></script>
+		<script src="/static/workflow.js" defer></script>
 		<script src="/static/contacts.js" defer></script>
 		{ children... }
 	</head>
@@ -100,12 +98,10 @@ templ Layout(title, nav string, shells ...ToolShellProps) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@Head(title)
-		<body>
+		<body class={ app.BodyClass }>
 			@uikit.Shell(uikit.ShellProps{
-				Actions:    toolActions(toolShell(shells)),
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Footer:     ToolComposer(),
 				MainClass:  "mail-tool-main",
 				Nav:        toolNavItems(nav, toolShell(shells).Counts),
 				SidebarTop: ComposeActions(),
@@ -127,29 +123,17 @@ templ Layout(title, nav string, shells ...ToolShellProps) {
 
 func toolNavItems(active string, counts InboxCounts) []uikit.NavItem {
 	return []uikit.NavItem{
-		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: lucide.Inbox(), Label: "Inbox", ShowCount: true},
-		{Active: active == "starred", Count: counts.Starred, Href: "/starred", Icon: lucide.Star(), Label: "Starred", ShowCount: true},
-		{Active: active == "chats", Count: counts.Chats, Group: "More", Href: "/inbox/chats", Icon: lucide.MessageSquare(), Label: "Chats", ShowCount: true},
-		{Active: active == "tasks", Count: counts.Tasks, Href: "/inbox/tasks", Icon: lucide.ListChecks(), Label: "Tasks", ShowCount: true},
-		{Active: active == "workflows", Count: counts.Workflows, Href: "/inbox/workflows", Icon: lucide.Play(), Label: "Workflows", ShowCount: true},
-		{Active: active == "setup", Group: "Tools", Href: "/setup", Icon: lucide.Settings(), Label: "Setup"},
-		{Active: active == "sessions", Href: "/sessions", Icon: lucide.MessageSquare(), Label: "Sessions"},
-		{Active: active == "code", Href: "/code/", Icon: lucide.CodeXml(), Label: "Code review"},
-		{Active: active == "files", Href: "/files/", Icon: lucide.File(), Label: "Files"},
-		{Active: active == "sql", Href: "/sql/", Icon: lucide.Database(), Label: "SQL"},
+		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: lucide.Inbox(), IconName: icons.Inbox, Label: "Inbox", ShowCount: true},
+		{Active: active == "starred", Count: counts.Starred, Href: "/starred", Icon: lucide.Star(), IconName: icons.Starred, Label: "Starred", ShowCount: true},
+		{Active: active == "chats", Count: counts.Chats, Group: "More", Href: "/inbox/chats", Icon: lucide.MessageSquare(), IconName: icons.Conversations, Label: "Chats", ShowCount: true},
+		{Active: active == "tasks", Count: counts.Tasks, Href: "/inbox/tasks", Icon: lucide.ListChecks(), IconName: icons.Tasks, Label: "Tasks", ShowCount: true},
+		{Active: active == "workflows", Count: counts.Workflows, Href: "/inbox/workflows", Icon: lucide.Play(), IconName: icons.Workflows, Label: "Workflows", ShowCount: true},
+		{Active: active == "setup", Group: "Tools", Href: "/setup", Icon: lucide.Settings(), IconName: icons.Settings, Label: "Setup"},
+		{Active: active == "sessions", Href: "/sessions", Icon: lucide.MessageSquare(), IconName: icons.Conversations, Label: "Sessions"},
+		{Active: active == "code", Href: "/code/", Icon: lucide.CodeXml(), IconName: icons.CodeEditor, Label: "Code review"},
+		{Active: active == "files", Href: "/files/", Icon: lucide.File(), IconName: icons.Files, Label: "Files"},
+		{Active: active == "sql", Href: "/sql/", Icon: lucide.Database(), IconName: icons.Storage, Label: "SQL"},
 	}
-}
-
-templ ToolComposer() {
-	@ChatComposer(ChatComposerProps{
-		Action:      "/compose",
-		FileName:    "file",
-		Placeholder: "Chat with agent",
-	})
-}
-
-templ toolActions(p ToolShellProps) {
-	@uikit.NewChatAction(uikit.NewChatActionProps{Options: p.ChatOptions})
 }
 
 func toolShell(shells []ToolShellProps) ToolShellProps {

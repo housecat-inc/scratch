@@ -1,0 +1,62 @@
+package codex
+
+import (
+	"cmp"
+	"context"
+
+	"github.com/housecat-inc/scratch/ui/components/button"
+	"github.com/housecat-inc/scratch/ui/components/popover"
+	"github.com/housecat-inc/scratch/ui/icons"
+	"github.com/housecat-inc/scratch/ui/utils"
+)
+
+func chatDetailsID(in ChatIn) string {
+	return cmp.Or(in.ID, "codex-content") + "-details"
+}
+
+func chatDetailsTriggerAttributes(ctx context.Context) templ.Attributes {
+	out := popover.TriggerAttributes(ctx)
+	out["aria-label"] = "Chat details"
+	out["data-open-on-hover"] = true
+	return out
+}
+
+// chatDetails keeps a fixed popover id because the chat's event stream morphs
+// the header, and a fresh id on every frame would unpair an open popup from
+// its trigger.
+templ chatDetails(in ChatIn) {
+	if in.Model != "" || in.TokenCount != "" {
+		@popover.Root(popover.RootProps{ID: chatDetailsID(in)}) {
+			@button.ButtonIcon(button.IconProps{Attributes: chatDetailsTriggerAttributes(ctx), MobileSize: button.IconSizeMd, Icon: icons.Info, Size: button.IconSizeSm})
+			@popover.Positioner(popover.PositionerProps{Side: popover.SideTop}) {
+				@popover.Popup(popover.PopupProps{}) {
+					<dl data-chat-model class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 type-body-200">
+						if in.Model != "" {
+							<dt class="text-muted-foreground">Model</dt>
+							<dd data-chat-model-name>{ in.Model }</dd>
+						}
+						<dt class="text-muted-foreground">Tokens</dt>
+						<dd data-chat-token-count>{ cmp.Or(in.TokenCount, "None yet") }</dd>
+					</dl>
+				}
+			}
+		}
+	}
+}
+
+// newChatButton carries the mail rail's data-chat-open hook, which
+// ChatRailScript answers by opening an empty chat in the rail; a surface
+// without that script follows the link.
+templ newChatButton(in ChatIn) {
+	if in.NewChatURL != "" {
+		@button.ButtonIcon(button.IconProps{
+			Attributes: templ.Attributes{"data-chat-id": "new", "data-chat-new": true, "data-chat-open": true},
+			Class: utils.If(in.ID == MailContentID, "max-docked:group-has-[[data-slot=bottombar]_[data-shell-action=new-chat]]/shell:not-in-data-[keyboard-open]:hidden"),
+			MobileSize: button.IconSizeMd,
+			Href:       in.NewChatURL,
+			Icon:       icons.ChatNew,
+			Size:       button.IconSizeSm,
+			Tooltip:    "New chat",
+		})
+	}
+}

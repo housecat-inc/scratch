@@ -1,0 +1,26 @@
+package headerbar
+
+// Title is the pane's name in its header bar: the words arrive as children, so
+// a caller whose name is a component rather than a string renders one too. It
+// is the flexible column, so it is what yields when the actions beside it need
+// room, and it truncates on one line rather than growing the bar past h-12.
+//
+// It takes nothing else. Every pane title in the app is this one look, so a
+// size, a weight or a wrapping rule belongs here, where all of them get it,
+// and not at a call site.
+//
+// HeaderBar draws it from In.Title. A call site renders it directly when
+// something has to come before it -- a back control -- because In.Title is
+// always the first child.
+//
+// cap-trim centres the title on its capitals; truncate-inline ellipsises it without
+// cropping ascenders and descenders (ui/css/text_trim.css).
+//
+// data-slot is the hook for a script that reads a pane's name. Every title
+// carries the same one, so a page showing two panes has two of them: a script
+// after one of those names scopes the selector to the pane it means.
+templ Title() {
+	<h1 class="min-w-0 flex-1 truncate-inline type-body-300-medium cap-trim" data-slot="headerbar-title">
+		{ children... }
+	</h1>
+}

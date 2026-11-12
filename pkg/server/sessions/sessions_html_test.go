@@ -4,111 +4,72 @@ import (
 	"testing"
 
 	"github.com/housecat-inc/scratch/testkit"
-	tk "github.com/housecat-inc/scratch/testkit/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestSetupPageHTML(t *testing.T) {
-	type H = *testkit.HTML
+func TestSessionsHTML(t *testing.T) {
+	t.Run("setup page", func(t *testing.T) {
+		t.Run("groups claude and codex steps on a fresh machine", func(t *testing.T) {
+			h := setupPage(t, fakeDeps{})
+			h.ElementTextContains("body", "scratch")
+			h.ElementTextContains("body", "Claude Code")
+			h.ElementTextContains("body", "Codex")
+			h.ElementTextContains("body", "Workspace")
+			h.ElementTextContains("body", "Install Claude Code")
+			h.ElementTextContains("body", "Install Codex")
+			h.ElementTextContains("body", "Configure")
+			h.ElementPresent(`[hx-post="/install"]`)
+			h.ElementAbsent(`[hx-post="/configure"]`)
+			h.ElementAbsent(`[hx-post="/login"]`)
+			for _, card := range []string{"#card-install", "#card-login", "#card-configure", "#card-codex-install", "#card-codex-login"} {
+				h.ElementPresent(card)
+			}
+		})
+		t.Run("shows the claude version and update button once installed and activates sign in", func(t *testing.T) {
+			h := setupPage(t, fakeDeps{claudeVersion: "2.1.139", installed: true})
+			h.ElementPresent(`[hx-post="/install"]`)
+			h.ElementTextContains("body", "Update")
+			h.ElementTextContains("body", "claude v2.1.139")
+			h.ElementPresent(`[hx-post="/login"]`)
+			h.ElementAbsent(`[hx-post="/configure"]`)
+		})
+		t.Run("reports the installed codex version", func(t *testing.T) {
+			h := setupPage(t, fakeDeps{codexInstalled: true, codexVersion: "0.5.2", installed: true})
+			h.ElementPresent("#card-codex-install")
+			h.ElementTextContains("body", "codex v0.5.2")
+		})
+		t.Run("prompts to get codex when it is not installed", func(t *testing.T) {
+			h := setupPage(t, fakeDeps{installed: true})
+			h.ElementPresent("#card-codex-install")
+			h.ElementTextContains("body", "codex CLI not installed")
+			h.ElementTextContains("body", "Get Codex")
+		})
+		t.Run("marks codex sign in done when authenticated", func(t *testing.T) {
+			a := assert.New(t)
+			h := setupPage(t, fakeDeps{codexAuthenticated: true, codexInstalled: true, installed: true})
+			h.ElementPresent("#card-codex-login")
+			a.NotContains(h.Doc.Find("body").Text(), "codex login")
+		})
+		t.Run("checks sign in and activates configure when authenticated", func(t *testing.T) {
+			h := setupPage(t, fakeDeps{authenticated: true, installed: true})
+			h.ElementPresent(`[hx-post="/configure"]`)
+			h.ElementAbsent(`[hx-post="/login"]`)
+		})
+		t.Run("still offers the update button when every step is done", func(t *testing.T) {
+			h := setupPage(t, fakeDeps{authenticated: true, configured: true, installed: true})
+			h.ElementTextContains("body", "Update")
+			h.ElementAbsent(`[hx-post="/login"]`)
+			h.ElementAbsent(`[hx-post="/configure"]`)
+		})
+	})
+}
 
-	serve := func(fd fakeDeps) func(*tk.T) H {
-		return func(t *tk.T) H {
-			srv, err := NewServer(fd.deps())
-			t.R.NoError(err)
-			return testkit.NewHTML(t.T, srv.Handler())
-		}
-	}
-
-	s := tk.Steps[H]{}
-	missing := func(sub string) tk.Step[H] {
-		return func(t *tk.T, h H) {
-			t.Helper()
-			t.A.NotContains(h.Doc.Find("body").Text(), sub)
-		}
-	}
-
-	cards := []tk.Step[H]{
-		s.Present("#card-install"),
-		s.Present("#card-login"),
-		s.Present("#card-configure"),
-		s.Present("#card-codex-install"),
-		s.Present("#card-codex-login"),
-	}
-
-	tk.RunSteps(t, []tk.Scenario[H]{
-		{
-			Name: "fresh state groups claude and codex steps",
-			Steps: append([]tk.Step[H]{
-				s.Visit("/setup"),
-				s.Text("body", "scratch"),
-				s.Text("body", "Claude Code"),
-				s.Text("body", "Codex"),
-				s.Text("body", "Workspace"),
-				s.Text("body", "Install Claude Code"),
-				s.Text("body", "Install Codex"),
-				s.Text("body", "Configure"),
-				s.Present(`[hx-post="/install"]`),
-				s.Absent(`[hx-post="/configure"]`),
-				s.Absent(`[hx-post="/login"]`),
-			}, cards...),
-		},
-		{
-			Name:  "installed shows update button and version, activates sign in",
-			Setup: serve(fakeDeps{claudeVersion: "2.1.139", installed: true}),
-			Steps: []tk.Step[H]{
-				s.Visit("/setup"),
-				s.Present(`[hx-post="/install"]`),
-				s.Text("body", "Update"),
-				s.Text("body", "claude v2.1.139"),
-				s.Present(`[hx-post="/login"]`),
-				s.Absent(`[hx-post="/configure"]`),
-			},
-		},
-		{
-			Name:  "codex install row reports version and marks done",
-			Setup: serve(fakeDeps{codexInstalled: true, codexVersion: "0.5.2", installed: true}),
-			Steps: []tk.Step[H]{
-				s.Visit("/setup"),
-				s.Present("#card-codex-install"),
-				s.Text("body", "codex v0.5.2"),
-			},
-		},
-		{
-			Name:  "codex not installed prompts to get codex",
-			Setup: serve(fakeDeps{installed: true}),
-			Steps: []tk.Step[H]{
-				s.Visit("/setup"),
-				s.Present("#card-codex-install"),
-				s.Text("body", "codex CLI not installed"),
-				s.Text("body", "Get Codex"),
-			},
-		},
-		{
-			Name:  "codex authenticated marks sign in done",
-			Setup: serve(fakeDeps{codexAuthenticated: true, codexInstalled: true, installed: true}),
-			Steps: []tk.Step[H]{
-				s.Visit("/setup"),
-				s.Present("#card-codex-login"),
-				missing("codex login"),
-			},
-		},
-		{
-			Name:  "authenticated checks sign in, activates configure",
-			Setup: serve(fakeDeps{authenticated: true, installed: true}),
-			Steps: []tk.Step[H]{
-				s.Visit("/setup"),
-				s.Present(`[hx-post="/configure"]`),
-				s.Absent(`[hx-post="/login"]`),
-			},
-		},
-		{
-			Name:  "all done still shows update button",
-			Setup: serve(fakeDeps{authenticated: true, configured: true, installed: true}),
-			Steps: []tk.Step[H]{
-				s.Visit("/setup"),
-				s.Text("body", "Update"),
-				s.Absent(`[hx-post="/login"]`),
-				s.Absent(`[hx-post="/configure"]`),
-			},
-		},
-	}, serve(fakeDeps{}))
+func setupPage(t *testing.T, fd fakeDeps) *testkit.HTML {
+	t.Helper()
+	srv, err := NewServer(fd.deps())
+	require.New(t).NoError(err)
+	h := testkit.NewHTML(t, srv.Handler())
+	h.Load("/setup")
+	return h
 }

@@ -1,0 +1,140 @@
+/* The variables Button paints from. ui/components/button/button.templ names no
+   colour or length of its own: its paint classes read these, and a variant or
+   size is one utility that sets them. That is what lets a breakpoint swap the
+   look -- docked:button-variant-outline sets the same variables again under
+   Tailwind's prefix -- without a single paint class being prefixed.
+
+   Every variant sets every variable, and every size likewise. The paint
+   classes read them all, so a variant that leaves one unset paints nothing
+   for that property, which shows up in the first story rather than
+   inheriting whatever the variant before it happened to set. The shortcut
+   chip's two colours are variant variables too, so a variant under a
+   breakpoint carries its chip with it.
+
+   Values here are theme tokens (var(--primary)) or Tailwind functions
+   (--spacing(9)), never a Tailwind variable from `@theme inline`: an inline
+   theme value is substituted into utilities at build and never emitted as a
+   custom property, so var(--radius-full) would resolve to nothing at runtime. */
+
+@utility button-variant-default {
+  --button-bg: var(--primary);
+  --button-bg-hover: var(--primary-hover);
+  --button-border: var(--primary);
+  --button-border-focus: var(--background);
+  --button-border-width: 1px;
+  --button-decoration-hover: none;
+  --button-fg: var(--primary-foreground);
+  --button-kbd-border: color-mix(
+    in oklab,
+    var(--primary-foreground) 40%,
+    transparent
+  );
+  --button-kbd-fg: color-mix(
+    in oklab,
+    var(--primary-foreground) 80%,
+    transparent
+  );
+  --button-ring: var(--ring);
+  --button-shadow: var(--shadow-xs);
+}
+
+@utility button-variant-destructive {
+  --button-bg: var(--destructive);
+  --button-bg-hover: var(--destructive-hover);
+  --button-border: var(--destructive);
+  --button-border-focus: var(--background);
+  --button-border-width: 1px;
+  --button-decoration-hover: none;
+  --button-fg: var(--primary-foreground);
+  --button-kbd-border: color-mix(
+    in oklab,
+    var(--primary-foreground) 40%,
+    transparent
+  );
+  --button-kbd-fg: color-mix(
+    in oklab,
+    var(--primary-foreground) 80%,
+    transparent
+  );
+  --button-ring: color-mix(in oklab, var(--destructive) 50%, transparent);
+  --button-shadow: var(--shadow-xs);
+}
+
+/* currentColor on the color property is inherit: an outline button takes its
+   text colour from its surroundings, the way one with no text utility does. */
+@utility button-variant-outline {
+  --button-bg: var(--background);
+  --button-bg-hover: var(--outline-hover);
+  --button-border: var(--border);
+  --button-border-focus: var(--muted-foreground);
+  --button-border-width: 1px;
+  --button-decoration-hover: none;
+  --button-fg: currentColor;
+  --button-kbd-border: var(--border);
+  --button-kbd-fg: var(--muted-foreground);
+  --button-ring: var(--ring);
+  --button-shadow: var(--shadow-xs);
+}
+
+/* Secondary and link draw no border, but their border colour is still the
+   theme's --border rather than transparent: that is the colour every element
+   gets from the base layer, and border-(--button-border) replaces it on every
+   Button, so a caller's `border` on one of these buttons shows in it. */
+@utility button-variant-secondary {
+  --button-bg: var(--secondary);
+  --button-bg-hover: var(--secondary-hover);
+  --button-border: var(--border);
+  --button-border-focus: var(--ring);
+  --button-border-width: 0px;
+  --button-decoration-hover: none;
+  --button-fg: var(--secondary-foreground);
+  --button-kbd-border: var(--border);
+  --button-kbd-fg: var(--muted-foreground);
+  --button-ring: var(--ring);
+  --button-shadow: var(--shadow-xs);
+}
+
+@utility button-variant-link {
+  --button-bg: transparent;
+  --button-bg-hover: transparent;
+  --button-border: var(--border);
+  --button-border-focus: var(--ring);
+  --button-border-width: 0px;
+  --button-decoration-hover: underline;
+  --button-fg: var(--primary);
+  --button-kbd-border: var(--border);
+  --button-kbd-fg: var(--muted-foreground);
+  --button-ring: var(--ring);
+  --button-shadow: 0 0 #0000;
+}
+
+/* A size's multiline arm has to leave one line of text under its height
+   floor, or a wrapped label that fits on one line stands taller than the
+   plain button beside it: type-body-200's line box is 20px, so sm pays
+   4 + 20 + 4 + 2 = 30 under its 32 and default 6 + 20 + 6 + 2 = 34 under its
+   36. TestButtonMultilineHeight in app/srv checks it. The multiline radius is
+   what the one-line box would have had: a full radius on a box that has grown
+   taller would pull the ends out into a stadium. */
+@utility button-size-default {
+  --button-gap: --spacing(2);
+  --button-h: --spacing(9);
+  --button-px: --spacing(4);
+  --button-px-icon: --spacing(3);
+  --button-py: --spacing(2);
+  --button-py-multiline: --spacing(1.5);
+  --button-radius: var(--radius);
+  --button-radius-multiline: var(--radius);
+  --button-squircle-amt: 1.5;
+}
+
+@utility button-size-sm {
+  --button-gap: --spacing(1.5);
+  --button-h: --spacing(8);
+  --button-px: --spacing(3);
+  --button-px-icon: --spacing(2.5);
+  --button-py: 0px;
+  --button-py-multiline: --spacing(1);
+  --button-radius: calc(infinity * 1px);
+  --button-radius-multiline: --spacing(4);
+  --button-squircle-amt: 1;
+}

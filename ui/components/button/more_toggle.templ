@@ -1,0 +1,34 @@
+// Housecat component (not templui-managed): the sidebar "More …" expander
+// shared by the project and chat lists. Composes ButtonUnstyled rather than
+// Button because its look diverges from every Button variant; responsiveness
+// (lg:hidden) stays at the call site so the component previews standalone.
+package button
+
+import "github.com/housecat-inc/scratch/ui/utils"
+
+type MoreToggleProps struct {
+	Attributes templ.Attributes
+	Class      string
+}
+
+templ MoreToggle(props ...MoreToggleProps) {
+	{{ var p MoreToggleProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	@ButtonUnstyled(ButtonUnstyledProps{
+		Attributes: utils.MergeAttributes(templ.Attributes{"data-sidebar-toggle": true}, p.Attributes),
+		Class:      p.classes(),
+		Slot:       "more-toggle",
+	}) {
+		{ children... }
+	}
+}
+
+func (p MoreToggleProps) classes() string {
+	return utils.TwMerge(
+		"flex w-full cursor-pointer items-center gap-1 rounded-lg px-3 py-1.5 type-caption-100-medium text-muted-foreground transition-all hover:bg-ghost-hover hover:text-foreground",
+		"outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+		p.Class,
+	)
+}

@@ -16,36 +16,36 @@ func TestEnsureSymlinksAt(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "creates all symlinks from clean home",
+			name: "creates every symlink in a clean home",
 		},
 		{
-			name: "idempotent when correct symlinks exist",
+			name: "leaves correct symlinks in place",
 			setup: func(t *testing.T, home string) {
 				require.New(t).NoError(EnsureSymlinksAt(home))
 			},
 		},
 		{
-			name: "replaces stale symlink",
+			name: "replaces a stale symlink",
 			setup: func(t *testing.T, home string) {
 				require.New(t).NoError(os.Symlink("nowhere", filepath.Join(home, "AGENTS.md")))
 			},
 		},
 		{
-			name: "creates parent dir for nested link",
+			name: "creates the parent directory for a nested link",
 			setup: func(t *testing.T, home string) {
 				_, err := os.Stat(filepath.Join(home, ".claude"))
 				require.New(t).True(os.IsNotExist(err))
 			},
 		},
 		{
-			name: "errors when target is a regular file",
+			name: "errors when the target is a regular file",
 			setup: func(t *testing.T, home string) {
 				require.New(t).NoError(os.WriteFile(filepath.Join(home, "CLAUDE.md"), []byte("local"), 0o644))
 			},
 			wantErr: "is not a symlink",
 		},
 		{
-			name: "errors when target is a regular directory",
+			name: "errors when the target is a regular directory",
 			setup: func(t *testing.T, home string) {
 				r := require.New(t)
 				r.NoError(os.Mkdir(filepath.Join(home, ".claude"), 0o755))
@@ -55,19 +55,19 @@ func TestEnsureSymlinksAt(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
 
 			home := t.TempDir()
-			if tc.setup != nil {
-				tc.setup(t, home)
+			if tt.setup != nil {
+				tt.setup(t, home)
 			}
 
 			err := EnsureSymlinksAt(home)
-			if tc.wantErr != "" {
-				a.ErrorContains(err, tc.wantErr)
+			if tt.wantErr != "" {
+				a.ErrorContains(err, tt.wantErr)
 				return
 			}
 			r.NoError(err)
@@ -91,25 +91,25 @@ func TestHasSymlinksAt(t *testing.T) {
 		want  bool
 	}{
 		{
-			name: "missing returns false",
+			name: "is false when symlinks are missing",
 			want: false,
 		},
 		{
-			name: "all correct returns true",
+			name: "is true when every symlink is correct",
 			setup: func(t *testing.T, home string) {
 				require.New(t).NoError(EnsureSymlinksAt(home))
 			},
 			want: true,
 		},
 		{
-			name: "partial returns false",
+			name: "is false when only some symlinks exist",
 			setup: func(t *testing.T, home string) {
 				require.New(t).NoError(os.Symlink(filepath.Join("scratch", "AGENTS.md"), filepath.Join(home, "AGENTS.md")))
 			},
 			want: false,
 		},
 		{
-			name: "wrong target returns false",
+			name: "is false when a symlink points elsewhere",
 			setup: func(t *testing.T, home string) {
 				r := require.New(t)
 				r.NoError(EnsureSymlinksAt(home))
@@ -119,7 +119,7 @@ func TestHasSymlinksAt(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "regular file returns false",
+			name: "is false when a regular file is in the way",
 			setup: func(t *testing.T, home string) {
 				require.New(t).NoError(os.WriteFile(filepath.Join(home, "AGENTS.md"), []byte("x"), 0o644))
 			},
@@ -127,19 +127,19 @@ func TestHasSymlinksAt(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
 
 			home := t.TempDir()
-			if tc.setup != nil {
-				tc.setup(t, home)
+			if tt.setup != nil {
+				tt.setup(t, home)
 			}
 
 			ok, err := HasSymlinksAt(home)
 			r.NoError(err)
-			a.Equal(tc.want, ok)
+			a.Equal(tt.want, ok)
 		})
 	}
 }

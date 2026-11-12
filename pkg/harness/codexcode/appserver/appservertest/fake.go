@@ -19,7 +19,6 @@ const (
 	EnvComplete  = "FAKE_APPSERVER_DEVICE_COMPLETE"
 	EnvEnabled   = "FAKE_APPSERVER"
 	GoodCode     = "good"
-	HelperTest   = "TestAppServerHelper"
 	LoginID      = "login-1"
 	State        = "state-1"
 	pingMethod   = "test/ping"
@@ -27,7 +26,7 @@ const (
 )
 
 func Command(env ...string) *exec.Cmd {
-	cmd := exec.Command(os.Args[0], "-test.run=^"+HelperTest+"$")
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
 	cmd.Env = append(os.Environ(), append([]string{EnvEnabled + "=1"}, env...)...)
 	return cmd
 }

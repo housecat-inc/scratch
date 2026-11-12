@@ -38,84 +38,88 @@ func newServer(t *testing.T, path string) *Server {
 	return s
 }
 
-func TestPage(t *testing.T) {
-	a := assert.New(t)
-	s := newServer(t, seedDB(t))
+func TestSQL(t *testing.T) {
+	t.Run("page", func(t *testing.T) {
+		t.Run("renders the shell, editor, and schema with scripts loaded once", func(t *testing.T) {
+			a := assert.New(t)
+			s := newServer(t, seedDB(t))
 
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
-	a.Equal(http.StatusOK, rec.Code)
-	body := rec.Body.String()
-	for _, want := range []string{
-		"scratch", "widgets", "SQL",
-		`class="gm-label active"`,
-		`hx-post="/sql/query"`,
-		`id="sql-editor"`,
-		`/static/sql.js`,
-	} {
-		a.Contains(body, want)
-	}
-	a.Equal(1, strings.Count(body, "/static/chat.js"))
-	a.Equal(1, strings.Count(body, "/static/htmx-ext-sse.min.js"))
-}
+			a.Equal(http.StatusOK, rec.Code)
+			body := rec.Body.String()
+			for _, want := range []string{
+				"scratch", "widgets", "SQL",
+				`href="/sql/" title="SQL" aria-current="page"`,
+				`hx-post="/sql/query"`,
+				`id="sql-editor"`,
+				`/static/sql.js`,
+			} {
+				a.Contains(body, want)
+			}
+			a.Equal(1, strings.Count(body, "/assets/hx-sse.min.js"))
+		})
+		t.Run("names a missing database file in the page", func(t *testing.T) {
+			a := assert.New(t)
+			s := newServer(t, filepath.Join(t.TempDir(), "absent.db"))
 
-func TestQueryReadOnly(t *testing.T) {
-	tests := []struct {
-		name string
-		sql  string
-	}{
-		{name: "insert", sql: "INSERT INTO widgets (id, name) VALUES (3, 'charlie')"},
-		{name: "delete", sql: "DELETE FROM widgets"},
-		{name: "drop", sql: "DROP TABLE widgets"},
-		{name: "pragma bypass", sql: "PRAGMA query_only=0; INSERT INTO widgets (id, name) VALUES (3, 'x')"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+			a.Equal(http.StatusOK, rec.Code)
+			a.Contains(rec.Body.String(), "absent.db")
+		})
+	})
+
+	t.Run("read only queries", func(t *testing.T) {
+		tests := []struct {
+			name string
+			sql  string
+		}{
+			{name: "blocks an insert", sql: "INSERT INTO widgets (id, name) VALUES (3, 'charlie')"},
+			{name: "blocks a delete", sql: "DELETE FROM widgets"},
+			{name: "blocks a drop table", sql: "DROP TABLE widgets"},
+			{name: "blocks a pragma that disables read only", sql: "PRAGMA query_only=0; INSERT INTO widgets (id, name) VALUES (3, 'x')"},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				a := assert.New(t)
+				r := require.New(t)
+				path := seedDB(t)
+				s := newServer(t, path)
+
+				form := url.Values{"sql": {tc.sql}}
+				req := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				rec := httptest.NewRecorder()
+				s.Handler().ServeHTTP(rec, req)
+				a.Equal(http.StatusOK, rec.Code)
+
+				conn, err := stdsql.Open("sqlite", "file:"+path)
+				r.NoError(err)
+				defer conn.Close()
+				var count int
+				r.NoError(conn.QueryRow("SELECT COUNT(*) FROM widgets").Scan(&count))
+				a.Equal(2, count, "row count unchanged after %q", tc.sql)
+			})
+		}
+	})
+
+	t.Run("schema", func(t *testing.T) {
+		t.Run("lists table columns as json", func(t *testing.T) {
 			a := assert.New(t)
 			r := require.New(t)
-			path := seedDB(t)
-			s := newServer(t, path)
+			s := newServer(t, seedDB(t))
 
-			form := url.Values{"sql": {tc.sql}}
-			req := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(form.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
-			a.Equal(http.StatusOK, rec.Code)
+			s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/schema", nil))
+			r.Equal(http.StatusOK, rec.Code)
 
-			conn, err := stdsql.Open("sqlite", "file:"+path)
-			r.NoError(err)
-			defer conn.Close()
-			var count int
-			r.NoError(conn.QueryRow("SELECT COUNT(*) FROM widgets").Scan(&count))
-			a.Equal(2, count, "row count unchanged after %q", tc.sql)
+			var out struct {
+				Tables map[string][]string `json:"tables"`
+			}
+			r.NoError(json.Unmarshal(rec.Body.Bytes(), &out))
+			a.Equal([]string{"id", "name", "note"}, out.Tables["widgets"])
 		})
-	}
-}
-
-func TestSchema(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-	s := newServer(t, seedDB(t))
-
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/schema", nil))
-	r.Equal(http.StatusOK, rec.Code)
-
-	var out struct {
-		Tables map[string][]string `json:"tables"`
-	}
-	r.NoError(json.Unmarshal(rec.Body.Bytes(), &out))
-	a.Equal([]string{"id", "name", "note"}, out.Tables["widgets"])
-}
-
-func TestMissingDBSurfacesError(t *testing.T) {
-	a := assert.New(t)
-	s := newServer(t, filepath.Join(t.TempDir(), "absent.db"))
-
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	a.Equal(http.StatusOK, rec.Code)
-	a.Contains(rec.Body.String(), "absent.db")
+	})
 }

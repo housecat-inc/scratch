@@ -1,0 +1,825 @@
+cmd/checks/errors/errors_test.go
+  Analyzer
+    reports std and pkg errors but allows cockroachdb errors
+
+cmd/checks/testspec/testspec_test.go
+  Analyzer
+    reports every naming and structure violation
+  Spec
+    prints each file with its sorted Test, group, case hierarchy
+
+pkg/agents/agents_test.go
+  Dir
+    lives under the scratch directory in HOME
+
+pkg/api/api_test.go
+  Spec
+    documents the greet workflow route
+
+pkg/chat/agent_test.go
+  AgentInstructions
+    describes the existing workspace and its branch
+
+pkg/chat/attachments_test.go
+  AddAttachment
+    rejects files over the size limit
+    stores a draft that Send attaches to the user message
+  Attachments
+    when sending a message
+      rejects an unknown attachment without adding messages
+  ClaudeArgs
+    bypasses permissions and appends instructions with full access
+    uses default permissions and lists attached files in safe mode
+  DeleteDraftAttachment
+    removes the file from disk
+  SanitizeFilename
+    falls back for a blank name
+    keeps a plain name
+    strips an absolute directory
+    strips path traversal
+  ToggleThreadAccess
+    flips between full and safe access and persists it on the anchor
+
+pkg/chat/chat_test.go
+  AgentName
+    names agents by their type
+  Chat
+    truncate
+      counts runes rather than bytes
+      cuts long text with an ellipsis
+      keeps text at the limit
+      keeps text under the limit
+      trims surrounding whitespace
+  Recover
+    fails orphaned streaming replies and runs the queued prompt
+    leaves turns whose agent is still alive
+  ResolveElicitation
+    does not deliver when recording the result fails
+  Send
+    drops replayed duplicate events
+    keeps the thread label when the agent updates the anchor
+    marks the reply as an error when the agent fails
+    queues the next turn while the agent is busy
+    rejects a missing thread
+    stores the prompt, streams the reply and titles the thread
+  StopThread
+    cancels the running turn
+    reports not busy when no turn is running
+    starts the queued turn after stopping
+  ThreadPrompt
+    is empty for a thread without messages
+  ThreadsByLabel
+    returns only threads with the label
+  WithDir
+    ignores an empty directory
+    leaves agents without a directory unchanged
+    sets the claude directory
+    sets the codex directory
+
+pkg/chat/claude_test.go
+  ClaudeLineEvents
+    completes a tool call with its result
+    does not separate the first text block
+    emits text deltas
+    emits thinking deltas
+    fails a tool call whose result is an error
+    ignores partial tool input
+    passes the final result through
+    separates later text blocks with a blank line
+    skips subagent lines
+    starts a tool call titled from its input
+  ToolTitle
+    appends the command
+    appends the file path
+    uses the tool name for empty input
+    uses the tool name without a primary input
+
+pkg/chat/codex_test.go
+  CodexArgs
+    does not add workspace write roots
+    keeps a safe resume read-only
+    keeps safe mode read-only
+    passes images as flags and lists other files in the prompt
+    passes the model to a new session
+    resumes with a config override for the sandbox
+    starts a new session with full access
+  CodexItemEvents
+    completes a tool call with the command output
+    emits an agent message as text
+    emits reasoning as thinking
+    fails a tool call when the command fails
+    ignores partial command output
+    separates later agent messages with a blank line
+    starts a tool call when a command starts
+    titles a file change by kind and path
+    titles a web search by its query
+    turns a todo list into a plan
+
+pkg/chat/codexui_test.go
+  CodexServer
+    answers a retried send without sending twice
+    deletes a thread and tells the rail
+    rejects a follow-up before its thread exists
+    renders the thread's turns for the rail
+    reports a recorded send by client id
+    sends a follow-up to the thread its first message started
+    starts a labeled thread from the first message
+    streams the thread as server sent events
+  CodexServerMiddleware
+    carries the open chat through a post redirect
+    ignores a chat from another site
+    keeps a chat the redirect already names
+    leaves a redirect alone when no chat is open
+
+pkg/chat/forms_test.go
+  FormProps
+    unescapes html entities in field defaults
+
+pkg/chat/metadata_test.go
+  FriendlyDescription
+    describes a selection by its page path
+    describes an attachment-only prompt
+    keeps a selection without a url as is
+    uses the first sentence of a plain prompt
+  FriendlyTitle
+    labels a bare page selection
+    labels an attachment-only prompt
+    uses the instruction after a selection
+    uses the opening words of a plain prompt
+
+pkg/chat/parts_test.go
+  FoldParts
+    completes a dangling tool once the message finishes
+    keeps a dangling tool in progress while streaming
+    merges consecutive text and thinking into parts
+    merges tool call updates into the original call
+    renders a diff as the tool detail
+    shows a legacy tool call as completed with its input
+    updates the plan in place
+
+pkg/chat/provider_model_test.go
+  ParseProviderModel
+    accepts an agent without a model
+    drops the default model
+    splits the agent and model
+  ProviderModelOptions
+    lists each agent's models and hides the contact agent
+
+pkg/chat/runner_test.go
+  HasRunner
+    is false for a runner without an output log
+    is false for empty meta
+    is false without a runner
+    is true for a runner with an output log
+  RunTurn
+    fails with the stderr tail when the runner was interrupted
+    fails without a prompt or a runner
+    replays the output of a finished runner
+    spawns a runner, parses its output and removes the log
+  StopRunner
+    terminates the process group
+
+pkg/chat/sse_test.go
+  View
+    shows the first unresolved form until every form is answered
+  WriteEventData
+    strips carriage returns so every line stays valid SSE
+
+pkg/db/comments_test.go
+  AddComment
+    stores the anchor and body as an open comment
+  CommentAnchor
+    differs by line
+    differs by side
+    is stable for the same path side and line
+  DeleteComment
+    removes only the deleted comment from the branch list
+    reports not found for an unknown id
+    reports not found for another repo slug
+  GetComment
+    reports not found for an unknown id
+  ListComments
+    returns the branch comments in creation order
+  SetCommentResolved
+    resolves with a reason and reopens clearing it
+  UpdateCommentBody
+    replaces the body and bumps the update time
+
+pkg/db/migration_test.go
+  Migration
+    upgrades a pre-trash database so legacy threads can be trashed
+
+pkg/db/tasks_test.go
+  Tasks
+    adds lists completes edits and clears tasks
+    when the task does not exist
+      completing reports not found
+      deleting reports not found
+      describing reports not found
+      getting reports not found
+      renaming reports not found
+
+pkg/db/threads_test.go
+  DeleteThread
+    removes the thread messages and events
+  Threads
+    creates renames resolves and touches threads ordered by recency
+    when a chat exchanges messages
+      numbers messages per thread and assembles a streamed reply
+    when the message does not exist
+      appending reports not found
+      finishing reports not found
+      getting reports not found
+    when the thread does not exist
+      deleting reports not found
+      getting reports not found
+      setting the anchor reports not found
+      setting the state reports not found
+      setting the title reports not found
+      touching reports not found
+      trashing reports not found
+  TrashThread
+    hides the thread from lists and unstars it
+
+pkg/elicit/elicit_test.go
+  Coerce
+    converts a full form to typed values
+    drops fields not in the schema
+    rejects a missing required field
+    rejects a non-integer for an integer field
+    treats an unchecked checkbox as false
+  SchemaFor
+    defaults fields to their non-zero values
+    describes fields with json types in declaration order
+    requires fields without omitempty
+    survives a json round trip inside a prompt
+
+pkg/flow/demos_test.go
+  CountdownWorkflow
+    counts down through each tick then lifts off
+  DeployWorkflow
+    publishes version and status events
+  FanoutWorkflow
+    enqueues one child workflow per job
+    runs jobs on a queue then sums the squares
+  StreamWorkflow
+    streams log lines then closes
+
+pkg/flow/engine_test.go
+  Resolve
+    returns form not found for an unknown elicitation
+  Run
+    shows the running greeting step while the greeter works
+
+pkg/flow/schedule_test.go
+  Schedule
+    heartbeat schedule
+      pauses and resumes
+      records a triggered run in its history
+      registers once when ensured twice
+
+pkg/flow/webhook_test.go
+  DeliverWebhook
+    accepts a duplicate delivery with the same idempotency key
+    completes the waiting workflow with the payload
+    returns run not found for an unknown workflow
+
+pkg/flow/workflows_test.go
+  CreatePRWorkflow
+    drafts and finalizes the pull request on accept
+    reuses the cached draft when the review is edited
+    shows a fresh review form with the cached draft when forked
+  GreetWorkflow
+    ends without a greeting on decline
+    prompts for a name then greets on accept
+    reruns from the edited name form and keeps the original run
+  NormalizePullRequest
+    unescapes HTML entities
+  UpdateClaudeWorkflow
+    runs the update on accept
+    skips the update on decline
+  Workflows
+    when the application version changes
+      forks a run onto the current version
+      rejects resolving an old form as stale but reruns it on edit
+
+pkg/git/diff_test.go
+  Diff
+    lists the files a branch adds over main
+  HunkKey
+    differs for different headers
+    matches for identical headers
+  ParseDiff
+    captures the section context after a hunk header
+    flags a modified binary file
+    flags an added binary file
+    marks a new file as added with no old path
+    marks a removed file as deleted with no new path
+    numbers old and new lines in a modified hunk
+    returns no files for empty input
+    splits consecutive file diffs
+    tracks a pure rename without hunks
+
+pkg/git/git_test.go
+  ComputeStatus
+    counts upstream commits the clone is behind
+    flags divergence when both sides have new commits
+    flags uncommitted edits as dirty
+    reports a clean clone as current
+  Installed
+    is false for a dir without a git dir
+    is false for a missing dir
+    is true for a dir with a git dir
+    is true for a worktree with a git file
+  Pull
+    fast forwards to upstream commits
+
+pkg/git/inspect_test.go
+  Branch
+    returns the checked out branch
+  CommitLog
+    lists branch commits newest first
+  DefaultBranch
+    returns the remote head
+  HunkCommit
+    finds the commit that introduced a hunk
+  LastCommit
+    returns the head subject sha and date
+  ParseSlug
+    ignores a trailing slash
+    parses a full ssh url
+    parses an https github url
+    parses an https url without the git suffix
+    parses an internal mirror url
+    parses ssh shorthand
+    rejects a url without a repo
+    rejects an empty url
+  RemoteSlug
+    derives the repo name from origin
+  ShowFile
+    returns the file lines at a revision
+
+pkg/harness/claudecode/claudecode_test.go
+  Claudecode
+    when installing tmux on linux
+      errors without a package manager
+      prefers apk over yum when both present
+      uses apk
+      uses apt-get
+      uses dnf
+      uses pacman
+      uses yum
+  EnsureTmuxInstalled
+    succeeds when tmux is already on the path
+  MergeDefaults
+    creates missing parent directories
+    keeps a nested scalar inside permissions
+    keeps an existing projects map
+    keeps an existing theme
+    keeps unknown fields
+    skips the rewrite when claude.json is complete
+    skips the rewrite when extra fields already satisfy defaults
+    skips the rewrite when settings.json is complete
+    treats an empty file as an empty object
+    writes every claude.json default to a new file
+    writes every settings.json default to a new file
+  TrustProjectAt
+    adds a trusted entry to a missing file
+    keeps other top-level fields
+    keeps other trusted projects
+
+pkg/harness/claudecode/login_test.go
+  StartLoginCmd
+    times out when no login URL is printed
+  SubmitCode
+    accepts a valid code
+    rejects an invalid code
+    succeeds when the browser already completed login
+
+pkg/harness/claudecode/remotectl_test.go
+  ExtractLastAssistantMessage
+    ignores TUI chrome
+    returns a plain assistant message
+    skips a tool call before the assistant reply
+    skips a trailing tool call to find the prior reply
+    treats a lowercase word with parens as prose
+    treats a nested-parens tool call as a tool call
+  QRPNG
+    encodes the session URL as a PNG
+  Recover
+    does not duplicate sessions when run twice
+    restores sessions from tmux in a fresh manager
+    skips sessions that never printed a URL
+  SessionPrefix
+    falls back to session for the root dir
+    joins the host and dir basename without a name
+    joins the host and user name
+    returns the base alone without a host
+    uses the basename before a trailing slash
+  Start
+    rejects a dir that is a file
+    rejects a missing dir
+    rejects an empty dir
+    rejects an invalid name
+    starts lists and stops a session
+    times out when no URL is printed
+  StopAll
+    stops every session
+  URLRegex
+    finds nothing without a URL
+    ignores non-session paths
+    ignores other domains
+    matches a claude.ai session URL
+    matches a code.claude.com session URL
+    skips an environment redirect URL
+
+pkg/harness/claudecode/slug_test.go
+  SanitizeSlug
+    caps the length
+    cuts the response at a newline
+    folds uppercase
+    joins words with dashes
+    keeps an existing kebab slug
+    returns empty for blank input
+    strips punctuation
+    trims leading dashes
+    trims trailing dashes
+    turns underscores into dashes
+  SlugForPrompt
+    returns empty for an empty prompt
+    returns empty when the binary is missing
+
+pkg/harness/claudecode/status_test.go
+  ConfiguredAt
+    is false when claude.json lacks a default key
+    is false when neither file exists
+    is false when symlinks are missing
+    is false when the agents checkout is missing
+    is false with only claude.json complete
+    is false with only settings.json complete
+    is true when all four pieces are in place
+    stays configured after claude rewrites claude.json
+  HasDefaults
+    is false for a missing file
+    is false when a top-level key is missing
+    is true for a complete file
+    is true when a key holds a different value
+  Status
+    authenticated
+      errors on malformed json
+      reports a logged in account
+      reports a logged out account
+      treats a cli error as not authenticated
+
+pkg/harness/claudecode/symlinks_test.go
+  EnsureSymlinksAt
+    creates every symlink in a clean home
+    creates the parent directory for a nested link
+    errors when the target is a regular directory
+    errors when the target is a regular file
+    leaves correct symlinks in place
+    replaces a stale symlink
+  HasSymlinksAt
+    is false when a regular file is in the way
+    is false when a symlink points elsewhere
+    is false when only some symlinks exist
+    is false when symlinks are missing
+    is true when every symlink is correct
+
+pkg/harness/codexcode/appserver/client_test.go
+  Call
+    answers server requests with an error
+    fails after close
+    returns rpc errors
+  LoginCancel
+    emits a failed login completed notification
+  LoginStart
+    returns a user code for device code login
+    returns an auth url for browser login
+
+pkg/harness/codexcode/codexcode_test.go
+  Codexcode
+    version
+      errors when the command fails
+      returns a bare version
+      returns empty for empty output
+      strips the codex-cli prefix
+
+pkg/harness/codexcode/login_test.go
+  Close
+    cancels a pending login
+  Login
+    when signing in with a device code
+      shows the code and completes without a callback
+    when signing in with the browser
+      completes sign in with a valid callback
+      rejects a callback on the wrong path locally
+      rejects a callback without a code locally
+      surfaces the codex error for a rejected code
+
+pkg/inbox/cancel_browser_test.go
+  CancelBrowser
+    cancelling a durable run exposes a resume control on the row
+    resuming a cancelled run restarts it and restores the cancel control
+
+pkg/inbox/chat_rail_browser_test.go
+  ChatRailBrowser
+    when docked
+      closes and reopens with back and forward
+      closes from the toggle
+      continues an existing thread
+      creates a task in the main section with the chat open
+      keeps the chat open while the left nav changes pages
+      opens a chat page link in the rail
+      opens a new chat beside the page from the toggle
+      opens a thread from a deep link
+      renders thinking, tool, plan, and markdown parts
+      reopens the last chat from the toggle
+      starts a new chat from the rail header
+      starts a thread and streams the reply
+      stops a streaming turn
+    when narrow
+      opens the left nav from the bottom bar and navigates
+      switches between the page and the chat from the bottom bar
+
+pkg/inbox/codex_chat_browser_test.go
+  CodexChatBrowser
+    lists the new chat under chats
+    resumes the codex thread for a follow-up
+    starts a new chat and streams the codex reply
+
+pkg/inbox/events_test.go
+  Events
+    returns not found for a thread that is not a workflow
+
+pkg/inbox/inbox_browser_test.go
+  InboxBrowser
+    chats
+      archives a chat from its row and drops it from the list
+      hides archived chats by default
+      opens a row in the chat rail
+      shows archived chats under the all filter
+    tasks
+      hides done and archived tasks under the active filter
+      saves an edited description
+
+pkg/inbox/inbox_test.go
+  ArchiveFilter
+    defaults an unknown filter to all
+    defaults chats to active
+    ignores the filter in the inbox view
+    keeps the all filter for chats
+    keeps the archived filter for tasks
+  IncludeArchiveFilter
+    active excludes archived
+    active includes active
+    all includes active
+    all includes archived
+    archived excludes active
+    archived includes archived
+  IncludeTaskFilter
+    active excludes archived
+    active excludes done
+    active includes open
+    all includes active
+    all includes done
+    archived excludes open
+    archived includes archived
+  NewServer
+    does not mount the legacy task pages
+  ResolveComposeMode
+    is empty without a mode
+    keeps task
+    keeps workflow
+    rejects the retired chat mode
+  ScheduleLastFired
+    formats the last fire time
+    is empty before the first fire
+  WorkflowAgent
+    defaults to greet
+    falls back to greet for an unknown type
+    keeps greet
+
+pkg/inbox/poll_browser_test.go
+  PollBrowser
+    appends later workflow steps without re-rendering earlier ones
+
+pkg/inbox/schedule_browser_test.go
+  ScheduleBrowser
+    lists the heartbeat schedule as an active row
+    opening a schedule shows its execution feed scrolled to the bottom
+    pausing a schedule flips its label to paused
+
+pkg/inbox/webhook_test.go
+  Webhook
+    delivers the payload to the waiting workflow
+    rejects an oversized body
+    returns not found for an unknown workflow
+
+pkg/inbox/workflow_browser_test.go
+  WorkflowBrowser
+    greet
+      ends when the name form is declined
+      forks the name form into a new runnable workflow
+      prompts for a name then shows a greeting
+      reruns the greeting after editing the name
+      starts when selected from the workflow menu
+    stream
+      refreshes the header to completed without a manual reload
+    update claude
+      starts when selected from the workflow menu
+
+pkg/repo/repo_test.go
+  Find
+    locates a repo by slug and misses unknown slugs
+  Scan
+    lists git repos with an origin sorted by slug
+    skips repos without an origin remote
+  ScanIncluding
+    prefers an explicit worktree over the home checkout
+
+pkg/server/code/code_browser_test.go
+  CodeBrowser
+    shows a diff inside the styled tool shell
+    shows the repo overview inside the tool shell
+
+pkg/server/code/code_html_test.go
+  CodeHTML
+    commits page
+      renders the log with repo tabs
+    diff comments
+      adds a comment thread on a line
+      deletes a comment from the thread
+    diff page
+      renders hunks with context expanders
+      returns not found for an unknown repo
+    overview
+      hides sync actions for a clean repo
+      lists repos with sync actions
+
+pkg/server/code/code_test.go
+  Code
+    comment validation
+      rejects a blank body
+      rejects a comment form for line zero
+      rejects a comment on an unknown repo
+      rejects an unknown diff side
+    comments
+      deletes a comment with an empty ok response
+      edits a comment and shows the new body
+      lists comments grouped by file in name order
+      toggles resolved on each resolve
+    file context
+      expands down to the end of the file
+      expands down while more lines remain
+      expands every hidden line at once
+      expands up to the hunk boundary
+    shows repo listing errors on the overview
+
+pkg/server/sessions/sessions_browser_test.go
+  SessionsBrowser
+    shows the setup checklist inside the tool shell
+
+pkg/server/sessions/sessions_flows_html_test.go
+  SessionsFlowsHTML
+    sessions
+      browse lists subdirectories
+      browse reports an empty directory
+      points unfinished setup back to setup
+      shows the start form once signed in
+      start defaults to the home directory
+      start renders the running session
+      start surfaces errors
+      start with redirect sends the client home
+      stop removes the session
+    setup
+      codex browser sign in accepts a pasted callback
+      codex browser sign in keeps the form after a bad paste
+      codex browser sign in shows codex errors and resets
+      codex device sign in polls until done
+      codex sign in cancel returns to connect
+      configure marks the step done
+      install cascades to the sign in step
+      install error stays on the install step
+      sign in keeps the retry form after an invalid code
+      sign in submits the pasted code and cascades to configure
+
+pkg/server/sessions/sessions_html_test.go
+  SessionsHTML
+    setup page
+      checks sign in and activates configure when authenticated
+      groups claude and codex steps on a fresh machine
+      marks codex sign in done when authenticated
+      prompts to get codex when it is not installed
+      reports the installed codex version
+      shows the claude version and update button once installed and activates sign in
+      still offers the update button when every step is done
+
+pkg/server/sessions/sessions_test.go
+  Sessions
+    QR code
+      returns not found for an unknown session
+      serves the session QR code as png
+    nav
+      highlights sessions on the root page
+      highlights setup on the setup page
+    sessions page
+      omits agents repo hints
+      serves the sessions route when not mounted at root
+    sign in
+      reports no login in progress for a stray code
+    start
+      skips the prompt slug when no prompt is given
+
+pkg/server/sql/lsp_test.go
+  LSP
+    bridges a websocket to sqls and answers initialize with completion
+
+pkg/server/sql/sql_browser_test.go
+  SQLBrowser
+    mounts a single codemirror editor beside saved queries and schema
+    runs a table query from the sidebar
+    shows shared shell counts
+
+pkg/server/sql/sql_html_test.go
+  SQLHTML
+    editor
+      renders the editor and schema
+      runs a query and swaps in the results
+      surfaces query errors in the results
+    saved queries
+      deletes a saved query
+      rejects a save without a name
+      saves a query into the sidebar
+      upserts one row when a name is reused
+
+pkg/server/sql/sql_test.go
+  SQL
+    page
+      names a missing database file in the page
+      renders the shell, editor, and schema with scripts loaded once
+    read only queries
+      blocks a delete
+      blocks a drop table
+      blocks a pragma that disables read only
+      blocks an insert
+    schema
+      lists table columns as json
+
+pkg/todo/web_browser_test.go
+  WebBrowser
+    chat panel
+      chat toggle starts a todo chat in the panel
+      survives navigation
+    chats list
+      lists todo chats without scratch chats
+      opens a todo chat row in the chat panel
+    inbox
+      archives and unarchives from list actions
+      creates a task
+      lists only active tasks
+      opens a task page from a row
+    task page
+      saves the description and keeps the title
+      toggles completion
+    tasks list
+      deletes an archived task after confirmation
+      lists all tasks with archived actions
+
+pkg/workflow/single_db_test.go
+  SingleDB
+    when app and workflows share one sqlite file
+      creates the app schema
+      creates the workflow schema
+      records workflow runs
+
+pkg/workflow/workflow_test.go
+  Greet
+    greets an empty name
+    greets by name
+
+pkg/workspace/workspace_test.go
+  Resolve
+    finds the worktree root and branch inside a repo
+    reports no repo outside git
+
+testkit/console_test.go
+  SSEDisconnect
+    ignores calls without a message string
+    ignores empty calls
+    keeps a failed reconnect as an error
+    keeps other htmx network errors
+    matches a stream cut by navigation
+
+testkit/html_test.go
+  Click
+    hx-include gathers external fields
+    none swap leaves the dom unchanged
+    outerHTML swap replaces the target
+    submit button posts the enclosing form
+  Load
+    renders and queries the page
+  SelectOption
+    changes the posted value
+  Type
+    appends to the field value
