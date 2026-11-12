@@ -3,6 +3,7 @@ package uikit
 //go:generate go tool templ generate
 
 import (
+	"cmp"
 	"context"
 	"strconv"
 
@@ -35,12 +36,14 @@ type ShellProps struct {
 
 func shellIn(p ShellProps) app.ShellIn {
 	nav := make([]app.NavItem, 0, len(p.Nav))
+	group := ""
 	for _, item := range p.Nav {
+		group = cmp.Or(item.Group, group)
 		count := ""
 		if item.ShowCount && item.Count > 0 {
 			count = strconv.Itoa(item.Count)
 		}
-		nav = append(nav, app.NavItem{Count: count, Current: item.Active, Group: item.Group, Href: item.Href, Icon: item.IconName, IconComponent: iconComponent(item), Label: item.Label})
+		nav = append(nav, app.NavItem{Count: count, Current: item.Active, Group: group, Href: item.Href, Icon: item.IconName, IconComponent: iconComponent(item), Label: item.Label})
 	}
 	return app.ShellIn{
 		BrandHref: p.BrandHref,

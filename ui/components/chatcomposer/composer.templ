@@ -347,7 +347,7 @@ func modelEntries(options []ModelOption) []selectbox.Entry {
 // that says the chat is busy until Stop or a reply takes the slot.
 templ submitContent() {
 	<span class="inline-flex items-center gap-1.5">
-		<span aria-hidden="true" class="group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="send">
+		<span aria-hidden="true" class="inline-flex group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="send">
 			@icons.Render(icons.Send, icons.Props{Size: SendGlyph})
 		</span>
 		<span aria-hidden="true" class="hidden group-data-[sending=true]/composer:opacity-60 group-data-[working=true]/composer:inline-flex group-data-[working=true]/composer:group-data-[empty=true]/composer:hidden group-data-[sending=true]/composer:motion-safe:animate-pulse" data-prompt-submit-glyph="queue">

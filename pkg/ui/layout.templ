@@ -125,11 +125,10 @@ func toolNavItems(active string, counts InboxCounts) []uikit.NavItem {
 	return []uikit.NavItem{
 		{Active: active == "inbox", Count: counts.Inbox, Href: "/", Icon: lucide.Inbox(), IconName: icons.Inbox, Label: "Inbox", ShowCount: true},
 		{Active: active == "starred", Count: counts.Starred, Href: "/starred", Icon: lucide.Star(), IconName: icons.Starred, Label: "Starred", ShowCount: true},
-		{Active: active == "chats", Count: counts.Chats, Group: "More", Href: "/inbox/chats", Icon: lucide.MessageSquare(), IconName: icons.Conversations, Label: "Chats", ShowCount: true},
+		{Active: active == "chats", Count: counts.Chats, Href: "/inbox/chats", Icon: lucide.MessageSquare(), IconName: icons.Conversations, Label: "Chats", ShowCount: true},
 		{Active: active == "tasks", Count: counts.Tasks, Href: "/inbox/tasks", Icon: lucide.ListChecks(), IconName: icons.Tasks, Label: "Tasks", ShowCount: true},
 		{Active: active == "workflows", Count: counts.Workflows, Href: "/inbox/workflows", Icon: lucide.Play(), IconName: icons.Workflows, Label: "Workflows", ShowCount: true},
 		{Active: active == "setup", Group: "Tools", Href: "/setup", Icon: lucide.Settings(), IconName: icons.Settings, Label: "Setup"},
-		{Active: active == "sessions", Href: "/sessions", Icon: lucide.MessageSquare(), IconName: icons.Conversations, Label: "Sessions"},
 		{Active: active == "code", Href: "/code/", Icon: lucide.CodeXml(), IconName: icons.CodeEditor, Label: "Code review"},
 		{Active: active == "files", Href: "/files/", Icon: lucide.File(), IconName: icons.Files, Label: "Files"},
 		{Active: active == "sql", Href: "/sql/", Icon: lucide.Database(), IconName: icons.Storage, Label: "SQL"},
