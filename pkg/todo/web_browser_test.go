@@ -278,7 +278,6 @@ func newWebHarness(t *testing.T) *webHarness {
 	chatSvc := chat.NewService(store, chat.EchoAgent{Delay: 10 * time.Millisecond}, slog.Default())
 	t.Cleanup(chatSvc.Close)
 	mux := http.NewServeMux()
-	mux.Handle("/chat/", chat.NewServer(chatSvc, slog.Default()).Handler())
 	mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 	codex := chat.NewCodexServer(chatSvc).WithLabel(ChatLabel)
 	mux.Handle("/codex", codex.Handler())

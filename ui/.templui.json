@@ -1,7 +1,0 @@
-{
-  "componentsDir": "components",
-  "utilsDir": "utils",
-  "moduleName": "github.com/housecat-inc/scratch/ui",
-  "jsDir": "../app/assets/js",
-  "jsPublicPath": "/assets/js"
-}

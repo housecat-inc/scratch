@@ -134,16 +134,9 @@ pkg/chat/codexui_test.go
     keeps a chat the redirect already names
     leaves a redirect alone when no chat is open
 
-pkg/chat/hypertext_test.go
+pkg/chat/forms_test.go
   FormProps
     unescapes html entities in field defaults
-  HandleSend
-    queues the posted prompt while a turn is streaming
-    sends the posted prompt to the agent
-  HandleStop
-    ends the running turn with an error
-  Handler
-    does not mount the legacy chat pages
 
 pkg/chat/metadata_test.go
   FriendlyDescription
@@ -192,7 +185,7 @@ pkg/chat/runner_test.go
 pkg/chat/sse_test.go
   View
     shows the first unresolved form until every form is answered
-  WriteMessagesEvent
+  WriteEventData
     strips carriage returns so every line stays valid SSE
 
 pkg/db/comments_test.go
@@ -580,18 +573,6 @@ pkg/inbox/inbox_test.go
     ignores the filter in the inbox view
     keeps the all filter for chats
     keeps the archived filter for tasks
-  ChatAgent
-    accepts a known agent
-    is empty when no agent is given
-    rejects an unknown agent
-  ChatAgentOptions
-    lists every agent
-  ChatModel
-    accepts a claude model
-    accepts a codex model
-    is empty for an agent without models
-    is empty for the default model
-    rejects a model from another provider
   IncludeArchiveFilter
     active excludes archived
     active includes active
@@ -610,11 +591,10 @@ pkg/inbox/inbox_test.go
   NewServer
     does not mount the legacy task pages
   ResolveComposeMode
-    defaults to chat
-    falls back to chat for an unknown mode
-    keeps chat
+    is empty without a mode
     keeps task
     keeps workflow
+    rejects the retired chat mode
   ScheduleLastFired
     formats the last fire time
     is empty before the first fire
@@ -808,12 +788,6 @@ pkg/todo/web_browser_test.go
     tasks list
       deletes an archived task after confirmation
       lists all tasks with archived actions
-
-pkg/ui/chat_views_test.go
-  ChatPartGroups
-    folds consecutive tool calls into a summarized group and marks the last part
-  ChatToolGroupSummary
-    counts running failed and completed tools
 
 pkg/workflow/single_db_test.go
   SingleDB

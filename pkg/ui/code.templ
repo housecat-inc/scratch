@@ -145,7 +145,6 @@ templ CodeLayout(title string, subnav CodeSubnavProps) {
 			@uikit.Shell(uikit.ShellProps{
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Footer:     ToolComposer(),
 				Nav:        toolNavItems("code", subnav.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {
@@ -166,7 +165,6 @@ templ DiffPage(p DiffProps) {
 			@uikit.Shell(uikit.ShellProps{
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Footer:     ToolComposer(),
 				Nav:        toolNavItems("code", p.Shell.Counts),
 				SidebarTop: ComposeActions(),
 			}) {

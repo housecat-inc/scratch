@@ -74,8 +74,7 @@ templ MailHead(title string) {
 		<meta name="htmx-config" content='{"noSwap": [204, 304, "4xx", "5xx"]}'/>
 		<script src="/static/register-sw.js" defer></script>
 		<script src="/static/ptr.js" defer></script>
-		<script src="/static/html2canvas.min.js" defer></script>
-		<script src="/static/chat.js" defer></script>
+		<script src="/static/workflow.js" defer></script>
 		<script src="/static/contacts.js" defer></script>
 		{ children... }
 	</head>
@@ -103,7 +102,6 @@ templ Layout(title, nav string, shells ...ToolShellProps) {
 			@uikit.Shell(uikit.ShellProps{
 				AppName:    "scratch",
 				BrandHref:  "/",
-				Footer:     ToolComposer(),
 				MainClass:  "mail-tool-main",
 				Nav:        toolNavItems(nav, toolShell(shells).Counts),
 				SidebarTop: ComposeActions(),
@@ -136,14 +134,6 @@ func toolNavItems(active string, counts InboxCounts) []uikit.NavItem {
 		{Active: active == "files", Href: "/files/", Icon: lucide.File(), IconName: icons.Files, Label: "Files"},
 		{Active: active == "sql", Href: "/sql/", Icon: lucide.Database(), IconName: icons.Storage, Label: "SQL"},
 	}
-}
-
-templ ToolComposer() {
-	@ChatComposer(ChatComposerProps{
-		Action:      "/compose",
-		FileName:    "file",
-		Placeholder: "Chat with agent",
-	})
 }
 
 func toolShell(shells []ToolShellProps) ToolShellProps {

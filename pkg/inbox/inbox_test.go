@@ -44,53 +44,6 @@ func TestArchiveFilter(t *testing.T) {
 	}
 }
 
-func TestChatAgent(t *testing.T) {
-	tests := []struct {
-		agent string
-		name  string
-		want  string
-	}{
-		{agent: "codex", name: "accepts a known agent", want: "codex"},
-		{agent: "missing", name: "rejects an unknown agent"},
-		{agent: "", name: "is empty when no agent is given"},
-	}
-	agents := []string{"claude", "codex", "echo"}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := assert.New(t)
-			a.Equal(tt.want, chatAgent(tt.agent, agents))
-		})
-	}
-}
-
-func TestChatAgentOptions(t *testing.T) {
-	t.Run("lists every agent", func(t *testing.T) {
-		a := assert.New(t)
-		a.Equal([]string{"claude", "codex", "echo"}, chatAgentOptions([]string{"claude", "codex", "echo"}))
-	})
-}
-
-func TestChatModel(t *testing.T) {
-	tests := []struct {
-		agent string
-		model string
-		name  string
-		want  string
-	}{
-		{agent: "codex", model: "gpt-5.5", name: "accepts a codex model", want: "gpt-5.5"},
-		{agent: "claude", model: "opus", name: "accepts a claude model", want: "opus"},
-		{agent: "claude", model: "gpt-5.5", name: "rejects a model from another provider"},
-		{agent: "codex", model: "default", name: "is empty for the default model"},
-		{agent: "echo", model: "opus", name: "is empty for an agent without models"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := assert.New(t)
-			a.Equal(tt.want, chatModel(tt.agent, tt.model))
-		})
-	}
-}
-
 func TestIncludeArchiveFilter(t *testing.T) {
 	tests := []struct {
 		archived bool
@@ -143,9 +96,8 @@ func TestResolveComposeMode(t *testing.T) {
 		name string
 		want string
 	}{
-		{mode: "", name: "defaults to chat", want: "chat"},
-		{mode: "chat", name: "keeps chat", want: "chat"},
-		{mode: "other", name: "falls back to chat for an unknown mode", want: "chat"},
+		{mode: "", name: "is empty without a mode", want: ""},
+		{mode: "chat", name: "rejects the retired chat mode", want: ""},
 		{mode: "task", name: "keeps task", want: "task"},
 		{mode: "workflow", name: "keeps workflow", want: "workflow"},
 	}

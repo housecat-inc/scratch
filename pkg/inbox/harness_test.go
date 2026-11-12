@@ -106,7 +106,6 @@ func newHarnessWithAgent(t *testing.T, agent chat.Agent) *Harness {
 	taskSvc := todo.NewService(store)
 
 	mux := http.NewServeMux()
-	mux.Handle("/chat/", chat.NewServer(chatSvc, slog.New(logs)).Handler())
 	codex := chat.NewCodexServer(chatSvc)
 	mux.Handle("/codex", codex.Handler())
 	mux.Handle("/codex/", codex.Handler())

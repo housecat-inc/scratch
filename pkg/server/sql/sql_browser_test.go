@@ -66,7 +66,6 @@ func sqlBrowser(t *testing.T) *testkit.Harness {
 	s, err := NewServer(Deps{DefaultPath: seedDB(t), Shell: shell, Store: store})
 	kit.R.NoError(err)
 	mux := http.NewServeMux()
-	mux.Handle("/chat/", chat.NewServer(chatSvc, slog.Default()).Handler())
 	mux.Handle("/static/", http.StripPrefix("/static/", ui.StaticHandler()))
 	mux.Handle("/sql/", http.StripPrefix("/sql", s.Handler()))
 	return testkit.NewHarnessWithT(t, kit, mux)

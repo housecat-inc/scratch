@@ -1,9 +1,7 @@
 package chat
 
 import (
-	"log/slog"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/housecat-inc/scratch/pkg/db"
@@ -12,42 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriteMessagesEvent(t *testing.T) {
+func TestWriteEventData(t *testing.T) {
 	t.Run("strips carriage returns so every line stays valid SSE", func(t *testing.T) {
 		a := assert.New(t)
-		r := require.New(t)
-
-		store, err := db.New(":memory:")
-		r.NoError(err)
-		t.Cleanup(func() { store.Close() })
-		svc := NewService(store, EchoAgent{}, nil)
-		t.Cleanup(svc.Close)
-
-		thread, err := svc.CreateThread("", "")
-		r.NoError(err)
-		_, err = store.AddMessage(db.NewMessage{
-			Author:   "you",
-			Body:     "line one\r\nline two\rline three",
-			Role:     db.MessageRoleUser,
-			ThreadID: thread.ID,
-		})
-		r.NoError(err)
-
-		srv := NewServer(svc, slog.Default())
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/chat/1/events", nil)
-		r.NoError(srv.writeMessagesEvent(rec, req, thread.ID))
 
-		body := rec.Body.String()
-		a.NotContains(body, "\r")
-		a.Contains(body, "line one")
-		for line := range strings.Lines(body) {
-			trimmed := strings.TrimRight(line, "\n")
-			if trimmed == "" || strings.HasPrefix(trimmed, "event: ") {
-				continue
-			}
-			a.True(strings.HasPrefix(trimmed, "data: "), "unexpected SSE line %q", trimmed)
-		}
+		writeEventData(rec, "line one\r\nline two\rline three")
+
+		a.Equal("data: line one\ndata: line two\ndata: line three\n\n", rec.Body.String())
 	})
 }
 

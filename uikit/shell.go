@@ -28,7 +28,6 @@ type ShellProps struct {
 	AppName    string
 	BrandHref  string
 	Class      string
-	Footer     templ.Component
 	MainClass  string
 	Nav        []NavItem
 	SidebarTop templ.Component

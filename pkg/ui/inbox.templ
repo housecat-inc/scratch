@@ -23,20 +23,15 @@ templ InboxPage(p InboxProps) {
 			@uikit.Shell(uikit.ShellProps{
 				AppName: "scratch",
 				BrandHref: "/",
-				Footer: MailComposer(p),
 				Nav: inboxNavItems(p),
 				SidebarTop: ComposeActions(),
 			}) {
 				if p.Task != nil {
 					@InboxTaskReader(*p.Task)
-				} else if p.Draft != nil {
-					@InboxDraftReader(*p.Draft)
 				} else if p.Schedule != nil {
 					@InboxScheduleReader(*p.Schedule)
 				} else if p.Workflow != nil {
 					@InboxWorkflowReader(*p.Workflow)
-				} else if p.Thread != nil {
-					@InboxThreadReader(*p.Thread)
 				} else {
 					@InboxListView(p)
 				}
@@ -61,14 +56,6 @@ templ composeButton(mode, label, aria string) {
 			<span>{ label }</span>
 		</button>
 	</form>
-}
-
-templ MailComposer(p InboxProps) {
-	if p.Thread != nil {
-		@ChatComposer(threadComposerProps(*p.Thread))
-	} else {
-		@ChatComposer(composeComposerProps(p))
-	}
 }
 
 templ InboxListView(p InboxProps) {
@@ -211,49 +198,6 @@ templ InboxTaskReader(d InboxTaskDetail) {
 			</label>
 			<button class="mail-save-btn" type="submit">Save</button>
 		</form>
-	</div>
-}
-
-templ InboxDraftReader(d InboxDraftDetail) {
-	@ReaderHeader(ReaderHeaderProps{
-		BackHref: "/inbox/chats",
-		Description: draftAgentLabel(d),
-		Title: d.Title,
-	})
-	<div class="mail-reader-body mail-chat-body">
-		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages">
-			<div class="mail-empty">No messages yet.</div>
-		</div>
-	</div>
-}
-
-templ InboxThreadReader(d InboxThreadDetail) {
-	@ReaderHeader(ReaderHeaderProps{
-		BackHref: "/" + inboxBackPath(d.Kind),
-		Description: d.Description,
-		Title: d.Title,
-	}) {
-			if d.Kind == "chat" {
-				@ChatAccessToggle(d.ID, d.Access)
-			}
-			<button type="button" class="gm-icon-btn" data-chat-open data-chat-id={ itoa64(d.ID) } title="Open chat in panel" aria-label="Open chat in panel">
-				@lucide.ExternalLink()
-			</button>
-			if d.Streaming && d.Kind != "chat" {
-				@readerStopButton(d.Kind, d.ID)
-			}
-			if d.Archived {
-				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), lucide.ArchiveRestore())
-				@readerTrashButton(threadInboxActionURL(d.Kind, d.ID, "trash"), trashActionLabel(threadInboxItem(d)))
-			} else {
-				@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "archive"), archiveActionLabel(threadInboxItem(d)), lucide.Archive())
-			}
-			@readerPostButton(threadInboxActionURL(d.Kind, d.ID, "star"), starActionLabel(threadInboxItem(d)), lucide.Star())
-	}
-	<div class="mail-reader-body mail-chat-body">
-		<div id="chat-messages" data-chat-messages class="chat-messages mail-chat-messages" hx-sse:connect={ "/chat/" + strconv.FormatInt(d.ID, 10) + "/events" } hx-swap="innerMorph">
-			@ChatMessages(ChatThreadProps{Agent: d.Agent, ID: d.ID, Messages: d.Messages, Title: d.Title})
-		</div>
 	</div>
 }
 
@@ -479,15 +423,6 @@ templ readerPostButton(action, label string, icon templ.Component) {
 	</form>
 }
 
-templ readerStopButton(kind string, id int64) {
-	<form method="post" action={ threadInboxActionURL(kind, id, "stop") }>
-		<input type="hidden" name="back" value={ threadInboxDetailURL(kind, id) }/>
-		<button type="submit" class="gm-icon-btn" title="Stop chat" aria-label="Stop chat">
-			@lucide.SquareStop()
-		</button>
-	</form>
-}
-
 templ readerTrashButton(action, label string) {
 	<form class="mail-trash-form" method="post" action={ action } data-trash-form>
 		<input type="hidden" name="back" value={ currentBackFallback(action) }/>
@@ -703,41 +638,6 @@ func currentBackFallback(action string) string {
 	return "/inbox/tasks"
 }
 
-func composeComposerProps(p InboxProps) ChatComposerProps {
-	var hidden []ChatComposerHiddenProps
-	if p.Draft != nil {
-		hidden = append(hidden,
-			ChatComposerHiddenProps{Name: "agent", Value: p.Draft.Agent},
-			ChatComposerHiddenProps{Name: "model", Value: p.Draft.Model},
-		)
-	}
-	return ChatComposerProps{
-		Action:      "/compose",
-		FileName:    "file",
-		Hidden:      hidden,
-		Placeholder: "Chat with agent",
-	}
-}
-
-func draftAgentLabel(d InboxDraftDetail) string {
-	if d.Model != "" {
-		return agentLabel(d.Agent) + " " + d.Model
-	}
-	return agentLabel(d.Agent)
-}
-
-func threadComposerProps(d InboxThreadDetail) ChatComposerProps {
-	action := "/chat/" + strconv.FormatInt(d.ID, 10) + "/messages"
-	return ChatComposerProps{
-		Action:      action,
-		FileName:   "",
-		HXPost:     action,
-		Placeholder: threadComposePlaceholder(d),
-		StopAction:  "/chat/" + strconv.FormatInt(d.ID, 10) + "/stop",
-		UploadURL:   "/chat/" + strconv.FormatInt(d.ID, 10) + "/attachments",
-	}
-}
-
 func doneActionLabel(item InboxItem) string {
 	if item.Done {
 		return "Mark not done"
@@ -750,13 +650,6 @@ func doneIcon(done bool) templ.Component {
 		return lucide.CircleCheck()
 	}
 	return lucide.Circle()
-}
-
-func inboxBackPath(kind string) string {
-	if kind == "workflow" {
-		return "inbox/workflows"
-	}
-	return "inbox/chats"
 }
 
 func inboxNavItems(p InboxProps) []uikit.NavItem {
@@ -794,9 +687,6 @@ func inboxViewHref(view string) string {
 }
 
 func inboxTitle(p InboxProps) string {
-	if p.Draft != nil {
-		return p.Draft.Title
-	}
 	if p.Schedule != nil {
 		return p.Schedule.Name
 	}
@@ -882,10 +772,6 @@ func taskStatusLabel(item InboxItem) string {
 	return "Active"
 }
 
-func threadComposePlaceholder(d InboxThreadDetail) string {
-	return "Chat with agent"
-}
-
 func threadInboxActionURL(kind string, id int64, action string) string {
 	if kind == "workflow" {
 		return fmt.Sprintf("/inbox/workflows/%d/%s", id, action)
@@ -900,6 +786,3 @@ func threadInboxDetailURL(kind string, id int64) string {
 	return fmt.Sprintf("/inbox/chats/%d", id)
 }
 
-func threadInboxItem(d InboxThreadDetail) InboxItem {
-	return InboxItem{Archived: d.Archived, ID: d.ID, Kind: d.Kind, Starred: d.Starred}
-}

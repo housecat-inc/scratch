@@ -1,7 +1,6 @@
 import "../dom/template_events";
 import "../dom/htmx_actions";
 import "../dom/template_scripts/url";
-import "../dom/template_scripts/palette_actions";
 import "../dom/template_scripts/toast";
 // The entry point for ui.js, the bundles' ui entry: the one script a layout
 // loads to get every component's behavior. Each module installs its behavior
@@ -20,58 +19,35 @@ import "../dom/keys";
 import "../dom/viewport";
 import "../dom/pill";
 import "../dom/pan";
-import "../dom/swipe";
-import "../dom/rowmore";
-import "../dom/menucard";
-import "../dom/navhold";
-import "../dom/mailframe";
 import "../dom/intents";
 import "../dom/content";
 import "../dom/morph";
 import "../dom/history";
 import "../dom/chatpanel";
-import "../dom/pullrefresh";
 import "../dom/shellswitch";
-import "../dom/counts";
-import "../dom/hand_labels";
-import "../dom/hand_labels_review";
 import "../components/button/button_state";
 import "../dom/request";
-import "../dom/formfeedback";
-import "../dom/navorder";
-import "../dom/labelmenu";
-import "../uikit/mail_navigation";
-import "../components/collection/collection";
 // scrollmemory comes after collection: a full load's restore marks the row
 // the user was on through window.HousecatCollection as it is imported.
 import "../components/bottomfade/bottomfade";
-import "../dom/scrollmemory";
 import "../components/codex/delete";
 import "../components/codex/links";
 import "../components/codex/scroll";
 import "../components/codex/page_context";
 import "../components/codex/outgoing_links";
-import "../components/dialog/dialog";
 import "../dom/crossing";
 import "../components/drawer/drawer";
 import "../components/drawer/sheet";
-import "../components/jsonviewer/jsonviewer";
 import "../components/chatcomposer/links";
-import "../components/combobox/combobox";
-import "../components/menu/menu";
 import "../components/popover/popover";
 import "../components/promptinput/promptinput";
 import "../components/selectbox/selectbox";
 import "../components/segmented/segmented";
-import "../components/table/sticky";
-import "../components/toolbar/toolbar";
 import "../components/tooltip/tooltip";
-import "../components/tour/tour";
 
 import "../dom/housecat";
 import "../dom/request_alert";
 import "../dom/htmx_sse_swap";
-import "../dom/file_markdown";
 import "../components/collapsible/collapsible";
 
 import "../dom/template_scripts";

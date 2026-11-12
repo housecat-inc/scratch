@@ -84,7 +84,6 @@ func newRootCmd() *cobra.Command {
 			}
 
 			svc := todo.NewService(store)
-			chatSrv := chat.NewServer(chatSvc, logger)
 			addr := fmt.Sprintf(":%d", port)
 			srv := fuego.NewServer(
 				fuego.WithAddr(addr),
@@ -99,7 +98,6 @@ func newRootCmd() *cobra.Command {
 			)
 			todo.Register(srv, svc)
 			srv.Mux.HandleFunc("/chat", http.NotFound)
-			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			codex := chat.NewCodexServer(chatSvc).WithLabel(todo.ChatLabel)
 			srv.Mux.Handle("/codex", codex.Handler())
 			srv.Mux.Handle("/codex/", codex.Handler())

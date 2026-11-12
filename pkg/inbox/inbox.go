@@ -64,7 +64,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /compose", s.handleCompose)
 	mux.HandleFunc("POST /inbox/chats/{id}/archive", s.handleArchiveThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/star", s.handleStarThread)
-	mux.HandleFunc("POST /inbox/chats/{id}/stop", s.handleStopThread)
 	mux.HandleFunc("POST /inbox/chats/{id}/trash", s.handleTrashThread)
 	mux.HandleFunc("POST /inbox/tasks/{id}/archive", s.handleArchiveTask)
 	mux.HandleFunc("POST /inbox/tasks/{id}/done", s.handleDoneTask)
@@ -141,18 +140,9 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
-	agent := chatAgent(r.FormValue("agent"), s.chat.AgentNames())
-	model := chatModel(agent, r.FormValue("model"))
-	if providerModel := r.FormValue("provider_model"); providerModel != "" {
-		agent, model = chat.ParseProviderModel(providerModel)
-		agent = chatAgent(agent, s.chat.AgentNames())
-		model = chatModel(agent, model)
-	}
 	prompt := strings.TrimSpace(r.FormValue("prompt"))
 	mode := resolveComposeMode(strings.TrimSpace(r.FormValue("mode")))
-	createOnly := r.FormValue("create_only") == "true"
-	hasFiles := composeHasFiles(r)
-	if prompt == "" && !createOnly && !hasFiles {
+	if prompt == "" && r.FormValue("create_only") != "true" {
 		s.redirectBack(w, r)
 		return
 	}
@@ -181,26 +171,7 @@ func (s *Server) handleCompose(w http.ResponseWriter, r *http.Request) {
 		s.flows.Await(workflowID, 2*time.Second)
 		http.Redirect(w, r, "/inbox/workflows/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
 	default:
-		thread, err := s.chat.CreateThreadWithModel(agent, model, createTitle(prompt, "New chat", createOnly))
-		if err != nil {
-			s.fail(w, err)
-			return
-		}
-		attachmentIDs, err := s.composeAttachments(r, thread.ID)
-		if err != nil {
-			s.fail(w, err)
-			return
-		}
-		if (prompt != "" || len(attachmentIDs) > 0) && !createOnly {
-			if prompt == "" {
-				prompt = "See attached files."
-			}
-			if _, err := s.chat.Send(thread.ID, prompt, attachmentIDs...); err != nil {
-				s.fail(w, err)
-				return
-			}
-		}
-		http.Redirect(w, r, "/inbox/chats/"+strconv.FormatInt(thread.ID, 10), http.StatusSeeOther)
+		http.Error(w, "unknown compose mode", http.StatusBadRequest)
 	}
 }
 
@@ -261,18 +232,6 @@ func (s *Server) handleStarThread(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, "starred", ui.InboxSelection{})
-}
-
-func (s *Server) handleStopThread(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	if err := s.chat.StopThread(id); err != nil && !chat.IsThreadNotBusy(err) {
-		s.notFoundOr(w, err)
-		return
-	}
-	s.redirectBack(w, r)
 }
 
 func (s *Server) handleTask(w http.ResponseWriter, r *http.Request) {
@@ -500,42 +459,6 @@ func (s *Server) workflowLifecycle(w http.ResponseWriter, r *http.Request, actio
 	s.redirectBack(w, r)
 }
 
-func composeHasFiles(r *http.Request) bool {
-	if r.MultipartForm == nil {
-		return false
-	}
-	for _, files := range r.MultipartForm.File {
-		if len(files) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *Server) composeAttachments(r *http.Request, threadID int64) ([]int64, error) {
-	if r.MultipartForm == nil {
-		return nil, nil
-	}
-	headers := r.MultipartForm.File["file"]
-	ids := make([]int64, 0, len(headers))
-	for _, header := range headers {
-		file, err := header.Open()
-		if err != nil {
-			return nil, errors.Wrap(err, "open compose attachment")
-		}
-		attachment, err := s.chat.AddAttachment(threadID, header.Filename, header.Header.Get("Content-Type"), file)
-		closeErr := file.Close()
-		if err != nil {
-			return nil, err
-		}
-		if closeErr != nil {
-			return nil, errors.Wrap(closeErr, "close compose attachment")
-		}
-		ids = append(ids, attachment.ID)
-	}
-	return ids, nil
-}
-
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	httperr.Log(s.log, "inbox error", err)
 	httperr.Error(w, err, http.StatusInternalServerError)
@@ -606,12 +529,6 @@ func (s *Server) props(view, filter string, selected ui.InboxSelection) (ui.Inbo
 			return ui.InboxProps{}, err
 		}
 		props.Task = &detail
-	case "chat":
-		detail, err := s.chatDetail(selected.ID, selected.Kind)
-		if err != nil {
-			return ui.InboxProps{}, err
-		}
-		props.Thread = &detail
 	case "workflow":
 		detail, err := s.workflowDetail(selected.ID)
 		if err != nil {
@@ -672,38 +589,6 @@ func (s *Server) items(view, filter string) ([]ui.InboxItem, ui.InboxCounts, err
 		return all[i].UpdatedAt.After(all[j].UpdatedAt)
 	})
 	return all, counts, nil
-}
-
-func (s *Server) chatDetail(id int64, kind string) (ui.InboxThreadDetail, error) {
-	view, err := s.chat.View(id)
-	if err != nil {
-		return ui.InboxThreadDetail{}, err
-	}
-	title := view.Thread.Title
-	if title == "" {
-		title = "New chat"
-	}
-	messages := make([]ui.ChatMessageProps, 0, len(view.Messages))
-	for _, m := range view.Messages {
-		messages = append(messages, chat.MessageProps(view, m))
-	}
-	agent := s.chat.AgentName(view.Thread)
-	prompt, err := s.threadPrompt(id)
-	if err != nil {
-		return ui.InboxThreadDetail{}, errors.Wrap(err, "thread prompt")
-	}
-	return ui.InboxThreadDetail{
-		Access:      s.chat.ThreadAccess(view.Thread),
-		Agent:       agent,
-		Archived:    view.Thread.State == db.ThreadStateArchived,
-		Description: chat.FriendlyDescription(prompt),
-		ID:          id,
-		Kind:        kind,
-		Messages:    messages,
-		Starred:     view.Thread.Starred,
-		Streaming:   view.Streaming,
-		Title:       title,
-	}, nil
 }
 
 func (s *Server) workflowDetail(id int64) (ui.InboxWorkflowDetail, error) {
@@ -1144,34 +1029,6 @@ func includeTaskFilter(filter string, item ui.InboxItem) bool {
 	}
 }
 
-func chatAgent(agent string, agents []string) string {
-	agent = strings.TrimSpace(agent)
-	if agent == "" {
-		return ""
-	}
-	for _, known := range agents {
-		if agent == known {
-			return agent
-		}
-	}
-	return ""
-}
-
-func chatAgentOptions(agents []string) []string {
-	out := make([]string, 0, len(agents))
-	for _, agent := range agents {
-		if agent == "" {
-			continue
-		}
-		out = append(out, agent)
-	}
-	return out
-}
-
-func chatModel(agent, model string) string {
-	return chat.NormalizeModel(agent, model)
-}
-
 func workflowAgent(typ string) string {
 	switch strings.TrimSpace(typ) {
 	case "contact-note":
@@ -1218,13 +1075,6 @@ func workflowTitle(typ string) string {
 	}
 }
 
-func createTitle(prompt, fallback string, createOnly bool) string {
-	if createOnly || prompt == "" {
-		return fallback
-	}
-	return ""
-}
-
 func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -1239,7 +1089,7 @@ func resolveComposeMode(mode string) string {
 	case "task", "workflow":
 		return mode
 	default:
-		return "chat"
+		return ""
 	}
 }
 

@@ -35,7 +35,6 @@ Committed directly to `pkg/ui/static` from their upstream releases — no build:
 
 - `htmx.min.js` — htmx 2.0.10
 - `htmx-ext-sse.min.js` — htmx server-sent-events extension
-- `html2canvas.min.js` — html2canvas-pro 1.5.8
 - `lax-sql.wasm` — dprint lax-sql plugin 0.3.0 (vendored from
   `https://plugins.dprint.dev/bartlomieju/lax-sql-0.3.0.wasm`); the SQL Fmt action
   loads it at runtime from `/static/lax-sql.wasm`

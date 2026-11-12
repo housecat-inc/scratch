@@ -130,7 +130,6 @@ func newRootCmd() *cobra.Command {
 				return errors.Wrap(err, "new sql server")
 			}
 			todoSvc = todo.NewService(store)
-			chatSrv := chat.NewServer(chatSvc, logger)
 			inboxSrv := inbox.NewServer(todoSvc, chatSvc, flows, logger)
 			inboxSrv.SetContacts(store)
 
@@ -151,7 +150,6 @@ func newRootCmd() *cobra.Command {
 			sessionsSrv.Register(srv.Mux, false)
 			contacts.NewServer(store).RegisterAPI(srv.Mux)
 			srv.Mux.HandleFunc("/chat", http.NotFound)
-			srv.Mux.Handle("/chat/", chatSrv.Handler())
 			codex := chat.NewCodexServer(chatSvc)
 			srv.Mux.Handle("/codex", codex.Handler())
 			srv.Mux.Handle("/codex/", codex.Handler())

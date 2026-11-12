@@ -1,7 +1,0 @@
-package testdata
-
-import "github.com/housecat-inc/scratch/ui/utils"
-
-templ Conflict() {
-	<div class={ utils.TwMerge("text-sm text-lg font-medium") }></div>
-}
